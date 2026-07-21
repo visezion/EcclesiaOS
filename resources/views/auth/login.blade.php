@@ -43,6 +43,7 @@
                     <button class="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-3 text-sm font-bold text-white hover:bg-violet-700 focus-visible:ring-2 focus-visible:ring-violet-300">
                         <i data-lucide="log-in" class="size-4"></i> Sign in
                     </button>
+                    <a href="{{ route('password.request') }}" class="block text-center text-sm font-semibold text-slate-600 hover:text-violet-700">Forgot password?</a>
                 </form>
             </div>
         </main>

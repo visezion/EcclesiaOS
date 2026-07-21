@@ -54,5 +54,17 @@ return [
     ['label' => 'HR & Staff', 'route' => 'staff.index', 'icon' => 'user-round-cog', 'permission' => 'manage staff', 'planned' => $planned['staff.index']],
     ['label' => 'Reports & Analytics', 'route' => 'reports.index', 'icon' => 'chart-column', 'permission' => 'view reports', 'planned' => $planned['reports.index']],
     ['label' => 'Workflow & Approvals', 'route' => 'workflows.index', 'icon' => 'git-branch', 'permission' => 'manage workflows', 'badge' => '5', 'planned' => $planned['workflows.index']],
-    ['label' => 'Settings', 'route' => 'settings.index', 'icon' => 'settings', 'permission' => 'manage settings', 'planned' => $planned['settings.index']],
+    [
+        'label' => 'Administration',
+        'route' => 'users.index',
+        'icon' => 'shield-check',
+        'permission' => 'manage users',
+        'children' => [
+            ['label' => 'User Management', 'route' => 'users.index', 'icon' => 'users', 'permission' => 'manage users'],
+            ['label' => 'Roles & Permissions', 'route' => 'roles.index', 'icon' => 'shield-check', 'permission' => 'manage roles'],
+            ['label' => 'Churches & Campuses', 'route' => 'campuses.index', 'icon' => 'landmark', 'permission' => 'manage campuses'],
+            ['label' => 'System Settings', 'route' => 'settings.index', 'icon' => 'settings', 'permission' => 'manage settings'],
+            ['label' => 'Audit Logs', 'route' => 'audit-logs.index', 'icon' => 'clipboard-list', 'permission' => 'view audit log'],
+        ],
+    ],
 ];

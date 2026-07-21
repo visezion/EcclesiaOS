@@ -39,7 +39,13 @@
             </select>
             <x-dropdown>
                 <x-slot:trigger>
-                    <button class="grid size-10 place-items-center rounded-full bg-slate-900 text-sm font-bold text-white" aria-label="Open user menu">{{ strtoupper(substr($user?->name ?? 'U', 0, 1)) }}</button>
+                    <button class="grid size-10 place-items-center overflow-hidden rounded-full bg-slate-900 text-sm font-bold text-white" aria-label="Open user menu">
+                        @if ($user?->avatar_src)
+                            <img src="{{ $user->avatar_src }}" alt="{{ $user->name }}" class="size-full object-cover">
+                        @else
+                            {{ strtoupper(substr($user?->name ?? 'U', 0, 1)) }}
+                        @endif
+                    </button>
                 </x-slot:trigger>
                 <a href="{{ route('profile.edit') }}" class="block rounded-md px-3 py-2 text-sm hover:bg-slate-100">Profile</a>
                 <a href="{{ route('account.settings') }}" class="block rounded-md px-3 py-2 text-sm hover:bg-slate-100">Account settings</a>

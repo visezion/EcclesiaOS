@@ -10,6 +10,7 @@ KingdomHub is a lightweight Laravel church management system foundation with an 
 - Church branding defaults in `config/church.php` and `.env.example`.
 - Coming Soon module pattern for every required sidebar route.
 - Baseline auth, roles, permissions, role middleware, models, migrations, factories, seeders, and tests.
+- Enterprise access-control baseline: profile updates, password changes, password reset links, user management, church/campus assignment, role-permission matrix, permission-filtered sidebar, policies, and activity logging.
 
 ## Stack
 
@@ -72,6 +73,20 @@ Default development login:
 - Email: `admin@kingdomhub.test`
 - Password: `password`
 
+Initial roles:
+
+- Super Administrator
+- Church Administrator
+- Senior Pastor
+- Branch Pastor
+- Finance Officer
+- Membership Officer
+- Asset Manager
+- Book Store Manager
+- Ministry Leader
+- Staff
+- Viewer
+
 ## Quality Commands
 
 ```bash
@@ -85,8 +100,13 @@ npm run build
 
 - `app/Http/Controllers/DashboardController.php` renders the dashboard through `DashboardService`.
 - `app/Http/Controllers/ModuleController.php` renders reusable Coming Soon pages for undeveloped modules.
+- `app/Http/Controllers/AccessControlController.php` renders the Settings access-control console.
+- `app/Http/Controllers/ProfileController.php` handles user profile and password updates.
+- `app/Http/Controllers/UserManagementController.php` manages users, status, roles, church assignment, and campus assignment.
 - `app/Services/DashboardService.php` owns sample dashboard data and keeps Blade templates free of large hardcoded arrays.
 - `app/Services/SearchService.php` provides the global search extension point.
+- `app/Services/ActivityLogger.php` records authentication, profile, and access-control audit events.
+- `config/access.php` defines the initial roles and permissions.
 - `config/navigation.php` defines labels, routes, icons, badges, permissions, and planned capabilities.
 - `resources/views/components` contains reusable layout and dashboard UI building blocks.
 - `database/migrations/2026_07_21_000000_create_church_management_tables.php` contains the initial broad schema.

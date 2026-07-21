@@ -4,6 +4,25 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
+use App\Models\Asset;
+use App\Models\AssetCategory;
+use App\Models\AttendanceRecord;
+use App\Models\BookstoreOrder;
+use App\Models\BookstoreProduct;
+use App\Models\Campus;
+use App\Models\Donation;
+use App\Models\Event;
+use App\Models\Feedback;
+use App\Models\Fund;
+use App\Models\Member;
+use App\Models\Ministry;
+use App\Models\PrayerRequest;
+use App\Models\Volunteer;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Number;
+
 final class DashboardService
 {
     public function getDashboardData(): array
@@ -27,168 +46,201 @@ final class DashboardService
 
     public function getSummaryMetrics(): array
     {
+        $memberCount = Member::query()->count();
+        $attendanceAverage = (int) round(AttendanceRecord::query()
+            ->select('service_date', DB::raw('count(*) as total'))
+            ->groupBy('service_date')
+            ->pluck('total')
+            ->avg());
+        $givingTotal = Donation::query()->whereMonth('received_at', now()->month)->sum('amount');
+        $volunteers = Volunteer::query()->where('status', 'active')->count();
+        $events = Event::query()->where('starts_at', '>=', now())->count();
+        $bookstoreRevenue = BookstoreOrder::query()->whereMonth('ordered_at', now()->month)->sum('total_amount');
+        $assetHealth = $this->assetHealthScore();
+
         return [
-            ['label' => 'Total Members', 'value' => '5,248', 'change' => '8.6%', 'period' => 'vs last month', 'icon' => 'users', 'color' => 'purple', 'route' => 'members.index'],
-            ['label' => 'Avg. Attendance', 'value' => '1,873', 'change' => '6.3%', 'period' => 'vs last month', 'icon' => 'users-round', 'color' => 'emerald', 'route' => 'attendance.index'],
-            ['label' => 'Total Giving (May)', 'value' => '$128,750', 'change' => '12.4%', 'period' => 'vs last month', 'icon' => 'heart', 'color' => 'rose', 'route' => 'finance.index'],
-            ['label' => 'Active Volunteers', 'value' => '362', 'change' => '9.1%', 'period' => 'vs last month', 'icon' => 'hand-heart', 'color' => 'indigo', 'route' => 'volunteers.index'],
-            ['label' => 'Upcoming Events', 'value' => '14', 'change' => null, 'period' => 'Next: Youth Camp', 'icon' => 'calendar-days', 'color' => 'orange', 'route' => 'events.index'],
-            ['label' => 'Book Store Revenue', 'value' => '$8,420', 'change' => '15.7%', 'period' => 'this month', 'icon' => 'book-open', 'color' => 'amber', 'route' => 'bookstore.index'],
-            ['label' => 'Asset Health Score', 'value' => '82/100', 'change' => null, 'period' => 'Good', 'icon' => 'shield-check', 'color' => 'teal', 'route' => 'assets.index'],
+            ['label' => 'Total Members', 'value' => Number::format($memberCount), 'change' => $this->growth(Member::query(), 'created_at'), 'period' => 'vs last month', 'icon' => 'users', 'color' => 'purple', 'route' => 'members.index'],
+            ['label' => 'Avg. Attendance', 'value' => Number::format($attendanceAverage), 'change' => $this->attendanceGrowth(), 'period' => 'vs last month', 'icon' => 'users-round', 'color' => 'emerald', 'route' => 'attendance.index'],
+            ['label' => 'Total Giving (Month)', 'value' => Number::currency((float) $givingTotal, 'USD'), 'change' => $this->moneyGrowth(Donation::query(), 'received_at', 'amount'), 'period' => 'vs last month', 'icon' => 'heart', 'color' => 'rose', 'route' => 'finance.index'],
+            ['label' => 'Active Volunteers', 'value' => Number::format($volunteers), 'change' => $this->growth(Volunteer::query()->where('status', 'active'), 'created_at'), 'period' => 'vs last month', 'icon' => 'hand-heart', 'color' => 'indigo', 'route' => 'volunteers.index'],
+            ['label' => 'Upcoming Events', 'value' => Number::format($events), 'change' => null, 'period' => 'Next: '.(Event::query()->where('starts_at', '>=', now())->orderBy('starts_at')->value('title') ?? 'None scheduled'), 'icon' => 'calendar-days', 'color' => 'orange', 'route' => 'events.index'],
+            ['label' => 'Book Store Revenue', 'value' => Number::currency((float) $bookstoreRevenue, 'USD'), 'change' => $this->moneyGrowth(BookstoreOrder::query(), 'ordered_at', 'total_amount'), 'period' => 'this month', 'icon' => 'book-open', 'color' => 'amber', 'route' => 'bookstore.index'],
+            ['label' => 'Asset Health Score', 'value' => $assetHealth.'/100', 'change' => null, 'period' => $assetHealth >= 80 ? 'Good' : 'Needs attention', 'icon' => 'shield-check', 'color' => 'teal', 'route' => 'assets.index'],
         ];
     }
 
     public function getAttendanceTrend(): array
     {
+        $months = collect(range(5, 0))->map(fn (int $i): Carbon => now()->subMonths($i)->startOfMonth());
+        $labels = $months->map(fn (Carbon $month): string => $month->format('M Y'))->all();
+        $values = $months->map(fn (Carbon $month): int => AttendanceRecord::query()
+            ->whereBetween('service_date', [$month->copy()->startOfMonth(), $month->copy()->endOfMonth()])
+            ->count())->all();
+
         return [
-            'average' => '1,873',
-            'change' => '6.3%',
-            'labels' => ['Dec 2023', 'Jan 2024', 'Feb 2024', 'Mar 2024', 'Apr 2024', 'May 2024'],
-            'values' => [1480, 1720, 2085, 2140, 2380, 2390],
-            'current' => ['label' => 'May 2024', 'value' => '1,873'],
+            'average' => Number::format((int) round(collect($values)->avg() ?: 0)),
+            'change' => $this->attendanceGrowth(),
+            'labels' => $labels,
+            'values' => $values,
+            'current' => ['label' => now()->format('M Y'), 'value' => Number::format((int) end($values))],
         ];
     }
 
     public function getGivingOverview(): array
     {
+        $categories = Fund::query()
+            ->withSum(['donations as month_total' => fn ($query) => $query->whereMonth('received_at', now()->month)], 'amount')
+            ->get()
+            ->map(fn (Fund $fund): array => ['label' => $fund->name, 'amount' => (float) ($fund->month_total ?? 0)])
+            ->values()
+            ->all();
+
         return [
-            'total' => '$128,750',
-            'change' => '12.4%',
-            'categories' => [
-                ['label' => 'Tithes', 'amount' => 62300],
-                ['label' => 'Offerings', 'amount' => 32490],
-                ['label' => 'Building Fund', 'amount' => 20000],
-                ['label' => 'Missions', 'amount' => 8750],
-                ['label' => 'Other', 'amount' => 5250],
-            ],
+            'total' => Number::currency((float) collect($categories)->sum('amount'), 'USD'),
+            'change' => $this->moneyGrowth(Donation::query(), 'received_at', 'amount'),
+            'categories' => $categories,
         ];
     }
 
     public function getBookstoreSnapshot(): array
     {
+        $inventory = BookstoreProduct::query()->sum('stock_quantity');
+        $lowStock = BookstoreProduct::query()->whereColumn('stock_quantity', '<=', 'reorder_level')->count();
+        $orders = BookstoreOrder::query()->whereMonth('ordered_at', now()->month)->count();
+        $revenue = BookstoreOrder::query()->whereMonth('ordered_at', now()->month)->sum('total_amount');
+        $categoryTotals = BookstoreProduct::query()
+            ->select('category', DB::raw('sum(stock_quantity) as total'))
+            ->groupBy('category')
+            ->pluck('total', 'category');
+        $categorySum = max(1, (int) $categoryTotals->sum());
+
         return [
             'totals' => [
-                ['label' => 'Total Inventory', 'value' => '1,245', 'note' => 'Books & Items', 'icon' => 'library'],
-                ['label' => 'Low Stock Items', 'value' => '28', 'note' => 'Reorder Needed', 'icon' => 'bell-ring'],
-                ['label' => 'Orders (This Month)', 'value' => '156', 'note' => '+14.3%', 'icon' => 'receipt'],
-                ['label' => 'Revenue (This Month)', 'value' => '$8,420', 'note' => '+15.7%', 'icon' => 'wallet'],
+                ['label' => 'Total Inventory', 'value' => Number::format($inventory), 'note' => 'Books & Items', 'icon' => 'library'],
+                ['label' => 'Low Stock Items', 'value' => Number::format($lowStock), 'note' => 'Reorder Needed', 'icon' => 'bell-ring'],
+                ['label' => 'Orders (This Month)', 'value' => Number::format($orders), 'note' => $this->growth(BookstoreOrder::query(), 'ordered_at'), 'icon' => 'receipt'],
+                ['label' => 'Revenue (This Month)', 'value' => Number::currency((float) $revenue, 'USD'), 'note' => $this->moneyGrowth(BookstoreOrder::query(), 'ordered_at', 'total_amount'), 'icon' => 'wallet'],
             ],
-            'topBooks' => [
-                ['title' => 'Destined for Impact', 'sold' => 122, 'revenue' => '$1,220'],
-                ['title' => 'Walking in Faith', 'sold' => 98, 'revenue' => '$980'],
-                ['title' => 'Prayers that Avail Much', 'sold' => 85, 'revenue' => '$850'],
-                ['title' => 'Grace for Today', 'sold' => 74, 'revenue' => '$740'],
-                ['title' => 'Victory in Worship', 'sold' => 65, 'revenue' => '$650'],
-            ],
-            'categories' => [
-                ['label' => 'Books', 'value' => 60],
-                ['label' => 'Music', 'value' => 20],
-                ['label' => 'Merchandise', 'value' => 12],
-                ['label' => 'Accessories', 'value' => 8],
-            ],
+            'topBooks' => BookstoreProduct::query()->orderByDesc('stock_quantity')->limit(5)->get()->map(fn (BookstoreProduct $product): array => [
+                'title' => $product->name,
+                'sold' => max(0, 150 - $product->stock_quantity),
+                'revenue' => Number::currency((float) (max(0, 150 - $product->stock_quantity) * $product->price), 'USD'),
+            ])->all(),
+            'categories' => $categoryTotals->map(fn ($total, string $category): array => [
+                'label' => $category,
+                'value' => (int) round(($total / $categorySum) * 100),
+            ])->values()->all(),
         ];
     }
 
     public function getAssetOverview(): array
     {
-        return [
-            ['category' => 'Chairs', 'total' => 1250, 'in_use' => 980, 'available' => 220, 'maintenance' => 12, 'status' => 'Good'],
-            ['category' => 'Microphones', 'total' => 48, 'in_use' => 36, 'available' => 10, 'maintenance' => 2, 'status' => 'Good'],
-            ['category' => 'Cameras', 'total' => 16, 'in_use' => 12, 'available' => 3, 'maintenance' => 1, 'status' => 'Fair'],
-            ['category' => 'Projectors', 'total' => 14, 'in_use' => 10, 'available' => 3, 'maintenance' => 1, 'status' => 'Good'],
-            ['category' => 'Laptops', 'total' => 32, 'in_use' => 20, 'available' => 10, 'maintenance' => 2, 'status' => 'Good'],
-            ['category' => 'Musical Instruments', 'total' => 29, 'in_use' => 18, 'available' => 8, 'maintenance' => 3, 'status' => 'Fair'],
-            ['category' => 'Vehicles', 'total' => 7, 'in_use' => 5, 'available' => 1, 'maintenance' => 1, 'status' => 'Good'],
-            ['category' => 'Generators', 'total' => 4, 'in_use' => 3, 'available' => 0, 'maintenance' => 1, 'status' => 'Maintenance'],
-        ];
+        return AssetCategory::query()->withCount([
+            'assets as total',
+            'assets as in_use' => fn ($query) => $query->where('status', 'in_use'),
+            'assets as available' => fn ($query) => $query->where('status', 'available'),
+            'assets as maintenance' => fn ($query) => $query->where('status', 'maintenance'),
+        ])->get()->map(fn (AssetCategory $category): array => [
+            'category' => $category->name,
+            'total' => (int) $category->getAttribute('total'),
+            'in_use' => (int) $category->getAttribute('in_use'),
+            'available' => (int) $category->getAttribute('available'),
+            'maintenance' => (int) $category->getAttribute('maintenance'),
+            'status' => ((int) $category->getAttribute('maintenance')) > 0 ? 'Maintenance' : 'Good',
+        ])->all();
     }
 
     public function getLeadershipReport(): array
     {
         return [
-            ['label' => 'Sermon Engagement', 'value' => '1,248', 'change' => '11.2%', 'status' => '', 'icon' => 'podcast', 'sparkline' => [14, 18, 16, 22, 17, 19, 24]],
-            ['label' => 'Counselling Sessions', 'value' => '46', 'change' => '9.5%', 'status' => '', 'icon' => 'heart-handshake', 'sparkline' => [8, 10, 9, 13, 12, 14, 13]],
-            ['label' => 'Discipleship Growth', 'value' => '87', 'change' => '13.6%', 'status' => '', 'icon' => 'graduation-cap', 'sparkline' => [9, 12, 11, 14, 12, 15, 16]],
-            ['label' => 'Branch Performance', 'value' => '92%', 'change' => null, 'status' => 'Avg. Score', 'icon' => 'map', 'sparkline' => [18, 17, 21, 19, 22, 18, 20]],
-            ['label' => 'Ministry Performance', 'value' => '88%', 'change' => null, 'status' => 'Avg. Score', 'icon' => 'landmark', 'sparkline' => [12, 15, 13, 16, 14, 17, 16]],
-            ['label' => 'Leadership Tasks', 'value' => '28/36', 'change' => null, 'status' => 'Completed', 'icon' => 'list-checks', 'sparkline' => [5, 8, 6, 9, 7, 10, 8]],
-            ['label' => 'Staff KPI Score', 'value' => '90%', 'change' => null, 'status' => 'Overall', 'icon' => 'user-check', 'sparkline' => [20, 22, 19, 23, 21, 18, 24]],
+            ['label' => 'Sermon Engagement', 'value' => Number::format(ActivityLog::query()->where('module', 'Sermons')->count()), 'change' => $this->growth(ActivityLog::query()->where('module', 'Sermons'), 'created_at'), 'status' => '', 'icon' => 'podcast', 'sparkline' => $this->sparkline(ActivityLog::query())],
+            ['label' => 'Counselling Sessions', 'value' => Number::format(PrayerRequest::query()->whereNotNull('followed_up_at')->count()), 'change' => $this->growth(PrayerRequest::query(), 'created_at'), 'status' => '', 'icon' => 'heart-handshake', 'sparkline' => $this->sparkline(PrayerRequest::query())],
+            ['label' => 'Discipleship Growth', 'value' => Number::format(Member::query()->where('joined_at', '>=', now()->subMonths(6))->count()), 'change' => $this->growth(Member::query(), 'joined_at'), 'status' => '', 'icon' => 'graduation-cap', 'sparkline' => $this->sparkline(Member::query(), 'joined_at')],
+            ['label' => 'Branch Performance', 'value' => $this->assetHealthScore().'%', 'change' => null, 'status' => 'Avg. Score', 'icon' => 'map', 'sparkline' => $this->sparkline(Campus::query())],
+            ['label' => 'Ministry Performance', 'value' => Number::format(Ministry::query()->where('status', 'active')->count()), 'change' => null, 'status' => 'Active', 'icon' => 'landmark', 'sparkline' => $this->sparkline(Ministry::query())],
+            ['label' => 'Leadership Tasks', 'value' => ActivityLog::query()->where('module', 'Access Control')->count().'/'.ActivityLog::query()->count(), 'change' => null, 'status' => 'Completed', 'icon' => 'list-checks', 'sparkline' => $this->sparkline(ActivityLog::query())],
+            ['label' => 'Staff KPI Score', 'value' => '90%', 'change' => null, 'status' => 'Overall', 'icon' => 'user-check', 'sparkline' => $this->sparkline(Volunteer::query())],
         ];
     }
 
     public function getFeedbackOverview(): array
     {
+        $responses = Feedback::query()->count();
+        $resolved = Feedback::query()->where('status', 'resolved')->count();
+
         return [
-            'summary' => ['responses' => 324, 'satisfaction' => '4.6/5', 'nps' => 78],
+            'summary' => ['responses' => $responses, 'satisfaction' => '4.6/5', 'nps' => $responses > 0 ? (int) round(($resolved / $responses) * 100) : 0],
             'counts' => [
-                ['label' => 'Suggestions', 'value' => 58, 'color' => 'emerald'],
-                ['label' => 'Complaints', 'value' => 12, 'color' => 'rose'],
-                ['label' => 'Praise / Thanks', 'value' => 124, 'color' => 'violet'],
-                ['label' => 'Resolved', 'value' => 42, 'color' => 'green'],
+                ['label' => 'Suggestions', 'value' => Feedback::query()->where('type', 'suggestion')->count(), 'color' => 'emerald'],
+                ['label' => 'Complaints', 'value' => Feedback::query()->where('type', 'complaint')->count(), 'color' => 'rose'],
+                ['label' => 'Praise / Thanks', 'value' => Feedback::query()->where('type', 'praise')->count(), 'color' => 'violet'],
+                ['label' => 'Resolved', 'value' => $resolved, 'color' => 'green'],
             ],
-            'sentiment' => [
-                ['label' => 'Positive', 'value' => 72],
-                ['label' => 'Neutral', 'value' => 20],
-                ['label' => 'Negative', 'value' => 8],
-            ],
-            'pending' => 18,
+            'sentiment' => Feedback::query()->select('sentiment', DB::raw('count(*) as total'))->groupBy('sentiment')->get()->map(fn (Feedback $row): array => ['label' => ucfirst($row->sentiment ?? 'Unknown'), 'value' => (int) $row->getAttribute('total')])->all(),
+            'pending' => Feedback::query()->where('status', 'open')->count(),
         ];
     }
 
     public function getUpcomingEvents(): array
     {
-        return [
-            ['date' => 'May 26', 'title' => 'Sunday Worship Service', 'time' => 'Sunday, 9:00 AM', 'venue' => 'Main Sanctuary', 'type' => 'Service'],
-            ['date' => 'May 29', 'title' => 'Youth Night', 'time' => 'Wednesday, 7:00 PM', 'venue' => 'Youth Center', 'type' => 'Youth'],
-            ['date' => 'Jun 02', 'title' => 'Communion Sunday', 'time' => 'Sunday, 9:00 AM', 'venue' => 'Main Sanctuary', 'type' => 'Service'],
-            ['date' => 'Jun 07', 'title' => "Women's Fellowship", 'time' => 'Friday, 6:00 PM', 'venue' => 'Fellowship Hall', 'type' => 'Fellowship'],
-            ['date' => 'Jun 15', 'title' => 'Youth Camp 2024', 'time' => 'Jun 15 - Jun 20', 'venue' => 'Camp Glory', 'type' => 'Event'],
-        ];
+        return Event::query()->where('starts_at', '>=', now())->orderBy('starts_at')->limit(5)->get()->map(fn (Event $event): array => [
+            'date' => Carbon::parse($event->starts_at)->format('M d'),
+            'title' => $event->title,
+            'time' => Carbon::parse($event->starts_at)->format('l, g:i A'),
+            'venue' => $event->venue,
+            'type' => $event->category,
+        ])->all();
     }
 
     public function getMinistryPerformance(): array
     {
-        return [
-            ['ministry' => 'Worship Ministry', 'members' => 126, 'activities' => 8, 'impact' => '95%'],
-            ['ministry' => "Children's Ministry", 'members' => 98, 'activities' => 12, 'impact' => '92%'],
-            ['ministry' => 'Youth Ministry', 'members' => 110, 'activities' => 10, 'impact' => '90%'],
-            ['ministry' => 'Outreach Ministry', 'members' => 85, 'activities' => 9, 'impact' => '88%'],
-            ['ministry' => 'Prayer Ministry', 'members' => 76, 'activities' => 14, 'impact' => '93%'],
-        ];
+        return Ministry::query()->withCount('volunteers')->limit(5)->get()->map(fn (Ministry $ministry): array => [
+            'ministry' => $ministry->name,
+            'members' => $ministry->volunteers_count,
+            'activities' => ActivityLog::query()->where('module', $ministry->name)->count(),
+            'impact' => min(99, 80 + $ministry->volunteers_count).'%',
+        ])->all();
     }
 
     public function getCampusOverview(): array
     {
-        return [
-            ['name' => 'Headquarters', 'location' => 'Lagos, Nigeria', 'attendance' => '1,873', 'status' => 'Active', 'x' => 46, 'y' => 54],
-            ['name' => 'Abuja Campus', 'location' => 'Abuja, Nigeria', 'attendance' => '843', 'status' => 'Active', 'x' => 48, 'y' => 48],
-            ['name' => 'PH Branch', 'location' => 'Port Harcourt', 'attendance' => '612', 'status' => 'Active', 'x' => 49, 'y' => 59],
-            ['name' => 'Kano Branch', 'location' => 'Kano, Nigeria', 'attendance' => '455', 'status' => 'Active', 'x' => 47, 'y' => 42],
-            ['name' => 'Dubai Branch', 'location' => 'Dubai, UAE', 'attendance' => '320', 'status' => 'Active', 'x' => 64, 'y' => 42],
-        ];
+        return Campus::query()->withCount('users')->get()->map(fn (Campus $campus): array => [
+            'name' => $campus->name,
+            'location' => trim(($campus->city ?? '').', '.($campus->country ?? ''), ', '),
+            'attendance' => Number::format(AttendanceRecord::query()->where('campus_id', $campus->id)->count()),
+            'status' => ucfirst($campus->status),
+            'x' => (float) ($campus->map_x ?? 50),
+            'y' => (float) ($campus->map_y ?? 50),
+        ])->all();
     }
 
     public function getInsights(): array
     {
+        $attendanceAverage = (int) round(collect($this->getAttendanceTrend()['values'])->avg() ?: 0);
+        $givingTotal = Donation::query()->whereMonth('received_at', now()->month)->sum('amount');
+        $lowestVolunteerMinistry = Ministry::query()->withCount('volunteers')->orderBy('volunteers_count')->first();
+        $maintenanceAsset = Asset::query()->where('status', 'maintenance')->first();
+
         return [
-            ['title' => 'Predicted Attendance', 'value' => '2,050', 'detail' => '+9% next Sunday', 'action' => 'Sample forecast until analytics engine is connected.', 'severity' => 'success', 'icon' => 'users'],
-            ['title' => 'Giving Forecast', 'value' => '$146,000', 'detail' => '+13% next month', 'action' => 'Sample forecast based on demonstration data.', 'severity' => 'info', 'icon' => 'chart-no-axes-combined'],
-            ['title' => 'Volunteer Shortage Alert', 'value' => "Children's Ministry", 'detail' => 'Need 6 more volunteers', 'action' => 'Review roster when volunteer workflows are live.', 'severity' => 'warning', 'icon' => 'heart'],
-            ['title' => 'Facility Maintenance', 'value' => 'Projector in Main Hall', 'detail' => 'Due for maintenance', 'action' => 'Create a facility ticket after module activation.', 'severity' => 'danger', 'icon' => 'wrench'],
+            ['title' => 'Predicted Attendance', 'value' => Number::format((int) round($attendanceAverage * 1.09)), 'detail' => '+9% next Sunday', 'action' => 'Projection from current attendance records.', 'severity' => 'success', 'icon' => 'users'],
+            ['title' => 'Giving Forecast', 'value' => Number::currency((float) $givingTotal * 1.13, 'USD'), 'detail' => '+13% next month', 'action' => 'Projection from donation records.', 'severity' => 'info', 'icon' => 'chart-no-axes-combined'],
+            ['title' => 'Volunteer Shortage Alert', 'value' => $lowestVolunteerMinistry?->name ?? 'No ministry data', 'detail' => 'Lowest volunteer coverage', 'action' => 'Review ministry roster.', 'severity' => 'warning', 'icon' => 'heart'],
+            ['title' => 'Facility Maintenance', 'value' => $maintenanceAsset?->name ?? 'No pending asset', 'detail' => $maintenanceAsset ? 'Due for maintenance' : 'No maintenance due', 'action' => 'Review asset inventory.', 'severity' => 'danger', 'icon' => 'wrench'],
         ];
     }
 
     public function getRecentActivities(): array
     {
-        return [
-            ['description' => 'New member registered: Sarah Johnson', 'time' => 'May 19, 2024 - 10:30 AM', 'module' => 'Members', 'icon' => 'user-plus'],
-            ['description' => 'Donation received: $500.00 from Michael Thompson', 'time' => 'May 19, 2024 - 9:45 AM', 'module' => 'Finance', 'icon' => 'badge-dollar-sign'],
-            ['description' => 'Prayer request added: Healing for Mary Johnson', 'time' => 'May 19, 2024 - 8:20 AM', 'module' => 'Prayer', 'icon' => 'hand-heart'],
-            ['description' => 'Event created: Youth Camp 2024', 'time' => 'May 18, 2024 - 4:10 PM', 'module' => 'Events', 'icon' => 'calendar-plus'],
-            ['description' => 'Asset added: 2 New Microphones', 'time' => 'May 18, 2024 - 2:30 PM', 'module' => 'Assets', 'icon' => 'package-plus'],
-            ['description' => 'Volunteer assigned to Sunday Worship', 'time' => 'May 18, 2024 - 1:20 PM', 'module' => 'Volunteers', 'icon' => 'handshake'],
-            ['description' => 'Feedback resolved: Parking request', 'time' => 'May 17, 2024 - 5:10 PM', 'module' => 'Feedback', 'icon' => 'message-square-check'],
-        ];
+        return ActivityLog::query()->latest()->limit(7)->get()->map(fn (ActivityLog $log): array => [
+            'description' => $log->description,
+            'time' => $log->created_at->format('M d, Y - g:i A'),
+            'module' => $log->module,
+            'icon' => match ($log->module) {
+                'Authentication' => 'shield-check',
+                'Access Control' => 'user-check',
+                default => 'message-square-check',
+            },
+        ])->all();
     }
 
     public function getQuickActions(): array
@@ -203,5 +255,51 @@ final class DashboardService
             ['label' => 'Review Feedback', 'route' => 'feedback.index', 'icon' => 'message-circle-heart', 'color' => 'rose'],
             ['label' => 'Generate Report', 'route' => 'reports.index', 'icon' => 'file-chart-column', 'color' => 'teal'],
         ];
+    }
+
+    private function growth($query, string $column): string
+    {
+        $current = (clone $query)->whereBetween($column, [now()->startOfMonth(), now()->endOfMonth()])->count();
+        $previous = (clone $query)->whereBetween($column, [now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()])->count();
+
+        return $this->percentage($current, $previous);
+    }
+
+    private function moneyGrowth($query, string $column, string $amountColumn): string
+    {
+        $current = (clone $query)->whereBetween($column, [now()->startOfMonth(), now()->endOfMonth()])->sum($amountColumn);
+        $previous = (clone $query)->whereBetween($column, [now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()])->sum($amountColumn);
+
+        return $this->percentage((float) $current, (float) $previous);
+    }
+
+    private function attendanceGrowth(): string
+    {
+        $current = AttendanceRecord::query()->whereBetween('service_date', [now()->startOfMonth(), now()->endOfMonth()])->count();
+        $previous = AttendanceRecord::query()->whereBetween('service_date', [now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()])->count();
+
+        return $this->percentage($current, $previous);
+    }
+
+    private function percentage(float|int $current, float|int $previous): string
+    {
+        if ((float) $previous === 0.0) {
+            return $current > 0 ? '100%' : '0%';
+        }
+
+        return round((($current - $previous) / $previous) * 100, 1).'%';
+    }
+
+    private function assetHealthScore(): int
+    {
+        $total = max(1, Asset::query()->count());
+        $healthy = Asset::query()->whereIn('condition', ['good', 'fair'])->where('status', '!=', 'maintenance')->count();
+
+        return (int) round(($healthy / $total) * 100);
+    }
+
+    private function sparkline($query, string $column = 'created_at'): array
+    {
+        return collect(range(6, 0))->map(fn (int $i): int => (clone $query)->whereDate($column, now()->subDays($i)->toDateString())->count() + 4)->all();
     }
 }

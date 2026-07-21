@@ -6,6 +6,8 @@ import {
     ArrowUp,
     Baby,
     BadgeDollarSign,
+    Badge,
+    BadgeCheck,
     Bell,
     BellRing,
     BookOpen,
@@ -16,11 +18,15 @@ import {
     ChartColumn,
     ChartNoAxesCombined,
     CheckCircle2,
+    Check,
     ChevronRight,
     ChevronUp,
     CircleHelp,
     ClipboardCheck,
+    ClipboardList,
     Cross,
+    Download,
+    Eye,
     FileChartColumn,
     FileSearch,
     Gauge,
@@ -40,14 +46,19 @@ import {
     Map,
     MapPin,
     Menu,
+    Minus,
     MessageCircleHeart,
     MessageSquare,
     MessageSquareCheck,
     MessageSquareText,
     MonitorPlay,
+    MoreVertical,
     Network,
     PackageCheck,
     PackagePlus,
+    Pencil,
+    Phone,
+    Plus,
     Podcast,
     Receipt,
     Search,
@@ -65,6 +76,7 @@ import {
     UsersRound,
     Wallet,
     Wrench,
+    X,
     createIcons,
 } from 'lucide';
 import {
@@ -99,6 +111,199 @@ Chart.register(
 );
 
 window.Alpine = Alpine;
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('userDirectory', () => ({
+        selected: [],
+        search: '',
+        role: '',
+        campus: '',
+        status: '',
+        inviteOpen: false,
+        viewing: null,
+        editing: null,
+        actioning: null,
+
+        visibleRows() {
+            return Array.from(document.querySelectorAll('[data-user-row]')).filter(row => this.matches(row));
+        },
+
+        visibleIds() {
+            return this.visibleRows().map(row => row.dataset.userId);
+        },
+
+        visibleCount() {
+            return this.visibleIds().length;
+        },
+
+        allVisibleSelected() {
+            const ids = this.visibleIds();
+
+            return ids.length > 0 && ids.every(id => this.selected.includes(id));
+        },
+
+        matches(row) {
+            const query = this.search.trim().toLowerCase();
+            const roles = (row.dataset.roles || '').split(',').filter(Boolean);
+
+            return (! query || (row.dataset.search || '').includes(query))
+                && (! this.role || roles.includes(this.role))
+                && (! this.campus || row.dataset.campus === this.campus)
+                && (! this.status || row.dataset.status === this.status);
+        },
+
+        toggleAll(event) {
+            const ids = this.visibleIds();
+
+            this.selected = event.target.checked
+                ? Array.from(new Set([...this.selected, ...ids]))
+                : this.selected.filter(id => ! ids.includes(id));
+        },
+
+        clearFilters() {
+            this.search = '';
+            this.role = '';
+            this.campus = '';
+            this.status = '';
+        },
+    }));
+
+    Alpine.data('roleDirectory', initialRoleId => ({
+        selectedRole: String(initialRoleId || ''),
+        search: '',
+        status: '',
+        type: '',
+        addOpen: false,
+        cloneOpen: false,
+        menuOpen: null,
+        cloneRoleId: String(initialRoleId || ''),
+        cloneRoleName: '',
+
+        roleRows() {
+            return Array.from(document.querySelectorAll('[data-role-row]'));
+        },
+
+        matches(row) {
+            const query = this.search.trim().toLowerCase();
+
+            return (! query || (row.dataset.search || '').includes(query))
+                && (! this.status || row.dataset.status === this.status)
+                && (! this.type || row.dataset.type === this.type);
+        },
+
+        visibleCount() {
+            return this.roleRows().filter(row => this.matches(row)).length;
+        },
+
+        selectRole(id) {
+            this.selectedRole = String(id);
+            this.menuOpen = null;
+        },
+
+        openClone(id, name) {
+            this.cloneRoleId = String(id);
+            this.cloneRoleName = `Copy of ${name}`;
+            this.cloneOpen = true;
+            this.menuOpen = null;
+        },
+
+        openSelectedClone() {
+            const row = this.roleRows().find(item => item.dataset.roleId === this.selectedRole);
+
+            this.openClone(this.selectedRole, row?.dataset.roleName || 'Selected Role');
+        },
+
+        clearFilters() {
+            this.search = '';
+            this.status = '';
+            this.type = '';
+        },
+    }));
+
+    Alpine.data('campusDirectory', (users, assignmentBaseUrl) => ({
+        users,
+        assignmentBaseUrl,
+        search: '',
+        church: '',
+        type: '',
+        status: '',
+        userSearch: '',
+        selectedUserId: String(users[0]?.id || ''),
+        selectedChurchId: String(users[0]?.church_id || ''),
+        selectedCampusId: String(users[0]?.campus_id || ''),
+        selectedRoleId: String(users[0]?.role_ids?.[0] || ''),
+        selectedCampusIds: [],
+        accessScope: 'single',
+        addOpen: false,
+        importOpen: false,
+
+        selectedUser() {
+            return this.users.find(user => String(user.id) === String(this.selectedUserId)) || this.users[0] || {};
+        },
+
+        assignmentAction() {
+            return `${this.assignmentBaseUrl}/${this.selectedUserId}`;
+        },
+
+        campusRows() {
+            return Array.from(document.querySelectorAll('[data-campus-row]'));
+        },
+
+        matchesCampus(row) {
+            const query = this.search.trim().toLowerCase();
+
+            return (! query || (row.dataset.search || '').includes(query))
+                && (! this.church || row.dataset.church === this.church)
+                && (! this.type || row.dataset.type === this.type)
+                && (! this.status || row.dataset.status === this.status);
+        },
+
+        visibleCampusCount() {
+            return this.campusRows().filter(row => this.matchesCampus(row)).length;
+        },
+
+        filteredUsers() {
+            const query = this.userSearch.trim().toLowerCase();
+
+            return this.users.filter(user => ! query || user.search.includes(query));
+        },
+
+        selectUser(user) {
+            this.selectedUserId = String(user.id);
+            this.selectedChurchId = String(user.church_id || '');
+            this.selectedCampusId = String(user.campus_id || '');
+            this.selectedRoleId = String(user.role_ids?.[0] || '');
+        },
+
+        clearFilters() {
+            this.search = '';
+            this.church = '';
+            this.type = '';
+            this.status = '';
+        },
+    }));
+
+    Alpine.data('profilePage', () => ({
+        tab: 'overview',
+        editOpen: false,
+        passwordOpen: false,
+        actionOpen: false,
+        avatarPreview: null,
+
+        previewAvatar(event) {
+            const file = event.target.files?.[0];
+
+            if (! file) {
+                this.avatarPreview = null;
+
+                return;
+            }
+
+            this.avatarPreview = URL.createObjectURL(file);
+        },
+    }));
+});
+
 Alpine.start();
 
 const icons = {
@@ -107,6 +312,8 @@ const icons = {
     ArrowUp,
     Baby,
     BadgeDollarSign,
+    Badge,
+    BadgeCheck,
     Bell,
     BellRing,
     BookOpen,
@@ -117,11 +324,15 @@ const icons = {
     ChartColumn,
     ChartNoAxesCombined,
     CheckCircle2,
+    Check,
     ChevronRight,
     ChevronUp,
     CircleHelp,
     ClipboardCheck,
+    ClipboardList,
     Cross,
+    Download,
+    Eye,
     FileChartColumn,
     FileSearch,
     Gauge,
@@ -141,14 +352,19 @@ const icons = {
     Map,
     MapPin,
     Menu,
+    Minus,
     MessageCircleHeart,
     MessageSquare,
     MessageSquareCheck,
     MessageSquareText,
     MonitorPlay,
+    MoreVertical,
     Network,
     PackageCheck,
     PackagePlus,
+    Pencil,
+    Phone,
+    Plus,
     Podcast,
     Receipt,
     Search,
@@ -166,6 +382,7 @@ const icons = {
     UsersRound,
     Wallet,
     Wrench,
+    X,
 };
 
 const palette = {
@@ -223,7 +440,7 @@ function initGivingChart(canvas) {
             labels,
             datasets: [{
                 data: values,
-                backgroundColor: [palette.purple, palette.blue, palette.teal, palette.orange, palette.rose],
+                backgroundColor: [palette.purple, palette.blue, palette.teal, palette.orange, palette.rose, palette.amber],
                 borderRadius: 5,
                 maxBarThickness: 36,
             }],
@@ -235,14 +452,19 @@ function initGivingChart(canvas) {
 function initDoughnutChart(canvas) {
     const labels = parseJson(canvas.dataset.labels);
     const values = parseJson(canvas.dataset.values);
+    const colors = parseJson(canvas.dataset.colors, [palette.purple, palette.blue, palette.teal, palette.orange, palette.rose, palette.amber]);
+    const numericValues = values.map(value => Number(value) || 0);
+    const total = numericValues.reduce((sum, value) => sum + value, 0);
+
+    Chart.getChart(canvas)?.destroy();
 
     new Chart(canvas, {
         type: 'doughnut',
         data: {
-            labels,
+            labels: total > 0 ? labels : ['No data'],
             datasets: [{
-                data: values,
-                backgroundColor: [palette.purple, palette.blue, palette.teal, palette.orange, palette.rose],
+                data: total > 0 ? numericValues : [1],
+                backgroundColor: total > 0 ? colors : ['#e2e8f0'],
                 borderColor: '#fff',
                 borderWidth: 4,
             }],

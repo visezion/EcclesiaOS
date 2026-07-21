@@ -15,6 +15,7 @@ final class ModuleController extends Controller
         $module = collect(config('navigation'))->firstWhere('route', $routeName) ?? $this->profileModule($routeName);
 
         abort_if($module === null, 404);
+        abort_if(isset($module['permission']) && ! $request->user()?->isSuperAdministrator() && ! $request->user()?->hasPermission($module['permission']), 403);
 
         return view('modules.coming-soon', [
             'module' => $module,
