@@ -11,6 +11,7 @@ use App\Models\AttendanceRecord;
 use App\Models\BookstoreOrder;
 use App\Models\BookstoreProduct;
 use App\Models\Campus;
+use App\Models\Church;
 use App\Models\Donation;
 use App\Models\Event;
 use App\Models\Feedback;
@@ -46,6 +47,7 @@ final class DashboardService
 
     public function getSummaryMetrics(): array
     {
+        $currency = $this->currency();
         $memberCount = Member::query()->count();
         $attendanceAverage = (int) round(AttendanceRecord::query()
             ->select('service_date', DB::raw('count(*) as total'))
@@ -61,10 +63,10 @@ final class DashboardService
         return [
             ['label' => 'Total Members', 'value' => Number::format($memberCount), 'change' => $this->growth(Member::query(), 'created_at'), 'period' => 'vs last month', 'icon' => 'users', 'color' => 'purple', 'route' => 'members.index'],
             ['label' => 'Avg. Attendance', 'value' => Number::format($attendanceAverage), 'change' => $this->attendanceGrowth(), 'period' => 'vs last month', 'icon' => 'users-round', 'color' => 'emerald', 'route' => 'attendance.index'],
-            ['label' => 'Total Giving (Month)', 'value' => Number::currency((float) $givingTotal, 'USD'), 'change' => $this->moneyGrowth(Donation::query(), 'received_at', 'amount'), 'period' => 'vs last month', 'icon' => 'heart', 'color' => 'rose', 'route' => 'finance.index'],
+            ['label' => 'Total Giving (Month)', 'value' => Number::currency((float) $givingTotal, $currency), 'change' => $this->moneyGrowth(Donation::query(), 'received_at', 'amount'), 'period' => 'vs last month', 'icon' => 'heart', 'color' => 'rose', 'route' => 'finance.index'],
             ['label' => 'Active Volunteers', 'value' => Number::format($volunteers), 'change' => $this->growth(Volunteer::query()->where('status', 'active'), 'created_at'), 'period' => 'vs last month', 'icon' => 'hand-heart', 'color' => 'indigo', 'route' => 'volunteers.index'],
             ['label' => 'Upcoming Events', 'value' => Number::format($events), 'change' => null, 'period' => 'Next: '.(Event::query()->where('starts_at', '>=', now())->orderBy('starts_at')->value('title') ?? 'None scheduled'), 'icon' => 'calendar-days', 'color' => 'orange', 'route' => 'events.index'],
-            ['label' => 'Book Store Revenue', 'value' => Number::currency((float) $bookstoreRevenue, 'USD'), 'change' => $this->moneyGrowth(BookstoreOrder::query(), 'ordered_at', 'total_amount'), 'period' => 'this month', 'icon' => 'book-open', 'color' => 'amber', 'route' => 'bookstore.index'],
+            ['label' => 'Book Store Revenue', 'value' => Number::currency((float) $bookstoreRevenue, $currency), 'change' => $this->moneyGrowth(BookstoreOrder::query(), 'ordered_at', 'total_amount'), 'period' => 'this month', 'icon' => 'book-open', 'color' => 'amber', 'route' => 'bookstore.index'],
             ['label' => 'Asset Health Score', 'value' => $assetHealth.'/100', 'change' => null, 'period' => $assetHealth >= 80 ? 'Good' : 'Needs attention', 'icon' => 'shield-check', 'color' => 'teal', 'route' => 'assets.index'],
         ];
     }
@@ -88,6 +90,7 @@ final class DashboardService
 
     public function getGivingOverview(): array
     {
+        $currency = $this->currency();
         $categories = Fund::query()
             ->withSum(['donations as month_total' => fn ($query) => $query->whereMonth('received_at', now()->month)], 'amount')
             ->get()
@@ -96,7 +99,7 @@ final class DashboardService
             ->all();
 
         return [
-            'total' => Number::currency((float) collect($categories)->sum('amount'), 'USD'),
+            'total' => Number::currency((float) collect($categories)->sum('amount'), $currency),
             'change' => $this->moneyGrowth(Donation::query(), 'received_at', 'amount'),
             'categories' => $categories,
         ];
@@ -104,6 +107,7 @@ final class DashboardService
 
     public function getBookstoreSnapshot(): array
     {
+        $currency = $this->currency();
         $inventory = BookstoreProduct::query()->sum('stock_quantity');
         $lowStock = BookstoreProduct::query()->whereColumn('stock_quantity', '<=', 'reorder_level')->count();
         $orders = BookstoreOrder::query()->whereMonth('ordered_at', now()->month)->count();
@@ -119,12 +123,12 @@ final class DashboardService
                 ['label' => 'Total Inventory', 'value' => Number::format($inventory), 'note' => 'Books & Items', 'icon' => 'library'],
                 ['label' => 'Low Stock Items', 'value' => Number::format($lowStock), 'note' => 'Reorder Needed', 'icon' => 'bell-ring'],
                 ['label' => 'Orders (This Month)', 'value' => Number::format($orders), 'note' => $this->growth(BookstoreOrder::query(), 'ordered_at'), 'icon' => 'receipt'],
-                ['label' => 'Revenue (This Month)', 'value' => Number::currency((float) $revenue, 'USD'), 'note' => $this->moneyGrowth(BookstoreOrder::query(), 'ordered_at', 'total_amount'), 'icon' => 'wallet'],
+                ['label' => 'Revenue (This Month)', 'value' => Number::currency((float) $revenue, $currency), 'note' => $this->moneyGrowth(BookstoreOrder::query(), 'ordered_at', 'total_amount'), 'icon' => 'wallet'],
             ],
             'topBooks' => BookstoreProduct::query()->orderByDesc('stock_quantity')->limit(5)->get()->map(fn (BookstoreProduct $product): array => [
                 'title' => $product->name,
                 'sold' => max(0, 150 - $product->stock_quantity),
-                'revenue' => Number::currency((float) (max(0, 150 - $product->stock_quantity) * $product->price), 'USD'),
+                'revenue' => Number::currency((float) (max(0, 150 - $product->stock_quantity) * $product->price), $currency),
             ])->all(),
             'categories' => $categoryTotals->map(fn ($total, string $category): array => [
                 'label' => $category,
@@ -216,6 +220,7 @@ final class DashboardService
 
     public function getInsights(): array
     {
+        $currency = $this->currency();
         $attendanceAverage = (int) round(collect($this->getAttendanceTrend()['values'])->avg() ?: 0);
         $givingTotal = Donation::query()->whereMonth('received_at', now()->month)->sum('amount');
         $lowestVolunteerMinistry = Ministry::query()->withCount('volunteers')->orderBy('volunteers_count')->first();
@@ -223,7 +228,7 @@ final class DashboardService
 
         return [
             ['title' => 'Predicted Attendance', 'value' => Number::format((int) round($attendanceAverage * 1.09)), 'detail' => '+9% next Sunday', 'action' => 'Projection from current attendance records.', 'severity' => 'success', 'icon' => 'users'],
-            ['title' => 'Giving Forecast', 'value' => Number::currency((float) $givingTotal * 1.13, 'USD'), 'detail' => '+13% next month', 'action' => 'Projection from donation records.', 'severity' => 'info', 'icon' => 'chart-no-axes-combined'],
+            ['title' => 'Giving Forecast', 'value' => Number::currency((float) $givingTotal * 1.13, $currency), 'detail' => '+13% next month', 'action' => 'Projection from donation records.', 'severity' => 'info', 'icon' => 'chart-no-axes-combined'],
             ['title' => 'Volunteer Shortage Alert', 'value' => $lowestVolunteerMinistry?->name ?? 'No ministry data', 'detail' => 'Lowest volunteer coverage', 'action' => 'Review ministry roster.', 'severity' => 'warning', 'icon' => 'heart'],
             ['title' => 'Facility Maintenance', 'value' => $maintenanceAsset?->name ?? 'No pending asset', 'detail' => $maintenanceAsset ? 'Due for maintenance' : 'No maintenance due', 'action' => 'Review asset inventory.', 'severity' => 'danger', 'icon' => 'wrench'],
         ];
@@ -271,6 +276,13 @@ final class DashboardService
         $previous = (clone $query)->whereBetween($column, [now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()])->sum($amountColumn);
 
         return $this->percentage((float) $current, (float) $previous);
+    }
+
+    private function currency(): string
+    {
+        $church = Church::query()->first();
+
+        return (string) (data_get($church?->settings, 'currency') ?: $church?->currency ?: config('church.currency', 'USD'));
     }
 
     private function attendanceGrowth(): string

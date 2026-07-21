@@ -9,6 +9,7 @@ use App\Models\Role;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -18,17 +19,17 @@ final class UserDirectoryController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
-        $users = User::query()->with(['church', 'campus', 'roles'])->latest()->get();
+        $users = $this->scopeUsers(User::query(), $request)->with(['church', 'campus', 'roles'])->latest()->get();
         $roles = Role::query()->orderBy('name')->get();
-        $campuses = Campus::query()->orderBy('name')->get();
+        $campuses = $this->scopeCampuses(Campus::query(), $request)->orderBy('name')->get();
 
         return view('admin.users', [
             'users' => $users,
             'roles' => $roles,
-            'churches' => Church::query()->orderBy('name')->get(),
+            'churches' => $this->scopeChurches(Church::query(), $request)->orderBy('name')->get(),
             'campuses' => $campuses,
-            'roleDistribution' => Role::query()->withCount('users')->orderByDesc('users_count')->get(),
-            'campusDistribution' => Campus::query()->withCount('users')->orderByDesc('users_count')->get(),
+            'roleDistribution' => Role::query()->withCount(['users' => fn (Builder $query) => $this->scopeUsers($query, $request)])->orderByDesc('users_count')->get(),
+            'campusDistribution' => $this->scopeCampuses(Campus::query(), $request)->withCount(['users' => fn (Builder $query) => $this->scopeUsers($query, $request)])->orderByDesc('users_count')->get(),
             'recentActivity' => ActivityLog::query()->with('user')->where('module', 'Access Control')->latest()->limit(6)->get(),
             'stats' => [
                 'total' => $users->count(),
@@ -45,13 +46,13 @@ final class UserDirectoryController extends Controller
         ]);
     }
 
-    public function export(): StreamedResponse
+    public function export(Request $request): StreamedResponse
     {
         $this->authorize('viewAny', User::class);
 
         $filename = 'users-directory-'.now()->format('Y-m-d-His').'.csv';
 
-        return response()->streamDownload(function (): void {
+        return response()->streamDownload(function () use ($request): void {
             $handle = fopen('php://output', 'w');
 
             if ($handle === false) {
@@ -70,7 +71,7 @@ final class UserDirectoryController extends Controller
                 'Last Login',
             ]);
 
-            User::query()
+            $this->scopeUsers(User::query(), $request)
                 ->with(['church', 'campus', 'roles'])
                 ->orderBy('name')
                 ->lazy(100)
@@ -96,5 +97,53 @@ final class UserDirectoryController extends Controller
         }, $filename, [
             'Content-Type' => 'text/csv',
         ]);
+    }
+
+    private function scopeUsers(Builder $query, Request $request): Builder
+    {
+        $user = $request->user();
+
+        if ($user?->isSuperAdministrator()) {
+            return $query;
+        }
+
+        $query->where('church_id', $user?->church_id);
+        $query->whereDoesntHave('roles', fn (Builder $roleQuery) => $roleQuery->where('name', 'Super Administrator'));
+
+        if ($user?->campus_id !== null) {
+            $query->where(fn (Builder $campusQuery) => $campusQuery
+                ->whereNull('campus_id')
+                ->orWhere('campus_id', $user->campus_id));
+        }
+
+        return $query;
+    }
+
+    private function scopeCampuses(Builder $query, Request $request): Builder
+    {
+        $user = $request->user();
+
+        if ($user?->isSuperAdministrator()) {
+            return $query;
+        }
+
+        $query->where('church_id', $user?->church_id);
+
+        if ($user?->campus_id !== null) {
+            $query->where('id', $user->campus_id);
+        }
+
+        return $query;
+    }
+
+    private function scopeChurches(Builder $query, Request $request): Builder
+    {
+        $user = $request->user();
+
+        if ($user?->isSuperAdministrator()) {
+            return $query;
+        }
+
+        return $query->where('id', $user?->church_id);
     }
 }

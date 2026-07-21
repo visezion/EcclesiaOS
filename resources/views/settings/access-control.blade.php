@@ -1,4 +1,13 @@
 <x-app-layout title="Access Control" :breadcrumbs="$breadcrumbs">
+    @php
+        $sidebarBackgroundPath = data_get($brandingChurch?->settings, 'sidebar_background') ?: config('church.sidebar_background');
+        $sidebarBackgroundUrl = \Illuminate\Support\Str::startsWith((string) $sidebarBackgroundPath, ['http://', 'https://', '/'])
+            ? $sidebarBackgroundPath
+            : (\Illuminate\Support\Str::startsWith((string) $sidebarBackgroundPath, 'branding/')
+                ? asset('storage/'.$sidebarBackgroundPath)
+                : asset($sidebarBackgroundPath));
+    @endphp
+
     <div class="space-y-4">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -21,6 +30,37 @@
                 {{ $errors->first() }}
             </div>
         @endif
+
+        <section class="dashboard-card">
+            <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-950">Sidebar Background</h2>
+                    <p class="mt-1 text-sm text-slate-500">Upload a PNG image for the lower sidebar background behind the profile card.</p>
+                </div>
+                <form method="POST" action="{{ route('settings.branding.sidebar-background.reset') }}">
+                    @csrf
+                    @method('DELETE')
+                    <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset Background</button>
+                </form>
+            </div>
+            <div class="grid gap-4 lg:grid-cols-[240px_1fr] lg:items-center">
+                <div class="overflow-hidden rounded-lg border border-slate-200 bg-sidebar">
+                    <div class="h-32 bg-church-silhouette" style="--sidebar-background-image: url('{{ $sidebarBackgroundUrl }}');"></div>
+                </div>
+                <form method="POST" action="{{ route('settings.branding.sidebar-background') }}" enctype="multipart/form-data" class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                    @csrf
+                    <label class="space-y-1 text-sm">
+                        <span class="font-medium text-slate-700">PNG file</span>
+                        <input name="sidebar_background" type="file" accept="image/png" required class="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-violet-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-violet-700">
+                        <span class="block text-xs text-slate-500">PNG only, up to 2 MB. Current source: {{ $sidebarBackgroundPath }}</span>
+                    </label>
+                    <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">
+                        <i data-lucide="upload" class="size-4"></i>
+                        Upload PNG
+                    </button>
+                </form>
+            </div>
+        </section>
 
         <section class="dashboard-card">
             <div class="mb-4 flex items-center justify-between gap-3">

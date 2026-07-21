@@ -84,7 +84,7 @@
                                     @php
                                         $primaryRole = $user->roles->first();
                                         $viewPayload = [
-                                            'id' => $user->id,
+                                             'id' => $user->opaqueId(),
                                             'name' => $user->name,
                                             'email' => $user->email,
                                             'phone' => $user->phone ?? 'No phone number',
@@ -100,14 +100,14 @@
                                     @endphp
                                     <tr
                                         data-user-row
-                                        data-user-id="{{ $user->id }}"
+                                        data-user-id="{{ $user->opaqueId() }}"
                                         data-search="{{ Str::lower($user->name.' '.$user->email.' '.($user->phone ?? '')) }}"
                                         data-roles="{{ $user->roles->pluck('id')->join(',') }}"
                                         data-campus="{{ $user->campus_id ?? '' }}"
                                         data-status="{{ $user->status }}"
                                         x-show="matches($el)"
                                     >
-                                        <td><input type="checkbox" name="users[]" value="{{ $user->id }}" x-model="selected" class="rounded border-slate-300"></td>
+                                        <td><input type="checkbox" name="users[]" value="{{ $user->opaqueId() }}" x-model="selected" class="rounded border-slate-300"></td>
                                         <td>
                                             <div class="flex items-center gap-3">
                                                 @if ($user->avatar_src)
@@ -131,9 +131,9 @@
                                         <td>
                                             <div class="flex justify-end gap-1">
                                                 <a href="{{ $viewPayload['emailHref'] }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Email user"><i data-lucide="mail" class="size-4"></i></a>
-                                                <button type="button" @click="viewing = @js($viewPayload)" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="View user"><i data-lucide="eye" class="size-4"></i></button>
-                                                <button type="button" @click="editing = '{{ $user->id }}'" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Edit user"><i data-lucide="pencil" class="size-4"></i></button>
-                                                <button type="button" @click="actioning = '{{ $user->id }}'" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="More actions"><i data-lucide="more-vertical" class="size-4"></i></button>
+                                                <a href="{{ route('users.show', $user) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="View user profile"><i data-lucide="eye" class="size-4"></i></a>
+                                                <a href="{{ route('users.show', ['user' => $user, 'edit' => 1]) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Edit user profile"><i data-lucide="pencil" class="size-4"></i></a>
+                                                <button type="button" @click="actioning = '{{ $user->opaqueId() }}'" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="More actions"><i data-lucide="more-vertical" class="size-4"></i></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -150,25 +150,25 @@
                     </div>
                 </form>
                 @foreach ($users as $user)
-                    <form id="single-user-activate-{{ $user->id }}" method="POST" action="{{ route('users.bulk') }}" class="hidden">
+                    <form id="single-user-activate-{{ $user->opaqueId() }}" method="POST" action="{{ route('users.bulk') }}" class="hidden">
                         @csrf
                         <input type="hidden" name="action" value="activate">
-                        <input type="hidden" name="users[]" value="{{ $user->id }}">
+                        <input type="hidden" name="users[]" value="{{ $user->opaqueId() }}">
                     </form>
-                    <form id="single-user-suspend-{{ $user->id }}" method="POST" action="{{ route('users.bulk') }}" class="hidden">
+                    <form id="single-user-suspend-{{ $user->opaqueId() }}" method="POST" action="{{ route('users.bulk') }}" class="hidden">
                         @csrf
                         <input type="hidden" name="action" value="suspend">
-                        <input type="hidden" name="users[]" value="{{ $user->id }}">
+                        <input type="hidden" name="users[]" value="{{ $user->opaqueId() }}">
                     </form>
-                    <form id="single-user-deactivate-{{ $user->id }}" method="POST" action="{{ route('users.bulk') }}" class="hidden">
+                    <form id="single-user-deactivate-{{ $user->opaqueId() }}" method="POST" action="{{ route('users.bulk') }}" class="hidden">
                         @csrf
                         <input type="hidden" name="action" value="deactivate">
-                        <input type="hidden" name="users[]" value="{{ $user->id }}">
+                        <input type="hidden" name="users[]" value="{{ $user->opaqueId() }}">
                     </form>
-                    <form id="single-user-mfa-{{ $user->id }}" method="POST" action="{{ route('users.bulk') }}" class="hidden">
+                    <form id="single-user-mfa-{{ $user->opaqueId() }}" method="POST" action="{{ route('users.bulk') }}" class="hidden">
                         @csrf
                         <input type="hidden" name="action" value="{{ $user->mfa_enabled ? 'disable_mfa' : 'enable_mfa' }}">
-                        <input type="hidden" name="users[]" value="{{ $user->id }}">
+                        <input type="hidden" name="users[]" value="{{ $user->opaqueId() }}">
                     </form>
                 @endforeach
                 </section>
@@ -438,7 +438,7 @@
         </div>
 
         @foreach ($users as $user)
-            <div x-cloak x-show="editing === '{{ $user->id }}'" x-transition.opacity class="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/40 p-4" @keydown.escape.window="editing = null">
+            <div x-cloak x-show="editing === '{{ $user->opaqueId() }}'" x-transition.opacity class="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/40 p-4" @keydown.escape.window="editing = null">
                 <div class="my-6 w-full max-w-3xl rounded-xl bg-white shadow-2xl" @click.outside="editing = null">
                     <div class="flex items-start justify-between border-b border-slate-100 p-5">
                         <div>
@@ -517,7 +517,7 @@
             @php
                 $primaryRole = $user->roles->first();
                 $viewPayload = [
-                    'id' => $user->id,
+                    'id' => $user->opaqueId(),
                     'name' => $user->name,
                     'email' => $user->email,
                     'phone' => $user->phone ?? 'No phone number',
@@ -531,7 +531,7 @@
                     'emailHref' => 'mailto:'.$user->email.'?subject='.rawurlencode('KingdomHub account'),
                 ];
             @endphp
-            <div x-cloak x-show="actioning === '{{ $user->id }}'" x-transition.opacity class="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4" @keydown.escape.window="actioning = null">
+            <div x-cloak x-show="actioning === '{{ $user->opaqueId() }}'" x-transition.opacity class="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4" @keydown.escape.window="actioning = null">
                 <div class="w-full max-w-sm rounded-xl bg-white shadow-2xl" @click.outside="actioning = null">
                     <div class="flex items-start justify-between border-b border-slate-100 p-5">
                         <div>
@@ -544,15 +544,19 @@
                     </div>
                     <div class="space-y-2 p-5">
                         <a href="{{ $viewPayload['emailHref'] }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="mail" class="size-4"></i>Send Email</a>
-                        <button type="button" @click="viewing = @js($viewPayload); actioning = null" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="eye" class="size-4"></i>View Details</button>
-                        <button type="button" @click="editing = '{{ $user->id }}'; actioning = null" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="pencil" class="size-4"></i>Edit User</button>
+                        <a href="{{ route('users.show', $user) }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="eye" class="size-4"></i>View Full Profile</a>
+                        <a href="{{ route('users.show', ['user' => $user, 'edit' => 1]) }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="pencil" class="size-4"></i>Edit Full Profile</a>
+                        <form method="POST" action="{{ route('users.impersonate', $user) }}">
+                            @csrf
+                            <button type="submit" class="flex w-full items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-left text-sm font-bold text-violet-700 hover:bg-violet-50"><i data-lucide="user-check" class="size-4"></i>Impersonate User</button>
+                        </form>
                         @if ($user->status === 'active')
-                            <button type="submit" form="single-user-suspend-{{ $user->id }}" class="flex w-full items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-left text-sm font-bold text-rose-700 hover:bg-rose-50"><i data-lucide="shield-alert" class="size-4"></i>Suspend User</button>
-                            <button type="submit" form="single-user-deactivate-{{ $user->id }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="minus" class="size-4"></i>Deactivate User</button>
+                            <button type="submit" form="single-user-suspend-{{ $user->opaqueId() }}" class="flex w-full items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-left text-sm font-bold text-rose-700 hover:bg-rose-50"><i data-lucide="shield-alert" class="size-4"></i>Suspend User</button>
+                            <button type="submit" form="single-user-deactivate-{{ $user->opaqueId() }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="minus" class="size-4"></i>Deactivate User</button>
                         @else
-                            <button type="submit" form="single-user-activate-{{ $user->id }}" class="flex w-full items-center gap-2 rounded-lg border border-emerald-200 px-3 py-2 text-left text-sm font-bold text-emerald-700 hover:bg-emerald-50"><i data-lucide="check" class="size-4"></i>Activate User</button>
+                            <button type="submit" form="single-user-activate-{{ $user->opaqueId() }}" class="flex w-full items-center gap-2 rounded-lg border border-emerald-200 px-3 py-2 text-left text-sm font-bold text-emerald-700 hover:bg-emerald-50"><i data-lucide="check" class="size-4"></i>Activate User</button>
                         @endif
-                        <button type="submit" form="single-user-mfa-{{ $user->id }}" class="flex w-full items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-left text-sm font-bold text-violet-700 hover:bg-violet-50"><i data-lucide="shield-check" class="size-4"></i>{{ $user->mfa_enabled ? 'Disable' : 'Enable' }} MFA</button>
+                        <button type="submit" form="single-user-mfa-{{ $user->opaqueId() }}" class="flex w-full items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-left text-sm font-bold text-violet-700 hover:bg-violet-50"><i data-lucide="shield-check" class="size-4"></i>{{ $user->mfa_enabled ? 'Disable' : 'Enable' }} MFA</button>
                     </div>
                 </div>
             </div>

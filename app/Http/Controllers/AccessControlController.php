@@ -31,6 +31,7 @@ final class AccessControlController extends Controller
             'churches' => Church::query()->orderBy('name')->get(),
             'campuses' => Campus::query()->orderBy('name')->get(),
             'activityLogs' => ActivityLog::query()->with('user')->latest()->limit(15)->get(),
+            'brandingChurch' => Church::query()->first(),
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
                 ['label' => 'Settings', 'url' => null],

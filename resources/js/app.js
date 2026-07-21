@@ -24,24 +24,31 @@ import {
     CircleHelp,
     ClipboardCheck,
     ClipboardList,
+    CloudCheck,
     Cross,
     Download,
     Eye,
     FileChartColumn,
     FileSearch,
+    Fingerprint,
     Gauge,
     GitBranch,
     GraduationCap,
+    Globe2,
     HandHeart,
     Handshake,
+    HardDrive,
     Heart,
     HeartHandshake,
     Inbox,
     Landmark,
     LayoutDashboard,
+    LayoutGrid,
     Library,
+    Link,
     ListChecks,
     LogIn,
+    LogOut,
     Mail,
     Map,
     MapPin,
@@ -56,27 +63,37 @@ import {
     Network,
     PackageCheck,
     PackagePlus,
+    Palette,
     Pencil,
     Phone,
     Plus,
     Podcast,
     Receipt,
+    RefreshCw,
+    RotateCcw,
+    Save,
     Search,
     Send,
     Settings,
+    SlidersHorizontal,
     ShieldAlert,
     ShieldCheck,
+    Sparkles,
     Star,
     TrendingUp,
+    TriangleAlert,
     UserCheck,
     UserPlus,
     UserRound,
     UserRoundCog,
     Users,
     UsersRound,
+    Upload,
     Wallet,
     Wrench,
     X,
+    KeyRound,
+    Lock,
     createIcons,
 } from 'lucide';
 import {
@@ -227,6 +244,7 @@ document.addEventListener('alpine:init', () => {
         church: '',
         type: '',
         status: '',
+        minCapacity: '',
         userSearch: '',
         selectedUserId: String(users[0]?.id || ''),
         selectedChurchId: String(users[0]?.church_id || ''),
@@ -236,6 +254,8 @@ document.addEventListener('alpine:init', () => {
         accessScope: 'single',
         addOpen: false,
         importOpen: false,
+        moreFiltersOpen: false,
+        expandedCampusId: '',
 
         selectedUser() {
             return this.users.find(user => String(user.id) === String(this.selectedUserId)) || this.users[0] || {};
@@ -251,11 +271,14 @@ document.addEventListener('alpine:init', () => {
 
         matchesCampus(row) {
             const query = this.search.trim().toLowerCase();
+            const minimumCapacity = Number(this.minCapacity) || 0;
+            const capacity = Number(row.dataset.capacity) || 0;
 
             return (! query || (row.dataset.search || '').includes(query))
                 && (! this.church || row.dataset.church === this.church)
                 && (! this.type || row.dataset.type === this.type)
-                && (! this.status || row.dataset.status === this.status);
+                && (! this.status || row.dataset.status === this.status)
+                && (! minimumCapacity || capacity >= minimumCapacity);
         },
 
         visibleCampusCount() {
@@ -275,17 +298,30 @@ document.addEventListener('alpine:init', () => {
             this.selectedRoleId = String(user.role_ids?.[0] || '');
         },
 
+        toggleCampus(id) {
+            this.expandedCampusId = this.expandedCampusId === String(id) ? '' : String(id);
+        },
+
+        resetAssignment() {
+            this.userSearch = '';
+            this.accessScope = 'single';
+            if (this.users[0]) {
+                this.selectUser(this.users[0]);
+            }
+        },
+
         clearFilters() {
             this.search = '';
             this.church = '';
             this.type = '';
             this.status = '';
+            this.minCapacity = '';
         },
     }));
 
-    Alpine.data('profilePage', () => ({
+    Alpine.data('profilePage', (openEdit = false) => ({
         tab: 'overview',
-        editOpen: false,
+        editOpen: Boolean(openEdit),
         passwordOpen: false,
         actionOpen: false,
         avatarPreview: null,
@@ -330,24 +366,31 @@ const icons = {
     CircleHelp,
     ClipboardCheck,
     ClipboardList,
+    CloudCheck,
     Cross,
     Download,
     Eye,
     FileChartColumn,
     FileSearch,
+    Fingerprint,
     Gauge,
     GitBranch,
     GraduationCap,
+    Globe2,
     HandHeart,
     Handshake,
+    HardDrive,
     Heart,
     HeartHandshake,
     Inbox,
     Landmark,
     LayoutDashboard,
+    LayoutGrid,
     Library,
+    Link,
     ListChecks,
     LogIn,
+    LogOut,
     Mail,
     Map,
     MapPin,
@@ -362,27 +405,37 @@ const icons = {
     Network,
     PackageCheck,
     PackagePlus,
+    Palette,
     Pencil,
     Phone,
     Plus,
     Podcast,
     Receipt,
+    RefreshCw,
+    RotateCcw,
+    Save,
     Search,
     Send,
     Settings,
+    SlidersHorizontal,
     ShieldAlert,
     ShieldCheck,
+    Sparkles,
     Star,
     TrendingUp,
+    TriangleAlert,
     UserCheck,
     UserPlus,
     UserRound,
     UserRoundCog,
     Users,
     UsersRound,
+    Upload,
     Wallet,
     Wrench,
     X,
+    KeyRound,
+    Lock,
 };
 
 const palette = {
@@ -399,6 +452,14 @@ function parseJson(value, fallback = []) {
     try {
         return JSON.parse(value || '[]');
     } catch {
+        if (typeof value === 'string' && value.trim().startsWith('JSON.parse(')) {
+            try {
+                return Function(`"use strict"; return (${value});`)();
+            } catch {
+                return fallback;
+            }
+        }
+
         return fallback;
     }
 }

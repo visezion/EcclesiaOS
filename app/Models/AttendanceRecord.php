@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesOpaqueRouteKeys;
+
 use Illuminate\Database\Eloquent\Model;
 
 final class AttendanceRecord extends Model
 {
+    use UsesOpaqueRouteKeys;
     protected $fillable = ['church_id', 'campus_id', 'event_id', 'member_id', 'service_date', 'status', 'checked_in_at', 'metadata'];
 
     protected function casts(): array

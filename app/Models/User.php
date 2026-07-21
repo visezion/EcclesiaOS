@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesOpaqueRouteKeys;
+
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,6 +16,7 @@ use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
+    use UsesOpaqueRouteKeys;
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
@@ -115,6 +118,11 @@ class User extends Authenticatable
     public function canAccessChurch(?int $churchId): bool
     {
         return $this->isSuperAdministrator() || $churchId === null || $this->church_id === $churchId;
+    }
+
+    public function canAccessCampus(?int $campusId): bool
+    {
+        return $this->isSuperAdministrator() || $campusId === null || $this->campus_id === null || $this->campus_id === $campusId;
     }
 
     public function getAvatarSrcAttribute(): ?string

@@ -4,7 +4,7 @@
     $greetingName = trim(($user?->title ? str($user->title)->before(' ')->toString().' ' : '').$firstName);
 @endphp
 
-<header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+<header class="app-topbar sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
     <div class="flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-7">
         <button type="button" class="grid size-10 place-items-center rounded-lg text-slate-600 outline-none hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500" x-on:click="sidebarOpen = true" aria-label="Open sidebar">
             <i data-lucide="menu" class="size-5"></i>

@@ -143,7 +143,7 @@
                                 <button
                                     type="button"
                                     @click="selectRole('{{ $role->id }}')"
-                                    class="flex w-full items-center gap-3 border-l-2 border-transparent p-3 text-left hover:bg-violet-50"
+                                    class="flex w-full items-center gap-3 border-l-2 border-transparent p-3 pr-14 text-left hover:bg-violet-50"
                                     :class="selectedRole === '{{ $role->id }}' ? 'border-l-violet-600 bg-violet-50 ring-1 ring-inset ring-violet-200' : ''"
                                 >
                                     <span class="grid size-10 shrink-0 place-items-center rounded-lg border {{ $roleIcon['class'] }}"><i data-lucide="{{ $roleIcon['icon'] }}" class="size-5"></i></span>
@@ -151,7 +151,7 @@
                                         <span class="block truncate text-sm font-black text-slate-900">{{ $role->name }}</span>
                                         <span class="block truncate text-xs text-slate-500">{{ $role->description }}</span>
                                     </span>
-                                    <span class="w-14 text-right text-xs font-black text-slate-700">{{ number_format($role->users_count) }} {{ Str::plural('User', $role->users_count) }}</span>
+                                    <span class="w-20 shrink-0 text-right text-xs font-black text-slate-700">{{ number_format($role->users_count) }} {{ Str::plural('User', $role->users_count) }}</span>
                                 </button>
                                 <button type="button" @click.stop="menuOpen = menuOpen === '{{ $role->id }}' ? null : '{{ $role->id }}'" class="absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-lg text-slate-500 hover:bg-white">
                                     <i data-lucide="more-vertical" class="size-4"></i>
@@ -203,7 +203,12 @@
                                             <tr>
                                                 <th class="w-[280px]">Modules</th>
                                                 @foreach ($columns as $column)
-                                                    <th class="text-center">{{ $column }} <span class="ml-1 inline-grid size-3 place-items-center rounded-full border border-slate-300 text-[9px] text-slate-400">?</span></th>
+                                                    <th class="min-w-[96px] text-center">
+                                                        <span class="inline-flex items-center justify-center gap-1 whitespace-nowrap">
+                                                            {{ $column }}
+                                                            <span class="inline-grid size-3.5 place-items-center rounded-full border border-slate-300 text-[9px] leading-none text-slate-400">?</span>
+                                                        </span>
+                                                    </th>
                                                 @endforeach
                                             </tr>
                                         </thead>
@@ -220,8 +225,8 @@
                                                         </div>
                                                     </td>
                                                     @foreach ($columns as $column)
-                                                        <td class="text-center">
-                                                            <input type="checkbox" name="permissions[]" value="{{ $row['model']->id }}" @checked($hasPermission) class="rounded border-slate-300 text-violet-600">
+                                                        <td class="min-w-[96px] text-center">
+                                                            <input type="checkbox" name="permissions[]" value="{{ $row['model']->id }}" @checked($hasPermission) class="size-4 rounded border-slate-300 text-violet-600">
                                                         </td>
                                                     @endforeach
                                                 </tr>

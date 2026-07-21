@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesOpaqueRouteKeys;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class Campus extends Model
 {
+    use UsesOpaqueRouteKeys;
     use HasFactory;
     use SoftDeletes;
 
@@ -40,5 +43,10 @@ final class Campus extends Model
     public function members(): HasMany
     {
         return $this->hasMany(Member::class);
+    }
+
+    public function careTasks(): HasMany
+    {
+        return $this->hasMany(CareTask::class);
     }
 }

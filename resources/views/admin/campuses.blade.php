@@ -70,7 +70,7 @@
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <button type="button" x-on:click="importOpen = true" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:border-violet-200">
-                        <i data-lucide="download" class="size-4"></i>
+                        <i data-lucide="upload" class="size-4"></i>
                         Import Churches
                     </button>
                     <button type="button" x-on:click="addOpen = true" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">
@@ -113,11 +113,18 @@
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select>
-                    <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">
+                    <button type="button" x-on:click="moreFiltersOpen = ! moreFiltersOpen" x-bind:class="moreFiltersOpen ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-slate-200 text-slate-700'" class="inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold">
                         <i data-lucide="settings" class="size-4"></i>
                         More Filters
                     </button>
                     <button type="button" x-on:click="clearFilters()" class="px-3 py-2.5 text-sm font-semibold text-violet-600">Clear</button>
+                </div>
+                <div x-cloak x-show="moreFiltersOpen" class="grid gap-3 border-b border-slate-100 px-4 pb-4 md:grid-cols-[180px_1fr]">
+                    <label class="space-y-1 text-sm">
+                        <span class="text-xs font-semibold text-slate-500">Minimum Capacity</span>
+                        <input x-model="minCapacity" type="number" min="0" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Any capacity">
+                    </label>
+                    <div class="flex items-end text-xs text-slate-500">Filters update the table instantly and keep all campus records loaded.</div>
                 </div>
 
                 <div class="overflow-x-auto">
@@ -149,8 +156,9 @@
                                     data-church="{{ $campus->church_id }}"
                                     data-type="{{ $campus->type }}"
                                     data-status="{{ $campus->status }}"
+                                    data-capacity="{{ $campus->capacity ?? 0 }}"
                                 >
-                                    <td><button type="button" class="grid size-7 place-items-center rounded-md text-slate-500 hover:bg-slate-50"><i data-lucide="chevron-right" class="size-4"></i></button></td>
+                                    <td><button type="button" x-on:click="toggleCampus('{{ $campus->id }}')" class="grid size-7 place-items-center rounded-md text-slate-500 hover:bg-slate-50"><i data-lucide="chevron-right" x-bind:class="expandedCampusId === '{{ $campus->id }}' ? 'rotate-90' : ''" class="size-4 transition"></i></button></td>
                                     <td>
                                         <div class="flex items-center gap-3">
                                             <div class="grid size-9 place-items-center rounded-full bg-violet-50 text-violet-600">
@@ -189,6 +197,29 @@
                                         <div class="flex items-center gap-2 text-sm text-slate-600">
                                             <i data-lucide="map-pin" class="size-4 text-slate-500"></i>
                                             {{ $campus->address }}
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr x-cloak x-show="expandedCampusId === '{{ $campus->id }}' && matchesCampus($el.previousElementSibling)">
+                                    <td></td>
+                                    <td colspan="7" class="bg-slate-50/70">
+                                        <div class="grid gap-3 py-3 md:grid-cols-4">
+                                            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                                                <div class="text-xs text-slate-500">Members</div>
+                                                <div class="mt-1 text-lg font-semibold text-slate-950">{{ number_format($campus->members_count) }}</div>
+                                            </div>
+                                            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                                                <div class="text-xs text-slate-500">Capacity</div>
+                                                <div class="mt-1 text-lg font-semibold text-slate-950">{{ $campus->capacity ? number_format($campus->capacity) : 'N/A' }}</div>
+                                            </div>
+                                            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                                                <div class="text-xs text-slate-500">Service Location</div>
+                                                <div class="mt-1 truncate text-sm font-semibold text-slate-950">{{ $campus->metadata['service_location'] ?? 'Main Auditorium' }}</div>
+                                            </div>
+                                            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                                                <div class="text-xs text-slate-500">Sunday Service</div>
+                                                <div class="mt-1 truncate text-sm font-semibold text-slate-950">{{ $campus->metadata['sunday_service'] ?? '9:00 AM' }}</div>
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
@@ -296,7 +327,7 @@
                     <h2 class="text-lg font-semibold text-slate-950">Assign User to Church & Campus</h2>
                     <p class="mt-1 text-sm text-slate-500">Assign a user to a church and set their access scope.</p>
                 </div>
-                <button type="button" class="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-50"><i data-lucide="x" class="size-5"></i></button>
+                <button type="button" x-on:click="resetAssignment()" class="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-50"><i data-lucide="x" class="size-5"></i></button>
             </div>
 
             <form method="POST" x-bind:action="assignmentAction()" class="space-y-5">
@@ -382,7 +413,7 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 pt-3">
-                    <button type="button" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</button>
+                    <button type="button" x-on:click="resetAssignment()" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</button>
                     <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white">
                         <i data-lucide="check" class="size-4"></i>
                         Assign User

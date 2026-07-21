@@ -16,6 +16,17 @@ final class UserPolicy
         return $user->hasPermission('manage users');
     }
 
+    public function view(User $user, User $target): bool
+    {
+        if ($target->isSuperAdministrator()) {
+            return false;
+        }
+
+        return $user->hasPermission('manage users')
+            && $user->canAccessChurch($target->church_id)
+            && $user->canAccessCampus($target->campus_id);
+    }
+
     public function create(User $user): bool
     {
         return $user->hasPermission('manage users');
@@ -23,7 +34,13 @@ final class UserPolicy
 
     public function update(User $user, User $target): bool
     {
-        return $user->hasPermission('manage users') && $user->canAccessChurch($target->church_id);
+        if ($target->isSuperAdministrator()) {
+            return false;
+        }
+
+        return $user->hasPermission('manage users')
+            && $user->canAccessChurch($target->church_id)
+            && $user->canAccessCampus($target->campus_id);
     }
 
     public function assignRoles(User $user, User $target): bool

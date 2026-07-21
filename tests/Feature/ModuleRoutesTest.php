@@ -28,9 +28,9 @@ class ModuleRoutesTest extends TestCase
         $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
 
         $this->actingAs($user)
-            ->get(route('members.index'))
+            ->get(route('attendance.index'))
             ->assertOk()
-            ->assertSee('Members')
+            ->assertSee('Attendance')
             ->assertSee('This module is currently under development');
     }
 }

@@ -42,6 +42,7 @@ final class RolePermissionController extends Controller
     public function clone(Request $request, Role $role, ActivityLogger $activityLogger): RedirectResponse
     {
         $this->authorize('create', Role::class);
+        $this->authorize('update', $role);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:roles,name'],
@@ -75,7 +76,7 @@ final class RolePermissionController extends Controller
 
         $permissionIds = $role->name === 'Super Administrator'
             ? Permission::query()->pluck('id')->all()
-            : ($validated['permissions'] ?? []);
+            : collect($validated['permissions'] ?? [])->unique()->values()->all();
 
         $role->permissions()->sync($permissionIds);
 

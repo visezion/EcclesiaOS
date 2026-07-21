@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesOpaqueRouteKeys;
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class Fund extends Model
 {
+    use UsesOpaqueRouteKeys;
     protected $fillable = ['church_id', 'name', 'code', 'description', 'is_active'];
 
     protected function casts(): array

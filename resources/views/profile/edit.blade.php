@@ -34,16 +34,31 @@
             'sessions' => 'Sessions',
             'documents' => 'Documents',
         ];
+        $isAdminProfile = $isAdminProfile ?? false;
+        $profileUpdateRoute = $profileUpdateRoute ?? route('profile.update');
+        $profileUpdateMethod = $profileUpdateMethod ?? 'PATCH';
+        $passwordUpdateRoute = $passwordUpdateRoute ?? route('profile.password');
+        $passwordRequiresCurrent = $passwordRequiresCurrent ?? true;
+        $impersonateRoute = $impersonateRoute ?? route('profile.impersonate');
+        $profileRefreshRoute = $isAdminProfile ? route('users.show', $user) : route('profile.edit');
+        $adminRoles = collect($roles ?? []);
+        $adminChurches = collect($churches ?? []);
+        $adminCampuses = collect($campuses ?? []);
     @endphp
 
-    <div x-data="profilePage()" class="space-y-4">
+    <div x-data="profilePage(@js(request()->boolean('edit')))" class="space-y-4">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="flex items-center gap-3">
                 <h1 class="text-xl font-black text-slate-950">User Profile</h1>
                 <span class="text-sm font-semibold text-slate-400">Users &gt; {{ $user->name }}</span>
             </div>
             <div class="flex flex-wrap gap-2">
-                <form method="POST" action="{{ route('profile.impersonate') }}">
+                @if ($isAdminProfile)
+                    <a href="{{ route('users.index') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
+                        <i data-lucide="arrow-left" class="size-4"></i> Back to Users
+                    </a>
+                @endif
+                <form method="POST" action="{{ $impersonateRoute }}">
                     @csrf
                     <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
                         <i data-lucide="user-check" class="size-4"></i> Impersonate User
@@ -249,7 +264,7 @@
         </div>
 
         <div x-show="tab === 'sessions'" class="dashboard-card">
-            <div class="mb-5 flex items-center justify-between"><h2 class="flex items-center gap-3 text-base font-black text-slate-950"><i data-lucide="monitor-play" class="size-5 text-violet-600"></i>Active Sessions ({{ $sessionCount }})</h2><a href="{{ route('profile.edit') }}" class="text-xs font-bold text-violet-600">Refresh</a></div>
+            <div class="mb-5 flex items-center justify-between"><h2 class="flex items-center gap-3 text-base font-black text-slate-950"><i data-lucide="monitor-play" class="size-5 text-violet-600"></i>Active Sessions ({{ $sessionCount }})</h2><a href="{{ $profileRefreshRoute }}" class="text-xs font-bold text-violet-600">Refresh</a></div>
             @forelse ($activeSessions as $session)
                 <div class="flex items-center justify-between border-b border-slate-100 py-4 last:border-0">
                     <div class="flex items-center gap-3">
@@ -336,9 +351,9 @@
                     </div>
                     <button type="button" @click="editOpen = false" class="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><i data-lucide="x" class="size-4"></i></button>
                 </div>
-                <form method="POST" action="{{ route('profile.update') }}" enctype="multipart/form-data" class="space-y-5 p-5">
+                <form method="POST" action="{{ $profileUpdateRoute }}" enctype="multipart/form-data" class="space-y-5 p-5">
                     @csrf
-                    @method('PATCH')
+                    @method($profileUpdateMethod)
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
                         <div class="relative size-24 overflow-hidden rounded-full bg-violet-100">
                             @if ($user->avatar_src)
@@ -366,6 +381,12 @@
                         <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Emergency Contact<input name="emergency_contact_name" value="{{ old('emergency_contact_name', $user->emergency_contact_name) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900"></label>
                         <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Relationship<input name="emergency_contact_relationship" value="{{ old('emergency_contact_relationship', $user->emergency_contact_relationship) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900"></label>
                         <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Emergency Phone<input name="emergency_contact_phone" value="{{ old('emergency_contact_phone', $user->emergency_contact_phone) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900"></label>
+                        @if ($isAdminProfile)
+                            <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Status<select name="status" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900"><option value="active" @selected(old('status', $user->status) === 'active')>Active</option><option value="inactive" @selected(old('status', $user->status) === 'inactive')>Inactive</option><option value="suspended" @selected(old('status', $user->status) === 'suspended')>Suspended</option></select></label>
+                            <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Role<select name="roles[]" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900">@foreach($adminRoles as $adminRole)<option value="{{ $adminRole->id }}" @selected($user->roles->contains($adminRole))>{{ $adminRole->name }}</option>@endforeach</select></label>
+                            <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Church<select name="church_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900"><option value="">Global</option>@foreach($adminChurches as $church)<option value="{{ $church->id }}" @selected((string) old('church_id', $user->church_id) === (string) $church->id)>{{ $church->name }}</option>@endforeach</select></label>
+                            <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Campus<select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900"><option value="">All Campuses</option>@foreach($adminCampuses as $campus)<option value="{{ $campus->id }}" @selected((string) old('campus_id', $user->campus_id) === (string) $campus->id)>{{ $campus->name }}</option>@endforeach</select></label>
+                        @endif
                     </div>
                     <div class="flex justify-end gap-3 border-t border-slate-100 pt-4">
                         <button type="button" @click="editOpen = false" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
@@ -384,10 +405,12 @@
                     </div>
                     <button type="button" @click="passwordOpen = false" class="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><i data-lucide="x" class="size-4"></i></button>
                 </div>
-                <form method="POST" action="{{ route('profile.password') }}" class="space-y-4 p-5">
+                <form method="POST" action="{{ $passwordUpdateRoute }}" class="space-y-4 p-5">
                     @csrf
                     @method('PUT')
-                    <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Current Password<input name="current_password" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" required></label>
+                    @if ($passwordRequiresCurrent)
+                        <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Current Password<input name="current_password" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" required></label>
+                    @endif
                     <label class="space-y-1 text-xs font-bold uppercase text-slate-500">New Password<input name="password" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" required></label>
                     <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Confirm New Password<input name="password_confirmation" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" required></label>
                     <div class="flex justify-end gap-3 border-t border-slate-100 pt-4">

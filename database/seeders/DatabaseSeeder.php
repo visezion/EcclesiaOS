@@ -9,9 +9,11 @@ use App\Models\AttendanceRecord;
 use App\Models\BookstoreOrder;
 use App\Models\BookstoreProduct;
 use App\Models\Campus;
+use App\Models\CareTask;
 use App\Models\Church;
 use App\Models\Donation;
 use App\Models\Event;
+use App\Models\Family;
 use App\Models\Feedback;
 use App\Models\Fund;
 use App\Models\Member;
@@ -36,6 +38,7 @@ class DatabaseSeeder extends Seeder
         $roles = $this->seedAccessControl();
         $users = $this->seedUsers($church, $campuses, $roles);
         $members = $this->seedMembers($church, $campuses);
+        $this->seedFamilies($church, $members);
         $funds = $this->seedFunds($church);
 
         $this->seedEvents($church, $campuses);
@@ -45,6 +48,7 @@ class DatabaseSeeder extends Seeder
         $this->seedAssets($church, $campuses);
         $this->seedBookstore($church, $campuses);
         $this->seedFeedbackAndPrayer($church, $campuses, $members);
+        $this->seedCareTasks($church, $members, $users);
         $this->seedActivityLogs($church, $campuses, $users);
     }
 
@@ -253,6 +257,23 @@ SVG);
         ])->all();
     }
 
+    private function seedFamilies(Church $church, array $members): void
+    {
+        foreach (array_chunk(array_values($members), 4) as $index => $familyMembers) {
+            $head = $familyMembers[0];
+            $family = Family::query()->updateOrCreate(
+                ['church_id' => $church->id, 'name' => $head->last_name.' Family'],
+                [
+                    'campus_id' => $head->campus_id,
+                    'primary_contact_id' => $head->id,
+                    'address' => ($index + 100).' Kingdom Way, Dallas, TX',
+                ],
+            );
+
+            Member::query()->whereIn('id', collect($familyMembers)->pluck('id'))->update(['family_id' => $family->id]);
+        }
+    }
+
     private function seedEvents(Church $church, array $campuses): void
     {
         $rows = [
@@ -442,6 +463,30 @@ SVG);
                     'status' => $i % 3 === 0 ? 'open' : 'followed-up',
                     'is_confidential' => $i % 5 === 0,
                     'followed_up_at' => $i % 3 === 0 ? null : now()->subDays($i),
+                ],
+            );
+        }
+    }
+
+    private function seedCareTasks(Church $church, array $members, array $users): void
+    {
+        $types = ['Counseling', 'Visitation', 'Prayer Request', 'Membership', 'Family Care', 'Hospital Visit'];
+        $statuses = ['pending', 'assigned', 'in-progress', 'on-hold', 'resolved'];
+        $priorities = ['low', 'medium', 'high', 'urgent'];
+
+        foreach (array_slice(array_values($members), 0, 14) as $index => $member) {
+            $status = $statuses[$index % count($statuses)];
+            CareTask::query()->updateOrCreate(
+                ['church_id' => $church->id, 'member_id' => $member->id, 'type' => $types[$index % count($types)]],
+                [
+                    'campus_id' => $member->campus_id,
+                    'assigned_user_id' => array_values($users)[$index % count($users)]->id,
+                    'priority' => $priorities[$index % count($priorities)],
+                    'status' => $status,
+                    'next_action' => ['Schedule counseling session', 'Follow up by phone', 'Hospital visit follow-up', 'Send encouragement', 'Review membership path'][$index % 5],
+                    'notes' => 'Pastoral care task recorded for '.$member->first_name.' '.$member->last_name.'.',
+                    'due_at' => now()->addDays($index + 1)->setTime(10, 0),
+                    'resolved_at' => $status === 'resolved' ? now()->subDays($index) : null,
                 ],
             );
         }
