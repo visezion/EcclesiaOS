@@ -1,0 +1,93 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+    --color-brand-navy: #071d3a;
+    --color-brand-purple: #6d4aff;
+    --color-brand-blue: #2477f2;
+    --color-page: #f6f8fc;
+    --color-card-border: #dfe6f2;
+    --shadow-card: 0 10px 28px rgb(15 23 42 / 0.06);
+}
+
+@layer base {
+    html {
+        font-size: 80%;
+        scroll-behavior: smooth;
+    }
+
+    body {
+        background: #f6f8fc;
+        overflow-x: hidden;
+    }
+
+    button,
+    a,
+    input,
+    select {
+        outline-offset: 2px;
+    }
+}
+
+@layer components {
+    .bg-sidebar {
+        background:
+            radial-gradient(circle at 20% 0%, rgb(109 74 255 / 0.32), transparent 30%),
+            linear-gradient(180deg, #061633 0%, #082851 52%, #061633 100%);
+    }
+
+    .bg-church-silhouette {
+        background:
+            linear-gradient(to top, rgb(1 10 24 / 0.95), transparent),
+            url("data:image/svg+xml,%3Csvg width='320' height='210' viewBox='0 0 320 210' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23f59e0b' opacity='.35'%3E%3Crect x='60' y='130' width='150' height='52'/%3E%3Crect x='91' y='95' width='36' height='87'/%3E%3Crect x='145' y='82' width='40' height='100'/%3E%3Cpath d='M91 95l18-44 18 44H91zM145 82l20-55 20 55h-40z'/%3E%3Crect x='220' y='120' width='38' height='62'/%3E%3Cpath d='M220 120l19-46 19 46h-38z'/%3E%3Ccircle cx='165' cy='122' r='16'/%3E%3C/g%3E%3C/svg%3E") bottom center / contain no-repeat;
+    }
+
+    .dashboard-card {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid #dfe6f2;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 10px 28px rgb(15 23 42 / 0.06);
+        padding: 1rem;
+        transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    .table-compact {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8125rem;
+    }
+
+    .table-compact th {
+        color: #64748b;
+        font-size: 0.6875rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .table-compact th,
+    .table-compact td {
+        border-bottom: 1px solid #edf2f7;
+        padding: 0.55rem 0.5rem;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .sparkline {
+        height: 24px;
+        width: 124px;
+    }
+
+    .map-placeholder {
+        background:
+            radial-gradient(circle at 48% 55%, rgb(109 74 255 / 0.18), transparent 4%),
+            radial-gradient(circle at 63% 42%, rgb(34 197 94 / 0.16), transparent 4%),
+            linear-gradient(160deg, #eef2f7, #f8fafc);
+    }
+}
