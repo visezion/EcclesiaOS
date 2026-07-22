@@ -131,8 +131,9 @@
                                         <td>
                                             <div class="flex justify-end gap-1">
                                                 <a href="{{ $viewPayload['emailHref'] }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Email user"><i data-lucide="mail" class="size-4"></i></a>
-                                                <a href="{{ route('users.show', $user) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="View user profile"><i data-lucide="eye" class="size-4"></i></a>
-                                                <a href="{{ route('users.show', ['user' => $user, 'edit' => 1]) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Edit user profile"><i data-lucide="pencil" class="size-4"></i></a>
+                                                <button type="button" @click='messaging = "{{ $user->opaqueId() }}"' class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Send message"><i data-lucide="message-square-text" class="size-4"></i></button>
+                                                <button type="button" @click='viewing = @js($viewPayload)' class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="View user"><i data-lucide="eye" class="size-4"></i></button>
+                                                <button type="button" @click="editing = '{{ $user->opaqueId() }}'" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Edit user"><i data-lucide="pencil" class="size-4"></i></button>
                                                 <button type="button" @click="actioning = '{{ $user->opaqueId() }}'" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="More actions"><i data-lucide="more-vertical" class="size-4"></i></button>
                                             </div>
                                         </td>
@@ -430,6 +431,9 @@
                     <a :href="viewing ? viewing.emailHref : '#'" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
                         <i data-lucide="mail" class="size-4"></i> Send Email
                     </a>
+                    <button type="button" @click="messaging = String(viewing.id); viewing = null" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 px-4 py-2 text-sm font-bold text-violet-700 hover:bg-violet-50">
+                        <i data-lucide="message-square-text" class="size-4"></i> Send Message
+                    </button>
                     <button type="button" @click="editing = String(viewing.id); viewing = null" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700">
                         <i data-lucide="pencil" class="size-4"></i> Edit User
                     </button>
@@ -514,6 +518,47 @@
         @endforeach
 
         @foreach ($users as $user)
+            <div x-cloak x-show="messaging === '{{ $user->opaqueId() }}'" x-transition.opacity class="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/40 p-4" @keydown.escape.window="messaging = null">
+                <div class="my-6 w-full max-w-lg rounded-xl bg-white shadow-2xl" @click.outside="messaging = null">
+                    <div class="flex items-start justify-between border-b border-slate-100 p-5">
+                        <div>
+                            <h2 class="text-lg font-black text-slate-950">Send Message</h2>
+                            <p class="mt-1 text-sm text-slate-500">{{ $user->name }} | {{ $user->email }}</p>
+                        </div>
+                        <button type="button" @click="messaging = null" class="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
+                            <i data-lucide="x" class="size-4"></i>
+                        </button>
+                    </div>
+                    <form method="POST" action="{{ route('users.message', $user) }}" class="space-y-4 p-5">
+                        @csrf
+                        <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Channel
+                            <select name="channel" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900">
+                                <option value="email">Email</option>
+                                <option value="portal">Portal notification</option>
+                                <option value="sms">SMS</option>
+                            </select>
+                        </label>
+                        <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Subject
+                            <input name="subject" value="KingdomHub account update" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" required>
+                        </label>
+                        <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Message
+                            <textarea name="message" rows="5" class="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" placeholder="Write the message..." required></textarea>
+                        </label>
+                        <div class="rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-500">
+                            Email sends through configured mail. Portal and SMS are logged for follow-up until those integrations are enabled.
+                        </div>
+                        <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                            <button type="button" @click="messaging = null" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+                            <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700">
+                                <i data-lucide="send" class="size-4"></i> Send Message
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endforeach
+
+        @foreach ($users as $user)
             @php
                 $primaryRole = $user->roles->first();
                 $viewPayload = [
@@ -544,6 +589,7 @@
                     </div>
                     <div class="space-y-2 p-5">
                         <a href="{{ $viewPayload['emailHref'] }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="mail" class="size-4"></i>Send Email</a>
+                        <button type="button" @click="messaging = '{{ $user->opaqueId() }}'; actioning = null" class="flex w-full items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-left text-sm font-bold text-violet-700 hover:bg-violet-50"><i data-lucide="message-square-text" class="size-4"></i>Send Message</button>
                         <a href="{{ route('users.show', $user) }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="eye" class="size-4"></i>View Full Profile</a>
                         <a href="{{ route('users.show', ['user' => $user, 'edit' => 1]) }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="pencil" class="size-4"></i>Edit Full Profile</a>
                         <form method="POST" action="{{ route('users.impersonate', $user) }}">

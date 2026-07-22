@@ -2,17 +2,19 @@
 
 namespace Tests\Feature;
 
-use App\Models\Church;
+use App\Models\ActivityLog;
 use App\Models\CareTask;
+use App\Models\Church;
 use App\Models\Family;
 use App\Models\Member;
 use App\Models\Ministry;
-use App\Models\Role;
 use App\Models\Permission;
+use App\Models\Role;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -81,7 +83,30 @@ class AdminPagesTest extends TestCase
             ->assertOk()
             ->assertSee(route('users.show', $target), false)
             ->assertSee(route('users.show', ['user' => $target, 'edit' => 1]), false)
+            ->assertSee(route('users.message', $target), false)
             ->assertSee(route('users.impersonate', $target), false);
+    }
+
+    public function test_user_directory_message_action_is_persistent(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $target = User::query()->where('email', 'sarah.johnson@klgc.org')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->post(route('users.message', $target), [
+                'channel' => 'portal',
+                'subject' => 'Schedule update',
+                'message' => 'Please review your updated ministry schedule.',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('activity_logs', [
+            'module' => 'Communications',
+            'action' => 'user_message_sent',
+            'subject_type' => $target->getMorphClass(),
+            'subject_id' => $target->id,
+        ]);
     }
 
     public function test_administrator_can_manage_full_user_profile_and_impersonate(): void
@@ -122,9 +147,12 @@ class AdminPagesTest extends TestCase
             ->assertRedirect();
 
         $target->refresh();
+        $dateOfBirth = $target->getAttribute('date_of_birth');
+
         $this->assertSame('Sarah Johnson Profile', $target->name);
         $this->assertSame('Campus Operations Lead', $target->title);
-        $this->assertSame('1980-04-12', $target->date_of_birth?->toDateString());
+        $this->assertInstanceOf(CarbonInterface::class, $dateOfBirth);
+        $this->assertSame('1980-04-12', $dateOfBirth->toDateString());
         $this->assertTrue($target->roles()->where('name', 'Staff')->exists());
 
         $this->actingAs($admin)
@@ -171,7 +199,7 @@ class AdminPagesTest extends TestCase
         $this->assertStringContainsString('Time,User,Email,Role,Church,Campus,Action,Resource,Details,"IP Address","Risk Level",Status', $response->streamedContent());
         $this->assertStringContainsString('Failed Login', $response->streamedContent());
 
-        $selectedLog = \App\Models\ActivityLog::query()->where('action', 'failed_login')->firstOrFail();
+        $selectedLog = ActivityLog::query()->where('action', 'failed_login')->firstOrFail();
         $selectedExport = $this->actingAs($admin)->get(route('audit-logs.export', ['ids' => [$selectedLog->id], 'date_range' => 'all']));
 
         $selectedExport->assertOk();
@@ -444,9 +472,11 @@ class AdminPagesTest extends TestCase
             ->assertRedirect();
 
         $member->refresh();
+        $family = $member->family()->firstOrFail();
+
         $this->assertSame('Updated', $member->last_name);
         $this->assertSame('follow-up', $member->status);
-        $this->assertSame('Updated Household', $member->family?->name);
+        $this->assertSame('Updated Household', $family->getAttribute('name'));
         $this->assertDatabaseHas('member_profiles', [
             'member_id' => $member->id,
             'preferred_name' => 'Jordy',

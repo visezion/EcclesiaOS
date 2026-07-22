@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\AccessControlController;
 use App\Http\Controllers\AccountSettingsController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -22,11 +21,12 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\UserDirectoryController;
 use App\Http\Controllers\UserManagementController;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 Route::post('webhooks/meeting-attendance/{provider}', [EventFlowController::class, 'onlineAttendanceWebhook'])
     ->name('meeting-attendance.webhook')
-    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+    ->withoutMiddleware([VerifyCsrfToken::class]);
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -134,6 +134,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('settings/users/impersonation/stop', [UserManagementController::class, 'stopImpersonating'])->name('users.impersonation.stop');
     Route::put('settings/users/{user}', [UserManagementController::class, 'update'])->name('users.update');
     Route::put('settings/users/{user}/password', [UserManagementController::class, 'resetPassword'])->name('users.password');
+    Route::post('settings/users/{user}/message', [UserManagementController::class, 'message'])->name('users.message');
     Route::post('settings/users/{user}/impersonate', [UserManagementController::class, 'impersonate'])->name('users.impersonate');
     Route::post('settings/roles', [RolePermissionController::class, 'store'])->name('roles.store');
     Route::post('settings/roles/{role}/clone', [RolePermissionController::class, 'clone'])->name('roles.clone');

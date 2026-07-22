@@ -13,9 +13,9 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
@@ -177,6 +177,36 @@ final class UserManagementController extends Controller
         return back()->with('password_status', 'Password updated for '.$user->name.'.');
     }
 
+    public function message(Request $request, User $user, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorize('view', $user);
+
+        $validated = $request->validate([
+            'channel' => ['required', Rule::in(['email', 'sms', 'portal'])],
+            'subject' => ['required', 'string', 'max:160'],
+            'message' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $deliveryStatus = 'queued';
+
+        if ($validated['channel'] === 'email' && filled($user->email)) {
+            $deliveryStatus = $this->sendDirectEmail($user, $validated['subject'], $validated['message'])
+                ? 'sent'
+                : 'queued';
+        }
+
+        $activityLogger->log('Communications', 'user_message_sent', 'Administrator sent a message to a user account.', $user, [
+            'recipient_email' => $user->email,
+            'recipient_phone' => $user->phone,
+            'channel' => $validated['channel'],
+            'subject' => $validated['subject'],
+            'message_preview' => str($validated['message'])->limit(140)->toString(),
+            'delivery_status' => $deliveryStatus,
+        ], $request);
+
+        return back()->with('status', ucfirst($validated['channel']).' message '.$deliveryStatus.' for '.$user->name.'.');
+    }
+
     public function impersonate(Request $request, User $user, ActivityLogger $activityLogger): RedirectResponse
     {
         $this->authorize('view', $user);
@@ -324,6 +354,24 @@ final class UserManagementController extends Controller
                 fn ($message) => $message
                     ->to($user->email, $user->name)
                     ->subject('Your KingdomHub invitation'),
+            );
+
+            return true;
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return false;
+        }
+    }
+
+    private function sendDirectEmail(User $user, string $subject, string $body): bool
+    {
+        try {
+            Mail::raw(
+                $body,
+                fn ($message) => $message
+                    ->to($user->email, $user->name)
+                    ->subject($subject),
             );
 
             return true;

@@ -206,6 +206,7 @@ document.addEventListener('alpine:init', () => {
         inviteOpen: false,
         viewing: null,
         editing: null,
+        messaging: null,
         actioning: null,
 
         visibleRows() {

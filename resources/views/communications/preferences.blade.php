@@ -15,6 +15,7 @@
         $selectedRole = $selected?->user?->roles?->pluck('name')->first() ?? Str::headline((string) ($selected?->member?->status ?? 'member'));
         $initials = collect(explode(' ', $selectedName))->filter()->map(fn ($part) => Str::substr($part, 0, 1))->take(2)->join('');
         $selectedUrl = fn ($preference) => request()->fullUrlWithQuery(['selected' => $preference->opaqueId()]);
+        $selectedCategoryChannels = collect($categories)->mapWithKeys(fn ($category) => [$category => $selected?->category_channels[$category] ?? ($selected?->channels ?? [])])->all();
         $categoryIcons = [
             'events' => 'calendar-days',
             'attendance' => 'calendar-check',
@@ -290,14 +291,14 @@
                                 @endforeach
                                 <span class="grid place-items-center">Critical</span>
                                 @foreach($categories as $category)
-                                    <label class="flex items-center gap-2 rounded-lg py-1 text-slate-700">
+                                    <div class="flex items-center gap-2 rounded-lg py-1 text-slate-700">
                                         <i data-lucide="{{ $categoryIcons[$category] ?? 'bell' }}" class="size-4 text-violet-600"></i>
-                                        <input type="checkbox" name="categories[]" value="{{ $category }}" @checked(in_array($category, $selected?->categories ?? [], true)) class="sr-only">
+                                        <input type="hidden" name="categories[]" value="{{ $category }}">
                                         {{ Str::headline($category === 'care' ? 'pastoral care follow-up' : $category) }}
-                                    </label>
+                                    </div>
                                     @foreach($channels as $key => $channel)
                                         <label class="relative mx-auto inline-flex cursor-pointer items-center">
-                                            <input type="checkbox" name="channels[]" value="{{ $key }}" @checked(in_array($key, $selected?->channels ?? [], true)) class="peer sr-only">
+                                            <input type="checkbox" name="category_channels[{{ $category }}][]" value="{{ $key }}" @checked(in_array($key, $selectedCategoryChannels[$category] ?? [], true)) class="peer sr-only">
                                             <span class="h-5 w-9 rounded-full bg-slate-200 transition peer-checked:bg-violet-600"></span>
                                             <span class="absolute left-0.5 top-0.5 size-4 rounded-full bg-white shadow transition peer-checked:translate-x-4"></span>
                                         </label>

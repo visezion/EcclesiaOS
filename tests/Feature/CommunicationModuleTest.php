@@ -156,6 +156,29 @@ final class CommunicationModuleTest extends TestCase
         ]);
 
         $this->actingAs($user)
+            ->put(route('communications.preferences.update', $preference->fresh()), [
+                'categories' => ['events', 'attendance', 'care'],
+                'category_channels' => [
+                    'events' => ['in_app', 'email', 'push'],
+                    'attendance' => ['in_app', 'sms'],
+                    'care' => ['whatsapp'],
+                ],
+                'digest_mode' => 'weekly',
+                'quiet_hours_start' => '21:00',
+                'quiet_hours_end' => '07:00',
+                'language' => 'en',
+                'critical_alerts' => '1',
+            ])
+            ->assertRedirect();
+
+        $preference->refresh();
+        $this->assertSame(['events', 'attendance', 'care'], $preference->categories);
+        $this->assertSame(['in_app', 'email', 'push'], $preference->category_channels['events']);
+        $this->assertSame(['in_app', 'sms'], $preference->category_channels['attendance']);
+        $this->assertSame(['whatsapp'], $preference->category_channels['care']);
+        $this->assertEqualsCanonicalizing(['in_app', 'email', 'push', 'sms', 'whatsapp'], $preference->channels);
+
+        $this->actingAs($user)
             ->get(route('communications.preferences.export'))
             ->assertOk()
             ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
@@ -194,6 +217,47 @@ final class CommunicationModuleTest extends TestCase
         $this->actingAs($user)
             ->post(route('communications.integrations.test', 'email'))
             ->assertRedirect();
+
+        $this->actingAs($user)
+            ->put(route('communications.integrations.update'), [
+                'providers' => [
+                    'sms' => [
+                        'enabled' => '1',
+                        'provider' => 'Zender SMS Gateway',
+                        'sender_identity' => 'Kingdom Life +1 (833) 123-4567',
+                        'rate_limit_per_minute' => 120,
+                        'retry_policy' => 'exponential',
+                        'webhook_secret' => 'zender-webhook-secret',
+                        'endpoint_url' => 'https://zender.kingdomhub.test',
+                        'api_key' => 'zender-live-token',
+                        'account_id' => 'klgc-zender',
+                        'device_id' => 'android-device-main-campus',
+                        'sender_number' => '+1 (833) 123-4567',
+                        'webhook_url' => 'https://kingdomhub.test/webhooks/zender',
+                        'queue' => 'sms_queue',
+                        'workers' => 8,
+                        'daily_limit' => 250000,
+                        'region' => 'US Central',
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $smsProvider = \App\Models\CommunicationProviderSetting::query()
+            ->where('church_id', $user->church_id)
+            ->where('channel', 'sms')
+            ->firstOrFail();
+
+        $this->assertSame('Zender SMS Gateway', $smsProvider->provider);
+        $this->assertSame('https://zender.kingdomhub.test', $smsProvider->settings['endpoint_url']);
+        $this->assertSame('android-device-main-campus', $smsProvider->settings['device_id']);
+        $this->assertSame('oken', $smsProvider->settings['api_key_last_four']);
+
+        $this->actingAs($user)
+            ->post(route('communications.integrations.test', 'sms'))
+            ->assertRedirect();
+
+        $this->assertSame('success', $smsProvider->fresh()->last_test_status);
 
         $failed = CommunicationDelivery::query()->create([
             'church_id' => $user->church_id,

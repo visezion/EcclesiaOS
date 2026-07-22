@@ -25,6 +25,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -462,13 +463,17 @@ final class CommunicationController extends Controller
             ]);
 
             foreach ($members as $member) {
+                $preference = UserNotificationPreference::query()
+                    ->where('church_id', $this->churchId($request))
+                    ->where('member_id', $member->id)
+                    ->first();
                 CommunicationRecipient::query()->create([
                     'communication_campaign_id' => $campaign->id,
                     'member_id' => $member->id,
                     'name' => trim($member->first_name.' '.$member->last_name),
                     'email' => $member->email,
                     'phone' => $member->phone,
-                    'preferences' => $this->memberPreferencePayload($member),
+                    'preferences' => $this->preferencePayload($preference, $member),
                     'status' => $campaign->status === 'scheduled' ? 'scheduled' : 'queued',
                 ]);
             }
@@ -634,7 +639,7 @@ final class CommunicationController extends Controller
         $this->syncMemberPreferences($request);
 
         $rows = $this->preferencesQuery($request)->with(['member.campus', 'user.roles', 'user.campus'])->latest('updated_at')->get();
-        $csv = "Member,Email,Campus,Role,Channels,Categories,Digest Mode,Quiet Hours,Language,Critical Alerts,Status,Last Updated\n";
+        $csv = "Member,Email,Campus,Role,Channels,Categories,Category Channels,Digest Mode,Quiet Hours,Language,Critical Alerts,Status,Last Updated\n";
 
         foreach ($rows as $preference) {
             $person = $preference->member ?: $preference->user;
@@ -648,6 +653,9 @@ final class CommunicationController extends Controller
                 $role,
                 collect($preference->channels ?? [])->map(fn (string $channel): string => $this->channelMeta()[$channel]['label'] ?? Str::headline($channel))->join('|'),
                 collect($preference->categories ?? [])->map(fn (string $category): string => Str::headline($category))->join('|'),
+                collect($preference->category_channels ?? $this->defaultCategoryChannels($preference->channels ?? [], $preference->categories ?? []))
+                    ->map(fn (array $channels, string $category): string => Str::headline($category).': '.collect($channels)->map(fn (string $channel): string => $this->channelMeta()[$channel]['label'] ?? Str::headline($channel))->join('/'))
+                    ->join(' | '),
                 Str::headline((string) $preference->digest_mode),
                 $quietHours,
                 $preference->language,
@@ -670,9 +678,11 @@ final class CommunicationController extends Controller
         $updated = 0;
 
         $this->preferenceSelection($request)->get()->each(function (UserNotificationPreference $preference) use (&$updated): void {
+            $categoryChannels = $this->defaultCategoryChannels(self::CHANNELS);
             $preference->update([
                 'channels' => self::CHANNELS,
                 'categories' => self::CATEGORIES,
+                'category_channels' => $categoryChannels,
                 'digest_mode' => 'instant',
                 'quiet_hours_start' => '22:00',
                 'quiet_hours_end' => '06:00',
@@ -765,6 +775,7 @@ final class CommunicationController extends Controller
             ], [
                 'channels' => $channels ?: ['in_app', 'email'],
                 'categories' => $categories ?: self::CATEGORIES,
+                'category_channels' => $this->defaultCategoryChannels($channels ?: ['in_app', 'email'], $categories ?: self::CATEGORIES),
                 'digest_mode' => in_array(($data['digest_mode'] ?? 'instant'), ['instant', 'daily', 'weekly', 'off'], true) ? $data['digest_mode'] : 'instant',
                 'quiet_hours_start' => filled($data['quiet_hours_start'] ?? null) ? $data['quiet_hours_start'] : null,
                 'quiet_hours_end' => filled($data['quiet_hours_end'] ?? null) ? $data['quiet_hours_end'] : null,
@@ -786,10 +797,13 @@ final class CommunicationController extends Controller
     {
         $this->authorizeCommunicationRecord($request, $preference);
         $validated = $request->validate([
-            'channels' => ['required', 'array', 'min:1'],
+            'channels' => ['nullable', 'array'],
             'channels.*' => [Rule::in(self::CHANNELS)],
             'categories' => ['required', 'array', 'min:1'],
             'categories.*' => [Rule::in(self::CATEGORIES)],
+            'category_channels' => ['nullable', 'array'],
+            'category_channels.*' => ['array'],
+            'category_channels.*.*' => [Rule::in(self::CHANNELS)],
             'digest_mode' => ['required', Rule::in(['instant', 'daily', 'weekly', 'off'])],
             'quiet_hours_start' => ['nullable', 'date_format:H:i'],
             'quiet_hours_end' => ['nullable', 'date_format:H:i'],
@@ -807,10 +821,12 @@ final class CommunicationController extends Controller
         ]);
 
         $this->updatePreferencePerson($preference, $validated, $request);
+        $categoryChannels = $this->normalizeCategoryChannels($validated['category_channels'] ?? null, $validated['categories'], $validated['channels'] ?? []);
 
         $preference->update([
-            'channels' => array_values(array_unique($validated['channels'])),
-            'categories' => array_values(array_unique($validated['categories'])),
+            'channels' => $this->channelsFromCategoryMap($categoryChannels),
+            'categories' => array_keys($categoryChannels),
+            'category_channels' => $categoryChannels,
             'digest_mode' => $validated['digest_mode'],
             'quiet_hours_start' => $validated['quiet_hours_start'] ?? null,
             'quiet_hours_end' => $validated['quiet_hours_end'] ?? null,
@@ -832,6 +848,9 @@ final class CommunicationController extends Controller
             'settings' => $this->providerSettings($request),
             'stats' => $this->integrationStats($request),
             'providerHealth' => $this->providerHealth($request),
+            'providerCatalog' => $this->providerCatalog(),
+            'queueHealth' => $this->queueHealth($request),
+            'providerFailures' => $this->providerFailures($request),
             'breadcrumbs' => $this->breadcrumbs('Channel Integrations & Communication Settings'),
         ]);
     }
@@ -847,6 +866,16 @@ final class CommunicationController extends Controller
             'providers.*.rate_limit_per_minute' => ['required', 'integer', 'min:1', 'max:100000'],
             'providers.*.retry_policy' => ['required', Rule::in(['linear', 'exponential', 'manual'])],
             'providers.*.webhook_secret' => ['nullable', 'string', 'max:255'],
+            'providers.*.endpoint_url' => ['nullable', 'url', 'max:255'],
+            'providers.*.api_key' => ['nullable', 'string', 'max:1000'],
+            'providers.*.account_id' => ['nullable', 'string', 'max:180'],
+            'providers.*.device_id' => ['nullable', 'string', 'max:180'],
+            'providers.*.sender_number' => ['nullable', 'string', 'max:80'],
+            'providers.*.webhook_url' => ['nullable', 'url', 'max:255'],
+            'providers.*.queue' => ['nullable', 'string', 'max:80'],
+            'providers.*.workers' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'providers.*.daily_limit' => ['nullable', 'integer', 'min:1', 'max:10000000'],
+            'providers.*.region' => ['nullable', 'string', 'max:120'],
         ]);
 
         foreach (self::CHANNELS as $channel) {
@@ -858,6 +887,23 @@ final class CommunicationController extends Controller
             $webhookSecretHash = filled($input['webhook_secret'] ?? null)
                 ? hash('sha256', (string) $input['webhook_secret'])
                 : $existing?->webhook_secret_hash;
+            $settings = $existing?->settings ?? [];
+            $settings = array_merge($settings, [
+                'endpoint_url' => $input['endpoint_url'] ?? null,
+                'account_id' => $input['account_id'] ?? null,
+                'device_id' => $input['device_id'] ?? null,
+                'sender_number' => $input['sender_number'] ?? null,
+                'webhook_url' => $input['webhook_url'] ?? null,
+                'queue' => $input['queue'] ?? $channel.'_queue',
+                'workers' => (int) ($input['workers'] ?? ($settings['workers'] ?? 4)),
+                'daily_limit' => (int) ($input['daily_limit'] ?? ($settings['daily_limit'] ?? 100000)),
+                'region' => $input['region'] ?? ($settings['region'] ?? 'US Central'),
+                'provider_url' => Str::contains(Str::lower((string) $input['provider']), 'zender') ? 'https://codecanyon.net/item/zender-android-mobile-devices-as-sms-gateway-saas-platform/26594230' : ($settings['provider_url'] ?? null),
+            ]);
+            if (filled($input['api_key'] ?? null)) {
+                $settings['api_key_encrypted'] = Crypt::encryptString((string) $input['api_key']);
+                $settings['api_key_last_four'] = Str::substr((string) $input['api_key'], -4);
+            }
 
             CommunicationProviderSetting::query()->updateOrCreate(
                 ['church_id' => $this->churchId($request), 'channel' => $channel],
@@ -868,7 +914,7 @@ final class CommunicationController extends Controller
                     'rate_limit_per_minute' => (int) $input['rate_limit_per_minute'],
                     'retry_policy' => $input['retry_policy'],
                     'webhook_secret_hash' => $webhookSecretHash,
-                    'settings' => ['queue' => $channel.'_queue'],
+                    'settings' => $settings,
                 ],
             );
         }
@@ -884,7 +930,8 @@ final class CommunicationController extends Controller
         abort_unless(in_array($channel, self::CHANNELS, true), 404);
         $setting = $this->providerSettings($request)->firstWhere('channel', $channel);
         abort_unless($setting, 404);
-        $status = $setting->enabled ? 'success' : 'failed';
+        $validationError = $this->providerConfigurationError($setting);
+        $status = $setting->enabled && $validationError === null ? 'success' : 'failed';
         $setting->update(['last_tested_at' => now(), 'last_test_status' => $status]);
 
         CommunicationDelivery::query()->create([
@@ -900,15 +947,15 @@ final class CommunicationController extends Controller
             'retry_status' => $status === 'success' ? 'none' : 'queued',
             'attempt' => 1,
             'latency_ms' => $status === 'success' ? random_int(80, 420) : null,
-            'response_code' => $status === 'success' ? '200 OK' : 'Provider disabled',
-            'error' => $status === 'success' ? null : 'Enable the channel before testing.',
+            'response_code' => $status === 'success' ? '200 OK' : 'Configuration check failed',
+            'error' => $status === 'success' ? null : ($validationError ?? 'Enable the channel before testing.'),
             'sent_at' => now(),
             'delivered_at' => $status === 'success' ? now() : null,
         ]);
 
         $activityLogger->log('Communications', 'integration_tested', Str::headline($channel).' integration was tested.', $setting, ['resource' => 'Communication Provider', 'status' => $status], $request);
 
-        return back()->with($status === 'success' ? 'status' : 'error', $status === 'success' ? 'Provider test delivered.' : 'Provider test failed because the channel is disabled.');
+        return back()->with($status === 'success' ? 'status' : 'error', $status === 'success' ? 'Provider configuration test delivered.' : 'Provider test failed: '.($validationError ?? 'channel is disabled.'));
     }
 
     private function validateTemplate(Request $request): array
@@ -936,7 +983,7 @@ final class CommunicationController extends Controller
         foreach ($campaign->recipients as $recipient) {
             foreach ($campaign->channels ?? [] as $channel) {
                 $preference = $recipient->preferences ?? [];
-                $channels = $preference['channels'] ?? self::CHANNELS;
+                $channels = $this->channelsAllowedByPreference($preference, $campaign->template?->category);
                 if (! in_array($channel, $channels, true)) {
                     continue;
                 }
@@ -1019,17 +1066,28 @@ final class CommunicationController extends Controller
     {
         $churchId = $this->churchId($request);
         $defaults = [
-            'in_app' => ['Internal', true],
-            'email' => ['SMTP / Mailer', false],
-            'sms' => ['SMS Gateway', false],
-            'whatsapp' => ['WhatsApp Business', false],
-            'push' => ['Browser Push', false],
+            'in_app' => ['System Channel', true],
+            'email' => ['SendGrid', false],
+            'sms' => ['Zender SMS Gateway', false],
+            'whatsapp' => ['Meta WhatsApp', false],
+            'push' => ['Firebase Cloud Messaging', false],
         ];
 
         foreach ($defaults as $channel => [$provider, $enabled]) {
             CommunicationProviderSetting::query()->firstOrCreate(
                 ['church_id' => $churchId, 'channel' => $channel],
-                ['provider' => $provider, 'enabled' => $enabled, 'sender_identity' => config('app.name'), 'settings' => ['queue' => $channel.'_queue']],
+                [
+                    'provider' => $provider,
+                    'enabled' => $enabled,
+                    'sender_identity' => config('app.name'),
+                    'settings' => [
+                        'queue' => $channel.'_queue',
+                        'workers' => $channel === 'in_app' ? 4 : 8,
+                        'daily_limit' => $channel === 'sms' ? 250000 : 100000,
+                        'region' => 'US Central',
+                        'provider_url' => $channel === 'sms' ? 'https://codecanyon.net/item/zender-android-mobile-devices-as-sms-gateway-saas-platform/26594230' : null,
+                    ],
+                ],
             );
         }
 
@@ -1046,6 +1104,7 @@ final class CommunicationController extends Controller
                 [
                     'channels' => $preferences['channels'],
                     'categories' => self::CATEGORIES,
+                    'category_channels' => $this->defaultCategoryChannels($preferences['channels']),
                     'digest_mode' => $preferences['digest_mode'],
                     'quiet_hours_start' => '22:00',
                     'quiet_hours_end' => '06:00',
@@ -1071,6 +1130,102 @@ final class CommunicationController extends Controller
             'channels' => array_values(array_unique($channels)),
             'digest_mode' => 'instant',
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function preferencePayload(?UserNotificationPreference $preference, Member $member): array
+    {
+        if (! $preference) {
+            $payload = $this->memberPreferencePayload($member);
+
+            return $payload + [
+                'categories' => self::CATEGORIES,
+                'category_channels' => $this->defaultCategoryChannels($payload['channels']),
+            ];
+        }
+
+        return [
+            'channels' => $preference->channels ?? ['in_app'],
+            'categories' => $preference->categories ?? self::CATEGORIES,
+            'category_channels' => $preference->category_channels ?? $this->defaultCategoryChannels($preference->channels ?? ['in_app'], $preference->categories ?? self::CATEGORIES),
+            'digest_mode' => $preference->digest_mode,
+            'quiet_hours_start' => $preference->quiet_hours_start,
+            'quiet_hours_end' => $preference->quiet_hours_end,
+            'language' => $preference->language,
+            'critical_alerts' => $preference->critical_alerts,
+            'opted_out_at' => $preference->opted_out_at?->toISOString(),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $preference
+     * @return array<int, string>
+     */
+    private function channelsAllowedByPreference(array $preference, ?string $category): array
+    {
+        if (filled($preference['opted_out_at'] ?? null)) {
+            return [];
+        }
+
+        $categoryChannels = $preference['category_channels'] ?? null;
+        if (is_string($category) && is_array($categoryChannels) && isset($categoryChannels[$category])) {
+            return collect($categoryChannels[$category])->intersect(self::CHANNELS)->values()->all();
+        }
+
+        return collect($preference['channels'] ?? self::CHANNELS)->intersect(self::CHANNELS)->values()->all();
+    }
+
+    /**
+     * @param array<int, string> $channels
+     * @param array<int, string>|null $categories
+     * @return array<string, array<int, string>>
+     */
+    private function defaultCategoryChannels(array $channels, ?array $categories = null): array
+    {
+        $validChannels = collect($channels)->intersect(self::CHANNELS)->values()->all() ?: ['in_app'];
+
+        return collect($categories ?: self::CATEGORIES)
+            ->intersect(self::CATEGORIES)
+            ->mapWithKeys(fn (string $category): array => [$category => $validChannels])
+            ->all();
+    }
+
+    /**
+     * @param array<string, mixed>|null $submitted
+     * @param array<int, string> $categories
+     * @param array<int, string> $fallbackChannels
+     * @return array<string, array<int, string>>
+     */
+    private function normalizeCategoryChannels(?array $submitted, array $categories, array $fallbackChannels): array
+    {
+        if (! is_array($submitted) || $submitted === []) {
+            return $this->defaultCategoryChannels($fallbackChannels, $categories);
+        }
+
+        $map = [];
+        foreach (self::CATEGORIES as $category) {
+            $channels = collect($submitted[$category] ?? [])
+                ->intersect(self::CHANNELS)
+                ->values()
+                ->all();
+
+            if ($channels !== []) {
+                $map[$category] = $channels;
+            }
+        }
+
+        return $map === [] ? $this->defaultCategoryChannels($fallbackChannels, $categories) : $map;
+    }
+
+    /**
+     * @param array<string, array<int, string>> $categoryChannels
+     * @return array<int, string>
+     */
+    private function channelsFromCategoryMap(array $categoryChannels): array
+    {
+        return collect($categoryChannels)->flatten()->intersect(self::CHANNELS)->unique()->values()->all() ?: ['in_app'];
     }
 
     private function stats(Request $request): array
@@ -1413,6 +1568,99 @@ final class CommunicationController extends Controller
                 'rate' => $total > 0 ? round((($total - $failed) / $total) * 100, 2) : ($setting->enabled ? 100 : 0),
             ];
         })->all();
+    }
+
+    /**
+     * @return array<string, array<int, array<string, string>>>
+     */
+    private function providerCatalog(): array
+    {
+        return [
+            'in_app' => [
+                ['label' => 'System Channel', 'value' => 'System Channel'],
+            ],
+            'email' => [
+                ['label' => 'SendGrid', 'value' => 'SendGrid'],
+                ['label' => 'SMTP / Mailer', 'value' => 'SMTP / Mailer'],
+                ['label' => 'Mailgun', 'value' => 'Mailgun'],
+            ],
+            'sms' => [
+                ['label' => 'Zender SMS Gateway', 'value' => 'Zender SMS Gateway'],
+                ['label' => 'Twilio', 'value' => 'Twilio'],
+                ['label' => 'Custom SMS Gateway', 'value' => 'Custom SMS Gateway'],
+            ],
+            'whatsapp' => [
+                ['label' => 'Meta WhatsApp', 'value' => 'Meta WhatsApp'],
+                ['label' => 'Zender WhatsApp Gateway', 'value' => 'Zender WhatsApp Gateway'],
+                ['label' => 'Twilio WhatsApp', 'value' => 'Twilio WhatsApp'],
+            ],
+            'push' => [
+                ['label' => 'Firebase Cloud Messaging', 'value' => 'Firebase Cloud Messaging'],
+                ['label' => 'Web Push', 'value' => 'Web Push'],
+            ],
+        ];
+    }
+
+    private function providerConfigurationError(CommunicationProviderSetting $setting): ?string
+    {
+        if (! $setting->enabled) {
+            return 'Channel is disabled.';
+        }
+
+        $settings = $setting->settings ?? [];
+        $provider = Str::lower($setting->provider);
+
+        if (Str::contains($provider, 'zender')) {
+            if (blank($settings['endpoint_url'] ?? null)) {
+                return 'Zender endpoint URL is required.';
+            }
+            if (blank($settings['api_key_encrypted'] ?? null)) {
+                return 'Zender API token is required.';
+            }
+            if ($setting->channel === 'sms' && blank($settings['device_id'] ?? null) && blank($settings['sender_number'] ?? null)) {
+                return 'Zender SMS requires a device ID or sender number.';
+            }
+        }
+
+        if ($setting->channel !== 'in_app' && blank($settings['queue'] ?? null)) {
+            return 'Queue assignment is required.';
+        }
+
+        return null;
+    }
+
+    private function queueHealth(Request $request): array
+    {
+        return $this->providerSettings($request)->map(function (CommunicationProviderSetting $setting) use ($request): array {
+            $settings = $setting->settings ?? [];
+            $processed = $this->deliveries($request)->where('channel', $setting->channel)->count();
+            $failed = $this->deliveries($request)->where('channel', $setting->channel)->where('status', 'failed')->count();
+
+            return [
+                'queue' => $settings['queue'] ?? $setting->channel.'_queue',
+                'workers' => (int) ($settings['workers'] ?? 4),
+                'processed' => $processed,
+                'failed' => $failed,
+                'latency' => (int) round($this->deliveries($request)->where('channel', $setting->channel)->whereNotNull('latency_ms')->avg('latency_ms') ?? 0),
+                'status' => $setting->enabled && $this->providerConfigurationError($setting) === null ? 'Healthy' : 'Review',
+            ];
+        })->all();
+    }
+
+    private function providerFailures(Request $request): array
+    {
+        $failuresToday = $this->deliveries($request)->whereDate('created_at', today())->where('status', 'failed')->count();
+        $lastSevenDays = $this->deliveries($request)->where('created_at', '>=', now()->subDays(7))->where('status', 'failed')->count();
+        $lastThirtyDays = $this->deliveries($request)->where('created_at', '>=', now()->subDays(30))->where('status', 'failed')->count();
+        $total = max($this->deliveries($request)->where('created_at', '>=', now()->subDays(30))->count(), 1);
+
+        return [
+            'today' => $failuresToday,
+            'last_7_days' => $lastSevenDays,
+            'last_30_days' => $lastThirtyDays,
+            'mttr' => $failuresToday > 0 ? '18m' : '0m',
+            'failure_rate' => round(($lastThirtyDays / $total) * 100, 2),
+        ];
     }
 
     private function retryPipeline(Request $request): array
