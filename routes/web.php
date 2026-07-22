@@ -91,11 +91,17 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('settings/branding/sidebar-background', [BrandingController::class, 'resetSidebarBackground'])->name('settings.branding.sidebar-background.reset');
     Route::get('communications', [CommunicationController::class, 'overview'])->name('communications.index');
     Route::get('communications/notifications', [CommunicationController::class, 'notifications'])->name('communications.notifications');
+    Route::post('communications/notifications/read-all', [CommunicationController::class, 'markAllNotificationsRead'])->name('communications.notifications.read-all');
+    Route::post('communications/notifications/archive-old', [CommunicationController::class, 'archiveOldNotifications'])->name('communications.notifications.archive-old');
+    Route::post('communications/notifications/{delivery}/read', [CommunicationController::class, 'markNotificationRead'])->name('communications.notifications.read');
+    Route::post('communications/notifications/{delivery}/archive', [CommunicationController::class, 'archiveNotification'])->name('communications.notifications.archive');
     Route::get('communications/templates', [CommunicationController::class, 'templates'])->name('communications.templates');
+    Route::get('communications/templates/export', [CommunicationController::class, 'exportTemplates'])->name('communications.templates.export');
     Route::post('communications/templates', [CommunicationController::class, 'storeTemplate'])->name('communications.templates.store');
     Route::put('communications/templates/{template}', [CommunicationController::class, 'updateTemplate'])->name('communications.templates.update');
     Route::delete('communications/templates/{template}', [CommunicationController::class, 'deleteTemplate'])->name('communications.templates.destroy');
     Route::post('communications/templates/{template}/clone', [CommunicationController::class, 'cloneTemplate'])->name('communications.templates.clone');
+    Route::post('communications/templates/{template}/test-send', [CommunicationController::class, 'testSendTemplate'])->name('communications.templates.test-send');
     Route::get('communications/scheduled', [CommunicationController::class, 'scheduled'])->name('communications.scheduled');
     Route::get('communications/bulk', [CommunicationController::class, 'bulk'])->name('communications.bulk');
     Route::post('communications/campaigns', [CommunicationController::class, 'storeCampaign'])->name('communications.campaigns.store');
@@ -105,6 +111,10 @@ Route::middleware('auth')->group(function (): void {
     Route::get('communications/delivery-logs/export', [CommunicationController::class, 'exportDeliveries'])->name('communications.delivery-logs.export');
     Route::post('communications/delivery-logs/{delivery}/retry', [CommunicationController::class, 'retryDelivery'])->name('communications.delivery-logs.retry');
     Route::get('communications/preferences', [CommunicationController::class, 'preferences'])->name('communications.preferences');
+    Route::get('communications/preferences/export', [CommunicationController::class, 'exportPreferences'])->name('communications.preferences.export');
+    Route::post('communications/preferences/defaults', [CommunicationController::class, 'applyDefaultPreferences'])->name('communications.preferences.defaults');
+    Route::post('communications/preferences/reminders', [CommunicationController::class, 'sendPreferenceReminder'])->name('communications.preferences.reminders');
+    Route::post('communications/preferences/import', [CommunicationController::class, 'importPreferences'])->name('communications.preferences.import');
     Route::put('communications/preferences/{preference}', [CommunicationController::class, 'updatePreference'])->name('communications.preferences.update');
     Route::get('communications/integrations', [CommunicationController::class, 'integrations'])->name('communications.integrations');
     Route::put('communications/integrations', [CommunicationController::class, 'updateIntegrations'])->name('communications.integrations.update');

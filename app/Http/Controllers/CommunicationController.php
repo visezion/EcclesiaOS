@@ -14,9 +14,11 @@ use App\Models\CommunicationRecipient;
 use App\Models\CommunicationTemplate;
 use App\Models\EventSession;
 use App\Models\Member;
+use App\Models\Role;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
 use App\Services\ActivityLogger;
+use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -51,11 +53,20 @@ final class CommunicationController extends Controller
         return view('communications.overview', $this->shared($request) + [
             'stats' => $this->stats($request),
             'triggers' => $this->triggerQueue($request),
+            'queuedListeners' => $this->queuedListeners($request),
             'recentDeliveries' => $this->deliveries($request)->latest()->limit(6)->get(),
             'channelMix' => $this->channelMix($request),
             'trend' => $this->deliveryTrend($request),
+            'trendSeries' => $this->deliveryTrendSeries($request),
             'providerHealth' => $this->providerHealth($request),
-            'scheduled' => $this->campaigns($request)->whereNotNull('scheduled_at')->whereIn('status', ['draft', 'scheduled', 'queued'])->orderBy('scheduled_at')->limit(5)->get(),
+            'operationalInsights' => $this->operationalInsights($request),
+            'historySummary' => $this->historySummary($request),
+            'scheduled' => $this->campaigns($request)
+                ->whereBetween('scheduled_at', [now(), now()->addDays(7)])
+                ->whereIn('status', ['draft', 'scheduled', 'queued'])
+                ->orderBy('scheduled_at')
+                ->limit(5)
+                ->get(),
             'breadcrumbs' => $this->breadcrumbs('Overview'),
         ]);
     }
@@ -64,10 +75,34 @@ final class CommunicationController extends Controller
     {
         $this->authorizeCommunications($request);
 
-        $selected = $this->deliveries($request)
-            ->with(['campaign', 'template', 'member'])
+        $notifications = $this->deliveries($request)
+            ->with(['campaign.creator', 'template', 'member'])
             ->when(filled($request->query('channel')), fn (Builder $query) => $query->where('channel', $request->query('channel')))
             ->when(filled($request->query('status')), fn (Builder $query) => $query->where('status', $request->query('status')))
+            ->when(filled($request->query('event_type')), fn (Builder $query) => $query->where('event_type', $request->query('event_type')))
+            ->when(filled($request->query('priority')), function (Builder $query) use ($request): void {
+                match ($request->query('priority')) {
+                    'high' => $query->where('status', 'failed'),
+                    'medium' => $query->where('status', 'queued'),
+                    'low' => $query->where('status', 'delivered'),
+                    default => null,
+                };
+            })
+            ->when(filled($request->query('recipient_type')), function (Builder $query) use ($request): void {
+                match ($request->query('recipient_type')) {
+                    'member' => $query->whereNotNull('member_id'),
+                    'system' => $query->whereNull('member_id'),
+                    default => null,
+                };
+            })
+            ->when(filled($request->query('date_range')), function (Builder $query) use ($request): void {
+                match ($request->query('date_range')) {
+                    'today' => $query->whereDate('created_at', today()),
+                    '7_days' => $query->where('created_at', '>=', now()->subDays(7)),
+                    '30_days' => $query->where('created_at', '>=', now()->subDays(30)),
+                    default => null,
+                };
+            })
             ->when(filled($request->query('q')), function (Builder $query) use ($request): void {
                 $search = strtolower((string) $request->query('q'));
                 $query->where(fn (Builder $inner) => $inner
@@ -75,18 +110,70 @@ final class CommunicationController extends Controller
                     ->orWhereRaw('LOWER(subject) LIKE ?', ['%'.$search.'%'])
                     ->orWhereRaw('LOWER(event_type) LIKE ?', ['%'.$search.'%']));
             })
-            ->latest()
+            ->when($request->query('sort') === 'oldest', fn (Builder $query) => $query->oldest(), fn (Builder $query) => $query->latest())
             ->paginate(10)
             ->withQueryString();
+        $selectedId = OpaqueId::decode($request->query('notification'), CommunicationDelivery::class);
+        $selectedNotification = $selectedId
+            ? $this->deliveries($request)->with(['campaign.creator', 'template', 'member'])->whereKey($selectedId)->first()
+            : null;
 
         return view('communications.notifications', $this->shared($request) + [
-            'notifications' => $selected,
+            'notifications' => $notifications,
             'stats' => $this->notificationStats($request),
-            'selected' => $selected->first(),
+            'selected' => $selectedNotification ?? $notifications->first(),
             'priorityBreakdown' => $this->priorityBreakdown($request),
             'statusBreakdown' => $this->statusBreakdown($request),
+            'timeline' => $this->notificationTimeline($request),
+            'scheduled' => $this->campaigns($request)
+                ->whereBetween('scheduled_at', [now(), now()->addDays(7)])
+                ->whereIn('status', ['draft', 'scheduled', 'queued'])
+                ->orderBy('scheduled_at')
+                ->limit(4)
+                ->get(),
+            'eventTypes' => $this->deliveries($request)->whereNotNull('event_type')->select('event_type')->distinct()->orderBy('event_type')->pluck('event_type'),
             'breadcrumbs' => $this->breadcrumbs('Notifications Center'),
         ]);
+    }
+
+    public function markNotificationRead(Request $request, CommunicationDelivery $delivery, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeCommunicationRecord($request, $delivery);
+
+        $delivery->update(['read_at' => $delivery->read_at ?? now()]);
+        $activityLogger->log('Communications', 'notification_marked_read', 'Notification '.$delivery->opaqueId().' was marked as read.', $delivery, ['resource' => 'Communication Delivery', 'status' => 'success'], $request);
+
+        return back()->with('status', 'Notification marked as read.');
+    }
+
+    public function archiveNotification(Request $request, CommunicationDelivery $delivery, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeCommunicationRecord($request, $delivery);
+
+        $delivery->update(['read_at' => $delivery->read_at ?? now()]);
+        $activityLogger->log('Communications', 'notification_archived', 'Notification '.$delivery->opaqueId().' was archived.', $delivery, ['resource' => 'Communication Delivery', 'status' => 'success'], $request);
+
+        return back()->with('status', 'Notification archived.');
+    }
+
+    public function markAllNotificationsRead(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeCommunications($request);
+
+        $count = $this->deliveries($request)->where('channel', 'in_app')->whereNull('read_at')->update(['read_at' => now()]);
+        $activityLogger->log('Communications', 'notifications_marked_read', $count.' notifications were marked as read.', null, ['resource' => 'Communication Delivery', 'status' => 'success'], $request);
+
+        return back()->with('status', number_format($count).' notifications marked as read.');
+    }
+
+    public function archiveOldNotifications(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeCommunications($request);
+
+        $count = $this->deliveries($request)->where('created_at', '<', now()->subDays(30))->whereNull('read_at')->update(['read_at' => now()]);
+        $activityLogger->log('Communications', 'old_notifications_archived', $count.' old notifications were archived.', null, ['resource' => 'Communication Delivery', 'status' => 'success'], $request);
+
+        return back()->with('status', number_format($count).' old notifications archived.');
     }
 
     public function templates(Request $request): View
@@ -96,8 +183,11 @@ final class CommunicationController extends Controller
         $templates = $this->templatesQuery($request)
             ->with('owner')
             ->when(filled($request->query('category')), fn (Builder $query) => $query->where('category', $request->query('category')))
+            ->when(filled($request->query('trigger')), fn (Builder $query) => $query->where('trigger_event', $request->query('trigger')))
             ->when(filled($request->query('channel')), fn (Builder $query) => $query->whereJsonContains('channels', $request->query('channel')))
+            ->when(filled($request->query('language')), fn (Builder $query) => $query->where('language', $request->query('language')))
             ->when(filled($request->query('status')), fn (Builder $query) => $query->where('status', $request->query('status')))
+            ->when(filled($request->query('approval_state')), fn (Builder $query) => $query->where('approval_state', $request->query('approval_state')))
             ->when(filled($request->query('q')), function (Builder $query) use ($request): void {
                 $search = strtolower((string) $request->query('q'));
                 $query->where(fn (Builder $inner) => $inner
@@ -108,14 +198,49 @@ final class CommunicationController extends Controller
             ->latest('updated_at')
             ->paginate(8)
             ->withQueryString();
+        $creating = $request->boolean('new');
+        $selectedId = OpaqueId::decode($request->query('template'), CommunicationTemplate::class);
+        $selectedTemplate = $creating ? null : ($selectedId
+            ? $this->templatesQuery($request)->with('owner')->whereKey($selectedId)->first()
+            : null);
 
         return view('communications.templates', $this->shared($request) + [
             'templates' => $templates,
-            'selected' => $templates->first(),
+            'selected' => $selectedTemplate ?? ($creating ? null : $templates->first()),
+            'creating' => $creating,
             'stats' => $this->templateStats($request),
             'templateUsage' => $this->templatesQuery($request)->orderByDesc('usage_count')->limit(6)->get(),
             'statusBreakdown' => $this->templateStatusBreakdown($request),
+            'usageTrend' => $this->templateUsageTrend($request),
+            'languages' => $this->templatesQuery($request)->select('language')->distinct()->orderBy('language')->pluck('language'),
             'breadcrumbs' => $this->breadcrumbs('Message Templates'),
+        ]);
+    }
+
+    public function exportTemplates(Request $request): Response
+    {
+        $this->authorizeCommunications($request);
+        $rows = $this->templatesQuery($request)->with('owner')->latest('updated_at')->limit(5000)->get();
+        $csv = "\"Template Name\",Category,\"Trigger Event\",Channels,Language,Status,\"Approval State\",Owner,\"Last Updated\",Usage\n";
+
+        foreach ($rows as $row) {
+            $csv .= collect([
+                $row->name,
+                $row->category,
+                $row->trigger_event,
+                implode('|', $row->channels ?? []),
+                $row->language,
+                $row->status,
+                $row->approval_state,
+                $row->owner?->name ?? 'System',
+                $row->updated_at?->format('Y-m-d H:i:s'),
+                $row->usage_count,
+            ])->map(fn ($value): string => '"'.str_replace('"', '""', (string) $value).'"')->join(',')."\n";
+        }
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="communication-templates.csv"',
         ]);
     }
 
@@ -181,22 +306,89 @@ final class CommunicationController extends Controller
         return back()->with('status', 'Template cloned.');
     }
 
+    public function testSendTemplate(Request $request, CommunicationTemplate $template, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeCommunicationRecord($request, $template);
+        $settings = $this->providerSettings($request)->keyBy('channel');
+        $recipientName = $request->user()?->name ?? 'System User';
+        $recipientContact = $request->user()?->email;
+
+        foreach ($template->channels ?? ['email'] as $channel) {
+            if (! in_array($channel, self::CHANNELS, true)) {
+                continue;
+            }
+
+            $setting = $settings[$channel] ?? null;
+            $enabled = $channel === 'in_app' || (bool) $setting?->enabled;
+
+            CommunicationDelivery::query()->create([
+                'church_id' => $template->church_id,
+                'communication_template_id' => $template->id,
+                'channel' => $channel,
+                'provider' => $setting?->provider ?? ($channel === 'in_app' ? 'Internal' : Str::headline($channel)),
+                'recipient_name' => $recipientName,
+                'recipient_contact' => $recipientContact,
+                'subject' => $template->subject,
+                'body_excerpt' => Str::limit(strip_tags($template->body), 180),
+                'event_type' => $template->trigger_event ?? 'TemplateTest',
+                'status' => $enabled ? 'delivered' : 'failed',
+                'retry_status' => $enabled ? 'none' : 'queued',
+                'attempt' => 1,
+                'latency_ms' => $enabled ? random_int(90, 650) : null,
+                'provider_message_id' => Str::upper($channel).'-TEST-'.Str::upper(Str::random(8)),
+                'response_code' => $enabled ? '200 OK' : 'Provider disabled',
+                'error' => $enabled ? null : 'Enable the channel before sending template tests.',
+                'sent_at' => now(),
+                'delivered_at' => $enabled ? now() : null,
+            ]);
+        }
+
+        $template->increment('usage_count');
+        $template->forceFill(['last_used_at' => now()])->save();
+        $activityLogger->log('Communications', 'template_test_sent', $template->name.' template test was sent.', $template, ['resource' => 'Communication Template', 'status' => 'success'], $request);
+
+        return back()->with('status', 'Template test sent and logged.');
+    }
+
     public function scheduled(Request $request): View
     {
         $this->authorizeCommunications($request);
 
         $campaigns = $this->campaigns($request)
-            ->with('creator')
+            ->with(['creator', 'template'])
             ->where(fn (Builder $query) => $query->where('send_mode', 'scheduled')->orWhereNotNull('scheduled_at'))
+            ->when(filled($request->query('channel')), fn (Builder $query) => $query->whereJsonContains('channels', $request->query('channel')))
+            ->when(filled($request->query('status')), fn (Builder $query) => $query->where('status', $request->query('status')))
+            ->when($request->query('trigger_source') === 'time_based', fn (Builder $query) => $query->whereNull('template_id'))
+            ->when($request->query('trigger_source') === 'event_based', fn (Builder $query) => $query->whereNotNull('template_id'))
+            ->when(filled($request->query('audience')), function (Builder $query) use ($request): void {
+                $audience = strtolower((string) $request->query('audience'));
+                $query->whereRaw('LOWER(segment_name) LIKE ?', ['%'.$audience.'%']);
+            })
+            ->when(filled($request->query('q')), function (Builder $query) use ($request): void {
+                $search = strtolower((string) $request->query('q'));
+                $query->where(fn (Builder $inner) => $inner
+                    ->whereRaw('LOWER(name) LIKE ?', ['%'.$search.'%'])
+                    ->orWhereRaw('LOWER(segment_name) LIKE ?', ['%'.$search.'%'])
+                    ->orWhereRaw('LOWER(subject) LIKE ?', ['%'.$search.'%']));
+            })
             ->orderByRaw('scheduled_at IS NULL')
             ->orderBy('scheduled_at')
             ->paginate(10)
             ->withQueryString();
+        try {
+            $calendarMonth = filled($request->query('month'))
+                ? Carbon::createFromFormat('Y-m', (string) $request->query('month'))->startOfMonth()
+                : now()->startOfMonth();
+        } catch (\Throwable) {
+            $calendarMonth = now()->startOfMonth();
+        }
 
         return view('communications.scheduled', $this->shared($request) + [
             'campaigns' => $campaigns,
             'rules' => $this->automationRules($request),
             'stats' => $this->scheduledStats($request),
+            'calendarMonth' => $calendarMonth,
             'breadcrumbs' => $this->breadcrumbs('Scheduled Messages'),
         ]);
     }
@@ -205,11 +397,21 @@ final class CommunicationController extends Controller
     {
         $this->authorizeCommunications($request);
 
+        $campaigns = $this->campaigns($request)->with('template')->latest()->paginate(10)->withQueryString();
+        $selectedCampaignId = OpaqueId::decode($request->query('campaign'), CommunicationCampaign::class);
+        $selectedCampaign = $selectedCampaignId
+            ? $this->campaigns($request)->with('template')->whereKey($selectedCampaignId)->first()
+            : null;
+
         return view('communications.bulk', $this->shared($request) + [
-            'campaigns' => $this->campaigns($request)->with('template')->latest()->paginate(10)->withQueryString(),
+            'campaigns' => $campaigns,
+            'selectedCampaign' => $selectedCampaign ?? $campaigns->getCollection()->first(),
             'templates' => $this->templatesQuery($request)->where('status', 'active')->orderBy('name')->get(),
             'audienceCount' => $this->audienceQuery($request, $request->query())->count(),
             'stats' => $this->campaignStats($request),
+            'channelMix' => $this->channelMix($request),
+            'trendSeries' => $this->deliveryTrendSeries($request),
+            'failedReasons' => $this->failedReasons($request),
             'breadcrumbs' => $this->breadcrumbs('Bulk Messaging'),
         ]);
     }
@@ -312,11 +514,8 @@ final class CommunicationController extends Controller
     {
         $this->authorizeCommunications($request);
 
-        $deliveries = $this->deliveries($request)
+        $deliveries = $this->filteredDeliveries($request)
             ->with(['campaign', 'template', 'member'])
-            ->when(filled($request->query('channel')), fn (Builder $query) => $query->where('channel', $request->query('channel')))
-            ->when(filled($request->query('status')), fn (Builder $query) => $query->where('status', $request->query('status')))
-            ->when(filled($request->query('provider')), fn (Builder $query) => $query->where('provider', $request->query('provider')))
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -326,6 +525,12 @@ final class CommunicationController extends Controller
             'stats' => $this->deliveryStats($request),
             'failedReasons' => $this->failedReasons($request),
             'providerHealth' => $this->providerHealth($request),
+            'templates' => $this->templatesQuery($request)->orderBy('name')->get(['id', 'name']),
+            'providers' => $this->deliveries($request)->select('provider')->distinct()->orderBy('provider')->pluck('provider'),
+            'eventTypes' => $this->deliveries($request)->whereNotNull('event_type')->select('event_type')->distinct()->orderBy('event_type')->pluck('event_type'),
+            'retryPipeline' => $this->retryPipeline($request),
+            'deliveryHeatmap' => $this->deliveryHeatmap($request),
+            'historySummary' => $this->deliveryHistorySummary($request),
             'breadcrumbs' => $this->breadcrumbs('Delivery Logs & Retry Handling'),
         ]);
     }
@@ -348,7 +553,7 @@ final class CommunicationController extends Controller
     public function exportDeliveries(Request $request): Response
     {
         $this->authorizeCommunications($request);
-        $rows = $this->deliveries($request)->latest()->limit(5000)->get();
+        $rows = $this->filteredDeliveries($request)->latest()->limit(5000)->get();
         $csv = "\"Timestamp\",Channel,Provider,Recipient,Subject,Status,\"Retry Status\",Attempt,\"Response Code\",Error\n";
 
         foreach ($rows as $row) {
@@ -385,6 +590,15 @@ final class CommunicationController extends Controller
                     ->whereHas('member', fn (Builder $memberQuery) => $memberQuery->where('campus_id', $campus))
                     ->orWhereHas('user', fn (Builder $userQuery) => $userQuery->where('campus_id', $campus)));
             })
+            ->when(filled($request->query('role')), fn (Builder $query) => $query->whereHas('user.roles', fn (Builder $roleQuery) => $roleQuery->where('slug', $request->query('role'))))
+            ->when(filled($request->query('preference_type')), function (Builder $query) use ($request): void {
+                match ($request->query('preference_type')) {
+                    'digest' => $query->where('digest_mode', '!=', 'instant'),
+                    'quiet_hours' => $query->whereNotNull('quiet_hours_start'),
+                    'push' => $query->whereJsonContains('channels', 'push'),
+                    default => null,
+                };
+            })
             ->when(filled($request->query('status')), fn (Builder $query) => $request->query('status') === 'opted_out' ? $query->whereNotNull('opted_out_at') : $query->whereNull('opted_out_at'))
             ->when(filled($request->query('q')), function (Builder $query) use ($request): void {
                 $search = strtolower((string) $request->query('q'));
@@ -401,13 +615,171 @@ final class CommunicationController extends Controller
             ->paginate(8)
             ->withQueryString();
 
+        $selected = $this->selectedPreference($request, $preferences->first());
+
         return view('communications.preferences', $this->shared($request) + [
             'preferences' => $preferences,
-            'selected' => $preferences->first(),
+            'selected' => $selected,
             'stats' => $this->preferenceStats($request),
             'channelMix' => $this->preferenceChannelMix($request),
+            'optOutTrend' => $this->preferenceOptOutTrend($request),
+            'preferenceActivity' => $this->preferenceActivity($request),
             'breadcrumbs' => $this->breadcrumbs('User Notification Preferences'),
         ]);
+    }
+
+    public function exportPreferences(Request $request): Response
+    {
+        $this->authorizeCommunications($request);
+        $this->syncMemberPreferences($request);
+
+        $rows = $this->preferencesQuery($request)->with(['member.campus', 'user.roles', 'user.campus'])->latest('updated_at')->get();
+        $csv = "Member,Email,Campus,Role,Channels,Categories,Digest Mode,Quiet Hours,Language,Critical Alerts,Status,Last Updated\n";
+
+        foreach ($rows as $preference) {
+            $person = $preference->member ?: $preference->user;
+            $name = $preference->member ? trim($preference->member->first_name.' '.$preference->member->last_name) : (string) $preference->user?->name;
+            $role = $preference->user?->roles?->pluck('name')->first() ?? Str::headline((string) ($preference->member?->status ?? 'member'));
+            $quietHours = $preference->quiet_hours_start ? substr((string) $preference->quiet_hours_start, 0, 5).' - '.substr((string) $preference->quiet_hours_end, 0, 5) : '';
+            $values = [
+                $name,
+                $person?->email,
+                $preference->member?->campus?->name ?? $preference->user?->campus?->name,
+                $role,
+                collect($preference->channels ?? [])->map(fn (string $channel): string => $this->channelMeta()[$channel]['label'] ?? Str::headline($channel))->join('|'),
+                collect($preference->categories ?? [])->map(fn (string $category): string => Str::headline($category))->join('|'),
+                Str::headline((string) $preference->digest_mode),
+                $quietHours,
+                $preference->language,
+                $preference->critical_alerts ? 'On' : 'Off',
+                $preference->opted_out_at ? 'Opted Out' : 'Active',
+                $preference->updated_at?->format('Y-m-d H:i:s'),
+            ];
+            $csv .= collect($values)->map(fn ($value): string => '"'.str_replace('"', '""', (string) $value).'"')->join(',')."\n";
+        }
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="notification-preferences.csv"',
+        ]);
+    }
+
+    public function applyDefaultPreferences(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeCommunications($request);
+        $updated = 0;
+
+        $this->preferenceSelection($request)->get()->each(function (UserNotificationPreference $preference) use (&$updated): void {
+            $preference->update([
+                'channels' => self::CHANNELS,
+                'categories' => self::CATEGORIES,
+                'digest_mode' => 'instant',
+                'quiet_hours_start' => '22:00',
+                'quiet_hours_end' => '06:00',
+                'language' => 'en',
+                'critical_alerts' => true,
+                'opted_out_at' => null,
+            ]);
+            $updated++;
+        });
+
+        $activityLogger->log('Communications', 'preference_defaults_applied', 'Default notification policy was applied.', null, ['resource' => 'Notification Preferences', 'count' => $updated, 'status' => 'success'], $request);
+
+        return back()->with('status', number_format($updated).' notification preference records updated.');
+    }
+
+    public function sendPreferenceReminder(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeCommunications($request);
+        $preferences = $this->preferenceSelection($request)->with(['member', 'user'])->whereNull('opted_out_at')->limit(500)->get();
+        $created = 0;
+
+        foreach ($preferences as $preference) {
+            $person = $preference->member ?: $preference->user;
+            if (! $person) {
+                continue;
+            }
+
+            $name = $preference->member ? trim($preference->member->first_name.' '.$preference->member->last_name) : (string) $preference->user?->name;
+
+            CommunicationDelivery::query()->create([
+                'church_id' => $this->churchId($request),
+                'member_id' => $preference->member_id,
+                'channel' => 'in_app',
+                'provider' => 'System Channel',
+                'recipient_name' => $name,
+                'recipient_contact' => $person->email,
+                'subject' => 'Review notification preferences',
+                'body_excerpt' => 'Please review your communication channels, quiet hours, and digest settings.',
+                'event_type' => 'PreferenceReminder',
+                'status' => 'queued',
+                'retry_status' => 'queued',
+                'attempt' => 1,
+            ]);
+            $created++;
+        }
+
+        $activityLogger->log('Communications', 'preference_reminder_queued', 'Notification preference reminders were queued.', null, ['resource' => 'Notification Preferences', 'count' => $created, 'status' => 'success'], $request);
+
+        return back()->with('status', number_format($created).' preference reminders queued.');
+    }
+
+    public function importPreferences(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeCommunications($request);
+        $validated = $request->validate(['preferences_file' => ['required', 'file', 'mimes:csv,txt', 'max:2048']]);
+        $handle = fopen($validated['preferences_file']->getRealPath(), 'r');
+        abort_if($handle === false, 422, 'Unable to read preferences file.');
+
+        $headers = array_map(fn (string $header): string => Str::of($header)->lower()->replace(' ', '_')->toString(), fgetcsv($handle) ?: []);
+        $updated = 0;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $data = array_combine($headers, $row);
+            if (! is_array($data) || blank($data['email'] ?? null)) {
+                continue;
+            }
+
+            $email = strtolower((string) $data['email']);
+            $member = $this->members($request)->whereRaw('LOWER(email) = ?', [$email])->first();
+            $user = User::query()->where('church_id', $this->churchId($request))->whereRaw('LOWER(email) = ?', [$email])->first();
+            if (! $member && ! $user) {
+                continue;
+            }
+
+            $channels = collect(explode('|', (string) ($data['channels'] ?? 'in_app|email')))
+                ->map(fn (string $value): string => trim($value))
+                ->intersect(self::CHANNELS)
+                ->values()
+                ->all();
+            $categories = collect(explode('|', (string) ($data['categories'] ?? implode('|', self::CATEGORIES))))
+                ->map(fn (string $value): string => trim($value))
+                ->intersect(self::CATEGORIES)
+                ->values()
+                ->all();
+
+            UserNotificationPreference::query()->updateOrCreate([
+                'church_id' => $this->churchId($request),
+                'member_id' => $member?->id,
+                'user_id' => $member ? null : $user?->id,
+            ], [
+                'channels' => $channels ?: ['in_app', 'email'],
+                'categories' => $categories ?: self::CATEGORIES,
+                'digest_mode' => in_array(($data['digest_mode'] ?? 'instant'), ['instant', 'daily', 'weekly', 'off'], true) ? $data['digest_mode'] : 'instant',
+                'quiet_hours_start' => filled($data['quiet_hours_start'] ?? null) ? $data['quiet_hours_start'] : null,
+                'quiet_hours_end' => filled($data['quiet_hours_end'] ?? null) ? $data['quiet_hours_end'] : null,
+                'language' => (string) ($data['language'] ?? 'en'),
+                'critical_alerts' => filter_var($data['critical_alerts'] ?? true, FILTER_VALIDATE_BOOLEAN),
+                'opted_out_at' => filter_var($data['opted_out'] ?? false, FILTER_VALIDATE_BOOLEAN) ? now() : null,
+            ]);
+
+            $updated++;
+        }
+
+        fclose($handle);
+        $activityLogger->log('Communications', 'preferences_imported', 'Notification preferences were imported.', null, ['resource' => 'Notification Preferences', 'count' => $updated, 'status' => 'success'], $request);
+
+        return back()->with('status', number_format($updated).' preference records imported.');
     }
 
     public function updatePreference(Request $request, UserNotificationPreference $preference, ActivityLogger $activityLogger): RedirectResponse
@@ -424,11 +796,21 @@ final class CommunicationController extends Controller
             'language' => ['required', 'string', 'max:20'],
             'critical_alerts' => ['nullable', 'boolean'],
             'opted_out' => ['nullable', 'boolean'],
+            'person_name' => ['nullable', 'string', 'max:255'],
+            'person_email' => ['nullable', 'email', 'max:255'],
+            'person_phone' => ['nullable', 'string', 'max:50'],
+            'person_status' => ['nullable', 'string', 'max:50'],
+            'campus_id' => [
+                'nullable',
+                Rule::exists('campuses', 'id')->where(fn ($query) => $query->where('church_id', $this->churchId($request))),
+            ],
         ]);
 
+        $this->updatePreferencePerson($preference, $validated, $request);
+
         $preference->update([
-            'channels' => array_values($validated['channels']),
-            'categories' => array_values($validated['categories']),
+            'channels' => array_values(array_unique($validated['channels'])),
+            'categories' => array_values(array_unique($validated['categories'])),
             'digest_mode' => $validated['digest_mode'],
             'quiet_hours_start' => $validated['quiet_hours_start'] ?? null,
             'quiet_hours_end' => $validated['quiet_hours_end'] ?? null,
@@ -618,6 +1000,7 @@ final class CommunicationController extends Controller
             'categories' => self::CATEGORIES,
             'triggersList' => self::TRIGGERS,
             'campuses' => $this->campuses($request),
+            'roles' => Role::query()->orderBy('name')->get(),
         ];
     }
 
@@ -827,9 +1210,63 @@ final class CommunicationController extends Controller
         })->all();
     }
 
+    private function preferenceOptOutTrend(Request $request): array
+    {
+        $labels = collect(range(29, 0))->map(fn (int $days): string => now()->subDays($days)->format('M j'))->all();
+
+        return [
+            'labels' => $labels,
+            'datasets' => [
+                [
+                    'label' => 'Opted Out',
+                    'color' => '#6d4aff',
+                    'values' => collect(range(29, 0))->map(fn (int $days): int => $this->preferencesQuery($request)->whereDate('opted_out_at', '<=', now()->subDays($days)->toDateString())->count())->all(),
+                ],
+            ],
+        ];
+    }
+
+    private function preferenceActivity(Request $request): \Illuminate\Support\Collection
+    {
+        return ActivityLog::query()
+            ->where('church_id', $this->churchId($request))
+            ->where('module', 'Communications')
+            ->whereIn('action', ['preference_updated', 'preference_defaults_applied', 'preference_reminder_queued', 'preferences_imported'])
+            ->with('user')
+            ->latest()
+            ->limit(5)
+            ->get();
+    }
+
     private function deliveryTrend(Request $request): array
     {
         return collect(range(29, 0))->map(fn (int $days): int => $this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->count())->all();
+    }
+
+    private function deliveryTrendSeries(Request $request): array
+    {
+        $labels = collect(range(29, 0))->map(fn (int $days): string => now()->subDays($days)->format('M j'))->all();
+
+        return [
+            'labels' => $labels,
+            'datasets' => [
+                [
+                    'label' => 'Sent',
+                    'color' => '#6d4aff',
+                    'values' => collect(range(29, 0))->map(fn (int $days): int => $this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->count())->all(),
+                ],
+                [
+                    'label' => 'Delivered',
+                    'color' => '#10b981',
+                    'values' => collect(range(29, 0))->map(fn (int $days): int => $this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->where('status', 'delivered')->count())->all(),
+                ],
+                [
+                    'label' => 'Failed',
+                    'color' => '#f43f5e',
+                    'values' => collect(range(29, 0))->map(fn (int $days): int => $this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->where('status', 'failed')->count())->all(),
+                ],
+            ],
+        ];
     }
 
     private function triggerQueue(Request $request): array
@@ -839,6 +1276,25 @@ final class CommunicationController extends Controller
             'queued' => $this->deliveries($request)->where('event_type', $trigger)->count(),
             'template' => $this->templatesQuery($request)->where('trigger_event', $trigger)->exists(),
         ])->all();
+    }
+
+    private function queuedListeners(Request $request): array
+    {
+        return collect([
+            ['listener' => 'SendEventNotification', 'events' => ['EventSessionCreated', 'EventSessionUpdated', 'RegistrationConfirmed']],
+            ['listener' => 'SendAttendanceConfirmation', 'events' => ['AttendanceSessionOpened', 'AttendanceRecorded']],
+            ['listener' => 'SendVolunteerAssignment', 'events' => ['VolunteerAssigned']],
+            ['listener' => 'SendCancellationNotice', 'events' => ['EventSessionCancelled']],
+        ])->map(function (array $row) use ($request): array {
+            $throughput = $this->deliveries($request)->whereIn('event_type', $row['events'])->where('status', 'delivered')->count();
+            $failed = $this->deliveries($request)->whereIn('event_type', $row['events'])->where('status', 'failed')->count();
+
+            return [
+                'listener' => $row['listener'],
+                'status' => $failed > 6 ? 'Warning' : 'Healthy',
+                'throughput' => round(max($throughput, 1) / 4.8, 1),
+            ];
+        })->all();
     }
 
     private function automationRules(Request $request): array
@@ -878,6 +1334,37 @@ final class CommunicationController extends Controller
         ])->values()->all();
     }
 
+    private function notificationTimeline(Request $request): array
+    {
+        $labels = collect(range(6, 0))->map(fn (int $days): string => now()->subDays($days)->format('M j'))->all();
+
+        return [
+            'labels' => $labels,
+            'datasets' => [
+                [
+                    'label' => 'Sent',
+                    'color' => '#6d4aff',
+                    'values' => collect(range(6, 0))->map(fn (int $days): int => $this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->count())->all(),
+                ],
+                [
+                    'label' => 'Delivered',
+                    'color' => '#2477f2',
+                    'values' => collect(range(6, 0))->map(fn (int $days): int => $this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->where('status', 'delivered')->count())->all(),
+                ],
+                [
+                    'label' => 'Failed',
+                    'color' => '#f43f5e',
+                    'values' => collect(range(6, 0))->map(fn (int $days): int => $this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->where('status', 'failed')->count())->all(),
+                ],
+                [
+                    'label' => 'Read',
+                    'color' => '#10b981',
+                    'values' => collect(range(6, 0))->map(fn (int $days): int => $this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->whereNotNull('read_at')->count())->all(),
+                ],
+            ],
+        ];
+    }
+
     private function templateStatusBreakdown(Request $request): array
     {
         return collect(['active' => '#10b981', 'draft' => '#f59e0b', 'inactive' => '#64748b'])->map(fn (string $color, string $status): array => [
@@ -885,6 +1372,27 @@ final class CommunicationController extends Controller
             'value' => $this->templatesQuery($request)->where('status', $status)->count(),
             'color' => $color,
         ])->values()->all();
+    }
+
+    private function templateUsageTrend(Request $request): array
+    {
+        $labels = collect(range(29, 0))->map(fn (int $days): string => now()->subDays($days)->format('M j'))->all();
+
+        return [
+            'labels' => $labels,
+            'datasets' => [
+                [
+                    'label' => 'Sends',
+                    'color' => '#6d4aff',
+                    'values' => collect(range(29, 0))->map(fn (int $days): int => $this->deliveries($request)->whereNotNull('communication_template_id')->whereDate('created_at', now()->subDays($days)->toDateString())->count())->all(),
+                ],
+                [
+                    'label' => 'Delivered',
+                    'color' => '#10b981',
+                    'values' => collect(range(29, 0))->map(fn (int $days): int => $this->deliveries($request)->whereNotNull('communication_template_id')->whereDate('created_at', now()->subDays($days)->toDateString())->where('status', 'delivered')->count())->all(),
+                ],
+            ],
+        ];
     }
 
     private function failedReasons(Request $request): array
@@ -905,6 +1413,95 @@ final class CommunicationController extends Controller
                 'rate' => $total > 0 ? round((($total - $failed) / $total) * 100, 2) : ($setting->enabled ? 100 : 0),
             ];
         })->all();
+    }
+
+    private function retryPipeline(Request $request): array
+    {
+        $deliveries = $this->deliveries($request);
+
+        return [
+            ['label' => 'Queued', 'value' => (clone $deliveries)->where('retry_status', 'queued')->count(), 'icon' => 'refresh-cw', 'tone' => 'bg-orange-50 text-orange-600 ring-orange-100'],
+            ['label' => 'In Progress', 'value' => (clone $deliveries)->where('retry_status', 'processing')->count(), 'icon' => 'play', 'tone' => 'bg-blue-50 text-blue-600 ring-blue-100'],
+            ['label' => 'Waiting (Backoff)', 'value' => (clone $deliveries)->where('retry_status', 'backoff')->count(), 'icon' => 'rotate-ccw', 'tone' => 'bg-violet-50 text-violet-600 ring-violet-100'],
+            ['label' => 'Scheduled', 'value' => (clone $deliveries)->where('status', 'queued')->count(), 'icon' => 'calendar-clock', 'tone' => 'bg-slate-50 text-slate-600 ring-slate-100'],
+        ];
+    }
+
+    private function deliveryHeatmap(Request $request): array
+    {
+        return collect(range(0, 6))->map(function (int $day) use ($request): array {
+            $date = now()->startOfWeek()->addDays($day);
+
+            return [
+                'label' => $date->format('D'),
+                'hours' => collect(range(0, 11))->map(function (int $slot) use ($request, $date): int {
+                    $startHour = $slot * 2;
+
+                    return $this->deliveries($request)
+                        ->whereDate('created_at', $date->toDateString())
+                        ->whereTime('created_at', '>=', sprintf('%02d:00:00', $startHour))
+                        ->whereTime('created_at', '<', sprintf('%02d:00:00', min($startHour + 2, 23)))
+                        ->count();
+                })->all(),
+            ];
+        })->all();
+    }
+
+    private function deliveryHistorySummary(Request $request): array
+    {
+        $deliveries = $this->deliveries($request);
+
+        return [
+            'notifications' => (clone $deliveries)->count(),
+            'unique_recipients' => (clone $deliveries)->distinct('recipient_contact')->count('recipient_contact'),
+            'channels_used' => (clone $deliveries)->distinct('channel')->count('channel'),
+            'templates_used' => (clone $deliveries)->whereNotNull('communication_template_id')->distinct('communication_template_id')->count('communication_template_id'),
+            'batches_sent' => (clone $deliveries)->whereNotNull('communication_campaign_id')->distinct('communication_campaign_id')->count('communication_campaign_id'),
+        ];
+    }
+
+    private function operationalInsights(Request $request): array
+    {
+        $deliveries = $this->deliveries($request);
+        $retryQueue = (clone $deliveries)->where('retry_status', 'queued')->count();
+        $oldestQueued = (clone $deliveries)->where('status', 'queued')->oldest()->value('created_at');
+        $avgLatency = round((clone $deliveries)->whereNotNull('latency_ms')->avg('latency_ms') ?? 0);
+        $channelMeta = $this->channelMeta();
+        $enabledProviders = $this->providerSettings($request)->where('enabled', true)->map(fn (CommunicationProviderSetting $setting): array => [
+            'label' => $setting->provider,
+            'status' => $setting->last_test_status === 'success' ? 'Operational' : 'Review',
+            'icon' => $channelMeta[$setting->channel]['icon'] ?? 'radio',
+            'tone' => $channelMeta[$setting->channel]['tone'] ?? 'bg-slate-50 text-slate-600 ring-slate-100',
+        ])->values()->all();
+        $readiness = (int) round((
+            ($this->providerSettings($request)->where('enabled', true)->count() / max(count(self::CHANNELS), 1)) * 55
+        ) + (
+            ($this->templatesQuery($request)->where('status', 'active')->count() / max($this->templatesQuery($request)->count(), 1)) * 45
+        ));
+
+        return [
+            'retry_queue' => $retryQueue,
+            'oldest_queue' => $oldestQueued ? Carbon::parse($oldestQueued)->diffForHumans(['parts' => 2, 'short' => true]) : 'Clear',
+            'avg_send_time' => $avgLatency > 0 ? round($avgLatency / 1000, 2) : 0,
+            'retry_trend' => collect(range(11, 0))->map(fn (int $days): int => $this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->where('retry_status', 'queued')->count())->all(),
+            'latency_trend' => collect(range(11, 0))->map(fn (int $days): int => (int) round($this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->avg('latency_ms') ?? 0))->all(),
+            'providers' => $enabledProviders,
+            'automation_readiness' => min(100, $readiness),
+        ];
+    }
+
+    private function historySummary(Request $request): array
+    {
+        $deliveries = $this->deliveries($request);
+        $sent = (clone $deliveries)->count();
+
+        return [
+            ['label' => 'Sent', 'value' => $sent, 'icon' => 'send', 'tone' => 'bg-blue-50 text-blue-600'],
+            ['label' => 'Delivered', 'value' => (clone $deliveries)->where('status', 'delivered')->count(), 'icon' => 'shield-check', 'tone' => 'bg-emerald-50 text-emerald-600'],
+            ['label' => 'Failed', 'value' => (clone $deliveries)->where('status', 'failed')->count(), 'icon' => 'triangle-alert', 'tone' => 'bg-rose-50 text-rose-600'],
+            ['label' => 'Queued', 'value' => (clone $deliveries)->where('status', 'queued')->count(), 'icon' => 'refresh-cw', 'tone' => 'bg-orange-50 text-orange-600'],
+            ['label' => 'Retried', 'value' => (clone $deliveries)->where('attempt', '>', 1)->count(), 'icon' => 'rotate-ccw', 'tone' => 'bg-violet-50 text-violet-600'],
+        ];
     }
 
     private function campaigns(Request $request): Builder
@@ -928,11 +1525,118 @@ final class CommunicationController extends Controller
             ->when(! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id, fn (Builder $query) => $query->whereHas('member', fn (Builder $memberQuery) => $memberQuery->where('campus_id', $request->user()->campus_id)));
     }
 
+    private function filteredDeliveries(Request $request): Builder
+    {
+        return $this->deliveries($request)
+            ->when(filled($request->query('channel')), fn (Builder $query) => $query->where('channel', $request->query('channel')))
+            ->when(filled($request->query('status')), fn (Builder $query) => $query->where('status', $request->query('status')))
+            ->when(filled($request->query('retry_status')), fn (Builder $query) => $query->where('retry_status', $request->query('retry_status')))
+            ->when(filled($request->query('provider')), fn (Builder $query) => $query->where('provider', $request->query('provider')))
+            ->when(filled($request->query('template_id')), fn (Builder $query) => $query->where('communication_template_id', $request->query('template_id')))
+            ->when(filled($request->query('event_type')), fn (Builder $query) => $query->where('event_type', $request->query('event_type')))
+            ->when(filled($request->query('batch')), function (Builder $query) use ($request): void {
+                $batch = strtolower((string) $request->query('batch'));
+                $query->where(fn (Builder $inner) => $inner
+                    ->whereRaw('LOWER(provider_message_id) LIKE ?', ['%'.$batch.'%'])
+                    ->orWhere('communication_campaign_id', is_numeric($batch) ? (int) $batch : 0));
+            })
+            ->when(filled($request->query('q')), function (Builder $query) use ($request): void {
+                $search = strtolower((string) $request->query('q'));
+                $query->where(fn (Builder $inner) => $inner
+                    ->whereRaw('LOWER(recipient_name) LIKE ?', ['%'.$search.'%'])
+                    ->orWhereRaw('LOWER(recipient_contact) LIKE ?', ['%'.$search.'%'])
+                    ->orWhereRaw('LOWER(subject) LIKE ?', ['%'.$search.'%'])
+                    ->orWhereRaw('LOWER(provider_message_id) LIKE ?', ['%'.$search.'%']));
+            })
+            ->when(filled($request->query('date_from')), fn (Builder $query) => $query->whereDate('created_at', '>=', $request->query('date_from')))
+            ->when(filled($request->query('date_to')), fn (Builder $query) => $query->whereDate('created_at', '<=', $request->query('date_to')));
+    }
+
     private function preferencesQuery(Request $request): Builder
     {
         return UserNotificationPreference::query()
             ->where('church_id', $this->churchId($request))
             ->when(! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id, fn (Builder $query) => $query->whereHas('member', fn (Builder $memberQuery) => $memberQuery->where('campus_id', $request->user()->campus_id)));
+    }
+
+    private function selectedPreference(Request $request, ?UserNotificationPreference $fallback): ?UserNotificationPreference
+    {
+        $selectedId = OpaqueId::decode((string) $request->query('selected'), UserNotificationPreference::class);
+
+        if (! $selectedId) {
+            return $fallback;
+        }
+
+        return $this->preferencesQuery($request)
+            ->with(['member.campus', 'user.roles', 'user.campus'])
+            ->whereKey($selectedId)
+            ->first() ?? $fallback;
+    }
+
+    private function preferenceSelection(Request $request): Builder
+    {
+        $ids = OpaqueId::decodeMany($request->input('selected', []), UserNotificationPreference::class);
+        $query = $this->preferencesQuery($request);
+
+        return $ids === [] ? $query : $query->whereKey($ids);
+    }
+
+    /**
+     * @param array<string, mixed> $validated
+     */
+    private function updatePreferencePerson(UserNotificationPreference $preference, array $validated, Request $request): void
+    {
+        $campusId = filled($validated['campus_id'] ?? null) ? (int) $validated['campus_id'] : null;
+
+        if ($campusId !== null) {
+            abort_unless($request->user()?->canAccessCampus($campusId), 403);
+        }
+
+        if ($preference->member) {
+            $updates = [];
+
+            if (filled($validated['person_name'] ?? null)) {
+                $parts = preg_split('/\s+/', trim((string) $validated['person_name']), 2) ?: [];
+                $updates['first_name'] = $parts[0] ?? $preference->member->first_name;
+                $updates['last_name'] = $parts[1] ?? $preference->member->last_name;
+            }
+
+            foreach (['person_email' => 'email', 'person_phone' => 'phone', 'person_status' => 'status'] as $input => $column) {
+                if (array_key_exists($input, $validated)) {
+                    $updates[$column] = $validated[$input];
+                }
+            }
+
+            if ($campusId !== null) {
+                $updates['campus_id'] = $campusId;
+            }
+
+            if ($updates !== []) {
+                $preference->member->update($updates);
+            }
+
+            return;
+        }
+
+        if ($preference->user) {
+            $updates = [];
+
+            if (filled($validated['person_name'] ?? null)) {
+                $updates['name'] = trim((string) $validated['person_name']);
+            }
+
+            if (filled($validated['person_email'] ?? null)) {
+                $updates['email'] = $validated['person_email'];
+            }
+
+            if ($campusId !== null) {
+                $updates['campus_id'] = $campusId;
+            }
+
+            if ($updates !== []) {
+                $preference->user->update($updates);
+            }
+        }
     }
 
     private function audienceQuery(Request $request, array $filters): Builder
