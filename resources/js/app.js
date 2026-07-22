@@ -13,6 +13,7 @@ import {
     BookOpen,
     BookPlus,
     Building2,
+    CalendarClock,
     CalendarDays,
     CalendarPlus,
     ChartColumn,
@@ -22,10 +23,12 @@ import {
     ChevronRight,
     ChevronUp,
     CircleHelp,
+    Clock,
     ClipboardCheck,
     ClipboardList,
     CloudCheck,
     Cross,
+    Database,
     Download,
     Eye,
     FileChartColumn,
@@ -35,6 +38,7 @@ import {
     GitBranch,
     GraduationCap,
     Globe2,
+    Hand,
     HandHeart,
     Handshake,
     HardDrive,
@@ -44,6 +48,7 @@ import {
     Landmark,
     LayoutDashboard,
     LayoutGrid,
+    LayoutList,
     Library,
     Link,
     ListChecks,
@@ -58,6 +63,10 @@ import {
     MessageSquare,
     MessageSquareCheck,
     MessageSquareText,
+    MessagesSquare,
+    Mic,
+    MicOff,
+    Monitor,
     MonitorPlay,
     MoreVertical,
     Network,
@@ -69,12 +78,17 @@ import {
     Plus,
     Podcast,
     Receipt,
+    Radio,
+    RadioTower,
     RefreshCw,
     RotateCcw,
     Save,
     Search,
     Send,
     Settings,
+    ScanFace,
+    ScanQrCode,
+    ScreenShare,
     SlidersHorizontal,
     ShieldAlert,
     ShieldCheck,
@@ -89,7 +103,10 @@ import {
     Users,
     UsersRound,
     Upload,
+    Video,
+    VideoOff,
     Wallet,
+    Webhook,
     Wrench,
     X,
     KeyRound,
@@ -338,6 +355,57 @@ document.addEventListener('alpine:init', () => {
             this.avatarPreview = URL.createObjectURL(file);
         },
     }));
+
+    Alpine.data('meetingRoom', storageKey => ({
+        muted: false,
+        camera: false,
+        screen: false,
+        chat: true,
+        hand: false,
+        mediaError: '',
+        note: localStorage.getItem(storageKey) || '',
+        stream: null,
+
+        async startCamera() {
+            if (! navigator.mediaDevices?.getUserMedia) {
+                this.mediaError = 'Camera is not available in this browser.';
+
+                return;
+            }
+
+            try {
+                this.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                if (this.$refs.preview) {
+                    this.$refs.preview.srcObject = this.stream;
+                }
+                this.stream.getAudioTracks().forEach(track => { track.enabled = ! this.muted; });
+                this.stream.getVideoTracks().forEach(track => { track.enabled = this.camera; });
+                this.mediaError = '';
+            } catch (error) {
+                this.mediaError = error?.message || 'Camera permission was not granted.';
+            }
+        },
+
+        async toggleCamera() {
+            this.camera = ! this.camera;
+            if (! this.stream && this.camera) {
+                await this.startCamera();
+            }
+            this.stream?.getVideoTracks().forEach(track => { track.enabled = this.camera; });
+        },
+
+        async toggleMute() {
+            this.muted = ! this.muted;
+            if (! this.stream) {
+                await this.startCamera();
+            }
+            this.stream?.getAudioTracks().forEach(track => { track.enabled = ! this.muted; });
+        },
+
+        saveNote() {
+            localStorage.setItem(storageKey, this.note);
+        },
+    }));
 });
 
 Alpine.start();
@@ -355,6 +423,7 @@ const icons = {
     BookOpen,
     BookPlus,
     Building2,
+    CalendarClock,
     CalendarDays,
     CalendarPlus,
     ChartColumn,
@@ -364,10 +433,12 @@ const icons = {
     ChevronRight,
     ChevronUp,
     CircleHelp,
+    Clock,
     ClipboardCheck,
     ClipboardList,
     CloudCheck,
     Cross,
+    Database,
     Download,
     Eye,
     FileChartColumn,
@@ -377,6 +448,7 @@ const icons = {
     GitBranch,
     GraduationCap,
     Globe2,
+    Hand,
     HandHeart,
     Handshake,
     HardDrive,
@@ -386,6 +458,7 @@ const icons = {
     Landmark,
     LayoutDashboard,
     LayoutGrid,
+    LayoutList,
     Library,
     Link,
     ListChecks,
@@ -400,6 +473,10 @@ const icons = {
     MessageSquare,
     MessageSquareCheck,
     MessageSquareText,
+    MessagesSquare,
+    Mic,
+    MicOff,
+    Monitor,
     MonitorPlay,
     MoreVertical,
     Network,
@@ -411,12 +488,17 @@ const icons = {
     Plus,
     Podcast,
     Receipt,
+    Radio,
+    RadioTower,
     RefreshCw,
     RotateCcw,
     Save,
     Search,
     Send,
     Settings,
+    ScanFace,
+    ScanQrCode,
+    ScreenShare,
     SlidersHorizontal,
     ShieldAlert,
     ShieldCheck,
@@ -431,7 +513,10 @@ const icons = {
     Users,
     UsersRound,
     Upload,
+    Video,
+    VideoOff,
     Wallet,
+    Webhook,
     Wrench,
     X,
     KeyRound,

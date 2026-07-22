@@ -12,7 +12,7 @@
     --color-brand-blue: #2477f2;
     --color-page: #f6f8fc;
     --color-card-border: #dfe6f2;
-    --shadow-card: 0 10px 28px rgb(15 23 42 / 0.06);
+    --shadow-card: 0 12px 30px rgb(15 23 42 / 0.055);
 }
 
 @layer base {
@@ -40,6 +40,11 @@
         -moz-osx-font-smoothing: grayscale;
     }
 
+    ::selection {
+        background: color-mix(in srgb, var(--brand-primary, #6d4aff) 22%, transparent);
+        color: #020617;
+    }
+
     h1,
     h2,
     h3,
@@ -47,9 +52,18 @@
     h5,
     h6 {
         color: #020617;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: 0;
-        line-height: 1.15;
+        line-height: 1.18;
+    }
+
+    h1 {
+        font-size: clamp(1.35rem, 1.12rem + 0.55vw, 1.8rem);
+    }
+
+    h2,
+    h3 {
+        font-size: 1rem;
     }
 
     p,
@@ -74,13 +88,42 @@
     input,
     select,
     textarea {
+        border-color: var(--card-border, #dfe6f2);
         font-size: 0.875rem;
         line-height: 1.35;
+        transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+        border-color: var(--brand-primary, #6d4aff);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary, #6d4aff) 14%, transparent);
+    }
+
+    table {
+        border-color: var(--card-border, #dfe6f2);
+    }
+
+    thead {
+        color: #52627a;
+    }
+
+    th {
+        font-weight: 600;
     }
 
     button,
     a {
         line-height: 1.25;
+    }
+
+    button {
+        cursor: pointer;
+    }
+
+    button:disabled {
+        cursor: not-allowed;
     }
 }
 
@@ -104,10 +147,15 @@
         overflow: hidden;
         border: 1px solid #dfe6f2;
         border-radius: var(--card-radius, 8px);
-        background: var(--card-bg, #fff);
-        box-shadow: 0 10px 28px rgb(15 23 42 / 0.06);
+        background: color-mix(in srgb, var(--card-bg, #fff) 98%, var(--page-bg, #f6f8fc));
+        box-shadow: var(--shadow-card);
         padding: 1rem;
         transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    .dashboard-card:hover {
+        border-color: color-mix(in srgb, var(--brand-primary, #6d4aff) 18%, var(--card-border, #dfe6f2));
+        box-shadow: 0 14px 34px rgb(15 23 42 / 0.075);
     }
 
     .app-shell {
@@ -117,6 +165,7 @@
     .app-topbar {
         background: color-mix(in srgb, var(--card-bg, #fff) 95%, transparent);
         border-color: var(--card-border, #dfe6f2);
+        box-shadow: 0 1px 0 rgb(15 23 42 / 0.02);
     }
 
     .sidebar-profile-card {
@@ -130,6 +179,10 @@
 
     .bg-violet-600 {
         background-color: var(--brand-primary, #6d4aff) !important;
+    }
+
+    .bg-violet-500 {
+        background-color: color-mix(in srgb, var(--brand-primary, #6d4aff) 88%, #fff) !important;
     }
 
     .hover\:bg-violet-700:hover {
@@ -147,7 +200,8 @@
     }
 
     .text-violet-600,
-    .text-violet-500 {
+    .text-violet-500,
+    .text-violet-700 {
         color: var(--brand-primary, #6d4aff) !important;
     }
 
@@ -160,6 +214,70 @@
     .bg-violet-50,
     .hover\:bg-violet-50:hover {
         background-color: color-mix(in srgb, var(--brand-primary, #6d4aff) 10%, #fff) !important;
+    }
+
+    .border-slate-200 {
+        border-color: var(--card-border, #dfe6f2) !important;
+    }
+
+    .bg-white {
+        background-color: var(--card-bg, #fff) !important;
+    }
+
+    .shadow-sm,
+    .shadow-lg {
+        box-shadow: var(--shadow-card) !important;
+    }
+
+    .rounded-lg,
+    .rounded-xl {
+        border-radius: var(--card-radius, 8px) !important;
+    }
+
+    .rounded-2xl {
+        border-radius: max(var(--card-radius, 8px), 10px) !important;
+    }
+
+    .text-slate-950 {
+        color: #081225 !important;
+    }
+
+    .text-slate-500 {
+        color: #64748b !important;
+    }
+
+    .text-xs.uppercase,
+    th.uppercase,
+    .uppercase {
+        letter-spacing: 0.01em;
+    }
+
+    .ring-violet-100 {
+        --tw-ring-color: color-mix(in srgb, var(--brand-primary, #6d4aff) 16%, transparent) !important;
+    }
+
+    .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+        border-color: color-mix(in srgb, var(--card-border, #dfe6f2) 70%, #fff) !important;
+    }
+
+    .bg-slate-50 {
+        background-color: color-mix(in srgb, var(--page-bg, #f6f8fc) 72%, #fff) !important;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+        color: #94a3b8;
+    }
+
+    button[class*="bg-violet-600"],
+    a[class*="bg-violet-600"] {
+        box-shadow: 0 8px 18px color-mix(in srgb, var(--brand-primary, #6d4aff) 18%, transparent);
+    }
+
+    button[class*="bg-violet-600"]:focus-visible,
+    a[class*="bg-violet-600"]:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary, #6d4aff) 22%, transparent);
     }
 
     .ring-violet-200,

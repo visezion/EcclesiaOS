@@ -11,7 +11,7 @@
         </button>
 
         <div class="hidden min-w-0 flex-1 md:block">
-            <p class="truncate text-sm text-slate-600"><span class="font-semibold text-slate-900">Welcome back, {{ $greetingName }}!</span> Here is what is happening today.</p>
+            <p class="truncate text-sm text-slate-600"><span class="font-medium text-slate-900">Welcome back, {{ $greetingName }}!</span> Here is what is happening today.</p>
         </div>
 
         <form action="{{ route('search') }}" method="GET" class="hidden w-full max-w-md lg:block">
@@ -27,7 +27,7 @@
         <div class="ml-auto flex items-center gap-1">
             <button class="relative grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500" aria-label="Notifications">
                 <i data-lucide="bell" class="size-5"></i>
-                <span class="absolute right-1.5 top-1 rounded-full bg-violet-600 px-1.5 text-[10px] font-bold text-white">12</span>
+                <span class="absolute right-1.5 top-1 rounded-full bg-violet-600 px-1.5 text-[10px] font-medium text-white">12</span>
             </button>
             <button class="grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500" aria-label="Messages"><i data-lucide="message-square" class="size-5"></i></button>
             <button class="grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500" aria-label="Calendar"><i data-lucide="calendar-days" class="size-5"></i></button>
@@ -39,7 +39,7 @@
             </select>
             <x-dropdown>
                 <x-slot:trigger>
-                    <button class="grid size-10 place-items-center overflow-hidden rounded-full bg-slate-900 text-sm font-bold text-white" aria-label="Open user menu">
+                    <button class="grid size-10 place-items-center overflow-hidden rounded-full bg-slate-900 text-sm font-medium text-white" aria-label="Open user menu">
                         @if ($user?->avatar_src)
                             <img src="{{ $user->avatar_src }}" alt="{{ $user->name }}" class="size-full object-cover">
                         @else

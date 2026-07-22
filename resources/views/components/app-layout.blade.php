@@ -15,7 +15,8 @@
         'default' => '0.875rem',
         'comfortable' => '0.9375rem',
     ];
-    $requestedThemeMode = $settings['theme_mode'] ?? 'light';
+    $accountSettings = auth()->user()?->account_settings ?? [];
+    $requestedThemeMode = data_get($accountSettings, 'preferences.theme_mode') ?: ($settings['theme_mode'] ?? 'light');
     $themeMode = in_array($requestedThemeMode, ['light', 'dark', 'system'], true) ? $requestedThemeMode : 'light';
     $cssVariables = [
         '--brand-primary' => $settings['primary_color'] ?? '#6C4DFF',

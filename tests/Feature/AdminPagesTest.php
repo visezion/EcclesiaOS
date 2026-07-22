@@ -412,6 +412,34 @@ class AdminPagesTest extends TestCase
                 'status' => 'follow-up',
                 'joined_at' => '2026-07-02',
                 'family_name' => 'Updated Household',
+                'preferred_name' => 'Jordy',
+                'date_of_birth' => '1990-05-15',
+                'gender' => 'Male',
+                'marital_status' => 'Married',
+                'occupation' => 'Operations Lead',
+                'employer' => 'Kingdom Life Global Church',
+                'address_line' => '123 Updated Way',
+                'city' => 'Dallas',
+                'state' => 'TX',
+                'postal_code' => '75201',
+                'country' => 'USA',
+                'alternate_email' => 'jordan.alt@klgc.org',
+                'home_phone' => '+1 (555) 333-6666',
+                'emergency_contact_name' => 'Casey Updated',
+                'emergency_contact_relationship' => 'Spouse',
+                'emergency_contact_phone' => '+1 (555) 333-7777',
+                'care_level' => 'follow-up',
+                'care_notes' => 'Needs a pastoral care call next week.',
+                'volunteer_hours' => 48,
+                'skills' => 'Operations, Hospitality',
+                'preferred_contact' => 'email',
+                'email_notifications' => '1',
+                'sms_notifications' => '1',
+                'mailing_mail' => '1',
+                'salvation_date' => '2015-06-01',
+                'baptism_date' => '2015-07-01',
+                'discipleship_class' => 'Completed',
+                'membership_class' => 'Completed',
             ])
             ->assertRedirect();
 
@@ -419,6 +447,43 @@ class AdminPagesTest extends TestCase
         $this->assertSame('Updated', $member->last_name);
         $this->assertSame('follow-up', $member->status);
         $this->assertSame('Updated Household', $member->family?->name);
+        $this->assertDatabaseHas('member_profiles', [
+            'member_id' => $member->id,
+            'preferred_name' => 'Jordy',
+            'occupation' => 'Operations Lead',
+            'care_level' => 'follow-up',
+            'volunteer_hours' => 48,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('members.show', $member))
+            ->assertOk()
+            ->assertSee('Operations Lead')
+            ->assertSee('Casey Updated')
+            ->assertSee('Operations');
+
+        $deleteMember = Member::query()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'first_name' => 'Delete',
+            'last_name' => 'Member',
+            'email' => 'delete.member@klgc.org',
+            'phone' => '+1 (555) 333-8888',
+            'status' => 'active',
+            'joined_at' => '2026-07-04',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('members.index'))
+            ->assertOk()
+            ->assertSee(route('members.destroy', $deleteMember), false);
+
+        $this->actingAs($admin)
+            ->delete(route('members.destroy', $deleteMember))
+            ->assertRedirect(route('members.index'));
+
+        $this->assertSoftDeleted('members', ['id' => $deleteMember->id]);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'member_deleted']);
 
         $this->actingAs($admin)
             ->post(route('members.bulk'), [
@@ -433,6 +498,8 @@ class AdminPagesTest extends TestCase
         $response->assertOk();
         $this->assertStringContainsString('"Member ID","Full Name",Email,Phone,Status,Campus,Family,Ministry,"Joined At","Attendance 30 Days","Giving Status"', $response->streamedContent());
         $this->assertStringContainsString('Jordan Updated', $response->streamedContent());
+        $this->assertStringContainsString('Operations Lead', $response->streamedContent());
+        $this->assertStringContainsString('follow-up,48', $response->streamedContent());
     }
 
     public function test_members_can_be_imported_from_csv(): void
@@ -477,8 +544,12 @@ class AdminPagesTest extends TestCase
             ->assertOk()
             ->assertSee('Member Profile')
             ->assertSee($member->first_name.' '.$member->last_name)
+            ->assertSee('mailto:'.$member->email, false)
+            ->assertSee(route('members.update', $member), false)
             ->assertSee(route('members.check-in', $member), false)
-            ->assertSee(route('members.assign-ministry', $member), false);
+            ->assertSee(route('members.assign-ministry', $member), false)
+            ->assertSee(route('members.destroy', $member), false)
+            ->assertSee(route('care-tasks.store'), false);
 
         $this->actingAs($admin)
             ->post(route('members.check-in', $member))

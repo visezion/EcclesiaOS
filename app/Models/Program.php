@@ -5,27 +5,22 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\UsesOpaqueRouteKeys;
-
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-final class Event extends Model
+final class Program extends Model
 {
     use UsesOpaqueRouteKeys;
     use SoftDeletes;
 
-    protected $fillable = ['church_id', 'campus_id', 'program_id', 'title', 'description', 'event_type', 'starts_at', 'ends_at', 'venue', 'category', 'status'];
+    protected $fillable = ['church_id', 'campus_id', 'name', 'description', 'starts_on', 'ends_on', 'status'];
 
     protected function casts(): array
     {
-        return ['starts_at' => 'datetime', 'ends_at' => 'datetime'];
-    }
-
-    public function program(): BelongsTo
-    {
-        return $this->belongsTo(Program::class);
+        return ['starts_on' => 'date', 'ends_on' => 'date'];
     }
 
     public function church(): BelongsTo
@@ -38,8 +33,13 @@ final class Event extends Model
         return $this->belongsTo(Campus::class);
     }
 
-    public function sessions(): HasMany
+    public function events(): HasMany
     {
-        return $this->hasMany(EventSession::class);
+        return $this->hasMany(Event::class);
+    }
+
+    public function sessions(): HasManyThrough
+    {
+        return $this->hasManyThrough(EventSession::class, Event::class);
     }
 }

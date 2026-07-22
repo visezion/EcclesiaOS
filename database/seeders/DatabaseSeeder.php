@@ -6,6 +6,8 @@ use App\Models\ActivityLog;
 use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\AttendanceRecord;
+use App\Models\AttendanceSession;
+use App\Models\AttendanceVerification;
 use App\Models\BookstoreOrder;
 use App\Models\BookstoreProduct;
 use App\Models\Campus;
@@ -13,12 +15,15 @@ use App\Models\CareTask;
 use App\Models\Church;
 use App\Models\Donation;
 use App\Models\Event;
+use App\Models\EventSession;
 use App\Models\Family;
 use App\Models\Feedback;
 use App\Models\Fund;
+use App\Models\MeetingIntegration;
 use App\Models\Member;
 use App\Models\Ministry;
 use App\Models\Permission;
+use App\Models\Program;
 use App\Models\PrayerRequest;
 use App\Models\Role;
 use App\Models\User;
@@ -42,6 +47,7 @@ class DatabaseSeeder extends Seeder
         $funds = $this->seedFunds($church);
 
         $this->seedEvents($church, $campuses);
+        $this->seedProgramEventFlow($church, $campuses, $members);
         $this->seedAttendance($church, $campuses, $members);
         $this->seedDonations($church, $campuses, $members, $funds);
         $this->seedMinistriesAndVolunteers($church, $campuses, $members);
@@ -296,6 +302,140 @@ SVG);
                     'status' => 'scheduled',
                 ],
             );
+        }
+    }
+
+    private function seedProgramEventFlow(Church $church, array $campuses, array $members): void
+    {
+        foreach (['zoom', 'google_meet', 'jitsi', 'livekit'] as $provider) {
+            MeetingIntegration::query()->updateOrCreate(
+                ['church_id' => $church->id, 'provider' => $provider],
+                [
+                    'enabled' => true,
+                    'settings' => [
+                        'internal_endpoint' => '/meetings',
+                        'webhook_secret_hash' => hash('sha256', 'seeded-secret'),
+                        'webhook_secret_configured' => true,
+                        'webhook_event' => 'internal.participant_joined',
+                        'room_prefix' => 'kingdomlife',
+                        'identity_field' => 'email',
+                        'recording_retention_days' => 30,
+                        'last_test_status' => 'healthy',
+                        'last_test_message' => 'Built-in meeting adapter is ready inside EcclesiaOS.',
+                    ],
+                    'last_tested_at' => now()->subHours(3),
+                ],
+            );
+        }
+
+        $programRows = [
+            ['Youth Camp 2026', 'Annual youth camp for teens with worship, teaching, and activities.', '2026-07-10', '2026-07-12', 'upcoming', 'youth-network'],
+            ['Leadership Training', 'Training for leaders and volunteers.', '2026-08-01', '2026-08-03', 'upcoming', 'headquarters'],
+            ['Marriage Retreat', 'Couples retreat and enrichment.', '2026-09-15', '2026-09-17', 'upcoming', 'north-campus'],
+        ];
+
+        foreach ($programRows as [$name, $description, $startsOn, $endsOn, $status, $campusSlug]) {
+            $program = Program::query()->updateOrCreate(
+                ['church_id' => $church->id, 'name' => $name],
+                [
+                    'campus_id' => $campuses[$campusSlug]->id,
+                    'description' => $description,
+                    'starts_on' => $startsOn,
+                    'ends_on' => $endsOn,
+                    'status' => $status,
+                ],
+            );
+
+            foreach ([
+                ['Opening Service', 'Kick-off service for the program.', 'Service', '2026-07-10 09:00:00', 'Main Auditorium', 'hybrid'],
+                ['Worship Night', 'Evening worship and prayer.', 'Service', '2026-07-11 19:00:00', 'Main Auditorium', 'physical'],
+                ['Leadership Workshop', 'Leadership and character training.', 'Workshop', '2026-07-12 10:00:00', 'Training Hall', 'online'],
+            ] as [$title, $eventDescription, $type, $startsAt, $venue, $meetingType]) {
+                $event = Event::query()->updateOrCreate(
+                    ['church_id' => $church->id, 'program_id' => $program->id, 'title' => $title],
+                    [
+                        'campus_id' => $program->campus_id,
+                        'description' => $eventDescription,
+                        'event_type' => $type,
+                        'starts_at' => Carbon::parse($startsAt),
+                        'ends_at' => Carbon::parse($startsAt)->addMinutes(90),
+                        'venue' => $venue,
+                        'category' => $type,
+                        'status' => 'scheduled',
+                    ],
+                );
+
+                $session = EventSession::query()->updateOrCreate(
+                    ['event_id' => $event->id, 'title' => $title.' - '.Carbon::parse($startsAt)->format('l')],
+                    [
+                        'church_id' => $church->id,
+                        'campus_id' => $program->campus_id,
+                        'session_date' => Carbon::parse($startsAt)->toDateString(),
+                        'starts_at' => Carbon::parse($startsAt)->format('H:i:s'),
+                        'ends_at' => Carbon::parse($startsAt)->addMinutes(90)->format('H:i:s'),
+                        'timezone' => $church->timezone,
+                        'meeting_type' => $meetingType,
+                        'venue' => $venue,
+                        'address' => $campuses[$campusSlug]->address,
+                        'capacity' => 320,
+                        'status' => 'scheduled',
+                        'meeting_links' => [
+                            'zoom' => ['room' => 'kingdomlife-zoom-'.$event->id, 'access_code' => 'KLCG-'.$event->id],
+                            'google_meet' => ['room' => 'kingdomlife-meet-'.$event->id, 'access_code' => 'KLCG-'.$event->id],
+                            'jitsi' => ['room' => 'kingdomlife-jitsi-'.$event->id, 'access_code' => 'KLCG-'.$event->id],
+                            'livekit' => ['room' => 'kingdomlife-livekit-'.$event->id, 'access_code' => 'KLCG-'.$event->id],
+                        ],
+                    ],
+                );
+
+                $methods = match ($meetingType) {
+                    'online' => ['zoom', 'google_meet', 'jitsi', 'livekit'],
+                    'hybrid' => ['manual', 'qr', 'geolocation', 'kiosk', 'face', 'zoom', 'google_meet', 'jitsi', 'livekit'],
+                    default => ['manual', 'qr', 'geolocation', 'kiosk', 'face'],
+                };
+
+                $attendanceSession = AttendanceSession::query()->updateOrCreate(
+                    ['event_session_id' => $session->id],
+                    [
+                        'church_id' => $church->id,
+                        'campus_id' => $program->campus_id,
+                        'title' => $session->title.' Attendance',
+                        'opens_at' => Carbon::parse($startsAt)->subMinutes(30),
+                        'closes_at' => Carbon::parse($startsAt)->addMinutes(105),
+                        'methods' => $methods,
+                        'verification_policy' => 'any_one',
+                        'require_authenticated' => true,
+                        'allow_guests' => false,
+                        'geo_latitude' => 32.7767000,
+                        'geo_longitude' => -96.7970000,
+                        'geo_radius_meters' => 100,
+                        'expected_attendance' => 320,
+                        'status' => 'scheduled',
+                    ],
+                );
+
+                foreach (array_slice(array_values($members), 0, 4) as $index => $member) {
+                    $record = AttendanceRecord::query()->updateOrCreate(
+                        ['attendance_session_id' => $attendanceSession->id, 'member_id' => $member->id],
+                        [
+                            'church_id' => $church->id,
+                            'campus_id' => $program->campus_id,
+                            'event_id' => $event->id,
+                            'service_date' => Carbon::parse($startsAt)->toDateString(),
+                            'status' => 'present',
+                            'final_method' => $index % 2 === 0 ? 'qr' : 'zoom',
+                            'checked_in_at' => Carbon::parse($startsAt)->addMinutes(10 + $index),
+                            'verification_summary' => [],
+                            'metadata' => ['source' => 'seeded event attendance'],
+                        ],
+                    );
+
+                    AttendanceVerification::query()->updateOrCreate(
+                        ['attendance_session_id' => $attendanceSession->id, 'attendance_record_id' => $record->id, 'member_id' => $member->id, 'method' => $record->final_method],
+                        ['provider' => $record->final_method, 'status' => 'success', 'confidence' => $record->final_method === 'qr' ? 90 : 88, 'verified_at' => $record->checked_in_at, 'metadata' => ['seeded' => true]],
+                    );
+                }
+            }
         }
     }
 

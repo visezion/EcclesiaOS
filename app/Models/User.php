@@ -43,6 +43,7 @@ class User extends Authenticatable
         'recovery_email',
         'mfa_enabled',
         'avatar_url',
+        'account_settings',
         'status',
         'church_id',
         'campus_id',
@@ -74,6 +75,7 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'password_changed_at' => 'datetime',
             'mfa_enabled' => 'boolean',
+            'account_settings' => 'array',
             'password' => 'hashed',
         ];
     }

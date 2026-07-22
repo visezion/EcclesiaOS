@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class Member extends Model
@@ -63,5 +64,10 @@ final class Member extends Model
     public function careTasks(): HasMany
     {
         return $this->hasMany(CareTask::class);
+    }
+
+    public function memberProfile(): HasOne
+    {
+        return $this->hasOne(MemberProfile::class);
     }
 }

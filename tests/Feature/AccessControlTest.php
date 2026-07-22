@@ -144,6 +144,36 @@ class AccessControlTest extends TestCase
         $this->assertSame('active', $target->fresh()->status);
     }
 
+    public function test_plain_numeric_route_ids_do_not_resolve_for_protected_models(): void
+    {
+        $this->seed();
+
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $member = Member::query()->firstOrFail();
+        $user = User::query()->where('email', 'sarah.johnson@klgc.org')->firstOrFail();
+        $role = Role::query()->where('name', 'Viewer')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get('/members/'.$member->id)
+            ->assertNotFound();
+
+        $this->actingAs($admin)
+            ->get('/administration/users/'.$user->id)
+            ->assertNotFound();
+
+        $this->actingAs($admin)
+            ->put('/settings/roles/'.$role->id, ['permissions' => []])
+            ->assertNotFound();
+
+        $this->actingAs($admin)
+            ->get(route('members.show', $member))
+            ->assertOk();
+
+        $this->actingAs($admin)
+            ->get(route('users.show', $user))
+            ->assertOk();
+    }
+
     public function test_campus_scoped_admin_cannot_access_other_campus_user_ids(): void
     {
         $this->seed();

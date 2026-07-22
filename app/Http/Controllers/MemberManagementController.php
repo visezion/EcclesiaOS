@@ -31,12 +31,47 @@ final class MemberManagementController extends Controller
 {
     private const STATUSES = ['active', 'new', 'inactive', 'follow-up', 'archived'];
 
+    private const PROFILE_INPUTS = [
+        'preferred_name',
+        'date_of_birth',
+        'gender',
+        'marital_status',
+        'anniversary_date',
+        'occupation',
+        'employer',
+        'place_of_birth',
+        'nationality',
+        'address_line',
+        'city',
+        'state',
+        'postal_code',
+        'country',
+        'alternate_email',
+        'home_phone',
+        'emergency_contact_name',
+        'emergency_contact_relationship',
+        'emergency_contact_phone',
+        'emergency_contact_alt_phone',
+        'care_level',
+        'care_notes',
+        'volunteer_hours',
+        'skills',
+        'preferred_contact',
+        'email_notifications',
+        'sms_notifications',
+        'mailing_mail',
+        'salvation_date',
+        'baptism_date',
+        'discipleship_class',
+        'membership_class',
+    ];
+
     public function index(Request $request): View
     {
         $this->authorizeMembers($request);
 
         $query = Member::query()
-            ->with(['church', 'campus', 'family', 'volunteers.ministry'])
+            ->with(['church', 'campus', 'family', 'volunteers.ministry', 'memberProfile'])
             ->withCount([
                 'attendanceRecords as attendance_30_days_count' => fn ($query) => $query
                     ->where('status', 'present')
@@ -111,7 +146,7 @@ final class MemberManagementController extends Controller
         $this->authorizeMembers($request);
         $this->authorizeMemberRecord($request, $member);
 
-        $member->load(['church', 'campus', 'family.members', 'volunteers.ministry', 'attendanceRecords', 'donations', 'prayerRequests', 'careTasks.assignedUser']);
+        $member->load(['church', 'campus', 'family.members', 'memberProfile', 'volunteers.ministry', 'attendanceRecords', 'donations', 'prayerRequests', 'careTasks.assignedUser']);
 
         return view('members.show', [
             'member' => $member,
@@ -138,7 +173,8 @@ final class MemberManagementController extends Controller
 
         $validated = $this->validatedMember($request);
         $member = DB::transaction(function () use ($validated): Member {
-            $member = Member::query()->create(Arr::except($validated, ['ministry_id', 'family_name']));
+            $member = Member::query()->create($this->memberPayload($validated));
+            $this->syncMemberProfile($member, $validated);
             $this->syncMinistry($member, $validated['ministry_id'] ?? null);
 
             return $member;
@@ -160,7 +196,8 @@ final class MemberManagementController extends Controller
 
         $validated = $this->validatedMember($request, $member);
         DB::transaction(function () use ($member, $validated): void {
-            $member->update(Arr::except($validated, ['ministry_id', 'family_name']));
+            $member->update($this->memberPayload($validated));
+            $this->syncMemberProfile($member, $validated);
             $this->syncMinistry($member, $validated['ministry_id'] ?? null);
         });
 
@@ -322,8 +359,30 @@ final class MemberManagementController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['Member ID', 'Full Name', 'Email', 'Phone', 'Status', 'Campus', 'Family', 'Ministry', 'Joined At', 'Attendance 30 Days', 'Giving Status']);
-            $this->scopeMembers(Member::query(), $request)->with(['campus', 'family', 'volunteers.ministry'])->orderBy('last_name')->lazy(100)->each(function (Member $member) use ($handle): void {
+            fputcsv($handle, [
+                'Member ID',
+                'Full Name',
+                'Email',
+                'Phone',
+                'Status',
+                'Campus',
+                'Family',
+                'Ministry',
+                'Joined At',
+                'Attendance 30 Days',
+                'Giving Status',
+                'Preferred Name',
+                'Alternate Email',
+                'Home Phone',
+                'Gender',
+                'Date of Birth',
+                'Marital Status',
+                'Occupation',
+                'Employer',
+                'Care Level',
+                'Volunteer Hours',
+            ]);
+            $this->scopeMembers(Member::query(), $request)->with(['campus', 'family', 'memberProfile', 'volunteers.ministry'])->orderBy('last_name')->lazy(100)->each(function (Member $member) use ($handle): void {
                 $row = $this->memberRow($member);
                 fputcsv($handle, [
                     $row['code'],
@@ -337,6 +396,16 @@ final class MemberManagementController extends Controller
                     $row['joined'],
                     $row['attendance'],
                     $row['givingStatus'],
+                    $row['preferredName'],
+                    $row['alternateEmail'],
+                    $row['homePhone'],
+                    $row['gender'],
+                    $row['dateOfBirth'],
+                    $row['marital'],
+                    $row['occupation'],
+                    $row['employer'],
+                    $row['careLevel'],
+                    $row['volunteerHours'],
                 ]);
             });
             fclose($handle);
@@ -479,6 +548,38 @@ final class MemberManagementController extends Controller
             'status' => ['required', Rule::in(self::STATUSES)],
             'joined_at' => ['nullable', 'date'],
             'ministry_id' => ['nullable', 'exists:ministries,id'],
+            'preferred_name' => ['nullable', 'string', 'max:120'],
+            'date_of_birth' => ['nullable', 'date'],
+            'gender' => ['nullable', 'string', 'max:40'],
+            'marital_status' => ['nullable', 'string', 'max:40'],
+            'anniversary_date' => ['nullable', 'date'],
+            'occupation' => ['nullable', 'string', 'max:120'],
+            'employer' => ['nullable', 'string', 'max:120'],
+            'place_of_birth' => ['nullable', 'string', 'max:120'],
+            'nationality' => ['nullable', 'string', 'max:80'],
+            'address_line' => ['nullable', 'string', 'max:160'],
+            'city' => ['nullable', 'string', 'max:80'],
+            'state' => ['nullable', 'string', 'max:80'],
+            'postal_code' => ['nullable', 'string', 'max:30'],
+            'country' => ['nullable', 'string', 'max:80'],
+            'alternate_email' => ['nullable', 'email', 'max:120'],
+            'home_phone' => ['nullable', 'string', 'max:40'],
+            'emergency_contact_name' => ['nullable', 'string', 'max:120'],
+            'emergency_contact_relationship' => ['nullable', 'string', 'max:80'],
+            'emergency_contact_phone' => ['nullable', 'string', 'max:40'],
+            'emergency_contact_alt_phone' => ['nullable', 'string', 'max:40'],
+            'care_level' => ['nullable', 'string', 'max:40'],
+            'care_notes' => ['nullable', 'string', 'max:2000'],
+            'volunteer_hours' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'skills' => ['nullable', 'string', 'max:600'],
+            'preferred_contact' => ['nullable', Rule::in(['email', 'phone', 'mail'])],
+            'email_notifications' => ['nullable', 'boolean'],
+            'sms_notifications' => ['nullable', 'boolean'],
+            'mailing_mail' => ['nullable', 'boolean'],
+            'salvation_date' => ['nullable', 'date'],
+            'baptism_date' => ['nullable', 'date'],
+            'discipleship_class' => ['nullable', 'string', 'max:120'],
+            'membership_class' => ['nullable', 'string', 'max:120'],
         ]);
 
         $actor = $request->user();
@@ -588,10 +689,12 @@ final class MemberManagementController extends Controller
 
     private function memberRow(Member $member): array
     {
+        $details = $member->memberProfile;
         $ministry = $member->volunteers->first()?->ministry?->name ?? $this->fallbackMinistry($member);
         $attendance = (int) ($member->attendance_30_days_count ?? $member->attendanceRecords()->whereDate('service_date', '>=', now()->subDays(30))->count());
         $gifts = (int) ($member->gifts_this_year_count ?? $member->donations()->whereDate('received_at', '>=', now()->startOfYear())->count());
         $givingTotal = (float) ($member->giving_this_year_total ?? $member->donations()->whereDate('received_at', '>=', now()->startOfYear())->sum('amount'));
+        $age = $details?->date_of_birth ? $details->date_of_birth->age : null;
 
         return [
             'id' => $member->id,
@@ -600,11 +703,37 @@ final class MemberManagementController extends Controller
             'name' => trim($member->first_name.' '.$member->last_name),
             'firstName' => $member->first_name,
             'lastName' => $member->last_name,
+            'preferredName' => $details?->preferred_name ?? $member->first_name,
             'email' => $member->email ?? 'No email',
             'phone' => $member->phone ?? 'No phone',
-            'gender' => $this->gender($member->first_name),
-            'age' => 24 + ($member->id % 36),
-            'marital' => $member->id % 3 === 0 ? 'Single' : 'Married',
+            'alternateEmail' => $details?->alternate_email ?? '',
+            'homePhone' => $details?->home_phone ?? '',
+            'gender' => $details?->gender ?? 'Not specified',
+            'dateOfBirth' => $details?->date_of_birth?->format('M d, Y') ?? '',
+            'dateOfBirthInput' => $details?->date_of_birth?->toDateString(),
+            'age' => $age,
+            'marital' => $details?->marital_status ?? 'Not specified',
+            'anniversaryInput' => $details?->anniversary_date?->toDateString(),
+            'occupation' => $details?->occupation ?? '',
+            'employer' => $details?->employer ?? '',
+            'placeOfBirth' => $details?->place_of_birth ?? '',
+            'nationality' => $details?->nationality ?? '',
+            'addressLine' => $details?->address_line ?? '',
+            'city' => $details?->city ?? '',
+            'state' => $details?->state ?? '',
+            'postalCode' => $details?->postal_code ?? '',
+            'country' => $details?->country ?? '',
+            'emergencyContactName' => $details?->emergency_contact_name ?? '',
+            'emergencyContactRelationship' => $details?->emergency_contact_relationship ?? '',
+            'emergencyContactPhone' => $details?->emergency_contact_phone ?? '',
+            'emergencyContactAltPhone' => $details?->emergency_contact_alt_phone ?? '',
+            'careLevel' => $details?->care_level ?? 'standard',
+            'careNotes' => $details?->care_notes ?? '',
+            'communicationPreferences' => $details?->communication_preferences ?? [],
+            'spiritualJourney' => $details?->spiritual_journey ?? [],
+            'skills' => $details?->skills ?? [],
+            'skillsText' => implode(', ', $details?->skills ?? []),
+            'volunteerHours' => $details?->volunteer_hours ?? 0,
             'status' => $member->status,
             'campus' => $member->campus?->name ?? 'Unassigned',
             'campusId' => $member->campus_id,
@@ -619,6 +748,67 @@ final class MemberManagementController extends Controller
             'attendanceBars' => $this->attendanceBars($member->id, $attendance),
             'givingStatus' => $gifts >= 3 || $givingTotal >= 500 ? 'Tither' : ($gifts > 0 ? 'Regular' : 'None'),
             'lastActivity' => $this->lastActivity($member),
+        ];
+    }
+
+    private function memberPayload(array $validated): array
+    {
+        return Arr::except($validated, array_merge(['ministry_id', 'family_name'], self::PROFILE_INPUTS));
+    }
+
+    private function syncMemberProfile(Member $member, array $validated): void
+    {
+        $member->memberProfile()->updateOrCreate(
+            ['member_id' => $member->id],
+            $this->profilePayload($validated),
+        );
+    }
+
+    private function profilePayload(array $validated): array
+    {
+        $skills = collect(explode(',', (string) ($validated['skills'] ?? '')))
+            ->map(fn (string $skill): string => trim($skill))
+            ->filter()
+            ->values()
+            ->all();
+
+        return [
+            'preferred_name' => $validated['preferred_name'] ?? null,
+            'date_of_birth' => $validated['date_of_birth'] ?? null,
+            'gender' => $validated['gender'] ?? null,
+            'marital_status' => $validated['marital_status'] ?? null,
+            'anniversary_date' => $validated['anniversary_date'] ?? null,
+            'occupation' => $validated['occupation'] ?? null,
+            'employer' => $validated['employer'] ?? null,
+            'place_of_birth' => $validated['place_of_birth'] ?? null,
+            'nationality' => $validated['nationality'] ?? null,
+            'address_line' => $validated['address_line'] ?? null,
+            'city' => $validated['city'] ?? null,
+            'state' => $validated['state'] ?? null,
+            'postal_code' => $validated['postal_code'] ?? null,
+            'country' => $validated['country'] ?? null,
+            'alternate_email' => $validated['alternate_email'] ?? null,
+            'home_phone' => $validated['home_phone'] ?? null,
+            'emergency_contact_name' => $validated['emergency_contact_name'] ?? null,
+            'emergency_contact_relationship' => $validated['emergency_contact_relationship'] ?? null,
+            'emergency_contact_phone' => $validated['emergency_contact_phone'] ?? null,
+            'emergency_contact_alt_phone' => $validated['emergency_contact_alt_phone'] ?? null,
+            'care_level' => $validated['care_level'] ?? 'standard',
+            'care_notes' => $validated['care_notes'] ?? null,
+            'volunteer_hours' => (int) ($validated['volunteer_hours'] ?? 0),
+            'skills' => $skills,
+            'communication_preferences' => [
+                'preferred_contact' => $validated['preferred_contact'] ?? 'email',
+                'email_notifications' => (bool) ($validated['email_notifications'] ?? false),
+                'sms_notifications' => (bool) ($validated['sms_notifications'] ?? false),
+                'mailing_mail' => (bool) ($validated['mailing_mail'] ?? false),
+            ],
+            'spiritual_journey' => [
+                'salvation_date' => $validated['salvation_date'] ?? null,
+                'baptism_date' => $validated['baptism_date'] ?? null,
+                'discipleship_class' => $validated['discipleship_class'] ?? null,
+                'membership_class' => $validated['membership_class'] ?? null,
+            ],
         ];
     }
 

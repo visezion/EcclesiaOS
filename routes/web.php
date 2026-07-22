@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccessControlController;
+use App\Http\Controllers\AccountSettingsController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CampusManagementController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EventFlowController;
 use App\Http\Controllers\FamilyManagementController;
 use App\Http\Controllers\MemberManagementController;
 use App\Http\Controllers\ModuleController;
@@ -20,6 +22,10 @@ use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\UserDirectoryController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
+
+Route::post('webhooks/meeting-attendance/{provider}', [EventFlowController::class, 'onlineAttendanceWebhook'])
+    ->name('meeting-attendance.webhook')
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -34,6 +40,27 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/', fn () => redirect()->route('dashboard'))->name('home');
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('search', SearchController::class)->name('search');
+    Route::get('programs', [EventFlowController::class, 'programs'])->name('programs.index');
+    Route::post('programs', [EventFlowController::class, 'storeProgram'])->name('programs.store');
+    Route::get('programs/{program}/events', [EventFlowController::class, 'events'])->name('programs.events');
+    Route::post('programs/{program}/events', [EventFlowController::class, 'storeEvent'])->name('programs.events.store');
+    Route::get('events', [EventFlowController::class, 'events'])->name('events.index');
+    Route::get('programs/{program}/events/{event}/sessions', [EventFlowController::class, 'sessions'])->name('event-sessions.index');
+    Route::post('programs/{program}/events/{event}/sessions', [EventFlowController::class, 'storeSession'])->name('event-sessions.store');
+    Route::get('calendar', [EventFlowController::class, 'calendar'])->name('calendar.index');
+    Route::get('meetings', [EventFlowController::class, 'meetings'])->name('meetings.index');
+    Route::get('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'meeting'])->name('event-sessions.meeting');
+    Route::put('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'updateMeeting'])->name('event-sessions.meeting.update');
+    Route::get('meetings/rooms/{eventSession}/{provider}', [EventFlowController::class, 'room'])->name('meetings.rooms.show');
+    Route::get('event-sessions/{eventSession}/attendance', [EventFlowController::class, 'attendance'])->name('event-sessions.attendance');
+    Route::put('event-sessions/{eventSession}/attendance', [EventFlowController::class, 'updateAttendance'])->name('event-sessions.attendance.update');
+    Route::get('attendance', [EventFlowController::class, 'attendanceIndex'])->name('attendance.index');
+    Route::get('attendance/{attendanceSession}/methods', [EventFlowController::class, 'methods'])->name('attendance.methods');
+    Route::post('attendance/{attendanceSession}/check-in', [EventFlowController::class, 'checkIn'])->name('attendance.check-in');
+    Route::get('attendance/{attendanceSession}/records/{member}', [EventFlowController::class, 'record'])->name('attendance.records.show');
+    Route::get('administration/meeting-integrations', [EventFlowController::class, 'integrations'])->name('meeting-integrations.index');
+    Route::put('administration/meeting-integrations', [EventFlowController::class, 'updateIntegrations'])->name('meeting-integrations.update');
+    Route::post('administration/meeting-integrations/{provider}/test', [EventFlowController::class, 'testIntegration'])->name('meeting-integrations.test');
     Route::get('members/follow-up', [PastoralCareController::class, 'index'])->name('members.follow-up');
     Route::post('members/follow-up', [PastoralCareController::class, 'store'])->name('care-tasks.store');
     Route::post('members/follow-up/bulk', [PastoralCareController::class, 'bulk'])->name('care-tasks.bulk');
@@ -83,7 +110,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'members.index', 'families.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'audit-logs.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'families.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'audit-logs.index', 'meeting-integrations.index'], true)) {
             continue;
         }
 
@@ -94,7 +121,9 @@ Route::middleware('auth')->group(function (): void {
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('profile/password', [ProfileController::class, 'password'])->name('profile.password');
     Route::post('profile/impersonate', [ProfileController::class, 'impersonate'])->name('profile.impersonate');
-    Route::get('account/settings', ModuleController::class)->defaults('module', 'account')->name('account.settings');
+    Route::get('account/settings', [AccountSettingsController::class, 'edit'])->name('account.settings');
+    Route::put('account/settings', [AccountSettingsController::class, 'update'])->name('account.settings.update');
+    Route::post('account/settings/test-notification', [AccountSettingsController::class, 'testNotification'])->name('account.settings.test-notification');
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     Route::get('admin-only', fn () => 'ok')->middleware('role:Super Administrator')->name('admin.only');
 });
