@@ -168,4 +168,64 @@ class ModuleRoutesTest extends TestCase
         $this->assertSame('Built-in meeting adapter is ready inside EcclesiaOS.', $integration->settings['last_test_message']);
         $this->assertNotNull($integration->last_tested_at);
     }
+
+    public function test_only_enabled_and_selected_builtin_meeting_methods_are_joinable(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $program = Program::query()->firstOrFail();
+        $event = Event::query()->where('program_id', $program->id)->firstOrFail();
+
+        MeetingIntegration::query()
+            ->where('church_id', $user->church_id)
+            ->where('provider', 'jitsi')
+            ->update(['enabled' => false]);
+
+        $this->actingAs($user)
+            ->get(route('event-sessions.index', [$program, $event]))
+            ->assertOk()
+            ->assertSee('Zoom')
+            ->assertDontSee('jitsi room ID');
+
+        $this->actingAs($user)
+            ->post(route('event-sessions.store', [$program, $event]), [
+                'title' => 'Selected Provider Session',
+                'session_date' => '2026-08-15',
+                'starts_at' => '10:00',
+                'ends_at' => '11:00',
+                'meeting_type' => 'online',
+                'venue' => null,
+                'address' => null,
+                'capacity' => 100,
+                'status' => 'scheduled',
+                'meeting_links' => [
+                    'zoom' => ['enabled' => '1', 'room' => 'selected-zoom-room', 'access_code' => 'Z-100'],
+                    'google_meet' => ['room' => 'not-selected-room'],
+                    'jitsi' => ['enabled' => '1', 'room' => 'disabled-provider-room'],
+                ],
+            ])
+            ->assertRedirect();
+
+        $session = EventSession::query()->where('title', 'Selected Provider Session')->firstOrFail();
+        $attendanceSession = AttendanceSession::query()->where('event_session_id', $session->id)->firstOrFail();
+
+        $this->assertSame(['zoom'], array_keys($session->meeting_links));
+        $this->assertSame(['zoom'], $attendanceSession->methods);
+
+        $this->actingAs($user)
+            ->get(route('attendance.methods', $attendanceSession))
+            ->assertOk()
+            ->assertSee('Zoom')
+            ->assertDontSee('Google Meet')
+            ->assertDontSee('Jitsi Meet');
+
+        $this->actingAs($user)
+            ->get(route('meetings.rooms.show', [$session, 'google_meet']))
+            ->assertForbidden();
+
+        $this->actingAs($user)
+            ->get(route('meetings.rooms.show', [$session, 'zoom']))
+            ->assertOk()
+            ->assertSee('Built-in Zoom Room');
+    }
 }

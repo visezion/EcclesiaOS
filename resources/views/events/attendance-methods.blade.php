@@ -1,6 +1,7 @@
 <x-app-layout title="Attendance Methods" :breadcrumbs="$breadcrumbs">
     @php
         $methods = $attendanceSession->methods ?? [];
+        $onlineMethods = ['zoom','google_meet','jitsi','livekit'];
         $methodMeta = [
             'qr' => ['QR Code', 'Scan or enter the session QR token.', 'scan-qr-code'],
             'geolocation' => ['Geolocation', 'Check in using browser location.', 'map-pin'],
@@ -18,8 +19,8 @@
         @if(session('status'))<div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{{ session('status') }}</div>@endif
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             @foreach($methodMeta as $method => [$label, $description, $icon])
-                @if(in_array($method, $methods, true))
-                    @if(in_array($method, ['zoom','google_meet','jitsi','livekit'], true))
+                @if(in_array($method, $methods, true) && (! in_array($method, $onlineMethods, true) || in_array($method, $selectedOnlineMethods ?? [], true)))
+                    @if(in_array($method, $onlineMethods, true))
                     <article class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                         <div class="grid size-11 place-items-center rounded-lg bg-violet-50 text-violet-600"><i data-lucide="{{ $icon }}" class="size-5"></i></div><h2 class="mt-4 text-base text-slate-950">{{ $label }}</h2><p class="mt-1 min-h-10 text-sm text-slate-500">{{ $description }}</p>
                         <a href="{{ route('meetings.rooms.show', [$attendanceSession->eventSession, $method]) }}" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white"><i data-lucide="log-in" class="size-4"></i>Open Built-in Room</a>

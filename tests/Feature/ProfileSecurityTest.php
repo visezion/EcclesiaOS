@@ -97,4 +97,85 @@ class ProfileSecurityTest extends TestCase
 
         $this->assertDatabaseHas('activity_logs', ['action' => 'profile_preview_started']);
     }
+
+    public function test_account_settings_preferences_notifications_and_security_are_persistent(): void
+    {
+        $user = User::factory()->create(['timezone' => 'UTC', 'mfa_enabled' => false]);
+
+        $this->actingAs($user)
+            ->get(route('account.settings'))
+            ->assertOk()
+            ->assertSee('Account Settings')
+            ->assertSee('Notification Preferences')
+            ->assertSee('Security & MFA', false);
+
+        $this->actingAs($user)
+            ->put(route('account.settings.update'), [
+                'section' => 'preferences',
+                'timezone' => 'Asia/Nicosia',
+                'language' => 'en',
+                'date_format' => 'Y-m-d',
+                'theme_mode' => 'dark',
+                'default_landing_page' => 'programs.index',
+                'compact_tables' => '1',
+            ])
+            ->assertRedirect();
+
+        $user->refresh();
+        $this->assertSame('Asia/Nicosia', $user->timezone);
+        $this->assertSame('dark', $user->account_settings['preferences']['theme_mode']);
+        $this->assertTrue($user->account_settings['preferences']['compact_tables']);
+
+        $this->actingAs($user)
+            ->get(route('account.settings'))
+            ->assertOk()
+            ->assertSee('data-theme="dark"', false);
+
+        $this->actingAs($user)
+            ->put(route('account.settings.update'), [
+                'section' => 'notifications',
+                'email_notifications' => '1',
+                'in_app_notifications' => '1',
+                'notification_frequency' => 'daily_digest',
+                'notify_security' => '1',
+                'notify_events' => '1',
+            ])
+            ->assertRedirect();
+
+        $user->refresh();
+        $this->assertSame('daily_digest', $user->account_settings['notifications']['notification_frequency']);
+        $this->assertTrue($user->account_settings['notifications']['email_notifications']);
+        $this->assertFalse($user->account_settings['notifications']['sms_notifications']);
+
+        $this->actingAs($user)
+            ->put(route('account.settings.update'), [
+                'section' => 'security',
+                'mfa_enabled' => '1',
+                'mfa_method' => 'email',
+                'login_notifications' => '1',
+                'trusted_device_alerts' => '1',
+                'session_timeout_minutes' => 120,
+                'recovery_email' => 'recovery@example.org',
+            ])
+            ->assertRedirect();
+
+        $user->refresh();
+        $this->assertTrue($user->mfa_enabled);
+        $this->assertSame('recovery@example.org', $user->recovery_email);
+        $this->assertSame('email', $user->account_settings['security']['mfa_method']);
+        $this->assertSame(120, $user->account_settings['security']['session_timeout_minutes']);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'account_security_updated']);
+    }
+
+    public function test_account_settings_can_create_a_real_test_notification(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('account.settings.test-notification'))
+            ->assertRedirect();
+
+        $this->assertSame(1, $user->fresh()->unreadNotifications()->count());
+        $this->assertDatabaseHas('activity_logs', ['action' => 'test_notification_sent']);
+    }
 }

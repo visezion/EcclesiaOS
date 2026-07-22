@@ -56,6 +56,7 @@ class DatabaseSeeder extends Seeder
         $this->seedFeedbackAndPrayer($church, $campuses, $members);
         $this->seedCareTasks($church, $members, $users);
         $this->seedActivityLogs($church, $campuses, $users);
+        $this->call(CommunicationDemoSeeder::class);
     }
 
     private function seedChurch(): Church

@@ -29,9 +29,26 @@
                 <div class="grid gap-3 sm:grid-cols-2"><select name="meeting_type" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="physical">Physical</option><option value="online">Online</option><option value="hybrid">Hybrid</option></select><select name="campus_id" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Program campus</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}">{{ $campus->name }}</option>@endforeach</select></div>
                 <input name="venue" placeholder="Venue" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><input name="address" placeholder="Address" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                 <div class="grid gap-3 sm:grid-cols-2"><input name="capacity" type="number" min="0" placeholder="Capacity" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><select name="status" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="scheduled">Scheduled</option><option value="draft">Draft</option></select></div>
-                @foreach(['zoom' => 'Zoom', 'google_meet' => 'Google Meet', 'jitsi' => 'Jitsi Meet', 'livekit' => 'LiveKit'] as $provider => $label)
-                    <input name="meeting_links[{{ $provider }}][room]" placeholder="{{ $label }} internal room ID" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                @endforeach
+                <section class="rounded-lg border border-slate-200 p-4">
+                    <h3 class="text-sm font-semibold text-slate-950">Built-in Online Rooms</h3>
+                    <p class="mt-1 text-xs text-slate-500">Only enabled meeting methods are available. Select the rooms this session can use.</p>
+                    <div class="mt-3 space-y-3">
+                        @forelse($enabledMeetingProviders as $provider => $meta)
+                            <div class="rounded-lg bg-slate-50 p-3">
+                                <label class="mb-2 flex items-center justify-between gap-3 text-sm text-slate-700">
+                                    <span class="inline-flex items-center gap-2"><i data-lucide="{{ $meta['icon'] }}" class="size-4 text-violet-600"></i>{{ $meta['label'] }}</span>
+                                    <input type="checkbox" name="meeting_links[{{ $provider }}][enabled]" value="1" class="rounded border-slate-300 text-violet-600">
+                                </label>
+                                <div class="grid gap-2 sm:grid-cols-[1fr_120px]">
+                                    <input name="meeting_links[{{ $provider }}][room]" placeholder="{{ Str::slug($meta['label']) }} room ID" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <input name="meeting_links[{{ $provider }}][access_code]" placeholder="Code" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                </div>
+                            </div>
+                        @empty
+                            <div class="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">No built-in meeting methods are enabled. Enable them in Meeting Method Setup first.</div>
+                        @endforelse
+                    </div>
+                </section>
                 <button class="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white">Create Session</button>
             </form>
         </aside>

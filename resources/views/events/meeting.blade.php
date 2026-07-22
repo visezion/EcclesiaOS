@@ -1,13 +1,8 @@
 <x-app-layout title="Meeting" :breadcrumbs="$breadcrumbs">
     @php
         $links = $session->meeting_links ?? [];
-        $providers = [
-            'zoom' => ['Zoom', 'video'],
-            'google_meet' => ['Google Meet', 'calendar-clock'],
-            'jitsi' => ['Jitsi Meet', 'radio'],
-            'livekit' => ['LiveKit Room', 'radio-tower'],
-        ];
         $enabledMethods = $session->attendanceSession?->methods ?? [];
+        $selectedProviders = array_keys($links);
     @endphp
     <div class="space-y-5">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -61,17 +56,23 @@
                         <a href="{{ route('meeting-integrations.index') }}" class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-violet-700">Adapter Setup</a>
                     </div>
                     <div class="space-y-3">
-                        @foreach($providers as $provider => [$label, $icon])
+                        @forelse($enabledMeetingProviders as $provider => $meta)
                             @php
+                                $label = $meta['label'];
+                                $icon = $meta['icon'];
+                                $selected = in_array($provider, $selectedProviders, true);
                                 $room = old("meeting_links.{$provider}.room", $links[$provider]['room'] ?? 'kingdomlife-'.$provider.'-'.$session->id);
                             @endphp
                             <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
                                 <div class="mb-3 flex items-center justify-between gap-3">
-                                    <div class="flex items-center gap-2 text-sm text-slate-800"><i data-lucide="{{ $icon }}" class="size-4 text-violet-600"></i>{{ $label }}</div>
-                                    @if(in_array($provider, $enabledMethods, true))
+                                    <label class="flex items-center gap-2 text-sm text-slate-800">
+                                        <input type="checkbox" name="meeting_links[{{ $provider }}][enabled]" value="1" @checked(old("meeting_links.{$provider}.enabled", $selected)) class="rounded border-slate-300 text-violet-600">
+                                        <i data-lucide="{{ $icon }}" class="size-4 text-violet-600"></i>{{ $label }}
+                                    </label>
+                                    @if($selected && in_array($provider, $enabledMethods, true))
                                         <a href="{{ route('meetings.rooms.show', [$session, $provider]) }}" class="rounded-lg bg-white px-3 py-1.5 text-sm text-violet-700 ring-1 ring-slate-200 hover:bg-violet-50">Open Room</a>
                                     @else
-                                        <span class="rounded-lg bg-white px-3 py-1.5 text-sm text-slate-400 ring-1 ring-slate-200">Enable in attendance</span>
+                                        <span class="rounded-lg bg-white px-3 py-1.5 text-sm text-slate-400 ring-1 ring-slate-200">{{ $selected ? 'Save attendance' : 'Not selected' }}</span>
                                     @endif
                                 </div>
                                 <div class="grid gap-3 md:grid-cols-[1fr_150px]">
@@ -80,7 +81,9 @@
                                 </div>
                                 <code class="mt-2 block break-all rounded bg-white px-3 py-2 text-xs text-slate-500">{{ route('meetings.rooms.show', [$session, $provider]) }}</code>
                             </div>
-                        @endforeach
+                        @empty
+                            <div class="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">No built-in meeting methods are enabled. Enable them in Meeting Method Setup first.</div>
+                        @endforelse
                     </div>
                 </section>
                 <button class="rounded-lg bg-violet-600 px-5 py-2.5 text-sm text-white">Save Meeting</button>
@@ -99,14 +102,19 @@
                 <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <h2 class="mb-4 text-base text-slate-950">Online Auto Attendance</h2>
                     <div class="space-y-2">
-                        @foreach($providers as $provider => [$label, $icon])
-                            @if(in_array($provider, $enabledMethods, true))
+                        @forelse($enabledMeetingProviders as $provider => $meta)
+                            @if(in_array($provider, $selectedProviders, true) && in_array($provider, $enabledMethods, true))
                                 <a href="{{ route('meetings.rooms.show', [$session, $provider]) }}" class="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm text-violet-700 hover:bg-violet-50">
-                                    <span class="inline-flex items-center gap-2"><i data-lucide="{{ $icon }}" class="size-4"></i>Open {{ $label }}</span>
+                                    <span class="inline-flex items-center gap-2"><i data-lucide="{{ $meta['icon'] }}" class="size-4"></i>Open {{ $meta['label'] }}</span>
                                     <i data-lucide="arrow-right" class="size-4"></i>
                                 </a>
                             @endif
-                        @endforeach
+                        @empty
+                            <p class="text-sm text-slate-500">No enabled online methods.</p>
+                        @endforelse
+                        @if(collect($enabledMeetingProviders)->keys()->intersect($selectedProviders)->intersect($enabledMethods)->isEmpty())
+                            <p class="text-sm text-slate-500">No online room was selected for this meeting.</p>
+                        @endif
                     </div>
                 </section>
             </aside>

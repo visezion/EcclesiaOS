@@ -1,15 +1,22 @@
 @php
     $user = auth()->user();
-    $items = collect(config('navigation'))->filter(fn (array $item): bool => $user?->isSuperAdministrator() || empty($item['permission']) || $user?->hasPermission($item['permission']))->all();
+    $canAccessNavigationItem = fn (array $item): bool => $user?->isSuperAdministrator() || empty($item['permission']) || $user?->hasPermission($item['permission']);
+    $items = collect(config('navigation'))
+        ->filter(fn (array $item): bool => $canAccessNavigationItem($item) || collect($item['children'] ?? [])->contains($canAccessNavigationItem))
+        ->all();
     $currentRoute = request()->route()?->getName();
-    $routeMatches = function (?string $route) use ($currentRoute): bool {
-        if ($currentRoute === null || $route === null) {
+    $routeMatches = function (?string $route, array $activeRoutes = []) use ($currentRoute): bool {
+        if ($currentRoute === null) {
             return false;
         }
 
-        $routeGroup = explode('.', $route)[0] ?? $route;
+        if ($route !== null && $currentRoute === $route) {
+            return true;
+        }
 
-        return $currentRoute === $route || str_starts_with($currentRoute, $routeGroup.'.');
+        return collect($activeRoutes)->contains(function (string $candidate) use ($currentRoute): bool {
+            return $currentRoute === $candidate || str_starts_with($currentRoute, $candidate.'.');
+        });
     };
     $brandingChurch = \App\Models\Church::query()->first();
     $sidebarBackgroundPath = data_get($brandingChurch?->settings, 'sidebar_background') ?: config('church.sidebar_background');
@@ -37,34 +44,45 @@
     <nav class="relative z-10 flex-1 space-y-1 px-3 pb-5">
         @foreach ($items as $item)
             @php
-                $children = collect($item['children'] ?? [])->filter(fn (array $child): bool => $user?->isSuperAdministrator() || empty($child['permission']) || $user?->hasPermission($child['permission']));
-                $isActive = $routeMatches($item['route'] ?? null) || $children->contains(fn (array $child): bool => $routeMatches($child['route'] ?? null));
+                $children = collect($item['children'] ?? [])->filter($canAccessNavigationItem);
+                $isActive = $routeMatches($item['route'] ?? null, $item['active_routes'] ?? []) || $children->contains(fn (array $child): bool => $routeMatches($child['route'] ?? null, $child['active_routes'] ?? []));
             @endphp
-            <div>
-                <a
-                    href="{{ route($item['route']) }}"
-                    class="{{ $isActive ? 'bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-lg shadow-purple-950/25' : 'text-slate-200 hover:bg-white/10 hover:text-white' }} group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-white/70"
-                    aria-current="{{ $routeMatches($item['route'] ?? null) && $children->isEmpty() ? 'page' : 'false' }}"
-                >
-                    <i data-lucide="{{ $item['icon'] }}" class="size-4 shrink-0"></i>
-                    <span class="min-w-0 flex-1 truncate">{{ $item['label'] }}</span>
-                    @isset($item['badge'])
-                        <span class="rounded-full bg-violet-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ $item['badge'] }}</span>
-                    @endisset
-                    @if ($children->isNotEmpty())
-                        <i data-lucide="chevron-up" class="size-3 {{ $isActive ? '' : 'rotate-180' }}"></i>
-                    @endif
-                </a>
-                @if ($children->isNotEmpty() && $isActive)
-                    <div class="mt-1 space-y-1 pl-8">
+            <div x-data="{ open: @js($isActive) }">
+                @if ($children->isNotEmpty())
+                    <button
+                        type="button"
+                        x-on:click="open = ! open"
+                        class="{{ $isActive ? 'bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-lg shadow-purple-950/25' : 'text-slate-200 hover:bg-white/10 hover:text-white' }} group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-white/70"
+                        x-bind:aria-expanded="open.toString()"
+                    >
+                        <i data-lucide="{{ $item['icon'] }}" class="size-4 shrink-0"></i>
+                        <span class="min-w-0 flex-1 truncate">{{ $item['label'] }}</span>
+                        @isset($item['badge'])
+                            <span class="rounded-full bg-violet-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ $item['badge'] }}</span>
+                        @endisset
+                        <i data-lucide="chevron-up" class="size-3 transition-transform" x-bind:class="open ? '' : 'rotate-180'"></i>
+                    </button>
+                    <div x-show="open" class="mt-1 space-y-1 pl-8">
                         @foreach ($children as $child)
-                            @php($childActive = $routeMatches($child['route'] ?? null))
+                            @php($childActive = $routeMatches($child['route'] ?? null, $child['active_routes'] ?? []))
                             <a href="{{ route($child['route']) }}" class="{{ $childActive ? 'bg-violet-600/90 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white' }} flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium" aria-current="{{ $childActive ? 'page' : 'false' }}">
                                 <i data-lucide="{{ $child['icon'] }}" class="size-3.5"></i>
                                 <span class="truncate">{{ $child['label'] }}</span>
                             </a>
                         @endforeach
                     </div>
+                @else
+                    <a
+                        href="{{ route($item['route']) }}"
+                        class="{{ $isActive ? 'bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-lg shadow-purple-950/25' : 'text-slate-200 hover:bg-white/10 hover:text-white' }} group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-white/70"
+                        aria-current="{{ $routeMatches($item['route'] ?? null, $item['active_routes'] ?? []) ? 'page' : 'false' }}"
+                    >
+                        <i data-lucide="{{ $item['icon'] }}" class="size-4 shrink-0"></i>
+                        <span class="min-w-0 flex-1 truncate">{{ $item['label'] }}</span>
+                        @isset($item['badge'])
+                            <span class="rounded-full bg-violet-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ $item['badge'] }}</span>
+                        @endisset
+                    </a>
                 @endif
             </div>
         @endforeach

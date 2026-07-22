@@ -12,7 +12,9 @@ final class ModuleController extends Controller
     public function __invoke(Request $request): View
     {
         $routeName = (string) $request->route()?->getName();
-        $module = collect(config('navigation'))->firstWhere('route', $routeName) ?? $this->profileModule($routeName);
+        $module = collect(config('navigation'))
+            ->flatMap(fn (array $item): array => [$item, ...($item['children'] ?? [])])
+            ->firstWhere('route', $routeName) ?? $this->profileModule($routeName);
 
         abort_if($module === null, 404);
         abort_if(isset($module['permission']) && ! $request->user()?->isSuperAdministrator() && ! $request->user()?->hasPermission($module['permission']), 403);

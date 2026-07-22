@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CampusManagementController;
+use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventFlowController;
 use App\Http\Controllers\FamilyManagementController;
@@ -88,6 +89,26 @@ Route::middleware('auth')->group(function (): void {
     Route::post('settings/system/test-connection', [SystemSettingsController::class, 'testConnection'])->name('settings.system.test-connection');
     Route::post('settings/branding/sidebar-background', [BrandingController::class, 'updateSidebarBackground'])->name('settings.branding.sidebar-background');
     Route::delete('settings/branding/sidebar-background', [BrandingController::class, 'resetSidebarBackground'])->name('settings.branding.sidebar-background.reset');
+    Route::get('communications', [CommunicationController::class, 'overview'])->name('communications.index');
+    Route::get('communications/notifications', [CommunicationController::class, 'notifications'])->name('communications.notifications');
+    Route::get('communications/templates', [CommunicationController::class, 'templates'])->name('communications.templates');
+    Route::post('communications/templates', [CommunicationController::class, 'storeTemplate'])->name('communications.templates.store');
+    Route::put('communications/templates/{template}', [CommunicationController::class, 'updateTemplate'])->name('communications.templates.update');
+    Route::delete('communications/templates/{template}', [CommunicationController::class, 'deleteTemplate'])->name('communications.templates.destroy');
+    Route::post('communications/templates/{template}/clone', [CommunicationController::class, 'cloneTemplate'])->name('communications.templates.clone');
+    Route::get('communications/scheduled', [CommunicationController::class, 'scheduled'])->name('communications.scheduled');
+    Route::get('communications/bulk', [CommunicationController::class, 'bulk'])->name('communications.bulk');
+    Route::post('communications/campaigns', [CommunicationController::class, 'storeCampaign'])->name('communications.campaigns.store');
+    Route::post('communications/campaigns/{campaign}/send', [CommunicationController::class, 'sendCampaignNow'])->name('communications.campaigns.send');
+    Route::delete('communications/campaigns/{campaign}', [CommunicationController::class, 'deleteCampaign'])->name('communications.campaigns.destroy');
+    Route::get('communications/delivery-logs', [CommunicationController::class, 'deliveryLogs'])->name('communications.delivery-logs');
+    Route::get('communications/delivery-logs/export', [CommunicationController::class, 'exportDeliveries'])->name('communications.delivery-logs.export');
+    Route::post('communications/delivery-logs/{delivery}/retry', [CommunicationController::class, 'retryDelivery'])->name('communications.delivery-logs.retry');
+    Route::get('communications/preferences', [CommunicationController::class, 'preferences'])->name('communications.preferences');
+    Route::put('communications/preferences/{preference}', [CommunicationController::class, 'updatePreference'])->name('communications.preferences.update');
+    Route::get('communications/integrations', [CommunicationController::class, 'integrations'])->name('communications.integrations');
+    Route::put('communications/integrations', [CommunicationController::class, 'updateIntegrations'])->name('communications.integrations.update');
+    Route::post('communications/integrations/{channel}/test', [CommunicationController::class, 'testIntegration'])->name('communications.integrations.test');
     Route::get('administration/users', UserDirectoryController::class)->name('users.index');
     Route::get('administration/users/export', [UserDirectoryController::class, 'export'])->name('users.export');
     Route::get('administration/users/{user}', [UserManagementController::class, 'show'])->name('users.show');
@@ -110,7 +131,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'families.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'audit-logs.index', 'meeting-integrations.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'families.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'audit-logs.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
             continue;
         }
 

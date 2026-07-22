@@ -15,6 +15,8 @@ final class SearchService
         }
 
         $navigation = collect(config('navigation'))
+            ->flatMap(fn (array $item): array => [$item, ...($item['children'] ?? [])])
+            ->filter(fn (array $item): bool => isset($item['route']))
             ->map(fn (array $item): array => [
                 'category' => 'Module',
                 'title' => $item['label'],

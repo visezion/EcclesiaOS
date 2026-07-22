@@ -23,6 +23,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -151,6 +152,7 @@ final class EventFlowController extends Controller
             'event' => $event,
             'sessions' => $sessions,
             'campuses' => $this->visibleCampuses($request)->get(),
+            'enabledMeetingProviders' => $this->enabledMeetingProviders($request),
             'breadcrumbs' => $this->breadcrumbs([
                 ['Programs', route('programs.index')],
                 [$program->name, route('programs.events', $program)],
@@ -168,11 +170,11 @@ final class EventFlowController extends Controller
         $session = $event->sessions()->create([
             ...$validated,
             'church_id' => $event->church_id,
-            'campus_id' => $validated['campus_id'] ?: $event->campus_id,
-            'timezone' => $validated['timezone'] ?: config('app.timezone'),
+            'campus_id' => ($validated['campus_id'] ?? null) ?: $event->campus_id,
+            'timezone' => ($validated['timezone'] ?? null) ?: config('app.timezone'),
             'meeting_links' => $this->meetingLinksFromRequest($request),
         ]);
-        $this->ensureAttendanceSession($session);
+        $this->syncAttendanceMethods($session);
 
         $activityLogger->log('Event Sessions', 'event_session_created', $session->title.' was created.', $session, ['resource' => 'Event Session', 'risk' => 'low', 'status' => 'success'], $request);
 
@@ -225,6 +227,7 @@ final class EventFlowController extends Controller
         return view('events.meeting', [
             'session' => $eventSession,
             'integrations' => $this->providerIntegrations($request),
+            'enabledMeetingProviders' => $this->enabledMeetingProviders($request),
             'breadcrumbs' => $this->breadcrumbs([
                 ['Programs', route('programs.index')],
                 [$eventSession->event->title, route('event-sessions.index', [$eventSession->event->program, $eventSession->event])],
@@ -248,7 +251,7 @@ final class EventFlowController extends Controller
             ...$validated,
             'meeting_links' => $this->meetingLinksFromRequest($request),
         ]);
-        $this->ensureAttendanceSession($eventSession->fresh());
+        $this->syncAttendanceMethods($eventSession->fresh());
 
         $activityLogger->log('Meetings', 'meeting_updated', $eventSession->title.' meeting settings were updated.', $eventSession, ['resource' => 'Meeting', 'risk' => 'low', 'status' => 'success'], $request);
 
@@ -262,6 +265,7 @@ final class EventFlowController extends Controller
 
         $eventSession->load(['event.program', 'campus', 'attendanceSession']);
         $attendanceSession = $this->ensureAttendanceSession($eventSession);
+        abort_unless($this->sessionHasSelectedProvider($eventSession, $provider), 403);
         abort_unless(in_array($provider, $attendanceSession->methods ?? [], true), 403);
 
         $integration = MeetingIntegration::query()
@@ -318,6 +322,7 @@ final class EventFlowController extends Controller
         return view('events.attendance-session', [
             'session' => $eventSession->load(['event.program', 'campus']),
             'attendanceSession' => $attendanceSession,
+            'selectedOnlineMethods' => $this->selectedOnlineMethods($eventSession),
             'records' => $attendanceSession->records()->with(['member', 'verifications'])->latest('checked_in_at')->paginate(10),
             'breadcrumbs' => $this->breadcrumbs([
                 ['Programs', route('programs.index')],
@@ -346,7 +351,7 @@ final class EventFlowController extends Controller
 
         $this->ensureAttendanceSession($eventSession)->update([
             ...$validated,
-            'methods' => $validated['methods'] ?? $this->defaultMethods($eventSession->meeting_type),
+            'methods' => $this->allowedRequestedMethods($eventSession, $validated['methods'] ?? $this->attendanceMethodsForSession($eventSession)),
             'require_authenticated' => (bool) ($validated['require_authenticated'] ?? false),
             'allow_guests' => (bool) ($validated['allow_guests'] ?? false),
             'expected_attendance' => (int) ($validated['expected_attendance'] ?? 0),
@@ -361,15 +366,28 @@ final class EventFlowController extends Controller
     {
         $this->authorizeAttendance($request);
 
+        $status = $request->query('status');
         $attendanceSessions = AttendanceSession::query()
-            ->with(['eventSession.event.program', 'records'])
+            ->with(['eventSession.event.program', 'eventSession.campus'])
+            ->withCount('records')
             ->where(fn (Builder $query) => $this->scopeAttendanceQuery($query, $request))
+            ->when(filled($request->query('q')), function (Builder $query) use ($request): void {
+                $search = str((string) $request->query('q'))->lower()->trim()->toString();
+                $query->where(function (Builder $searchQuery) use ($search): void {
+                    $searchQuery
+                        ->whereRaw('LOWER(title) LIKE ?', ['%'.$search.'%'])
+                        ->orWhereHas('eventSession', fn (Builder $sessionQuery) => $sessionQuery->whereRaw('LOWER(title) LIKE ?', ['%'.$search.'%']))
+                        ->orWhereHas('eventSession.event.program', fn (Builder $programQuery) => $programQuery->whereRaw('LOWER(name) LIKE ?', ['%'.$search.'%']));
+                });
+            })
+            ->when(in_array($status, ['scheduled', 'open', 'closed'], true), fn (Builder $query) => $query->where('status', $status))
             ->latest('opens_at')
             ->paginate(10)
             ->withQueryString();
 
         return view('events.attendance-index', [
             'attendanceSessions' => $attendanceSessions,
+            'stats' => $this->attendanceStats($request),
             'breadcrumbs' => $this->breadcrumbs([['Attendance', null]]),
         ]);
     }
@@ -383,6 +401,7 @@ final class EventFlowController extends Controller
         return view('events.attendance-methods', [
             'attendanceSession' => $attendanceSession,
             'member' => $member,
+            'selectedOnlineMethods' => $this->selectedOnlineMethods($attendanceSession->eventSession),
             'breadcrumbs' => $this->breadcrumbs([['Attendance', route('attendance.index')], ['Check-in Methods', null]]),
         ]);
     }
@@ -662,7 +681,7 @@ final class EventFlowController extends Controller
                 'title' => $session->title.' Attendance',
                 'opens_at' => $start->copy()->subMinutes(30),
                 'closes_at' => $end->copy()->addMinutes(15),
-                'methods' => $this->defaultMethods($session->meeting_type),
+                'methods' => $this->attendanceMethodsForSession($session),
                 'verification_policy' => 'any_one',
                 'require_authenticated' => true,
                 'allow_guests' => false,
@@ -681,14 +700,87 @@ final class EventFlowController extends Controller
         };
     }
 
+    private function syncAttendanceMethods(EventSession $session): AttendanceSession
+    {
+        $attendanceSession = $this->ensureAttendanceSession($session);
+        $attendanceSession->update(['methods' => $this->attendanceMethodsForSession($session)]);
+
+        return $attendanceSession->fresh();
+    }
+
+    private function attendanceMethodsForSession(EventSession $session): array
+    {
+        $selectedOnlineMethods = $this->selectedOnlineMethods($session);
+
+        return match ($session->meeting_type) {
+            'online' => $selectedOnlineMethods,
+            'hybrid' => array_values(array_unique([...self::PHYSICAL_METHODS, ...$selectedOnlineMethods])),
+            default => self::PHYSICAL_METHODS,
+        };
+    }
+
+    private function allowedRequestedMethods(EventSession $session, array $requestedMethods): array
+    {
+        $allowed = $this->attendanceMethodsForSession($session);
+
+        return collect($requestedMethods)
+            ->filter(fn (string $method): bool => in_array($method, $allowed, true))
+            ->values()
+            ->all();
+    }
+
+    private function selectedOnlineMethods(EventSession $session): array
+    {
+        return collect($session->meeting_links ?? [])
+            ->keys()
+            ->filter(fn (string $provider): bool => in_array($provider, self::ONLINE_METHODS, true))
+            ->values()
+            ->all();
+    }
+
+    private function sessionHasSelectedProvider(EventSession $session, string $provider): bool
+    {
+        return in_array($provider, $this->selectedOnlineMethods($session), true);
+    }
+
     private function meetingLinksFromRequest(Request $request): array
     {
-        return collect(self::PROVIDERS)->mapWithKeys(fn (string $provider): array => [
-            $provider => [
-                'room' => $request->input("meeting_links.{$provider}.room"),
-                'access_code' => $request->input("meeting_links.{$provider}.access_code"),
-            ],
-        ])->filter(fn (array $link): bool => filled($link['room']) || filled($link['access_code']))->all();
+        $enabledProviders = $this->enabledProviderKeys($request);
+
+        return collect(self::PROVIDERS)
+            ->filter(fn (string $provider): bool => in_array($provider, $enabledProviders, true))
+            ->filter(fn (string $provider): bool => $request->boolean("meeting_links.{$provider}.enabled"))
+            ->mapWithKeys(fn (string $provider): array => [
+                $provider => [
+                    'room' => $request->input("meeting_links.{$provider}.room") ?: 'kingdomlife-'.$provider.'-'.Str::slug((string) $request->input('title', 'session')),
+                    'access_code' => $request->input("meeting_links.{$provider}.access_code"),
+                ],
+            ])
+            ->all();
+    }
+
+    private function enabledProviderKeys(Request $request): array
+    {
+        return $this->providerIntegrations($request)
+            ->filter(fn (MeetingIntegration $integration): bool => $integration->enabled)
+            ->keys()
+            ->values()
+            ->all();
+    }
+
+    private function enabledMeetingProviders(Request $request): array
+    {
+        $meta = $this->providerMeta();
+
+        return collect($this->enabledProviderKeys($request))
+            ->mapWithKeys(fn (string $provider): array => [
+                $provider => [
+                    'label' => $meta[$provider]['label'],
+                    'icon' => $meta[$provider]['icon'],
+                    'color' => $meta[$provider]['color'],
+                ],
+            ])
+            ->all();
     }
 
     private function providerIntegrations(Request $request): \Illuminate\Support\Collection
@@ -996,6 +1088,19 @@ final class EventFlowController extends Controller
             'events' => Event::query()->where(fn (Builder $query) => $this->scopeEventQuery($query, $request))->count(),
             'sessions' => EventSession::query()->where(fn (Builder $query) => $this->scopeSessionQuery($query, $request))->count(),
             'attendance' => AttendanceRecord::query()->whereNotNull('attendance_session_id')->count(),
+        ];
+    }
+
+    private function attendanceStats(Request $request): array
+    {
+        $base = AttendanceSession::query()->where(fn (Builder $query) => $this->scopeAttendanceQuery($query, $request));
+
+        return [
+            'sessions' => (clone $base)->count(),
+            'scheduled' => (clone $base)->where('status', 'scheduled')->count(),
+            'open' => (clone $base)->where('status', 'open')->count(),
+            'closed' => (clone $base)->where('status', 'closed')->count(),
+            'records' => AttendanceRecord::query()->whereNotNull('attendance_session_id')->count(),
         ];
     }
 
