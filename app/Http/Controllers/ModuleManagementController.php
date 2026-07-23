@@ -15,6 +15,7 @@ use App\Models\Event;
 use App\Models\Facility;
 use App\Models\Family;
 use App\Models\Feedback;
+use App\Models\LeadershipReport;
 use App\Models\Member;
 use App\Models\Ministry;
 use App\Models\PrayerRequest;
@@ -243,6 +244,7 @@ final class ModuleManagementController extends Controller
             'feedback.index' => number_format(Feedback::query()->count()).' feedback records',
             'staff.index' => number_format(Staff::query()->count()).' staff records',
             'workflows.index' => number_format(Workflow::query()->count()).' workflows',
+            'leadership-reports.index' => number_format(LeadershipReport::query()->count()).' leadership reports',
             'users.index' => number_format(User::query()->count()).' users',
             'roles.index' => number_format(Role::query()->count()).' roles',
             default => 'Navigation module',

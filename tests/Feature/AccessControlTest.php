@@ -7,6 +7,7 @@ use App\Models\Campus;
 use App\Models\CareTask;
 use App\Models\Family;
 use App\Models\Member;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -364,5 +365,84 @@ class AccessControlTest extends TestCase
 
         $this->assertDatabaseMissing('roles', ['name' => 'Full Access Copy']);
         $this->assertTrue($superRole->permissions()->exists());
+    }
+
+    public function test_roles_page_lists_all_default_roles_and_real_permission_controls(): void
+    {
+        $this->seed();
+
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $response = $this->actingAs($admin)
+            ->get(route('roles.index'))
+            ->assertOk()
+            ->assertSee('Roles & Permissions', false)
+            ->assertSee('Each switch maps to one real database permission used by authorization checks.');
+
+        foreach (array_keys(config('access.roles')) as $roleName) {
+            $response->assertSee($roleName);
+            $this->assertDatabaseHas('roles', ['name' => $roleName]);
+        }
+
+        foreach (config('access.permissions') as $permissionName) {
+            $response->assertSee($permissionName);
+            $this->assertDatabaseHas('permissions', ['name' => $permissionName]);
+        }
+    }
+
+    public function test_role_permission_updates_change_runtime_authorization(): void
+    {
+        $this->seed();
+
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $staffRole = Role::query()->where('name', 'Staff')->firstOrFail();
+        $staffUser = User::factory()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+        ]);
+        $staffUser->roles()->attach($staffRole);
+
+        $viewDashboard = Permission::query()->where('name', 'view dashboard')->firstOrFail();
+        $manageMembers = Permission::query()->where('name', 'manage members')->firstOrFail();
+
+        $this->assertTrue($staffUser->hasPermission('view dashboard'));
+        $this->assertFalse($staffUser->hasPermission('manage members'));
+
+        $this->actingAs($admin)
+            ->put(route('roles.update', $staffRole), [
+                'permissions' => [$viewDashboard->id, $manageMembers->id],
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue($staffUser->fresh()->hasPermission('manage members'));
+
+        $this->actingAs($admin)
+            ->put(route('roles.update', $staffRole), [
+                'permissions' => [$viewDashboard->id],
+            ])
+            ->assertRedirect();
+
+        $this->assertFalse($staffUser->fresh()->hasPermission('manage members'));
+    }
+
+    public function test_super_administrator_keeps_full_permission_access(): void
+    {
+        $this->seed();
+
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $superRole = Role::query()->where('name', 'Super Administrator')->firstOrFail();
+
+        $superRole->permissions()->sync([]);
+
+        $this->assertTrue($admin->fresh()->hasPermission('manage roles'));
+        $this->assertTrue($admin->fresh()->hasPermission('manage settings'));
+
+        $this->actingAs($admin)
+            ->put(route('roles.update', $superRole), [
+                'permissions' => [],
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(Permission::query()->count(), $superRole->fresh()->permissions()->count());
     }
 }

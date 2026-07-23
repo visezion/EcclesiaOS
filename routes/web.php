@@ -12,6 +12,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeveloperHubController;
 use App\Http\Controllers\EventFlowController;
 use App\Http\Controllers\FamilyManagementController;
+use App\Http\Controllers\LeadershipReportController;
 use App\Http\Controllers\MemberManagementController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\ModuleManagementController;
@@ -80,6 +81,14 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('members/follow-up/bulk', [PastoralCareController::class, 'bulk'])->name('care-tasks.bulk');
     Route::get('members/follow-up/export', [PastoralCareController::class, 'export'])->name('care-tasks.export');
     Route::put('members/follow-up/{task}', [PastoralCareController::class, 'update'])->name('care-tasks.update');
+    Route::get('leadership-reports', [LeadershipReportController::class, 'index'])->name('leadership-reports.index');
+    Route::post('leadership-reports', [LeadershipReportController::class, 'store'])->name('leadership-reports.store');
+    Route::post('leadership-reports/summary', [LeadershipReportController::class, 'generateSummary'])->name('leadership-reports.summary');
+    Route::post('leadership-reports/reminders', [LeadershipReportController::class, 'sendReminders'])->name('leadership-reports.reminders');
+    Route::put('leadership-reports/settings', [LeadershipReportController::class, 'updateSettings'])->name('leadership-reports.settings.update');
+    Route::get('leadership-reports/export', [LeadershipReportController::class, 'export'])->name('leadership-reports.export');
+    Route::get('leadership-reports/{leadershipReport}', [LeadershipReportController::class, 'show'])->name('leadership-reports.show');
+    Route::put('leadership-reports/{leadershipReport}/review', [LeadershipReportController::class, 'review'])->name('leadership-reports.review');
     Route::get('members', [MemberManagementController::class, 'index'])->name('members.index');
     Route::get('members/create', [MemberManagementController::class, 'create'])->name('members.create');
     Route::post('members', [MemberManagementController::class, 'store'])->name('members.store');
@@ -170,7 +179,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'families.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'developer-hub.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'families.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'developer-hub.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
             continue;
         }
 

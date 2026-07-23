@@ -1708,7 +1708,10 @@ final class EventFlowController extends Controller
     private function decryptLiveKitSecret(array $settings): string
     {
         try {
-            return Crypt::decryptString((string) $settings['api_secret_encrypted']);
+            $secret = Crypt::decryptString((string) $settings['api_secret_encrypted']);
+            $legacySecret = @unserialize($secret);
+
+            return is_string($legacySecret) ? $legacySecret : $secret;
         } catch (\Throwable) {
             throw ValidationException::withMessages([
                 'provider' => 'The stored LiveKit API secret could not be decrypted. Re-enter the API secret and save again.',

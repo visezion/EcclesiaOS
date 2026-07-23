@@ -21,6 +21,7 @@ use App\Models\EventSession;
 use App\Models\Family;
 use App\Models\Feedback;
 use App\Models\Fund;
+use App\Models\LeadershipReport;
 use App\Models\MeetingIntegration;
 use App\Models\Member;
 use App\Models\Ministry;
@@ -35,6 +36,7 @@ use App\Models\Volunteer;
 use App\Models\Workflow;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -60,6 +62,7 @@ class DatabaseSeeder extends Seeder
         $this->seedBookstore($church, $campuses);
         $this->seedFeedbackAndPrayer($church, $campuses, $members);
         $this->seedCareTasks($church, $members, $users);
+        $this->seedLeadershipReports($church, $campuses, $users);
         $this->seedActivityLogs($church, $campuses, $users);
         $this->call(CommunicationDemoSeeder::class);
     }
@@ -331,7 +334,7 @@ SVG);
                     'server_url' => 'wss://meet.techallowed.cloud',
                     'room_prefix' => 'church',
                     'api_key' => 'APIkey1',
-                    'api_secret_encrypted' => encrypt('secret1changeme2026cce'),
+                    'api_secret_encrypted' => Crypt::encryptString('secret1changeme2026cce'),
                     'api_secret_configured' => true,
                     'participant_token_ttl_seconds' => 7200,
                     'participant_token_ttl_label' => '2 hrs',
@@ -732,6 +735,234 @@ SVG);
                     'notes' => 'Pastoral care task recorded for '.$member->first_name.' '.$member->last_name.'.',
                     'due_at' => now()->addDays($index + 1)->setTime(10, 0),
                     'resolved_at' => $status === 'resolved' ? now()->subDays($index) : null,
+                ],
+            );
+        }
+    }
+
+    private function seedLeadershipReports(Church $church, array $campuses, array $users): void
+    {
+        $ministries = Ministry::query()
+            ->where('church_id', $church->id)
+            ->orderBy('name')
+            ->get()
+            ->keyBy('name');
+
+        $admin = $users['admin@kingdomhub.test'];
+        $seniorPastor = $admin;
+        $districtPastor = $users['david.wilson@klgc.org'];
+
+        $rows = [
+            [
+                'East Campus Weekly Report',
+                'weekly',
+                'east-campus',
+                'Prayer Ministry',
+                $districtPastor,
+                $seniorPastor,
+                'under_review',
+                'high',
+                'East Campus reported strong attendance recovery, stable volunteer coverage, and three care follow-ups requiring pastoral review.',
+                [88, 84, 7, 79],
+                ['Confirm follow-up ownership for new families', 'Review prayer team rotation for Sunday service'],
+                now()->subDays(2)->setTime(8, 30),
+                null,
+                null,
+            ],
+            [
+                'Youth Ministry Report',
+                'ministry',
+                'youth-network',
+                'Youth Ministry',
+                $users['emily.davis@klgc.org'],
+                $districtPastor,
+                'approved',
+                'normal',
+                'Youth leaders completed camp preparation, confirmed volunteer assignments, and reported improved discipleship group attendance.',
+                [92, 90, 4, 86],
+                ['Send parent briefing', 'Finalize transport roster'],
+                now()->subDays(3)->setTime(15, 0),
+                $districtPastor,
+                now()->subDays(2)->setTime(9, 45),
+            ],
+            [
+                'Worship Team Report',
+                'ministry',
+                'headquarters',
+                'Worship Ministry',
+                $users['michael.thompson@klgc.org'],
+                $seniorPastor,
+                'returned',
+                'urgent',
+                'Worship team submitted rota and rehearsal status, but budget details for guest musicians need correction before approval.',
+                [81, 76, 3, 72],
+                ['Attach revised musician honorarium budget', 'Confirm Thursday rehearsal attendance'],
+                now()->subDays(3)->setTime(17, 10),
+                $seniorPastor,
+                now()->subDays(2)->setTime(10, 30),
+            ],
+            [
+                'North Campus Report',
+                'campus',
+                'north-campus',
+                null,
+                $users['jessica.lee@klgc.org'],
+                $seniorPastor,
+                'submitted',
+                'normal',
+                'North Campus submitted weekly ministry, attendance, and facility notes for review by the senior pastor.',
+                [85, 82, 5, 80],
+                ['Assign facility issue to operations team', 'Prepare branch pastor talking points'],
+                now()->subDays(1)->setTime(7, 20),
+                null,
+                null,
+            ],
+            [
+                'Children Ministry Report',
+                'ministry',
+                'north-campus',
+                "Children's Ministry",
+                $users['amanda.brown@klgc.org'],
+                $districtPastor,
+                'approved',
+                'normal',
+                'Children ministry increased class coverage and closed all open safety checklist items for the week.',
+                [94, 89, 2, 91],
+                ['Publish next month class schedule', 'Order classroom supplies'],
+                now()->subDays(9)->setTime(14, 0),
+                $districtPastor,
+                now()->subDays(8)->setTime(11, 20),
+            ],
+            [
+                'Downtown Outreach Report',
+                'strategic',
+                'downtown-campus',
+                'Outreach Ministry',
+                $users['robert.taylor@klgc.org'],
+                $seniorPastor,
+                'rejected',
+                'high',
+                'Downtown outreach report needs a revised proposal because the requested venue was unavailable.',
+                [74, 70, 8, 68],
+                ['Select alternate venue', 'Resubmit event cost plan'],
+                now()->subDays(11)->setTime(9, 15),
+                $seniorPastor,
+                now()->subDays(10)->setTime(16, 0),
+            ],
+            [
+                'Pastoral Care Brief',
+                'pastoral',
+                'south-campus',
+                null,
+                $users['sarah.johnson@klgc.org'],
+                $seniorPastor,
+                'draft',
+                'normal',
+                'Draft pastoral care brief tracking counseling referrals, visitations, and follow-up workload.',
+                [79, 83, 14, 75],
+                ['Complete counseling referral notes', 'Add branch pastor comments'],
+                null,
+                null,
+                null,
+            ],
+            [
+                'West Campus Monthly Report',
+                'monthly',
+                'west-campus',
+                null,
+                $users['james.anderson@klgc.org'],
+                $districtPastor,
+                'approved',
+                'low',
+                'West Campus submitted a monthly branch scorecard with consistent attendance and no urgent operational risks.',
+                [90, 86, 6, 84],
+                ['Archive approved scorecard', 'Share highlights with campus leaders'],
+                now()->subDays(16)->setTime(10, 5),
+                $districtPastor,
+                now()->subDays(14)->setTime(13, 40),
+            ],
+        ];
+
+        $campusSlugs = array_keys($campuses);
+        $ministryNames = $ministries->keys()->values()->all();
+        $submitters = array_values($users);
+        $reviewers = [$seniorPastor, $districtPastor, $users['sarah.johnson@klgc.org']];
+        $statusCycle = [
+            'draft',
+            'submitted',
+            'under_review',
+            'approved',
+            'returned',
+            'approved',
+            'submitted',
+            'rejected',
+        ];
+
+        foreach (range(1, 40) as $number) {
+            $status = $statusCycle[($number - 1) % count($statusCycle)];
+            $submittedAt = $status === 'draft' ? null : now()->subDays($number + 2)->setTime(7 + ($number % 8), ($number * 7) % 60);
+            $reviewedAt = in_array($status, ['approved', 'returned', 'rejected'], true) ? $submittedAt?->copy()->addDays(($number % 3) + 1)->addMinutes(20) : null;
+            $reviewedBy = $reviewedAt === null ? null : $reviewers[$number % count($reviewers)];
+
+            $rows[] = [
+                'Leadership Field Report '.str_pad((string) $number, 2, '0', STR_PAD_LEFT),
+                ['weekly', 'monthly', 'ministry', 'campus', 'pastoral', 'strategic'][$number % 6],
+                $campusSlugs[$number % count($campusSlugs)],
+                $ministryNames[$number % max(count($ministryNames), 1)] ?? null,
+                $submitters[$number % count($submitters)],
+                $reviewers[($number + 1) % count($reviewers)],
+                $status,
+                ['low', 'normal', 'high', 'urgent'][$number % 4],
+                'Detailed leadership field report covering attendance movement, discipleship progress, pastoral care follow-ups, volunteer coverage, blockers, and decisions needed for the next leadership cycle.',
+                [70 + ($number % 25), 72 + ($number % 22), 2 + ($number % 14), 65 + ($number % 30)],
+                ['Review campus action plan', 'Confirm ministry owner', 'Update next service readiness'],
+                $submittedAt,
+                $reviewedBy,
+                $reviewedAt,
+            ];
+        }
+
+        foreach ($rows as $index => [$title, $type, $campusSlug, $ministryName, $submitter, $reviewer, $status, $priority, $summary, $metrics, $actions, $submittedAt, $reviewedBy, $reviewedAt]) {
+            $report = LeadershipReport::query()->updateOrCreate(
+                ['church_id' => $church->id, 'title' => $title],
+                [
+                    'campus_id' => $campuses[$campusSlug]->id,
+                    'ministry_id' => $ministryName === null ? null : $ministries->get($ministryName)?->id,
+                    'submitted_by' => $submitter->id,
+                    'assigned_to' => $reviewer->id,
+                    'reviewed_by' => $reviewedBy?->id,
+                    'report_type' => $type,
+                    'period_start' => now()->subDays(7 + $index)->startOfWeek(),
+                    'period_end' => now()->subDays(7 + $index)->endOfWeek(),
+                    'status' => $status,
+                    'priority' => $priority,
+                    'summary' => $summary,
+                    'metrics' => [
+                        'attendance_score' => $metrics[0],
+                        'discipleship_score' => $metrics[1],
+                        'care_followups' => $metrics[2],
+                        'volunteer_coverage' => $metrics[3],
+                    ],
+                    'action_items' => $actions,
+                    'review_notes' => $reviewedAt === null ? null : str($status)->headline().' by '.$reviewedBy->name.'.',
+                    'submitted_at' => $submittedAt,
+                    'reviewed_at' => $reviewedAt,
+                    'due_at' => ($submittedAt ?? now())->copy()->addDays($priority === 'urgent' ? 1 : 3),
+                ],
+            );
+
+            ActivityLog::query()->updateOrCreate(
+                ['module' => 'Leadership Reports', 'action' => 'leadership_report_seeded', 'subject_type' => $report->getMorphClass(), 'subject_id' => $report->id],
+                [
+                    'church_id' => $church->id,
+                    'campus_id' => $report->campus_id,
+                    'user_id' => $submitter->id,
+                    'ip_address' => '192.168.1.45',
+                    'user_agent' => 'Seeder',
+                    'description' => $report->title.' was created.',
+                    'properties' => ['risk' => 'low', 'status' => 'success', 'resource' => 'Leadership Report'],
+                    'created_at' => ($submittedAt ?? now())->copy()->addMinutes($index),
+                    'updated_at' => ($submittedAt ?? now())->copy()->addMinutes($index),
                 ],
             );
         }

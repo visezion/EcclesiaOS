@@ -9,6 +9,7 @@ use App\Models\CommunicationDelivery;
 use App\Models\Event;
 use App\Models\EventRecurrenceRule;
 use App\Models\EventSession;
+use App\Models\LeadershipReport;
 use App\Models\MeetingIntegration;
 use App\Models\Member;
 use App\Models\Program;
@@ -17,6 +18,7 @@ use App\Models\ProgramSectionAssignment;
 use App\Models\User;
 use App\Models\Workflow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Crypt;
 use Tests\TestCase;
 
 class ModuleRoutesTest extends TestCase
@@ -442,6 +444,121 @@ class ModuleRoutesTest extends TestCase
         ]);
     }
 
+    public function test_leadership_reports_dashboard_and_actions_are_functional(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('leadership-reports.index'))
+            ->assertOk()
+            ->assertSee('Pastor & Leadership Reports')
+            ->assertSee('Reports Overview')
+            ->assertSee(route('leadership-reports.store'), false)
+            ->assertSee(route('leadership-reports.summary'), false)
+            ->assertSee(route('leadership-reports.export'), false)
+            ->assertSee('Reports Trend');
+
+        $this->actingAs($admin)
+            ->post(route('leadership-reports.store'), [
+                'title' => 'Senior Pastor Weekly Leadership Report',
+                'report_type' => 'weekly',
+                'campus_id' => $admin->campus_id,
+                'ministry_id' => null,
+                'assigned_to' => $admin->id,
+                'period_start' => now()->startOfWeek()->toDateString(),
+                'period_end' => now()->endOfWeek()->toDateString(),
+                'priority' => 'high',
+                'summary' => 'Leadership summary for the current week with attendance, discipleship, care, and volunteer coverage metrics.',
+                'attendance_score' => 91,
+                'discipleship_score' => 87,
+                'care_followups' => 11,
+                'volunteer_coverage' => 83,
+                'action_items' => "Follow up with campus pastors\nPrepare ministry leader notes",
+                'submit' => '1',
+            ])
+            ->assertRedirect();
+
+        $report = LeadershipReport::query()->where('title', 'Senior Pastor Weekly Leadership Report')->firstOrFail();
+        $this->assertSame('submitted', $report->status);
+        $this->assertSame(91, $report->metrics['attendance_score']);
+        $this->assertCount(2, $report->action_items);
+
+        $this->actingAs($admin)
+            ->get(route('leadership-reports.show', $report))
+            ->assertOk()
+            ->assertSee('Report Detail')
+            ->assertSee('Leadership summary for the current week')
+            ->assertSee(route('leadership-reports.review', $report), false);
+
+        $this->actingAs($admin)
+            ->put(route('leadership-reports.review', $report), [
+                'decision' => 'approved',
+                'review_notes' => 'Approved for the weekly senior leadership packet.',
+            ])
+            ->assertRedirect(route('leadership-reports.index', ['report' => $report->opaqueId()]));
+
+        $report->refresh();
+        $this->assertSame('approved', $report->status);
+        $this->assertSame($admin->id, $report->reviewed_by);
+        $this->assertNotNull($report->reviewed_at);
+
+        $this->actingAs($admin)
+            ->post(route('leadership-reports.summary'))
+            ->assertRedirect()
+            ->assertSessionHas('status');
+
+        foreach (['my', 'to-me', 'all', 'analytics', 'templates', 'settings'] as $tab) {
+            $this->actingAs($admin)
+                ->get(route('leadership-reports.index', ['tab' => $tab]))
+                ->assertOk();
+        }
+
+        $this->actingAs($admin)
+            ->post(route('leadership-reports.reminders'))
+            ->assertRedirect()
+            ->assertSessionHas('status');
+
+        $this->actingAs($admin)
+            ->put(route('leadership-reports.settings.update'), [
+                'default_reviewer_id' => $admin->id,
+                'weekly_due_day' => 'friday',
+                'auto_reminders' => '1',
+                'require_action_items' => '1',
+                'escalation_hours' => 72,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Leadership report settings saved.');
+
+        $this->actingAs($admin)
+            ->post(route('leadership-reports.store'), [
+                'title' => 'Template Created Leadership Report',
+                'report_type' => 'ministry',
+                'assigned_to' => $admin->id,
+                'period_start' => now()->startOfWeek()->toDateString(),
+                'period_end' => now()->endOfWeek()->toDateString(),
+                'priority' => 'normal',
+                'summary' => 'Template generated report with detailed leadership inputs.',
+                'attendance_score' => 86,
+                'discipleship_score' => 91,
+                'care_followups' => 6,
+                'volunteer_coverage' => 78,
+                'action_items' => "Update ministry leader roster\nEscalate volunteer coverage gaps",
+                'submit' => '0',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('leadership_reports', [
+            'title' => 'Template Created Leadership Report',
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('leadership-reports.export'))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+    }
+
     public function test_meeting_integrations_can_be_saved_and_tested(): void
     {
         $this->seed();
@@ -603,6 +720,63 @@ class ModuleRoutesTest extends TestCase
         $liveKitRecord->refresh();
         $this->assertSame('checked_out', $liveKitRecord->metadata['online_status']);
         $this->assertNotEmpty($liveKitRecord->metadata['checked_out_at']);
+    }
+
+    public function test_livekit_tokens_use_raw_secret_when_existing_settings_were_legacy_encrypted(): void
+    {
+        $this->seed();
+
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $integration = MeetingIntegration::query()
+            ->where('church_id', $user->church_id)
+            ->where('provider', 'livekit')
+            ->firstOrFail();
+
+        $integration->update([
+            'settings' => [
+                ...$integration->settings,
+                'api_key' => 'APIkey1',
+                'api_secret_encrypted' => encrypt('secret1changeme2026cce'),
+                'api_secret_configured' => true,
+            ],
+        ]);
+
+        $session = EventSession::query()->firstOrFail();
+
+        $response = $this->actingAs($user)
+            ->get(route('meetings.rooms.show', [$session, 'livekit']))
+            ->assertOk();
+
+        preg_match('/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/', $response->getContent(), $matches);
+        $this->assertNotEmpty($matches);
+
+        [$header, $payload, $signature] = explode('.', $matches[0]);
+        $signedContent = $header.'.'.$payload;
+        $expectedRawSecretSignature = rtrim(strtr(base64_encode(hash_hmac('sha256', $signedContent, 'secret1changeme2026cce', true)), '+/', '-_'), '=');
+        $legacySerializedSecretSignature = rtrim(strtr(base64_encode(hash_hmac('sha256', $signedContent, 's:22:"secret1changeme2026cce";', true)), '+/', '-_'), '=');
+
+        $this->assertSame($expectedRawSecretSignature, $signature);
+        $this->assertNotSame($legacySerializedSecretSignature, $signature);
+
+        $integration->update([
+            'settings' => [
+                ...$integration->settings,
+                'api_secret_encrypted' => Crypt::encryptString('secret1changeme2026cce'),
+            ],
+        ]);
+
+        $response = $this->actingAs($user)
+            ->get(route('meetings.rooms.show', [$session, 'livekit']))
+            ->assertOk();
+
+        preg_match('/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/', $response->getContent(), $freshMatches);
+        $this->assertNotEmpty($freshMatches);
+
+        [$freshHeader, $freshPayload, $freshSignature] = explode('.', $freshMatches[0]);
+        $freshSignedContent = $freshHeader.'.'.$freshPayload;
+        $freshExpectedSignature = rtrim(strtr(base64_encode(hash_hmac('sha256', $freshSignedContent, 'secret1changeme2026cce', true)), '+/', '-_'), '=');
+
+        $this->assertSame($freshExpectedSignature, $freshSignature);
     }
 
     public function test_only_enabled_and_selected_builtin_meeting_methods_are_joinable(): void

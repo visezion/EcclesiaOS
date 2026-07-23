@@ -3,7 +3,6 @@
         $orderedRoleNames = array_keys(config('access.roles'));
         $roles = $roles->sortBy(fn ($role) => array_search($role->name, $orderedRoleNames, true) === false ? 999 : array_search($role->name, $orderedRoleNames, true))->values();
         $initialRole = $roles->first();
-        $columns = ['View', 'Create', 'Edit', 'Delete', 'Export', 'Approve', 'Manage'];
         $roleIcons = [
             'Super Administrator' => ['icon' => 'shield-check', 'class' => 'bg-violet-50 text-violet-600 border-violet-100'],
             'Church Administrator' => ['icon' => 'users-round', 'class' => 'bg-emerald-50 text-emerald-600 border-emerald-100'],
@@ -17,21 +16,63 @@
             'Staff' => ['icon' => 'user-round', 'class' => 'bg-slate-50 text-slate-600 border-slate-100'],
             'Viewer' => ['icon' => 'eye', 'class' => 'bg-violet-50 text-violet-600 border-violet-100'],
         ];
-        $moduleRows = collect([
-            ['label' => 'Members', 'permission' => 'manage members', 'icon' => 'users', 'class' => 'bg-violet-50 text-violet-600'],
-            ['label' => 'Attendance', 'permission' => 'manage attendance', 'icon' => 'clipboard-check', 'class' => 'bg-violet-50 text-violet-600'],
-            ['label' => 'Giving & Finance', 'permission' => 'manage finance', 'icon' => 'badge-dollar-sign', 'class' => 'bg-violet-50 text-violet-600'],
-            ['label' => 'Asset Inventory', 'permission' => 'manage assets', 'icon' => 'package-check', 'class' => 'bg-violet-50 text-violet-600'],
-            ['label' => 'Book Store', 'permission' => 'manage bookstore', 'icon' => 'book-open', 'class' => 'bg-teal-50 text-teal-600'],
-            ['label' => 'Ministries', 'permission' => 'manage ministries', 'icon' => 'landmark', 'class' => 'bg-blue-50 text-blue-600'],
-            ['label' => 'Communications', 'permission' => 'manage communications', 'icon' => 'message-square-text', 'class' => 'bg-violet-50 text-violet-600'],
-            ['label' => 'Feedback System', 'permission' => 'manage feedback', 'icon' => 'message-square-check', 'class' => 'bg-slate-50 text-slate-600'],
-            ['label' => 'Pastor & Leadership Reports', 'permission' => 'view leadership reports', 'icon' => 'file-chart-column', 'class' => 'bg-blue-50 text-blue-600'],
-            ['label' => 'HR & Staff', 'permission' => 'manage staff', 'icon' => 'users-round', 'class' => 'bg-blue-50 text-blue-600'],
-            ['label' => 'Reports & Analytics', 'permission' => 'view reports', 'icon' => 'chart-column', 'class' => 'bg-blue-50 text-blue-600'],
-            ['label' => 'Workflow / Approvals', 'permission' => 'manage workflows', 'icon' => 'git-branch', 'class' => 'bg-violet-50 text-violet-600'],
-            ['label' => 'Settings', 'permission' => 'manage settings', 'icon' => 'settings', 'class' => 'bg-slate-50 text-slate-600'],
-        ])->map(fn ($row) => [...$row, 'model' => $permissions->firstWhere('name', $row['permission'])])->filter(fn ($row) => $row['model'] !== null)->values();
+        $permissionDefinitions = collect([
+            'Core Access' => [
+                ['permission' => 'view dashboard', 'label' => 'Dashboard Access', 'help' => 'Open the main dashboard and landing workspace.', 'icon' => 'layout-dashboard', 'class' => 'bg-violet-50 text-violet-600'],
+                ['permission' => 'view reports', 'label' => 'Reports & Analytics', 'help' => 'View organization-level reports and analytics.', 'icon' => 'chart-column', 'class' => 'bg-blue-50 text-blue-600'],
+                ['permission' => 'view audit log', 'label' => 'Audit Logs', 'help' => 'Review system activity, authentication events, and security logs.', 'icon' => 'shield-check', 'class' => 'bg-emerald-50 text-emerald-600'],
+            ],
+            'Administration' => [
+                ['permission' => 'manage users', 'label' => 'Users', 'help' => 'Create, update, invite, deactivate, and assign users.', 'icon' => 'users-round', 'class' => 'bg-violet-50 text-violet-600'],
+                ['permission' => 'manage roles', 'label' => 'Roles', 'help' => 'Create roles, clone roles, and update role assignments.', 'icon' => 'shield-check', 'class' => 'bg-blue-50 text-blue-600'],
+                ['permission' => 'manage permissions', 'label' => 'Permission Policies', 'help' => 'Maintain permission rules and access policies.', 'icon' => 'key-round', 'class' => 'bg-orange-50 text-orange-600'],
+                ['permission' => 'manage settings', 'label' => 'System Settings', 'help' => 'Change system configuration, integrations, and module settings.', 'icon' => 'settings', 'class' => 'bg-slate-50 text-slate-600'],
+                ['permission' => 'manage campuses', 'label' => 'Churches & Campuses', 'help' => 'Manage church, branch, campus, and user assignment scopes.', 'icon' => 'landmark', 'class' => 'bg-teal-50 text-teal-600'],
+            ],
+            'People & Ministry' => [
+                ['permission' => 'manage members', 'label' => 'Members', 'help' => 'Manage member profiles, families, and care information.', 'icon' => 'users', 'class' => 'bg-violet-50 text-violet-600'],
+                ['permission' => 'manage attendance', 'label' => 'Attendance', 'help' => 'Record, edit, and review attendance data.', 'icon' => 'clipboard-check', 'class' => 'bg-emerald-50 text-emerald-600'],
+                ['permission' => 'manage prayer', 'label' => 'Prayer Requests', 'help' => 'Manage prayer request intake and follow-up.', 'icon' => 'hand-heart', 'class' => 'bg-blue-50 text-blue-600'],
+                ['permission' => 'manage volunteers', 'label' => 'Volunteers', 'help' => 'Manage volunteer assignments, teams, and scheduling.', 'icon' => 'user-check', 'class' => 'bg-orange-50 text-orange-600'],
+                ['permission' => 'manage ministries', 'label' => 'Ministries', 'help' => 'Manage ministries, departments, and program involvement.', 'icon' => 'landmark', 'class' => 'bg-teal-50 text-teal-600'],
+                ['permission' => 'manage youth', 'label' => 'Child & Youth', 'help' => 'Manage child and youth ministry records.', 'icon' => 'baby', 'class' => 'bg-violet-50 text-violet-600'],
+                ['permission' => 'manage counselling', 'label' => 'Counselling', 'help' => 'Manage counselling records and pastoral care workflows.', 'icon' => 'heart-handshake', 'class' => 'bg-rose-50 text-rose-600'],
+                ['permission' => 'manage staff', 'label' => 'HR & Staff', 'help' => 'Manage staff records, employment details, and HR data.', 'icon' => 'briefcase-medical', 'class' => 'bg-blue-50 text-blue-600'],
+            ],
+            'Operations' => [
+                ['permission' => 'manage events', 'label' => 'Programs & Events', 'help' => 'Create events, sessions, order of program, and schedules.', 'icon' => 'calendar-days', 'class' => 'bg-violet-50 text-violet-600'],
+                ['permission' => 'manage communications', 'label' => 'Communications', 'help' => 'Send messages, campaigns, reminders, and notifications.', 'icon' => 'message-square-text', 'class' => 'bg-blue-50 text-blue-600'],
+                ['permission' => 'manage workflows', 'label' => 'Workflow & Approvals', 'help' => 'Create approval flows, approve requests, and manage workflow templates.', 'icon' => 'git-branch', 'class' => 'bg-violet-50 text-violet-600'],
+                ['permission' => 'view leadership reports', 'label' => 'Pastor & Leadership Reports', 'help' => 'Submit, view, and review leadership reports.', 'icon' => 'file-chart-column', 'class' => 'bg-blue-50 text-blue-600'],
+                ['permission' => 'manage feedback', 'label' => 'Feedback System', 'help' => 'Review survey responses, feedback, and follow-up items.', 'icon' => 'message-square-check', 'class' => 'bg-emerald-50 text-emerald-600'],
+            ],
+            'Resources & Finance' => [
+                ['permission' => 'manage finance', 'label' => 'Giving & Finance', 'help' => 'Manage giving, financial reports, budgets, and expenses.', 'icon' => 'badge-dollar-sign', 'class' => 'bg-emerald-50 text-emerald-600'],
+                ['permission' => 'manage assets', 'label' => 'Asset Inventory', 'help' => 'Manage physical assets, inventory, status, and assignments.', 'icon' => 'package-check', 'class' => 'bg-violet-50 text-violet-600'],
+                ['permission' => 'manage facilities', 'label' => 'Facilities', 'help' => 'Manage rooms, facilities, reservations, and equipment.', 'icon' => 'building-2', 'class' => 'bg-blue-50 text-blue-600'],
+                ['permission' => 'manage bookstore', 'label' => 'Book Store', 'help' => 'Manage bookstore inventory, sales, and reporting.', 'icon' => 'book-open', 'class' => 'bg-orange-50 text-orange-600'],
+                ['permission' => 'manage media', 'label' => 'Sermons & Media', 'help' => 'Manage sermons, media files, and streaming content.', 'icon' => 'monitor-play', 'class' => 'bg-slate-50 text-slate-600'],
+            ],
+        ]);
+        $definedPermissionNames = $permissionDefinitions->flatten(1)->pluck('permission');
+        $extraPermissions = $permissions
+            ->reject(fn ($permission) => $definedPermissionNames->contains($permission->name))
+            ->map(fn ($permission) => [
+                'permission' => $permission->name,
+                'label' => Str::headline($permission->name),
+                'help' => 'Additional configured permission.',
+                'icon' => 'shield-check',
+                'class' => 'bg-slate-50 text-slate-600',
+            ])
+            ->values();
+        if ($extraPermissions->isNotEmpty()) {
+            $permissionDefinitions->put('Other Permissions', $extraPermissions->all());
+        }
+        $permissionGroups = $permissionDefinitions->map(fn ($rows) => collect($rows)
+            ->map(fn ($row) => [...$row, 'model' => $permissions->firstWhere('name', $row['permission'])])
+            ->filter(fn ($row) => $row['model'] !== null)
+            ->values()
+        )->filter(fn ($rows) => $rows->isNotEmpty());
     @endphp
 
     <div class="space-y-4" x-data="roleDirectory('{{ $initialRole?->id }}')">
@@ -195,51 +236,57 @@
                                 </div>
                             </div>
 
-                            <div class="overflow-hidden rounded-lg border border-slate-200">
-                                <div class="border-b border-slate-100 bg-white px-4 py-3 text-sm font-black text-slate-950">Module Permissions</div>
-                                <div class="overflow-x-auto">
-                                    <table class="table-compact min-w-[980px]">
-                                        <thead>
-                                            <tr>
-                                                <th class="w-[280px]">Modules</th>
-                                                @foreach ($columns as $column)
-                                                    <th class="min-w-[96px] text-center">
-                                                        <span class="inline-flex items-center justify-center gap-1 whitespace-nowrap">
-                                                            {{ $column }}
-                                                            <span class="inline-grid size-3.5 place-items-center rounded-full border border-slate-300 text-[9px] leading-none text-slate-400">?</span>
+                            <div class="rounded-lg border border-slate-200">
+                                <div class="flex flex-col gap-2 border-b border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <div class="text-sm font-black text-slate-950">Permission Policies</div>
+                                        <p class="mt-1 text-xs text-slate-500">Each switch maps to one real database permission used by authorization checks.</p>
+                                    </div>
+                                    @if ($isSystem)
+                                        <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
+                                            <i data-lucide="shield-check" class="size-3.5"></i>
+                                            Always full access
+                                        </span>
+                                    @endif
+                                </div>
+                                <div class="space-y-5 p-4">
+                                    @foreach ($permissionGroups as $groupName => $groupRows)
+                                        <div>
+                                            <h3 class="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">{{ $groupName }}</h3>
+                                            <div class="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+                                                @foreach ($groupRows as $row)
+                                                    @php
+                                                        $hasPermission = $isSystem || $role->permissions->contains($row['model']);
+                                                    @endphp
+                                                    <label class="flex min-h-[92px] cursor-pointer items-start gap-3 rounded-lg border border-slate-100 bg-white p-3 transition hover:border-violet-200 hover:bg-violet-50/40">
+                                                        <span class="grid size-10 shrink-0 place-items-center rounded-lg {{ $row['class'] }}"><i data-lucide="{{ $row['icon'] }}" class="size-5"></i></span>
+                                                        <span class="min-w-0 flex-1">
+                                                            <span class="block text-sm font-black text-slate-900">{{ $row['label'] }}</span>
+                                                            <span class="mt-1 block text-xs leading-5 text-slate-500">{{ $row['help'] }}</span>
+                                                            <span class="mt-2 block font-mono text-[11px] text-slate-400">{{ $row['permission'] }}</span>
                                                         </span>
-                                                    </th>
+                                                        <input
+                                                            type="checkbox"
+                                                            name="permissions[]"
+                                                            value="{{ $row['model']->id }}"
+                                                            @checked($hasPermission)
+                                                            @disabled($isSystem)
+                                                            class="mt-1 size-4 shrink-0 rounded border-slate-300 text-violet-600"
+                                                        >
+                                                        @if ($isSystem)
+                                                            <input type="hidden" name="permissions[]" value="{{ $row['model']->id }}">
+                                                        @endif
+                                                    </label>
                                                 @endforeach
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach ($moduleRows as $row)
-                                                @php
-                                                    $hasPermission = $role->permissions->contains($row['model']);
-                                                @endphp
-                                                <tr>
-                                                    <td>
-                                                        <div class="flex items-center gap-3 font-bold text-slate-800">
-                                                            <span class="grid size-7 place-items-center rounded-md {{ $row['class'] }}"><i data-lucide="{{ $row['icon'] }}" class="size-4"></i></span>
-                                                            {{ $row['label'] }}
-                                                        </div>
-                                                    </td>
-                                                    @foreach ($columns as $column)
-                                                        <td class="min-w-[96px] text-center">
-                                                            <input type="checkbox" name="permissions[]" value="{{ $row['model']->id }}" @checked($hasPermission) class="size-4 rounded border-slate-300 text-violet-600">
-                                                        </td>
-                                                    @endforeach
-                                                </tr>
-                                            @endforeach
-                                        </tbody>
-                                    </table>
+                                            </div>
+                                        </div>
+                                    @endforeach
                                 </div>
                             </div>
 
                             <div class="flex flex-col gap-3 rounded-lg border border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
                                 <div class="flex flex-wrap gap-6 text-sm font-semibold text-slate-600">
                                     <span class="inline-flex items-center gap-2"><span class="grid size-4 place-items-center rounded bg-violet-600 text-white"><i data-lucide="check" class="size-3"></i></span>Full Access</span>
-                                    <span class="inline-flex items-center gap-2"><span class="grid size-4 place-items-center rounded bg-blue-600 text-white"><i data-lucide="minus" class="size-3"></i></span>Partial Access</span>
                                     <span class="inline-flex items-center gap-2"><span class="size-4 rounded border border-slate-300 bg-white"></span>No Access</span>
                                 </div>
                                 <div class="flex flex-wrap justify-end gap-2">
@@ -276,12 +323,22 @@
                             <input name="description" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" placeholder="Describe the role scope">
                         </label>
                     </div>
-                    <div class="grid gap-2 sm:grid-cols-2">
-                        @foreach ($moduleRows as $row)
-                            <label class="flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
-                                <input type="checkbox" name="permissions[]" value="{{ $row['model']->id }}" class="rounded border-slate-300 text-violet-600">
-                                {{ $row['label'] }}
-                            </label>
+                    <div class="max-h-[360px] space-y-4 overflow-y-auto rounded-lg border border-slate-100 p-3">
+                        @foreach ($permissionGroups as $groupName => $groupRows)
+                            <div>
+                                <h3 class="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">{{ $groupName }}</h3>
+                                <div class="grid gap-2 sm:grid-cols-2">
+                                    @foreach ($groupRows as $row)
+                                        <label class="flex items-start gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-violet-50/50">
+                                            <input type="checkbox" name="permissions[]" value="{{ $row['model']->id }}" class="mt-0.5 rounded border-slate-300 text-violet-600">
+                                            <span>
+                                                <span class="block">{{ $row['label'] }}</span>
+                                                <span class="block text-xs font-normal text-slate-500">{{ $row['help'] }}</span>
+                                            </span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
                         @endforeach
                     </div>
                     <div class="flex justify-end gap-3 border-t border-slate-100 pt-4">

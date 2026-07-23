@@ -76,7 +76,7 @@ return [
     ['label' => 'Book Store', 'route' => 'bookstore.index', 'icon' => 'book-open', 'permission' => 'manage bookstore', 'planned' => $planned['bookstore.index']],
     ['label' => 'Child & Youth', 'route' => 'children-youth.index', 'icon' => 'baby', 'permission' => 'manage youth', 'planned' => $planned['children-youth.index']],
     ['label' => 'Counselling', 'route' => 'counselling.index', 'icon' => 'circle-help', 'permission' => 'manage counselling', 'planned' => $planned['counselling.index']],
-    ['label' => 'Pastor & Leadership Reports', 'route' => 'leadership-reports.index', 'icon' => 'gauge', 'permission' => 'view leadership reports', 'planned' => $planned['leadership-reports.index']],
+    ['label' => 'Pastor & Leadership Reports', 'route' => 'leadership-reports.index', 'icon' => 'gauge', 'permission' => 'view leadership reports', 'implemented' => true],
     ['label' => 'Feedback System', 'route' => 'feedback.index', 'icon' => 'message-square-text', 'permission' => 'manage feedback', 'planned' => $planned['feedback.index']],
     ['label' => 'HR & Staff', 'route' => 'staff.index', 'icon' => 'user-round-cog', 'permission' => 'manage staff', 'planned' => $planned['staff.index']],
     ['label' => 'Reports & Analytics', 'route' => 'reports.index', 'icon' => 'chart-column', 'permission' => 'view reports', 'planned' => $planned['reports.index']],
