@@ -124,6 +124,7 @@ import {
     Radio,
     RadioTower,
     RefreshCw,
+    Route,
     RotateCcw,
     RotateCw,
     Save,
@@ -251,6 +252,63 @@ document.addEventListener('alpine:init', () => {
             this.role = '';
             this.campus = '';
             this.status = '';
+        },
+    }));
+
+    Alpine.data('workflowBuilder', (initialSteps = []) => ({
+        steps: [],
+
+        init() {
+            this.steps = (Array.isArray(initialSteps) && initialSteps.length > 0 ? initialSteps : this.defaultSteps())
+                .map((step, index) => this.normalizeStep(step, index));
+        },
+
+        defaultSteps() {
+            return [
+                { label: 'Request Submitted', role: 'Requester', mode: 'auto', instructions: 'Capture the request and route it to the first approver.' },
+                { label: 'Leader Review', role: 'Ministry Leader', mode: 'required', instructions: 'Review ministry impact, timing, and readiness before final approval.' },
+                { label: 'Final Approval', role: 'Administrator', mode: 'required', instructions: 'Confirm policy, capacity, and final authorization.' },
+            ];
+        },
+
+        normalizeStep(step, index) {
+            const mode = step?.mode === 'auto' ? 'auto' : 'required';
+
+            return {
+                uid: step?.uid || `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+                label: step?.label || step?.role || '',
+                role: step?.role || 'Ministry Leader',
+                mode,
+                instructions: step?.instructions || '',
+            };
+        },
+
+        addStep() {
+            this.steps.push(this.normalizeStep({
+                label: 'Approval Step',
+                role: 'Ministry Leader',
+                mode: 'required',
+                instructions: '',
+            }, this.steps.length));
+        },
+
+        removeStep(index) {
+            if (this.steps.length <= 1) {
+                return;
+            }
+
+            this.steps.splice(index, 1);
+        },
+
+        moveStep(index, direction) {
+            const target = index + direction;
+
+            if (target < 0 || target >= this.steps.length) {
+                return;
+            }
+
+            const [step] = this.steps.splice(index, 1);
+            this.steps.splice(target, 0, step);
         },
     }));
 
@@ -773,6 +831,7 @@ const icons = {
     Radio,
     RadioTower,
     RefreshCw,
+    Route,
     RotateCcw,
     RotateCw,
     Save,

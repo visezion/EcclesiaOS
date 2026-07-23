@@ -12,8 +12,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class ProgramSectionAssignment extends Model
 {
-    use UsesOpaqueRouteKeys;
     use SoftDeletes;
+    use UsesOpaqueRouteKeys;
 
     protected $fillable = ['church_id', 'campus_id', 'program_section_id', 'user_id', 'member_id', 'role_title', 'responsibility_notes', 'call_time', 'status', 'approved_by', 'approved_at', 'accepted_at', 'declined_at'];
 

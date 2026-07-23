@@ -21,6 +21,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\UserDirectoryController;
 use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\WorkflowController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 
@@ -48,6 +49,9 @@ Route::middleware('auth')->group(function (): void {
     Route::get('events', [EventFlowController::class, 'events'])->name('events.index');
     Route::get('programs/{program}/events/{event}/sessions', [EventFlowController::class, 'sessions'])->name('event-sessions.index');
     Route::post('programs/{program}/events/{event}/sessions', [EventFlowController::class, 'storeSession'])->name('event-sessions.store');
+    Route::post('programs/{program}/events/{event}/recurrences', [EventFlowController::class, 'storeRecurringSessions'])->name('event-sessions.recurrences.store');
+    Route::post('programs/{program}/events/{event}/sections', [EventFlowController::class, 'storeProgramSection'])->name('event-sections.store');
+    Route::post('programs/{program}/events/{event}/sections/{section}/assignments', [EventFlowController::class, 'storeProgramSectionAssignment'])->name('event-section-assignments.store');
     Route::get('calendar', [EventFlowController::class, 'calendar'])->name('calendar.index');
     Route::get('meetings', [EventFlowController::class, 'meetings'])->name('meetings.index');
     Route::get('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'meeting'])->name('event-sessions.meeting');
@@ -132,6 +136,15 @@ Route::middleware('auth')->group(function (): void {
     Route::post('administration/campuses/import', [CampusManagementController::class, 'import'])->name('campuses.import');
     Route::get('administration/audit-logs', AuditLogController::class)->name('audit-logs.index');
     Route::get('administration/audit-logs/export', [AuditLogController::class, 'export'])->name('audit-logs.export');
+    Route::get('workflows', [WorkflowController::class, 'index'])->name('workflows.index');
+    Route::post('workflows', [WorkflowController::class, 'store'])->name('workflows.store');
+    Route::put('workflows/{workflow}', [WorkflowController::class, 'update'])->name('workflows.update');
+    Route::delete('workflows/{workflow}', [WorkflowController::class, 'destroy'])->name('workflows.destroy');
+    Route::post('workflows/import', [WorkflowController::class, 'import'])->name('workflows.import');
+    Route::post('workflows/approvals/{approval}/approve', [WorkflowController::class, 'approve'])->name('workflows.approvals.approve');
+    Route::post('workflows/approvals/{approval}/reject', [WorkflowController::class, 'reject'])->name('workflows.approvals.reject');
+    Route::post('program-section-assignments/{assignment}/accept', [WorkflowController::class, 'acceptAssignment'])->name('program-section-assignments.accept');
+    Route::post('program-section-assignments/{assignment}/decline', [WorkflowController::class, 'declineAssignment'])->name('program-section-assignments.decline');
     Route::post('settings/users', [UserManagementController::class, 'store'])->name('users.store');
     Route::post('settings/users/bulk', [UserManagementController::class, 'bulk'])->name('users.bulk');
     Route::post('settings/users/impersonation/stop', [UserManagementController::class, 'stopImpersonating'])->name('users.impersonation.stop');
@@ -145,7 +158,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'families.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'audit-logs.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'families.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
             continue;
         }
 

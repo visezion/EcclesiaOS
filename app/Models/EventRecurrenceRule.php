@@ -13,8 +13,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class EventRecurrenceRule extends Model
 {
-    use UsesOpaqueRouteKeys;
     use SoftDeletes;
+    use UsesOpaqueRouteKeys;
 
     protected $fillable = ['church_id', 'campus_id', 'event_id', 'created_by', 'title', 'frequency', 'interval', 'days_of_week', 'day_of_month', 'starts_on', 'ends_on', 'max_occurrences', 'starts_at', 'ends_at', 'timezone', 'meeting_type', 'venue', 'address', 'capacity', 'meeting_links', 'status'];
 

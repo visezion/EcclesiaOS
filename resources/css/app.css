@@ -158,6 +158,133 @@
         box-shadow: 0 14px 34px rgb(15 23 42 / 0.075);
     }
 
+    .workflow-filter-grid {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .workflow-overview-grid,
+    .workflow-main-grid,
+    .workflow-detail-grid {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .workflow-detail-grid > article:only-child {
+        grid-column: 1 / -1;
+    }
+
+    .workflow-template-grid {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .workflow-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .workflow-table {
+        min-width: 820px;
+    }
+
+    .workflow-side-detail {
+        overflow: hidden;
+    }
+
+    .workflow-side-detail .workflow-step-flow {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .workflow-side-detail .workflow-step-card {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        gap: 0.75rem;
+        align-items: center;
+        border: 1px solid var(--card-border, #dfe6f2);
+        border-radius: var(--card-radius, 8px);
+        background: var(--card-bg, #fff);
+        padding: 0.875rem;
+    }
+
+    .workflow-step-connector {
+        display: grid;
+        place-items: center;
+        color: #94a3b8;
+    }
+
+    .workflow-side-detail .workflow-settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .workflow-pending-row,
+    .workflow-activity-row {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .workflow-activity-row {
+        grid-template-columns: 44px minmax(0, 1fr) auto;
+    }
+
+    .workflow-activity-line {
+        left: 34px;
+    }
+
+    @media (min-width: 640px) {
+        .workflow-pending-row {
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+        }
+
+        .workflow-template-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .workflow-actions-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @media (min-width: 1024px) {
+        .workflow-filter-grid {
+            grid-template-columns: minmax(320px, 1fr) 220px 200px auto auto;
+            align-items: end;
+        }
+    }
+
+    @media (min-width: 1280px) {
+        .workflow-main-grid {
+            grid-template-columns: minmax(760px, 2.1fr) minmax(430px, 1fr);
+            align-items: stretch;
+        }
+
+        .workflow-overview-grid {
+            grid-template-columns: minmax(0, 1fr) minmax(360px, 0.8fr);
+            align-items: start;
+        }
+
+        .workflow-detail-grid {
+            grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
+            align-items: start;
+        }
+
+        .workflow-template-grid,
+        .workflow-actions-grid {
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+    }
+
+    @media (min-width: 1536px) {
+        .workflow-main-grid {
+            grid-template-columns: minmax(820px, 2fr) minmax(500px, 1fr);
+        }
+    }
+
     .app-shell {
         background: var(--page-bg, #f6f8fc);
     }

@@ -2,14 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Models\Approval;
 use App\Models\AttendanceRecord;
 use App\Models\AttendanceSession;
+use App\Models\CommunicationDelivery;
 use App\Models\Event;
+use App\Models\EventRecurrenceRule;
 use App\Models\EventSession;
 use App\Models\MeetingIntegration;
 use App\Models\Member;
 use App\Models\Program;
+use App\Models\ProgramSection;
+use App\Models\ProgramSectionAssignment;
 use App\Models\User;
+use App\Models\Workflow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -142,6 +148,225 @@ class ModuleRoutesTest extends TestCase
                     ->assertOk()
                     ->assertSee('Event Sessions');
             });
+    }
+
+    public function test_recurring_sessions_sections_assignments_and_approvals_are_functional(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $assignee = User::query()->where('email', 'sarah.johnson@klgc.org')->firstOrFail();
+        $program = Program::query()->firstOrFail();
+        $event = Event::query()->where('program_id', $program->id)->firstOrFail();
+
+        $this->actingAs($admin)
+            ->post(route('event-sessions.recurrences.store', [$program, $event]), [
+                'title' => 'Weekly Leadership Prayer',
+                'frequency' => 'weekly',
+                'interval' => 1,
+                'days_of_week' => ['monday'],
+                'starts_on' => '2026-08-03',
+                'ends_on' => '2026-08-31',
+                'max_occurrences' => 3,
+                'starts_at' => '07:30',
+                'ends_at' => '08:30',
+                'meeting_type' => 'hybrid',
+                'venue' => 'Prayer Room',
+                'capacity' => 40,
+                'requires_approval' => '1',
+            ])
+            ->assertRedirect();
+
+        $rule = EventRecurrenceRule::query()->where('title', 'Weekly Leadership Prayer')->firstOrFail();
+        $this->assertSame('pending_approval', $rule->status);
+        $this->assertSame(3, EventSession::query()->where('recurrence_rule_id', $rule->id)->where('status', 'draft')->count());
+        $this->assertSame(3, AttendanceSession::query()->whereIn('event_session_id', $rule->sessions()->pluck('id'))->count());
+
+        $recurrenceApproval = Approval::query()->where('approvable_type', EventRecurrenceRule::class)->where('approvable_id', $rule->id)->firstOrFail();
+        $this->assertSame('pending', $recurrenceApproval->status);
+
+        $this->actingAs($admin)
+            ->post(route('workflows.approvals.approve', $recurrenceApproval))
+            ->assertRedirect();
+
+        $rule->refresh();
+        $this->assertSame('active', $rule->status);
+        $this->assertSame(3, EventSession::query()->where('recurrence_rule_id', $rule->id)->where('status', 'scheduled')->count());
+
+        $this->actingAs($admin)
+            ->post(route('event-sections.store', [$program, $event]), [
+                'title' => 'Opening Prayer',
+                'description' => 'Lead prayer before worship.',
+                'section_type' => 'prayer',
+                'position' => 1,
+                'planned_start_time' => '09:00',
+                'planned_duration_minutes' => 8,
+                'scope' => 'event',
+            ])
+            ->assertRedirect();
+
+        $section = ProgramSection::query()->where('event_id', $event->id)->where('title', 'Opening Prayer')->latest()->firstOrFail();
+
+        $this->actingAs($admin)
+            ->post(route('event-section-assignments.store', [$program, $event, $section]), [
+                'assignee_type' => 'user',
+                'user_id' => $assignee->id,
+                'role_title' => 'Prayer Leader',
+                'responsibility_notes' => 'Open service with prayer and invite the worship team.',
+                'requires_approval' => '1',
+            ])
+            ->assertRedirect();
+
+        $assignment = ProgramSectionAssignment::query()->where('program_section_id', $section->id)->where('user_id', $assignee->id)->firstOrFail();
+        $this->assertSame('pending_approval', $assignment->status);
+
+        $assignmentApproval = Approval::query()->where('approvable_type', ProgramSectionAssignment::class)->where('approvable_id', $assignment->id)->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('workflows.index'))
+            ->assertOk()
+            ->assertSee('Workflow & Approvals')
+            ->assertSee('Assign Program Section');
+
+        $this->actingAs($admin)
+            ->post(route('workflows.approvals.approve', $assignmentApproval))
+            ->assertRedirect();
+
+        $assignment->refresh();
+        $this->assertSame('assigned', $assignment->status);
+        $this->assertDatabaseHas('communication_deliveries', [
+            'recipient_contact' => $assignee->email,
+            'event_type' => 'ProgramSectionAssigned',
+            'status' => 'queued',
+        ]);
+
+        $this->actingAs($assignee)
+            ->post(route('program-section-assignments.accept', $assignment))
+            ->assertRedirect();
+
+        $this->assertSame('accepted', $assignment->fresh()->status);
+        $this->assertGreaterThan(0, CommunicationDelivery::query()->where('event_type', 'ApprovalRequested')->count());
+    }
+
+    public function test_workflow_dashboard_create_and_import_actions_are_functional(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('workflows.index'))
+            ->assertOk()
+            ->assertSee('Active Workflows')
+            ->assertSee('New Workflow')
+            ->assertSee(route('workflows.store'), false)
+            ->assertSee(route('workflows.import'), false)
+            ->assertDontSee('Instances (');
+
+        $this->actingAs($admin)
+            ->post(route('workflows.store'), [
+                'name' => 'Event Creation Approval',
+                'module' => 'events',
+                'description' => 'Approval for new events and sessions.',
+                'status' => 'active',
+                'approval_type' => 'sequential',
+                'timeout_hours' => 72,
+                'steps' => [
+                    ['label' => 'Request Intake', 'role' => 'Requester', 'mode' => 'auto', 'instructions' => 'Submit the proposed event details.'],
+                    ['label' => 'Pastoral Review', 'role' => 'Senior Pastor', 'mode' => 'required', 'instructions' => 'Confirm ministry alignment.'],
+                    ['label' => 'Finance Review', 'role' => 'Finance Officer', 'mode' => 'required', 'instructions' => 'Confirm budget readiness.'],
+                    ['label' => 'Administrator Approval', 'role' => 'Church Administrator', 'mode' => 'required', 'instructions' => 'Approve final scheduling.'],
+                ],
+            ])
+            ->assertRedirect(route('workflows.index'));
+
+        $this->assertDatabaseHas('workflows', [
+            'name' => 'Event Creation Approval',
+            'module' => 'events',
+            'status' => 'active',
+        ]);
+
+        $workflow = Workflow::query()->where('name', 'Event Creation Approval')->firstOrFail();
+        $this->assertCount(4, $workflow->steps['steps']);
+        $this->assertSame('Finance Review', $workflow->steps['steps'][2]['label']);
+        $this->assertSame('Finance Officer', $workflow->steps['steps'][2]['role']);
+
+        $this->actingAs($admin)
+            ->put(route('workflows.update', $workflow), [
+                'name' => 'Updated Event Approval',
+                'module' => 'events',
+                'description' => 'Updated approval for new events.',
+                'status' => 'draft',
+                'approval_type' => 'parallel',
+                'timeout_hours' => 48,
+                'steps' => [
+                    ['label' => 'Request Intake', 'role' => 'Requester', 'mode' => 'auto', 'instructions' => 'Start the workflow.'],
+                    ['label' => 'Finance Review', 'role' => 'Finance Officer', 'mode' => 'required', 'instructions' => 'Confirm budget readiness.'],
+                    ['label' => 'Final Admin Review', 'role' => 'Church Administrator', 'mode' => 'required', 'instructions' => 'Make the final decision.'],
+                ],
+            ])
+            ->assertRedirect(route('workflows.index', ['workflow' => $workflow->opaqueId()]));
+
+        $workflow->refresh();
+        $this->assertSame('Updated Event Approval', $workflow->name);
+        $this->assertSame('draft', $workflow->status);
+        $this->assertSame('parallel', $workflow->steps['approval_type']);
+        $this->assertSame(48, $workflow->steps['timeout_hours']);
+        $this->assertCount(3, $workflow->steps['steps']);
+        $this->assertSame('Final Admin Review', $workflow->steps['steps'][2]['label']);
+        $this->assertSame(3, $workflow->steps['steps'][2]['position']);
+
+        $approval = Approval::query()->create([
+            'church_id' => $admin->church_id,
+            'workflow_id' => $workflow->id,
+            'action' => 'event_creation',
+            'requested_by' => $admin->id,
+            'status' => 'pending',
+            'payload' => ['title' => 'Custom Flow Request'],
+            'submitted_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('workflows.approvals.approve', $approval))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Approval step approved and moved to the next approver.');
+
+        $approval->refresh();
+        $this->assertSame('pending', $approval->status);
+        $this->assertSame('Church Administrator', $approval->payload['_workflow']['current_role']);
+
+        $this->actingAs($admin)
+            ->post(route('workflows.approvals.approve', $approval))
+            ->assertRedirect();
+
+        $approval->refresh();
+        $this->assertSame('approved', $approval->status);
+        $this->assertCount(2, $approval->payload['_workflow']['history']);
+
+        $this->actingAs($admin)
+            ->post(route('workflows.import'), [
+                'name' => 'Imported Facility Booking',
+                'module' => 'facilities',
+                'definition' => json_encode([
+                    'description' => 'Imported facility booking workflow.',
+                    'approval_type' => 'parallel',
+                    'timeout_hours' => 48,
+                    'steps' => [
+                        ['label' => 'Facility Review', 'role' => 'Facility Manager', 'mode' => 'required'],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+            ])
+            ->assertRedirect(route('workflows.index'));
+
+        $imported = Workflow::query()->where('name', 'Imported Facility Booking')->firstOrFail();
+        $this->assertSame('draft', $imported->status);
+        $this->assertSame('parallel', $imported->steps['approval_type']);
+
+        $this->actingAs($admin)
+            ->delete(route('workflows.destroy', $imported))
+            ->assertRedirect(route('workflows.index'));
+
+        $this->assertSoftDeleted('workflows', [
+            'id' => $imported->id,
+        ]);
     }
 
     public function test_meeting_integrations_can_be_saved_and_tested(): void

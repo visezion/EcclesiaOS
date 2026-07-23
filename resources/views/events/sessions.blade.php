@@ -20,11 +20,11 @@
             ['label' => 'Event Sessions', 'value' => $stats['total'] ?? $sessions->total(), 'hint' => 'exact dates and times', 'icon' => 'clock', 'tone' => 'bg-violet-50 text-violet-600 ring-violet-100'],
             ['label' => 'Physical', 'value' => $stats['physical'] ?? 0, 'hint' => 'venue based', 'icon' => 'map-pin', 'tone' => 'bg-emerald-50 text-emerald-600 ring-emerald-100'],
             ['label' => 'Online', 'value' => $stats['online'] ?? 0, 'hint' => 'built-in room only', 'icon' => 'video', 'tone' => 'bg-blue-50 text-blue-600 ring-blue-100'],
-            ['label' => 'Hybrid', 'value' => $stats['hybrid'] ?? 0, 'hint' => 'venue plus room', 'icon' => 'radio-tower', 'tone' => 'bg-orange-50 text-orange-600 ring-orange-100'],
+            ['label' => 'Workflow Pending', 'value' => $stats['pending_assignments'] ?? 0, 'hint' => ($stats['recurring'] ?? 0).' recurring rule(s)', 'icon' => 'git-branch', 'tone' => 'bg-orange-50 text-orange-600 ring-orange-100'],
         ];
     @endphp
 
-    <div x-data="{ createOpen: {{ $errors->any() || request()->fullUrlIs('*#new-session') ? 'true' : 'false' }} }" x-init="if (window.location.hash === '#new-session') createOpen = true" class="space-y-5">
+    <div x-data="{ createOpen: {{ $errors->any() || request()->fullUrlIs('*#new-session') ? 'true' : 'false' }}, recurrenceOpen: false, sectionOpen: false }" x-init="if (window.location.hash === '#new-session') createOpen = true" class="space-y-5">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div class="flex items-center gap-4">
                 <div class="grid size-14 place-items-center rounded-lg bg-violet-100 text-violet-600">
@@ -43,6 +43,14 @@
                 </div>
             </div>
             <div class="flex flex-wrap gap-2">
+                <button type="button" @click="recurrenceOpen = true" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                    <i data-lucide="repeat-2" class="size-4"></i>
+                    Recurring Meeting
+                </button>
+                <button type="button" @click="sectionOpen = true" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                    <i data-lucide="list-ordered" class="size-4"></i>
+                    Add Section
+                </button>
                 <a href="{{ route('calendar.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                     <i data-lucide="calendar-days" class="size-4"></i>
                     Calendar
@@ -235,10 +243,95 @@
                         <p class="mt-3 text-sm text-slate-500">No session is available for the current filters.</p>
                     @endif
                 </section>
+                <section class="dashboard-card">
+                    <div class="flex items-center justify-between gap-3">
+                        <h2 class="text-base font-semibold text-slate-950">Recurring Plans</h2>
+                        <button type="button" @click="recurrenceOpen = true" class="text-xs font-medium text-violet-600">Create</button>
+                    </div>
+                    <div class="mt-4 divide-y divide-slate-100">
+                        @forelse($recurrenceRules as $rule)
+                            <div class="py-3 first:pt-0 last:pb-0">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div class="font-medium text-slate-900">{{ $rule->title }}</div>
+                                    <span class="rounded-full px-2 py-0.5 text-xs {{ $rule->status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700' }}">{{ Str::headline($rule->status) }}</span>
+                                </div>
+                                <div class="mt-1 text-xs text-slate-500">{{ Str::headline($rule->frequency) }} every {{ $rule->interval }} interval(s) / {{ $rule->sessions_count }} sessions</div>
+                            </div>
+                        @empty
+                            <p class="text-sm text-slate-500">No recurring rule has been created for this event.</p>
+                        @endforelse
+                    </div>
+                </section>
+                <section class="dashboard-card">
+                    <div class="flex items-center justify-between gap-3">
+                        <h2 class="text-base font-semibold text-slate-950">Order of Service</h2>
+                        <button type="button" @click="sectionOpen = true" class="text-xs font-medium text-violet-600">Add</button>
+                    </div>
+                    <div class="mt-4 space-y-4">
+                        @forelse($sections as $section)
+                            <article class="rounded-lg border border-slate-200 p-3">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase text-slate-400">#{{ $section->position }} {{ Str::headline($section->section_type) }}</div>
+                                        <h3 class="mt-1 font-semibold text-slate-950">{{ $section->title }}</h3>
+                                        <p class="mt-1 text-xs text-slate-500">{{ $section->planned_start_time ? Str::of($section->planned_start_time)->substr(0,5) : 'Time not set' }}{{ $section->planned_duration_minutes ? ' / '.$section->planned_duration_minutes.' min' : '' }}</p>
+                                    </div>
+                                    <span class="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-600">{{ $section->event_id ? 'Event' : 'Program' }}</span>
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    @forelse($section->assignments as $assignment)
+                                        <div class="rounded-lg bg-slate-50 p-2 text-xs">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <span class="font-medium text-slate-800">{{ $assignment->user?->name ?? trim(($assignment->member?->first_name ?? '').' '.($assignment->member?->last_name ?? '')) }}</span>
+                                                <span class="rounded-full px-2 py-0.5 {{ $assignment->status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : ($assignment->status === 'pending_approval' ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700') }}">{{ Str::headline($assignment->status) }}</span>
+                                            </div>
+                                            <div class="mt-1 text-slate-500">{{ $assignment->role_title }}</div>
+                                            @if($assignment->status === 'assigned' && $assignment->user_id === auth()->id())
+                                                <div class="mt-2 flex gap-2">
+                                                    <form method="POST" action="{{ route('program-section-assignments.accept', $assignment) }}">@csrf<button class="text-emerald-700">Accept</button></form>
+                                                    <form method="POST" action="{{ route('program-section-assignments.decline', $assignment) }}">@csrf<button class="text-rose-700">Decline</button></form>
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @empty
+                                        <p class="text-xs text-slate-500">No one assigned yet.</p>
+                                    @endforelse
+                                </div>
+                                <form method="POST" action="{{ route('event-section-assignments.store', [$program, $event, $section]) }}" class="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                                    @csrf
+                                    <div class="grid gap-2 sm:grid-cols-2">
+                                        <select name="assignee_type" class="rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                                            <option value="user">User</option>
+                                            <option value="member">Member</option>
+                                        </select>
+                                        <input name="role_title" required placeholder="Responsibility role" class="rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                                    </div>
+                                    <select name="user_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                                        <option value="">Select user when type is User</option>
+                                        @foreach($assignableUsers as $assignableUser)
+                                            <option value="{{ $assignableUser->id }}">{{ $assignableUser->name }} / {{ $assignableUser->roles->pluck('name')->first() ?? 'Staff' }}</option>
+                                        @endforeach
+                                    </select>
+                                    <select name="member_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                                        <option value="">Select member when type is Member</option>
+                                        @foreach($assignableMembers as $assignableMember)
+                                            <option value="{{ $assignableMember->id }}">{{ $assignableMember->last_name }}, {{ $assignableMember->first_name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <textarea name="responsibility_notes" rows="2" placeholder="Responsibility details" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"></textarea>
+                                    <label class="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" name="requires_approval" value="1" checked class="rounded border-slate-300 text-violet-600"> Requires approval</label>
+                                    <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs text-white"><i data-lucide="user-plus" class="size-3.5"></i>Assign</button>
+                                </form>
+                            </article>
+                        @empty
+                            <p class="text-sm text-slate-500">Add sections like Opening Prayer, Worship, Sermon, Offering, and Media to build the event order.</p>
+                        @endforelse
+                    </div>
+                </section>
             </aside>
         </section>
 
-        <div x-cloak x-show="createOpen" x-transition.opacity class="fixed inset-0 z-40 bg-slate-950/40" @click="createOpen = false"></div>
+        <div x-cloak x-show="createOpen || recurrenceOpen || sectionOpen" x-transition.opacity class="fixed inset-0 z-40 bg-slate-950/40" @click="createOpen = false; recurrenceOpen = false; sectionOpen = false"></div>
         <aside x-cloak x-show="createOpen" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto bg-white p-6 shadow-2xl">
             <div class="mb-5 flex items-center justify-between gap-3">
                 <div>
@@ -321,6 +414,104 @@
                     <i data-lucide="save" class="size-4"></i>
                     Create Session
                 </button>
+            </form>
+        </aside>
+        <aside x-cloak x-show="recurrenceOpen" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl">
+            <div class="mb-5 flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-950">Recurring Meeting</h2>
+                    <p class="text-sm text-slate-500">Generate real session dates. Each generated session receives its own attendance setup.</p>
+                </div>
+                <button type="button" @click="recurrenceOpen = false" class="rounded-lg p-2 hover:bg-slate-100" aria-label="Close"><i data-lucide="x" class="size-5"></i></button>
+            </div>
+            <form method="POST" action="{{ route('event-sessions.recurrences.store', [$program, $event]) }}" class="space-y-4">
+                @csrf
+                <label class="block text-sm text-slate-600">Meeting Title
+                    <input name="title" required value="{{ old('title', $event->title) }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                </label>
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <label class="block text-sm text-slate-600">Frequency
+                        <select name="frequency" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                    </label>
+                    <label class="block text-sm text-slate-600">Interval
+                        <input name="interval" type="number" min="1" max="12" value="1" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    </label>
+                    <label class="block text-sm text-slate-600">Max Dates
+                        <input name="max_occurrences" type="number" min="1" max="60" value="8" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    </label>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="block text-sm text-slate-600">Starts On
+                        <input name="starts_on" required type="date" value="{{ now()->toDateString() }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    </label>
+                    <label class="block text-sm text-slate-600">Ends On
+                        <input name="ends_on" type="date" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    </label>
+                </div>
+                <div class="rounded-lg border border-slate-200 p-3">
+                    <div class="text-sm font-semibold text-slate-950">Weekly Days</div>
+                    <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-4">
+                        @foreach(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as $day)
+                            <label class="flex items-center gap-2"><input type="checkbox" name="days_of_week[]" value="{{ $day }}" @checked($day === strtolower(now()->format('l'))) class="rounded border-slate-300 text-violet-600">{{ Str::headline($day) }}</label>
+                        @endforeach
+                    </div>
+                    <label class="mt-3 block text-sm text-slate-600">Monthly Day
+                        <input name="day_of_month" type="number" min="1" max="31" value="{{ now()->day }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    </label>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <label class="block text-sm text-slate-600">Start
+                        <input name="starts_at" required type="time" value="{{ old('starts_at', '09:00') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    </label>
+                    <label class="block text-sm text-slate-600">End
+                        <input name="ends_at" type="time" value="{{ old('ends_at', '10:30') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    </label>
+                    <label class="block text-sm text-slate-600">Type
+                        <select name="meeting_type" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                            @foreach($typeStyles as $type => $meta)
+                                <option value="{{ $type }}">{{ $meta['label'] }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                </div>
+                <input name="venue" value="{{ $event->venue }}" placeholder="Venue" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                <input name="capacity" type="number" min="0" placeholder="Expected attendance / capacity" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="requires_approval" value="1" checked class="rounded border-slate-300 text-violet-600"> Send recurrence for workflow approval</label>
+                <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white"><i data-lucide="repeat-2" class="size-4"></i>Generate Recurring Sessions</button>
+            </form>
+        </aside>
+        <aside x-cloak x-show="sectionOpen" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto bg-white p-6 shadow-2xl">
+            <div class="mb-5 flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-950">Add Program Section</h2>
+                    <p class="text-sm text-slate-500">Build the run of show for this event or the whole program.</p>
+                </div>
+                <button type="button" @click="sectionOpen = false" class="rounded-lg p-2 hover:bg-slate-100" aria-label="Close"><i data-lucide="x" class="size-5"></i></button>
+            </div>
+            <form method="POST" action="{{ route('event-sections.store', [$program, $event]) }}" class="space-y-4">
+                @csrf
+                <input name="title" required placeholder="Section title, e.g. Opening Prayer" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                <textarea name="description" rows="3" placeholder="Section details" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"></textarea>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <select name="section_type" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                        @foreach(['worship','prayer','sermon','offering','announcement','media','hospitality','custom'] as $type)
+                            <option value="{{ $type }}">{{ Str::headline($type) }}</option>
+                        @endforeach
+                    </select>
+                    <select name="scope" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                        <option value="event">This Event Only</option>
+                        <option value="program">Whole Program</option>
+                    </select>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <input name="position" required type="number" min="1" value="{{ ($sections->max('position') ?? 0) + 1 }}" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    <input name="planned_start_time" type="time" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    <input name="planned_duration_minutes" type="number" min="1" placeholder="Minutes" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                </div>
+                <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white"><i data-lucide="list-plus" class="size-4"></i>Add Section</button>
             </form>
         </aside>
     </div>

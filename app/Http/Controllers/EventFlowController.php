@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\Approval;
 use App\Models\AttendanceRecord;
 use App\Models\AttendanceSession;
 use App\Models\AttendanceVerification;
-use App\Models\Approval;
 use App\Models\Campus;
 use App\Models\Church;
 use App\Models\CommunicationDelivery;

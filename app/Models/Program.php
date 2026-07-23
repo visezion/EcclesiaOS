@@ -13,8 +13,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class Program extends Model
 {
-    use UsesOpaqueRouteKeys;
     use SoftDeletes;
+    use UsesOpaqueRouteKeys;
 
     protected $fillable = ['church_id', 'campus_id', 'name', 'description', 'starts_on', 'ends_on', 'status'];
 

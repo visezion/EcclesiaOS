@@ -12,8 +12,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class EventSession extends Model
 {
-    use UsesOpaqueRouteKeys;
     use SoftDeletes;
+    use UsesOpaqueRouteKeys;
 
     protected $fillable = [
         'church_id',

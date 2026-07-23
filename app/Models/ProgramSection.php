@@ -12,8 +12,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class ProgramSection extends Model
 {
-    use UsesOpaqueRouteKeys;
     use SoftDeletes;
+    use UsesOpaqueRouteKeys;
 
     protected $fillable = ['church_id', 'campus_id', 'program_id', 'event_id', 'title', 'description', 'section_type', 'position', 'planned_start_time', 'planned_duration_minutes', 'status'];
 

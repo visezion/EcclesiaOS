@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\ActivityLog;
+use App\Models\Approval;
 use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\AttendanceRecord;
@@ -15,6 +16,7 @@ use App\Models\CareTask;
 use App\Models\Church;
 use App\Models\Donation;
 use App\Models\Event;
+use App\Models\EventRecurrenceRule;
 use App\Models\EventSession;
 use App\Models\Family;
 use App\Models\Feedback;
@@ -25,9 +27,12 @@ use App\Models\Ministry;
 use App\Models\Permission;
 use App\Models\PrayerRequest;
 use App\Models\Program;
+use App\Models\ProgramSection;
+use App\Models\ProgramSectionAssignment;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\Volunteer;
+use App\Models\Workflow;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -451,6 +456,89 @@ SVG);
                         ['attendance_session_id' => $attendanceSession->id, 'attendance_record_id' => $record->id, 'member_id' => $member->id, 'method' => $record->final_method],
                         ['provider' => $record->final_method, 'status' => 'success', 'confidence' => $record->final_method === 'qr' ? 90 : 88, 'verified_at' => $record->checked_in_at, 'metadata' => ['seeded' => true]],
                     );
+                }
+
+                if ($title === 'Opening Service') {
+                    $rule = EventRecurrenceRule::query()->updateOrCreate(
+                        ['event_id' => $event->id, 'title' => 'Opening Service Weekly Planning'],
+                        [
+                            'church_id' => $church->id,
+                            'campus_id' => $program->campus_id,
+                            'created_by' => User::query()->where('email', 'admin@kingdomhub.test')->value('id'),
+                            'frequency' => 'weekly',
+                            'interval' => 1,
+                            'days_of_week' => ['friday'],
+                            'starts_on' => '2026-07-10',
+                            'ends_on' => '2026-08-28',
+                            'max_occurrences' => 8,
+                            'starts_at' => '09:00:00',
+                            'ends_at' => '10:30:00',
+                            'timezone' => $church->timezone,
+                            'meeting_type' => 'hybrid',
+                            'venue' => $venue,
+                            'address' => $campuses[$campusSlug]->address,
+                            'capacity' => 320,
+                            'meeting_links' => ['livekit' => ['room' => 'kingdomlife-livekit-'.$event->id, 'access_code' => 'KLCG-'.$event->id]],
+                            'status' => 'active',
+                        ],
+                    );
+
+                    $workflow = Workflow::query()->updateOrCreate(
+                        ['church_id' => $church->id, 'module' => 'programs', 'name' => 'Program Planning Approval'],
+                        ['status' => 'active', 'steps' => [['position' => 1, 'role' => 'Senior Pastor', 'required' => true]]],
+                    );
+
+                    foreach ([
+                        [1, 'Opening Prayer', 'prayer', 'Lead the congregation into prayer before worship.', 'Sarah Johnson', 'Prayer Lead'],
+                        [2, 'Worship', 'worship', 'Lead the opening worship set and coordinate the vocal team.', 'Michael Thompson', 'Worship Coordinator'],
+                        [3, 'Message', 'sermon', 'Prepare and deliver the main message.', 'Pastor John', 'Speaker'],
+                        [4, 'Media & Stream', 'media', 'Confirm LiveKit room, audio, cameras, and lyrics display.', 'David Wilson', 'Media Lead'],
+                    ] as [$position, $sectionTitle, $type, $description, $person, $roleTitle]) {
+                        $section = ProgramSection::query()->updateOrCreate(
+                            ['program_id' => $program->id, 'event_id' => $event->id, 'title' => $sectionTitle],
+                            [
+                                'church_id' => $church->id,
+                                'campus_id' => $program->campus_id,
+                                'description' => $description,
+                                'section_type' => $type,
+                                'position' => $position,
+                                'planned_start_time' => Carbon::parse($startsAt)->addMinutes(($position - 1) * 15)->format('H:i:s'),
+                                'planned_duration_minutes' => $position === 3 ? 35 : 12,
+                                'status' => 'active',
+                            ],
+                        );
+
+                        $user = User::query()->where('name', $person)->first();
+                        $member = $user ? null : ($members[$person] ?? null);
+                        $assignment = ProgramSectionAssignment::query()->updateOrCreate(
+                            ['program_section_id' => $section->id, 'role_title' => $roleTitle],
+                            [
+                                'church_id' => $church->id,
+                                'campus_id' => $program->campus_id,
+                                'user_id' => $user?->id,
+                                'member_id' => $member?->id,
+                                'responsibility_notes' => $description,
+                                'call_time' => Carbon::parse($startsAt)->subMinutes(30),
+                                'status' => $position === 4 ? 'pending_approval' : 'assigned',
+                            ],
+                        );
+
+                        if ($assignment->status === 'pending_approval') {
+                            Approval::query()->updateOrCreate(
+                                ['approvable_type' => ProgramSectionAssignment::class, 'approvable_id' => $assignment->id],
+                                [
+                                    'church_id' => $church->id,
+                                    'workflow_id' => $workflow->id,
+                                    'action' => 'assign_program_section',
+                                    'requested_by' => User::query()->where('email', 'admin@kingdomhub.test')->value('id'),
+                                    'status' => 'pending',
+                                    'notes' => 'Media assignment requires approval.',
+                                    'payload' => ['section' => $section->title, 'role_title' => $assignment->role_title],
+                                    'submitted_at' => now()->subHours(4),
+                                ],
+                            );
+                        }
+                    }
                 }
             }
         }

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\UsesOpaqueRouteKeys;
-
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -13,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 final class Approval extends Model
 {
     use UsesOpaqueRouteKeys;
+
     protected $fillable = ['church_id', 'workflow_id', 'approvable_type', 'approvable_id', 'action', 'requested_by', 'approved_by', 'status', 'notes', 'payload', 'submitted_at', 'approved_at', 'rejected_at'];
 
     protected function casts(): array
