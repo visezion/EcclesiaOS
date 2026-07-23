@@ -9,10 +9,12 @@ use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CampusManagementController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeveloperHubController;
 use App\Http\Controllers\EventFlowController;
 use App\Http\Controllers\FamilyManagementController;
 use App\Http\Controllers\MemberManagementController;
 use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\ModuleManagementController;
 use App\Http\Controllers\PastoralCareController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoleDirectoryController;
@@ -38,12 +40,14 @@ Route::middleware('guest')->group(function (): void {
     Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.store');
 });
 
-Route::middleware('auth')->group(function (): void {
+Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('/', fn () => redirect()->route('dashboard'))->name('home');
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('search', SearchController::class)->name('search');
     Route::get('programs', [EventFlowController::class, 'programs'])->name('programs.index');
     Route::post('programs', [EventFlowController::class, 'storeProgram'])->name('programs.store');
+    Route::put('programs/{program}', [EventFlowController::class, 'updateProgram'])->name('programs.update');
+    Route::delete('programs/{program}', [EventFlowController::class, 'destroyProgram'])->name('programs.destroy');
     Route::get('programs/{program}/events', [EventFlowController::class, 'events'])->name('programs.events');
     Route::post('programs/{program}/events', [EventFlowController::class, 'storeEvent'])->name('programs.events.store');
     Route::get('events', [EventFlowController::class, 'events'])->name('events.index');
@@ -62,8 +66,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('event-sessions/{eventSession}/attendance', [EventFlowController::class, 'attendance'])->name('event-sessions.attendance');
     Route::put('event-sessions/{eventSession}/attendance', [EventFlowController::class, 'updateAttendance'])->name('event-sessions.attendance.update');
     Route::get('attendance', [EventFlowController::class, 'attendanceIndex'])->name('attendance.index');
+    Route::delete('attendance/{attendanceSession}', [EventFlowController::class, 'destroyAttendanceSession'])->name('attendance.destroy');
     Route::get('attendance/{attendanceSession}/methods', [EventFlowController::class, 'methods'])->name('attendance.methods');
     Route::post('attendance/{attendanceSession}/check-in', [EventFlowController::class, 'checkIn'])->name('attendance.check-in');
+    Route::put('attendance-records/{record}', [EventFlowController::class, 'updateAttendanceRecord'])->name('attendance.records.update');
+    Route::delete('attendance-records/{record}', [EventFlowController::class, 'destroyAttendanceRecord'])->name('attendance.records.destroy');
     Route::get('attendance/{attendanceSession}/records/{member}', [EventFlowController::class, 'record'])->name('attendance.records.show');
     Route::get('administration/meeting-integrations', [EventFlowController::class, 'integrations'])->name('meeting-integrations.index');
     Route::put('administration/meeting-integrations', [EventFlowController::class, 'updateIntegrations'])->name('meeting-integrations.update');
@@ -134,6 +141,10 @@ Route::middleware('auth')->group(function (): void {
     Route::get('administration/campuses', CampusManagementController::class)->name('campuses.index');
     Route::post('administration/campuses', [CampusManagementController::class, 'store'])->name('campuses.store');
     Route::post('administration/campuses/import', [CampusManagementController::class, 'import'])->name('campuses.import');
+    Route::get('administration/modules', ModuleManagementController::class)->name('modules.index');
+    Route::put('administration/modules', [ModuleManagementController::class, 'update'])->name('modules.update');
+    Route::put('administration/modules/reset', [ModuleManagementController::class, 'reset'])->name('modules.reset');
+    Route::get('administration/developer-hub', DeveloperHubController::class)->name('developer-hub.index');
     Route::get('administration/audit-logs', AuditLogController::class)->name('audit-logs.index');
     Route::get('administration/audit-logs/export', [AuditLogController::class, 'export'])->name('audit-logs.export');
     Route::get('workflows', [WorkflowController::class, 'index'])->name('workflows.index');
@@ -158,7 +169,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'families.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'families.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'developer-hub.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
             continue;
         }
 

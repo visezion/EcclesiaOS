@@ -49,7 +49,39 @@ class ModuleRoutesTest extends TestCase
             ->get(route('programs.index'))
             ->assertOk()
             ->assertSee('Programs')
-            ->assertSee(route('programs.store'), false);
+            ->assertSee(route('programs.store'), false)
+            ->assertSee(route('programs.update', $program), false)
+            ->assertSee(route('programs.destroy', $program), false);
+
+        $editableProgram = Program::query()->create([
+            'church_id' => $program->church_id,
+            'campus_id' => $program->campus_id,
+            'name' => 'Editable Program',
+            'description' => 'Program to edit and delete.',
+            'starts_on' => now()->toDateString(),
+            'ends_on' => now()->addDay()->toDateString(),
+            'status' => 'upcoming',
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('programs.update', $editableProgram), [
+                'name' => 'Editable Program Updated',
+                'description' => 'Updated program description.',
+                'starts_on' => now()->toDateString(),
+                'ends_on' => now()->addDays(2)->toDateString(),
+                'status' => 'ongoing',
+            ])
+            ->assertRedirect(route('programs.index'));
+
+        $editableProgram->refresh();
+        $this->assertSame('Editable Program Updated', $editableProgram->name);
+        $this->assertSame('ongoing', $editableProgram->status);
+
+        $this->actingAs($user)
+            ->delete(route('programs.destroy', $editableProgram))
+            ->assertRedirect(route('programs.index'));
+
+        $this->assertSoftDeleted('programs', ['id' => $editableProgram->id]);
 
         $this->actingAs($user)
             ->get(route('programs.events', $program))
@@ -77,7 +109,8 @@ class ModuleRoutesTest extends TestCase
             ->get(route('attendance.index'))
             ->assertOk()
             ->assertSee('Attendance')
-            ->assertSee('Attendance Sessions');
+            ->assertSee('Attendance Sessions')
+            ->assertSee(route('attendance.destroy', $attendanceSession), false);
 
         $this->actingAs($user)
             ->get(route('meeting-integrations.index'))
@@ -131,6 +164,45 @@ class ModuleRoutesTest extends TestCase
             'method' => 'zoom',
             'status' => 'success',
         ]);
+
+        $memberRecord = AttendanceRecord::query()
+            ->where('attendance_session_id', $attendanceSession->id)
+            ->where('member_id', $member->id)
+            ->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('attendance.records.show', [$attendanceSession, $member->opaqueId()]))
+            ->assertOk()
+            ->assertSee(route('attendance.records.update', $memberRecord), false)
+            ->assertSee(route('attendance.records.destroy', $memberRecord), false);
+
+        $this->actingAs($user)
+            ->put(route('attendance.records.update', $memberRecord), [
+                'status' => 'late',
+                'final_method' => 'manual',
+                'service_date' => now()->toDateString(),
+                'checked_in_at' => now()->format('Y-m-d H:i:s'),
+                'admin_note' => 'Corrected by administrator.',
+            ])
+            ->assertRedirect();
+
+        $memberRecord->refresh();
+        $this->assertSame('late', $memberRecord->status);
+        $this->assertSame('manual', $memberRecord->final_method);
+        $this->assertSame('Corrected by administrator.', $memberRecord->metadata['admin_note']);
+
+        $this->actingAs($user)
+            ->delete(route('attendance.records.destroy', $memberRecord))
+            ->assertRedirect(route('event-sessions.attendance', $attendanceSession->eventSession));
+
+        $this->assertDatabaseMissing('attendance_records', ['id' => $memberRecord->id]);
+
+        $this->actingAs($user)
+            ->delete(route('attendance.destroy', $attendanceSession))
+            ->assertRedirect(route('attendance.index'));
+
+        $this->assertSoftDeleted('attendance_sessions', ['id' => $attendanceSession->id]);
+        $this->assertSame(0, AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->count());
     }
 
     public function test_all_program_event_session_pages_render_successfully(): void
@@ -259,6 +331,7 @@ class ModuleRoutesTest extends TestCase
             ->assertSee('New Workflow')
             ->assertSee(route('workflows.store'), false)
             ->assertSee(route('workflows.import'), false)
+            ->assertSee('<option value="Ministry Leader">Ministry Leader</option>', false)
             ->assertDontSee('Instances (');
 
         $this->actingAs($admin)

@@ -17,6 +17,8 @@
         $successCount = $record->verifications->where('status', 'success')->count();
         $failedCount = $record->verifications->where('status', '!=', 'success')->count();
         $bestConfidence = (int) $record->verifications->max('confidence');
+        $recordStatusOptions = ['present' => 'Present', 'late' => 'Late', 'excused' => 'Excused', 'absent' => 'Absent'];
+        $recordMethodOptions = collect($methodIcons)->keys();
         $statCards = [
             ['label' => 'Verification Attempts', 'value' => $record->verifications->count(), 'hint' => 'stored evidence', 'icon' => 'clipboard-check', 'tone' => 'bg-violet-50 text-violet-600 ring-violet-100'],
             ['label' => 'Successful', 'value' => $successCount, 'hint' => 'valid methods', 'icon' => 'badge-check', 'tone' => 'bg-emerald-50 text-emerald-600 ring-emerald-100'],
@@ -52,11 +54,22 @@
                     <i data-lucide="clipboard-check" class="size-4"></i>
                     Attendance Setup
                 </a>
+                <form method="POST" action="{{ route('attendance.records.destroy', $record) }}" onsubmit="return confirm('Delete this attendance record and all verification evidence?')" class="inline">
+                    @csrf
+                    @method('DELETE')
+                    <button class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm text-rose-700 hover:bg-rose-50">
+                        <i data-lucide="trash-2" class="size-4"></i>
+                        Delete Record
+                    </button>
+                </form>
             </div>
         </div>
 
         @if(session('status'))
             <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{{ session('status') }}</div>
+        @endif
+        @if($errors->any())
+            <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ $errors->first() }}</div>
         @endif
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -108,6 +121,56 @@
                         <div class="rounded-lg bg-slate-50 p-3"><dt class="text-slate-500">Final Method</dt><dd class="mt-1 text-slate-950">{{ Str::headline($record->final_method ?? 'manual') }}</dd></div>
                         <div class="rounded-lg bg-slate-50 p-3"><dt class="text-slate-500">Record ID</dt><dd class="mt-1 text-slate-950">{{ $record->opaqueId() }}</dd></div>
                     </dl>
+                </section>
+
+                <section class="dashboard-card">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-base font-semibold text-slate-950">Edit Final Record</h2>
+                            <p class="mt-1 text-sm text-slate-500">Correct the stored final attendance data without changing the audit evidence table.</p>
+                        </div>
+                        <i data-lucide="pencil" class="size-5 text-violet-600"></i>
+                    </div>
+                    <form method="POST" action="{{ route('attendance.records.update', $record) }}" class="mt-4 space-y-4">
+                        @csrf
+                        @method('PUT')
+                        <div class="grid gap-3 md:grid-cols-2">
+                            <label class="block text-sm text-slate-600">
+                                Status
+                                <select name="status" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5">
+                                    @foreach($recordStatusOptions as $key => $label)
+                                        <option value="{{ $key }}" @selected(old('status', $record->status) === $key)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="block text-sm text-slate-600">
+                                Final Method
+                                <select name="final_method" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5">
+                                    @foreach($recordMethodOptions as $method)
+                                        <option value="{{ $method }}" @selected(old('final_method', $record->final_method ?? 'manual') === $method)>{{ Str::headline($method) }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                        </div>
+                        <div class="grid gap-3 md:grid-cols-2">
+                            <label class="block text-sm text-slate-600">
+                                Service Date
+                                <input name="service_date" type="date" value="{{ old('service_date', $record->service_date?->format('Y-m-d')) }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5">
+                            </label>
+                            <label class="block text-sm text-slate-600">
+                                Checked In At
+                                <input name="checked_in_at" type="datetime-local" value="{{ old('checked_in_at', $record->checked_in_at?->format('Y-m-d\TH:i')) }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5">
+                            </label>
+                        </div>
+                        <label class="block text-sm text-slate-600">
+                            Admin Note
+                            <textarea name="admin_note" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5" placeholder="Why was this record edited?">{{ old('admin_note', data_get($record->metadata, 'admin_note')) }}</textarea>
+                        </label>
+                        <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white hover:bg-violet-700">
+                            <i data-lucide="save" class="size-4"></i>
+                            Save Record
+                        </button>
+                    </form>
                 </section>
 
                 <section class="rounded-lg border border-slate-200 bg-white shadow-sm">

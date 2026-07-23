@@ -14,9 +14,11 @@
         ];
         $activeFilters = filled(request('q')) || filled(request('status')) || filled(request('campus'));
         $featuredProgram = $programs->first();
+        $programFormState = (string) old('_program_form', '');
+        $initialEditProgram = str_starts_with($programFormState, 'edit-') ? substr($programFormState, 5) : null;
     @endphp
 
-    <div x-data="{ createOpen: {{ $errors->any() ? 'true' : 'false' }} }" class="space-y-5">
+    <div x-data="{ createOpen: @js($programFormState === 'create' || ($errors->any() && blank($programFormState))), editOpen: @js($initialEditProgram) }" class="space-y-5">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div class="flex items-center gap-4">
                 <div class="grid size-14 place-items-center rounded-lg bg-violet-100 text-violet-600">
@@ -163,6 +165,16 @@
                                                 <a href="{{ route('programs.events', $program) }}" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Manage events">
                                                     <i data-lucide="arrow-right" class="size-4"></i>
                                                 </a>
+                                                <button type="button" @click="editOpen = '{{ $program->opaqueId() }}'" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-blue-50 hover:text-blue-600" title="Edit program">
+                                                    <i data-lucide="pencil" class="size-4"></i>
+                                                </button>
+                                                <form method="POST" action="{{ route('programs.destroy', $program) }}" onsubmit="return confirm('Delete {{ addslashes($program->name) }}? Existing linked events will remain in the database but this program will be hidden from the directory.')" class="inline">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-600" title="Delete program">
+                                                        <i data-lucide="trash-2" class="size-4"></i>
+                                                    </button>
+                                                </form>
                                             </div>
                                         </td>
                                     </tr>
@@ -235,7 +247,7 @@
             </aside>
         </section>
 
-        <div x-cloak x-show="createOpen" x-transition.opacity class="fixed inset-0 z-40 bg-slate-950/40" @click="createOpen = false"></div>
+        <div x-cloak x-show="createOpen || editOpen" x-transition.opacity class="fixed inset-0 z-40 bg-slate-950/40" @click="createOpen = false; editOpen = null"></div>
         <aside x-cloak x-show="createOpen" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
             <div class="mb-5 flex items-center justify-between gap-3">
                 <div>
@@ -246,6 +258,7 @@
             </div>
             <form method="POST" action="{{ route('programs.store') }}" class="space-y-4">
                 @csrf
+                <input type="hidden" name="_program_form" value="create">
                 <label class="block text-sm text-slate-600">Program Name
                     <input name="name" required value="{{ old('name') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Youth Camp 2026">
                 </label>
@@ -281,5 +294,54 @@
                 </button>
             </form>
         </aside>
+        @foreach($programs as $program)
+            <aside x-cloak x-show="editOpen === '{{ $program->opaqueId() }}'" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
+                <div class="mb-5 flex items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-950">Edit Program</h2>
+                        <p class="text-sm text-slate-500">{{ $program->name }}</p>
+                    </div>
+                    <button type="button" @click="editOpen = null" class="rounded-lg p-2 hover:bg-slate-100" aria-label="Close"><i data-lucide="x" class="size-5"></i></button>
+                </div>
+                <form method="POST" action="{{ route('programs.update', $program) }}" class="space-y-4">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="_program_form" value="edit-{{ $program->opaqueId() }}">
+                    <label class="block text-sm text-slate-600">Program Name
+                        <input name="name" required value="{{ $programFormState === 'edit-'.$program->opaqueId() ? old('name', $program->name) : $program->name }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Youth Camp 2026">
+                    </label>
+                    <label class="block text-sm text-slate-600">Description
+                        <textarea name="description" rows="4" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Purpose, audience, and expected outcomes">{{ $programFormState === 'edit-'.$program->opaqueId() ? old('description', $program->description) : $program->description }}</textarea>
+                    </label>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="block text-sm text-slate-600">Starts On
+                            <input name="starts_on" type="date" value="{{ $programFormState === 'edit-'.$program->opaqueId() ? old('starts_on', $program->starts_on?->format('Y-m-d')) : $program->starts_on?->format('Y-m-d') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                        </label>
+                        <label class="block text-sm text-slate-600">Ends On
+                            <input name="ends_on" type="date" value="{{ $programFormState === 'edit-'.$program->opaqueId() ? old('ends_on', $program->ends_on?->format('Y-m-d')) : $program->ends_on?->format('Y-m-d') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                        </label>
+                    </div>
+                    <label class="block text-sm text-slate-600">Campus
+                        <select name="campus_id" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                            <option value="">All campuses</option>
+                            @foreach($campuses as $campus)
+                                <option value="{{ $campus->opaqueId() }}" @selected(($programFormState === 'edit-'.$program->opaqueId() ? old('campus_id', $program->campus?->opaqueId()) : $program->campus?->opaqueId()) === $campus->opaqueId())>{{ $campus->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="block text-sm text-slate-600">Status
+                        <select name="status" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                            @foreach(['upcoming' => 'Upcoming', 'ongoing' => 'Ongoing', 'completed' => 'Completed', 'cancelled' => 'Cancelled'] as $key => $label)
+                                <option value="{{ $key }}" @selected(($programFormState === 'edit-'.$program->opaqueId() ? old('status', $program->status) : $program->status) === $key)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white hover:bg-violet-700">
+                        <i data-lucide="save" class="size-4"></i>
+                        Save Program
+                    </button>
+                </form>
+            </aside>
+        @endforeach
     </div>
 </x-app-layout>

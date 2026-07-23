@@ -48,6 +48,13 @@
             </div>
         </div>
 
+        @if(session('status'))
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{{ session('status') }}</div>
+        @endif
+        @if($errors->any())
+            <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ $errors->first() }}</div>
+        @endif
+
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             @foreach($statCards as $card)
                 <article class="dashboard-card">
@@ -154,6 +161,11 @@
                                                 <a href="{{ route('event-sessions.attendance', $eventSession) }}" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Manage attendance"><i data-lucide="settings" class="size-4"></i></a>
                                                 <a href="{{ route('attendance.methods', $attendanceSession) }}" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Open check-in"><i data-lucide="scan-line" class="size-4"></i></a>
                                             @endif
+                                            <form method="POST" action="{{ route('attendance.destroy', $attendanceSession) }}" onsubmit="return confirm('Delete {{ addslashes($attendanceSession->title) }} and all attendance records for this session?')" class="inline">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-600" title="Delete attendance session"><i data-lucide="trash-2" class="size-4"></i></button>
+                                            </form>
                                         </td>
                                     </tr>
                                 @empty

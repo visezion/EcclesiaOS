@@ -46,15 +46,23 @@
             ['label' => 'Final Approval', 'role' => 'Administrator', 'mode' => 'required', 'instructions' => 'Confirm policy and final authorization.'],
         ];
         $createWorkflowSteps = $workflowFormState === 'create' ? old('steps', $defaultWorkflowSteps) : $defaultWorkflowSteps;
-        $workflowRoleOptions = ['Requester', 'Super Administrator', 'Church Administrator', 'Senior Pastor', 'Branch Pastor', 'Finance Officer', 'Membership Officer', 'Asset Manager', 'Book Store Manager', 'Ministry Leader', 'Staff', 'Viewer'];
+        $workflowStepRoles = $workflows
+            ->flatMap(function ($workflow) {
+                $meta = $workflow->steps ?? [];
+                $steps = array_is_list($meta) ? $meta : data_get($meta, 'steps', []);
+
+                return collect($steps)->pluck('role');
+            });
+        $workflowRoleOptions = collect($workflowRoleOptions ?? [])
+            ->merge($workflowStepRoles)
+            ->merge(['Requester', 'Ministry Leader'])
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
     @endphp
 
     <div x-data="{ createOpen: @js($workflowFormState === 'create'), importOpen: @js($workflowFormState === 'import'), editOpen: @js($initialEditOpen) }" class="space-y-5">
-        <datalist id="workflow-role-options">
-            @foreach($workflowRoleOptions as $roleOption)
-                <option value="{{ $roleOption }}"></option>
-            @endforeach
-        </datalist>
         <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
                 <h1 class="text-2xl font-semibold text-slate-950">Workflow & Approvals</h1>
@@ -408,7 +416,11 @@
                                 </div>
                                 <div class="grid gap-2">
                                     <input x-model="step.label" :name="`steps[${index}][label]`" required maxlength="120" placeholder="Step name" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                                    <input x-model="step.role" :name="`steps[${index}][role]`" required maxlength="120" list="workflow-role-options" placeholder="Approver role" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <select x-model="step.role" :name="`steps[${index}][role]`" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                        @foreach($workflowRoleOptions as $roleOption)
+                                            <option value="{{ $roleOption }}">{{ $roleOption }}</option>
+                                        @endforeach
+                                    </select>
                                     <select x-model="step.mode" :name="`steps[${index}][mode]`" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                                         <option value="required">Approval Required</option>
                                         <option value="auto">Auto-advance</option>
@@ -425,6 +437,17 @@
         @foreach($workflows as $workflow)
             @php
                 $workflowMeta = $workflow->steps ?? [];
+                $rawWorkflowSteps = array_is_list($workflowMeta) ? $workflowMeta : data_get($workflowMeta, 'steps', []);
+                $workflowSteps = collect($rawWorkflowSteps)
+                    ->values()
+                    ->map(fn ($step) => [
+                        'label' => data_get($step, 'label', data_get($step, 'role', 'Approval Step')),
+                        'role' => data_get($step, 'role', 'Approver'),
+                        'mode' => data_get($step, 'mode', data_get($step, 'required') ? 'required' : 'auto'),
+                        'instructions' => data_get($step, 'instructions', ''),
+                    ])
+                    ->all() ?: $defaultWorkflowSteps;
+                $editWorkflowSteps = $workflowFormState === 'edit-'.$workflow->opaqueId() ? old('steps', $workflowSteps) : $workflowSteps;
             @endphp
             <aside x-cloak x-show="editOpen === '{{ $workflow->opaqueId() }}'" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto bg-white p-6 shadow-2xl">
                 <div class="mb-5 flex items-center justify-between gap-3">
@@ -434,29 +457,87 @@
                     </div>
                     <button type="button" @click="editOpen = null" class="rounded-lg p-2 hover:bg-slate-100" aria-label="Close"><i data-lucide="x" class="size-5"></i></button>
                 </div>
-                <form method="POST" action="{{ route('workflows.update', $workflow) }}" class="space-y-4">
+                <form method="POST" action="{{ route('workflows.update', $workflow) }}" class="space-y-4" x-data="workflowBuilder(@js($editWorkflowSteps))">
                     @csrf
                     @method('PUT')
-                    <input name="name" required value="{{ $workflow->name }}" placeholder="Workflow name" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    <input type="hidden" name="_workflow_form" value="edit-{{ $workflow->opaqueId() }}">
+                    <label class="block text-sm font-medium text-slate-700">
+                        Workflow Name
+                        <input name="name" required value="{{ $workflowFormState === 'edit-'.$workflow->opaqueId() ? old('name', $workflow->name) : $workflow->name }}" placeholder="Workflow name" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    </label>
                     <div class="grid gap-3 sm:grid-cols-2">
-                        <select name="module" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                            @foreach(['events', 'programs', 'finances', 'volunteers', 'facilities', 'ministries'] as $module)
-                                <option value="{{ $module }}" @selected($workflow->module === $module)>{{ Str::headline($module) }}</option>
-                            @endforeach
-                        </select>
-                        <select name="status" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                            <option value="active" @selected($workflow->status === 'active')>Active</option>
-                            <option value="draft" @selected($workflow->status === 'draft')>Draft</option>
-                        </select>
+                        <label class="block text-sm font-medium text-slate-700">
+                            Module
+                            <select name="module" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                                @foreach(['events', 'programs', 'finances', 'volunteers', 'facilities', 'ministries'] as $module)
+                                    <option value="{{ $module }}" @selected(($workflowFormState === 'edit-'.$workflow->opaqueId() ? old('module', $workflow->module) : $workflow->module) === $module)>{{ Str::headline($module) }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="block text-sm font-medium text-slate-700">
+                            Status
+                            <select name="status" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                                <option value="active" @selected(($workflowFormState === 'edit-'.$workflow->opaqueId() ? old('status', $workflow->status) : $workflow->status) === 'active')>Active</option>
+                                <option value="draft" @selected(($workflowFormState === 'edit-'.$workflow->opaqueId() ? old('status', $workflow->status) : $workflow->status) === 'draft')>Draft</option>
+                            </select>
+                        </label>
                     </div>
-                    <textarea name="description" rows="3" placeholder="Description" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">{{ data_get($workflowMeta, 'description', 'Approval workflow for '.$workflow->module) }}</textarea>
+                    <label class="block text-sm font-medium text-slate-700">
+                        Description
+                        <textarea name="description" rows="3" placeholder="Description" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">{{ $workflowFormState === 'edit-'.$workflow->opaqueId() ? old('description', data_get($workflowMeta, 'description', 'Approval workflow for '.$workflow->module)) : data_get($workflowMeta, 'description', 'Approval workflow for '.$workflow->module) }}</textarea>
+                    </label>
                     <div class="grid gap-3 sm:grid-cols-2">
-                        <select name="approval_type" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                            <option value="sequential" @selected(data_get($workflowMeta, 'approval_type', 'sequential') === 'sequential')>Sequential</option>
-                            <option value="parallel" @selected(data_get($workflowMeta, 'approval_type', 'sequential') === 'parallel')>Parallel</option>
-                        </select>
-                        <input name="timeout_hours" required type="number" min="1" max="720" value="{{ data_get($workflowMeta, 'timeout_hours', 72) }}" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                        <label class="block text-sm font-medium text-slate-700">
+                            Approval Type
+                            <select name="approval_type" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                                <option value="sequential" @selected(($workflowFormState === 'edit-'.$workflow->opaqueId() ? old('approval_type', data_get($workflowMeta, 'approval_type', 'sequential')) : data_get($workflowMeta, 'approval_type', 'sequential')) === 'sequential')>Sequential</option>
+                                <option value="parallel" @selected(($workflowFormState === 'edit-'.$workflow->opaqueId() ? old('approval_type', data_get($workflowMeta, 'approval_type', 'sequential')) : data_get($workflowMeta, 'approval_type', 'sequential')) === 'parallel')>Parallel</option>
+                            </select>
+                        </label>
+                        <label class="block text-sm font-medium text-slate-700">
+                            Timeout Hours
+                            <input name="timeout_hours" required type="number" min="1" max="720" value="{{ $workflowFormState === 'edit-'.$workflow->opaqueId() ? old('timeout_hours', data_get($workflowMeta, 'timeout_hours', 72)) : data_get($workflowMeta, 'timeout_hours', 72) }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                        </label>
                     </div>
+                    <section class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-950">Approval Path</h3>
+                                <p class="mt-1 text-xs text-slate-500" x-text="`${steps.length} step${steps.length === 1 ? '' : 's'} configured`"></p>
+                            </div>
+                            <button type="button" @click="addStep()" class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-violet-700 ring-1 ring-slate-200 hover:bg-violet-50">
+                                <i data-lucide="plus" class="size-4"></i>
+                                Add
+                            </button>
+                        </div>
+                        <div class="mt-3 space-y-3">
+                            <template x-for="(step, index) in steps" :key="step.uid">
+                                <article class="rounded-lg border border-slate-200 bg-white p-3">
+                                    <div class="mb-3 flex items-center justify-between gap-2">
+                                        <span class="text-xs font-semibold uppercase text-violet-600" x-text="`Step ${index + 1}`"></span>
+                                        <div class="flex gap-1">
+                                            <button type="button" @click="moveStep(index, -1)" :disabled="index === 0" class="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 disabled:opacity-40">Up</button>
+                                            <button type="button" @click="moveStep(index, 1)" :disabled="index === steps.length - 1" class="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 disabled:opacity-40">Down</button>
+                                            <button type="button" @click="removeStep(index)" :disabled="steps.length === 1" class="rounded border border-rose-100 px-2 py-1 text-xs text-rose-600 disabled:opacity-40">Remove</button>
+                                        </div>
+                                    </div>
+                                    <div class="grid gap-2">
+                                        <input x-model="step.label" :name="`steps[${index}][label]`" required maxlength="120" placeholder="Step name" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                        <select x-model="step.role" :name="`steps[${index}][role]`" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                            @foreach($workflowRoleOptions as $roleOption)
+                                                <option value="{{ $roleOption }}">{{ $roleOption }}</option>
+                                            @endforeach
+                                        </select>
+                                        <select x-model="step.mode" :name="`steps[${index}][mode]`" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                            <option value="required">Approval Required</option>
+                                            <option value="auto">Auto-advance</option>
+                                        </select>
+                                        <textarea x-model="step.instructions" :name="`steps[${index}][instructions]`" rows="2" maxlength="500" placeholder="Responsibility notes for this approver" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></textarea>
+                                    </div>
+                                </article>
+                            </template>
+                        </div>
+                    </section>
                     <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white"><i data-lucide="save" class="size-4"></i>Save Changes</button>
                 </form>
             </aside>
@@ -471,13 +552,24 @@
             </div>
             <form method="POST" action="{{ route('workflows.import') }}" class="space-y-4">
                 @csrf
-                <input name="name" required placeholder="Imported workflow name" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                <select name="module" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                    @foreach(['events', 'programs', 'finances', 'volunteers', 'facilities', 'ministries'] as $module)
-                        <option value="{{ $module }}">{{ Str::headline($module) }}</option>
-                    @endforeach
-                </select>
-                <textarea name="definition" rows="8" placeholder='{"description":"Workflow description","approval_type":"sequential","timeout_hours":72,"steps":[]}' class="w-full rounded-lg border border-slate-200 px-3 py-2.5 font-mono text-xs"></textarea>
+                <input type="hidden" name="_workflow_form" value="import">
+                <label class="block text-sm font-medium text-slate-700">
+                    Workflow Name
+                    <input name="name" required value="{{ $workflowFormState === 'import' ? old('name') : '' }}" placeholder="Imported workflow name" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                </label>
+                <label class="block text-sm font-medium text-slate-700">
+                    Module
+                    <select name="module" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                        @foreach(['events', 'programs', 'finances', 'volunteers', 'facilities', 'ministries'] as $module)
+                            <option value="{{ $module }}" @selected(($workflowFormState === 'import' ? old('module', 'events') : 'events') === $module)>{{ Str::headline($module) }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="block text-sm font-medium text-slate-700">
+                    Workflow JSON
+                    <textarea name="definition" rows="8" placeholder='{"description":"Workflow description","approval_type":"sequential","timeout_hours":72,"steps":[{"label":"Review","role":"Senior Pastor","mode":"required","instructions":"Review the request."}]}' class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 font-mono text-xs">{{ $workflowFormState === 'import' ? old('definition') : '' }}</textarea>
+                    <span class="mt-1 block text-xs font-normal text-slate-500">Optional. Leave empty to create an imported draft, or paste a JSON workflow definition with custom steps.</span>
+                </label>
                 <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white"><i data-lucide="download" class="size-4"></i>Import Workflow</button>
             </form>
         </aside>

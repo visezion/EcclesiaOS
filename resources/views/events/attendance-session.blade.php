@@ -245,6 +245,14 @@
                                             <i data-lucide="eye" class="size-4"></i>
                                             View
                                         </a>
+                                        <form method="POST" action="{{ route('attendance.records.destroy', $record) }}" onsubmit="return confirm('Delete this attendance record and its verification evidence?')" class="inline">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">
+                                                <i data-lucide="trash-2" class="size-4"></i>
+                                                Delete
+                                            </button>
+                                        </form>
                                     </td>
                                 </tr>
                             @empty

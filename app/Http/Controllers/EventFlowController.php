@@ -80,26 +80,35 @@ final class EventFlowController extends Controller
     {
         $this->authorizeEvents($request);
 
-        if (filled($request->input('campus_id')) && ! filter_var($request->input('campus_id'), FILTER_VALIDATE_INT)) {
-            $request->merge(['campus_id' => OpaqueId::decode($request->input('campus_id'), Campus::class)]);
-        }
-
-        $validated = $request->validate([
-            'church_id' => ['nullable', 'exists:churches,id'],
-            'campus_id' => ['nullable', 'exists:campuses,id'],
-            'name' => ['required', 'string', 'max:160'],
-            'description' => ['nullable', 'string', 'max:1000'],
-            'starts_on' => ['nullable', 'date'],
-            'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
-            'status' => ['required', Rule::in(['upcoming', 'ongoing', 'completed', 'cancelled'])],
-        ]);
-
-        $validated = $this->applyActorScope($request, $validated);
+        $validated = $this->applyActorScope($request, $this->validateProgramPayload($request));
         $program = Program::query()->create($validated);
 
         $activityLogger->log('Programs', 'program_created', $program->name.' was created.', $program, ['resource' => 'Program', 'risk' => 'low', 'status' => 'success'], $request);
 
         return redirect()->route('programs.events', $program)->with('status', 'Program created.');
+    }
+
+    public function updateProgram(Request $request, Program $program, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeProgram($request, $program);
+
+        $validated = $this->applyActorScope($request, $this->validateProgramPayload($request));
+        $program->update($validated);
+
+        $activityLogger->log('Programs', 'program_updated', $program->name.' was updated.', $program, ['resource' => 'Program', 'risk' => 'low', 'status' => 'success'], $request);
+
+        return redirect()->route('programs.index')->with('status', 'Program updated.');
+    }
+
+    public function destroyProgram(Request $request, Program $program, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeProgram($request, $program);
+
+        $name = $program->name;
+        $activityLogger->log('Programs', 'program_deleted', $name.' was deleted.', $program, ['resource' => 'Program', 'risk' => 'medium', 'status' => 'success'], $request);
+        $program->delete();
+
+        return redirect()->route('programs.index')->with('status', 'Program deleted.');
     }
 
     public function events(Request $request, ?Program $program = null): View
@@ -746,6 +755,22 @@ final class EventFlowController extends Controller
         return back()->with('status', 'Attendance session updated.');
     }
 
+    public function destroyAttendanceSession(Request $request, AttendanceSession $attendanceSession, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeAttendanceSession($request, $attendanceSession);
+
+        $title = $attendanceSession->title;
+        DB::transaction(function () use ($attendanceSession): void {
+            $attendanceSession->verifications()->delete();
+            $attendanceSession->records()->delete();
+            $attendanceSession->delete();
+        });
+
+        $activityLogger->log('Attendance', 'attendance_session_deleted', $title.' attendance session was deleted with its records.', $attendanceSession, ['resource' => 'Attendance Session', 'risk' => 'medium', 'status' => 'success'], $request);
+
+        return redirect()->route('attendance.index')->with('status', 'Attendance session deleted.');
+    }
+
     public function attendanceIndex(Request $request): View
     {
         $this->authorizeAttendance($request);
@@ -844,6 +869,56 @@ final class EventFlowController extends Controller
             'record' => $record,
             'breadcrumbs' => $this->breadcrumbs([['Attendance', route('attendance.index')], ['Final Attendance Record', null]]),
         ]);
+    }
+
+    public function updateAttendanceRecord(Request $request, AttendanceRecord $record, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $record->load('attendanceSession');
+        abort_unless($record->attendanceSession, 404);
+        $this->authorizeAttendanceSession($request, $record->attendanceSession);
+
+        $validated = $request->validate([
+            'status' => ['required', Rule::in(['present', 'absent', 'late', 'excused'])],
+            'final_method' => ['required', Rule::in([...self::PHYSICAL_METHODS, ...self::ONLINE_METHODS])],
+            'service_date' => ['required', 'date'],
+            'checked_in_at' => ['nullable', 'date'],
+            'admin_note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $metadata = $record->metadata ?? [];
+        $metadata['admin_note'] = $validated['admin_note'] ?? null;
+        $metadata['edited_by'] = $request->user()?->id;
+        $metadata['edited_at'] = now()->toIso8601String();
+
+        $record->update([
+            'status' => $validated['status'],
+            'final_method' => $validated['final_method'],
+            'service_date' => $validated['service_date'],
+            'checked_in_at' => $validated['checked_in_at'] ? Carbon::parse($validated['checked_in_at']) : null,
+            'metadata' => $metadata,
+        ]);
+
+        $activityLogger->log('Attendance', 'attendance_record_updated', 'Attendance record '.$record->opaqueId().' was updated.', $record, ['resource' => 'Attendance Record', 'risk' => 'medium', 'status' => 'success'], $request);
+
+        return back()->with('status', 'Attendance record updated.');
+    }
+
+    public function destroyAttendanceRecord(Request $request, AttendanceRecord $record, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $record->load('attendanceSession');
+        abort_unless($record->attendanceSession, 404);
+        $this->authorizeAttendanceSession($request, $record->attendanceSession);
+
+        $attendanceSession = $record->attendanceSession;
+        $recordId = $record->opaqueId();
+        DB::transaction(function () use ($record): void {
+            $record->verifications()->delete();
+            $record->delete();
+        });
+
+        $activityLogger->log('Attendance', 'attendance_record_deleted', 'Attendance record '.$recordId.' was deleted.', $attendanceSession, ['resource' => 'Attendance Record', 'risk' => 'medium', 'status' => 'success'], $request);
+
+        return redirect()->route('event-sessions.attendance', $attendanceSession->eventSession)->with('status', 'Attendance record deleted.');
     }
 
     public function integrations(Request $request): View
@@ -1763,6 +1838,23 @@ final class EventFlowController extends Controller
             'capacity' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'status' => ['required', Rule::in(['scheduled', 'draft', 'completed', 'cancelled'])],
         ];
+    }
+
+    private function validateProgramPayload(Request $request): array
+    {
+        if (filled($request->input('campus_id')) && ! filter_var($request->input('campus_id'), FILTER_VALIDATE_INT)) {
+            $request->merge(['campus_id' => OpaqueId::decode($request->input('campus_id'), Campus::class)]);
+        }
+
+        return $request->validate([
+            'church_id' => ['nullable', 'exists:churches,id'],
+            'campus_id' => ['nullable', 'exists:campuses,id'],
+            'name' => ['required', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'starts_on' => ['nullable', 'date'],
+            'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
+            'status' => ['required', Rule::in(['upcoming', 'ongoing', 'completed', 'cancelled'])],
+        ]);
     }
 
     private function authorizeEvents(Request $request): void

@@ -9,6 +9,7 @@ use App\Models\Approval;
 use App\Models\CommunicationDelivery;
 use App\Models\EventRecurrenceRule;
 use App\Models\ProgramSectionAssignment;
+use App\Models\Role;
 use App\Models\Workflow;
 use App\Services\ActivityLogger;
 use App\Support\OpaqueId;
@@ -107,6 +108,7 @@ final class WorkflowController extends Controller
                 ->pluck('module')
                 ->filter()
                 ->values(),
+            'workflowRoleOptions' => $this->workflowRoleOptions(),
             'stats' => [
                 'pending' => (clone $base)->where('status', 'pending')->count(),
                 'in_progress' => (clone $base)->where('status', 'pending')->whereNotNull('workflow_id')->count(),
@@ -425,6 +427,33 @@ final class WorkflowController extends Controller
             ['position' => 2, 'label' => 'Leader Review', 'role' => 'Ministry Leader', 'mode' => 'required', 'required' => true, 'instructions' => 'Review ministry impact, timing, and readiness before final approval.'],
             ['position' => 3, 'label' => 'Final Approval', 'role' => 'Administrator', 'mode' => 'required', 'required' => true, 'instructions' => 'Confirm policy, capacity, and final authorization.'],
         ];
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    private function workflowRoleOptions(): Collection
+    {
+        return Role::query()
+            ->orderBy('name')
+            ->pluck('name')
+            ->merge([
+                'Requester',
+                'Super Administrator',
+                'Church Administrator',
+                'Senior Pastor',
+                'Branch Pastor',
+                'Finance Officer',
+                'Membership Officer',
+                'Asset Manager',
+                'Book Store Manager',
+                'Ministry Leader',
+                'Staff',
+                'Viewer',
+            ])
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     /**

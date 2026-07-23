@@ -1,7 +1,7 @@
 @php
     $user = auth()->user();
     $canAccessNavigationItem = fn (array $item): bool => $user?->isSuperAdministrator() || empty($item['permission']) || $user?->hasPermission($item['permission']);
-    $items = collect(config('navigation'))
+    $items = collect(\App\Support\ModuleRegistry::visibleNavigation())
         ->filter(fn (array $item): bool => $canAccessNavigationItem($item) || collect($item['children'] ?? [])->contains($canAccessNavigationItem))
         ->all();
     $currentRoute = request()->route()?->getName();

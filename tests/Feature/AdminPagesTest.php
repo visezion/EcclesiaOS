@@ -11,6 +11,7 @@ use App\Models\Ministry;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\ModuleRegistry;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -31,6 +32,7 @@ class AdminPagesTest extends TestCase
             'users.index' => 'Users Management',
             'roles.index' => 'Roles &amp; Permissions',
             'campuses.index' => 'Churches &amp; Campuses',
+            'developer-hub.index' => 'Developer Hub',
             'audit-logs.index' => 'Audit Logs',
         ] as $route => $text) {
             $this->actingAs($admin)
@@ -299,6 +301,50 @@ class AdminPagesTest extends TestCase
         $this->assertSame('dark', data_get($church->settings, 'theme_mode'));
         $this->assertSame('Roboto', data_get($church->settings, 'font_family'));
         $this->assertDatabaseHas('activity_logs', ['action' => 'system_settings_updated']);
+
+        $this->actingAs($admin)
+            ->get(route('modules.index'))
+            ->assertOk()
+            ->assertSee('Module Management')
+            ->assertSee('All Modules')
+            ->assertSee(route('modules.update'), false)
+            ->assertSee(route('modules.reset'), false);
+
+        $enabledModules = ModuleRegistry::configurableRoutes()
+            ->reject(fn (string $route): bool => $route === 'finance.index')
+            ->values()
+            ->all();
+
+        $this->actingAs($admin)
+            ->put(route('modules.update'), ['enabled_modules' => $enabledModules])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Module settings saved.');
+
+        $church = Church::query()->firstOrFail()->refresh();
+        $this->assertSame(['finance.index'], data_get($church->settings, 'disabled_modules'));
+        $this->assertDatabaseHas('activity_logs', ['action' => 'modules_updated']);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Giving &amp; Finance', false);
+
+        $this->actingAs($admin)
+            ->get(route('search', ['q' => 'finance']))
+            ->assertOk()
+            ->assertDontSee('Giving &amp; Finance', false);
+
+        $this->actingAs($admin)
+            ->get(route('finance.index'))
+            ->assertNotFound();
+
+        $this->actingAs($admin)
+            ->put(route('modules.reset'))
+            ->assertRedirect(route('modules.index'))
+            ->assertSessionHas('status', 'Default modules restored.');
+
+        $this->assertSame([], data_get(Church::query()->firstOrFail()->refresh()->settings, 'disabled_modules'));
+        $this->assertDatabaseHas('activity_logs', ['action' => 'modules_reset']);
 
         $this->actingAs($admin)
             ->post(route('users.store'), [

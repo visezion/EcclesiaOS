@@ -5,10 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\Campus;
 use App\Models\Church;
-use App\Models\Permission;
 use App\Models\Role;
-use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Support\ModuleRegistry;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -321,6 +320,34 @@ final class SystemSettingsController extends Controller
             'backup_retention' => '90 days',
             'audit_retention' => '7 years',
             'localization_region' => 'United States',
+            'disabled_modules' => [],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     * @return array{modules: Collection<int, array<string, mixed>>, disabled: Collection<int, string>, enabled_count: int, total: int}
+     */
+    private function moduleSettings(array $settings): array
+    {
+        $disabled = collect($settings['disabled_modules'] ?? [])
+            ->filter(fn ($route): bool => is_string($route))
+            ->values();
+        $modules = ModuleRegistry::modules()
+            ->filter(fn (array $item): bool => isset($item['route']))
+            ->map(fn (array $item): array => [
+                ...$item,
+                'required' => ModuleRegistry::isRequiredRoute((string) $item['route']),
+                'disabled' => $disabled->contains($item['route']),
+                'status' => empty($item['planned']) ? 'live' : 'planned',
+            ])
+            ->values();
+
+        return [
+            'modules' => $modules,
+            'disabled' => $disabled,
+            'enabled_count' => $modules->where('disabled', false)->count(),
+            'total' => $modules->count(),
         ];
     }
 
@@ -330,8 +357,8 @@ final class SystemSettingsController extends Controller
      */
     private function stats(array $settings): array
     {
-        $items = collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]);
-        $implemented = $items->filter(fn (array $item): bool => empty($item['planned']))->count();
+        $items = $this->moduleSettings($settings)['modules'];
+        $implemented = $items->where('disabled', false)->count();
         $total = max($items->count(), 1);
         $connected = collect(['smtp_server', 'sms_provider', 'whatsapp_integration'])->filter(fn (string $key): bool => filled($settings[$key] ?? null))->count();
         $storageBytes = $this->directorySize(storage_path('app/public'));

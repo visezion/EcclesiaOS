@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Support\ModuleRegistry;
+
 final class SearchService
 {
     public function search(?string $query): array
@@ -14,7 +16,7 @@ final class SearchService
             return ['query' => $query, 'results' => []];
         }
 
-        $navigation = collect(config('navigation'))
+        $navigation = collect(ModuleRegistry::visibleNavigation())
             ->flatMap(fn (array $item): array => [$item, ...($item['children'] ?? [])])
             ->filter(fn (array $item): bool => isset($item['route']))
             ->map(fn (array $item): array => [

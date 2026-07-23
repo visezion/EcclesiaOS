@@ -100,6 +100,8 @@ npm run build
 
 - `app/Http/Controllers/DashboardController.php` renders the dashboard through `DashboardService`.
 - `app/Http/Controllers/ModuleController.php` renders reusable Coming Soon pages for undeveloped modules.
+- `app/Http/Controllers/ModuleManagementController.php` manages enabled and disabled modules through Administration.
+- `app/Http/Controllers/DeveloperHubController.php` renders the in-app developer documentation hub.
 - `app/Http/Controllers/AccessControlController.php` renders the Settings access-control console.
 - `app/Http/Controllers/ProfileController.php` handles user profile and password updates.
 - `app/Http/Controllers/UserManagementController.php` manages users, status, roles, church assignment, and campus assignment.
@@ -110,6 +112,15 @@ npm run build
 - `config/navigation.php` defines labels, routes, icons, badges, permissions, and planned capabilities.
 - `resources/views/components` contains reusable layout and dashboard UI building blocks.
 - `database/migrations/2026_07_21_000000_create_church_management_tables.php` contains the initial broad schema.
+
+## Developer Hub
+
+Full contributor documentation is available in two places:
+
+- In the application: `Administration > Developer Hub`
+- In the repository: `docs/DEVELOPER_HUB.md`
+
+Use it for architecture, layout rules, module creation procedure, permissions, data design, testing, and release readiness.
 
 ## Adding A Module
 
