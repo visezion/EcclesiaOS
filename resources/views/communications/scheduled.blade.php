@@ -1,5 +1,6 @@
 <x-app-layout title="Scheduled Messages" :breadcrumbs="$breadcrumbs">
     @php
+        $canManageCommunicationIntegrations = auth()->user()?->isSuperAdministrator() || auth()->user()?->hasPermission('manage settings');
         $activeStatuses = ['scheduled', 'queued', 'draft', 'partial'];
         $timeline = $campaigns->getCollection()->take(7)->values();
         $calendarStart = $calendarMonth->copy()->startOfWeek();
@@ -55,10 +56,12 @@
                     <i data-lucide="copy" class="size-4"></i>
                     View Queue
                 </a>
-                <a href="{{ route('communications.integrations') }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm text-violet-700 shadow-sm hover:bg-violet-50">
-                    <i data-lucide="play" class="size-4"></i>
-                    Run Test
-                </a>
+                @if($canManageCommunicationIntegrations)
+                    <a href="{{ route('communications.integrations') }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm text-violet-700 shadow-sm hover:bg-violet-50">
+                        <i data-lucide="play" class="size-4"></i>
+                        Run Test
+                    </a>
+                @endif
                 <a href="{{ route('communications.templates', ['new' => 1]) }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm text-violet-700 shadow-sm hover:bg-violet-50">
                     <i data-lucide="settings" class="size-4"></i>
                     Create Automation

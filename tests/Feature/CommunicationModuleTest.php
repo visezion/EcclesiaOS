@@ -38,6 +38,12 @@ final class CommunicationModuleTest extends TestCase
                 ->assertSee($text, false);
         }
 
+        $this->assertStringContainsString('/administration/communication-integrations', route('communications.integrations'));
+
+        $this->actingAs($user)
+            ->get('communications/integrations')
+            ->assertRedirect(route('communications.integrations'));
+
         $this->actingAs($user)
             ->get(route('communications.index'))
             ->assertOk()

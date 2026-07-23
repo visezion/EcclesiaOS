@@ -1,5 +1,6 @@
 <x-app-layout title="Delivery Logs" :breadcrumbs="$breadcrumbs">
     @php
+        $canManageCommunicationIntegrations = auth()->user()?->isSuperAdministrator() || auth()->user()?->hasPermission('manage settings');
         $cards = [
             ['label' => 'Total Delivery Attempts', 'value' => $stats['total'], 'hint' => '+ 14.6% vs last 30 days', 'icon' => 'send', 'tone' => 'bg-blue-50 text-blue-600 ring-blue-100'],
             ['label' => 'Successful Deliveries', 'value' => $stats['delivered'], 'hint' => '+ 15.6% vs last 30 days', 'icon' => 'shield-check', 'tone' => 'bg-emerald-50 text-emerald-600 ring-emerald-100'],
@@ -40,10 +41,12 @@
                 <p class="mt-1 text-sm text-slate-500">Monitor message delivery status, retry failures, and track communication events across all channels and providers.</p>
             </div>
             <div class="flex flex-wrap items-center gap-3">
-                <a href="{{ route('communications.integrations') }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm text-violet-700 shadow-sm hover:bg-violet-50">
-                    <i data-lucide="settings" class="size-4"></i>
-                    Provider Diagnostics
-                </a>
+                @if($canManageCommunicationIntegrations)
+                    <a href="{{ route('communications.integrations') }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm text-violet-700 shadow-sm hover:bg-violet-50">
+                        <i data-lucide="settings" class="size-4"></i>
+                        Provider Diagnostics
+                    </a>
+                @endif
                 <a href="{{ route('communications.delivery-logs.export', request()->query()) }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm text-violet-700 shadow-sm hover:bg-violet-50">
                     <i data-lucide="download" class="size-4"></i>
                     Download Logs
@@ -330,7 +333,9 @@
                         </div>
                     @endforeach
                 </div>
-                <a href="{{ route('communications.integrations') }}" class="mt-4 inline-flex w-full justify-center gap-2 border-t border-slate-100 pt-3 text-sm text-violet-700">View Provider Diagnostics <i data-lucide="arrow-right" class="size-4"></i></a>
+                @if($canManageCommunicationIntegrations)
+                    <a href="{{ route('communications.integrations') }}" class="mt-4 inline-flex w-full justify-center gap-2 border-t border-slate-100 pt-3 text-sm text-violet-700">View Provider Diagnostics <i data-lucide="arrow-right" class="size-4"></i></a>
+                @endif
             </article>
 
             <article class="dashboard-card p-4">

@@ -1,5 +1,6 @@
 <x-app-layout title="Communications" :breadcrumbs="$breadcrumbs">
     @php
+        $canManageCommunicationIntegrations = auth()->user()?->isSuperAdministrator() || auth()->user()?->hasPermission('manage settings');
         $cards = [
             ['label' => 'Total Notifications Sent', 'value' => number_format($stats['sent']), 'hint' => '+ stored delivery records', 'icon' => 'send', 'tone' => 'bg-blue-50 text-blue-600 ring-blue-100'],
             ['label' => 'Delivery Rate', 'value' => $stats['delivery_rate'].'%', 'hint' => 'delivered / total', 'icon' => 'shield-check', 'tone' => 'bg-emerald-50 text-emerald-600 ring-emerald-100'],
@@ -27,8 +28,10 @@
             ['label' => 'Create Template', 'hint' => 'Design reusable template', 'route' => 'communications.templates', 'icon' => 'file-search'],
             ['label' => 'Schedule Notice', 'hint' => 'Plan for later delivery', 'route' => 'communications.scheduled', 'icon' => 'calendar-clock'],
             ['label' => 'Send Bulk Campaign', 'hint' => 'Target large audience', 'route' => 'communications.bulk', 'icon' => 'send'],
-            ['label' => 'Test Channel', 'hint' => 'Send test message', 'route' => 'communications.integrations', 'icon' => 'radio-tower'],
         ];
+        if ($canManageCommunicationIntegrations) {
+            $quickActions[] = ['label' => 'Test Channel', 'hint' => 'Admin provider setup', 'route' => 'communications.integrations', 'icon' => 'radio-tower'];
+        }
     @endphp
 
     <div class="space-y-4">
@@ -38,11 +41,13 @@
                 <p class="text-sm text-slate-500">Events, attendance, registrations, and volunteer operations use reliable queued communications.</p>
             </div>
 
-            <a href="{{ route('communications.integrations') }}" class="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white shadow-sm hover:bg-violet-700">
-                <i data-lucide="settings" class="size-4"></i>
-                Communication Settings
-                <i data-lucide="chevron-right" class="size-4"></i>
-            </a>
+            @if($canManageCommunicationIntegrations)
+                <a href="{{ route('communications.integrations') }}" class="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white shadow-sm hover:bg-violet-700">
+                    <i data-lucide="settings" class="size-4"></i>
+                    Communication Settings
+                    <i data-lucide="chevron-right" class="size-4"></i>
+                </a>
+            @endif
         </div>
         @include('communications.partials.flash')
         <!-- @include('communications.partials.subnav') -->
@@ -151,10 +156,12 @@
                                 </div>
                             @endforeach
                         </div>
-                        <a href="{{ route('communications.integrations') }}" class="flex items-center justify-center gap-1 border-t border-slate-100 px-4 py-3 text-xs font-medium text-violet-700">
-                            View Channel Details
-                            <i data-lucide="arrow-right" class="size-3.5"></i>
-                        </a>
+                        @if($canManageCommunicationIntegrations)
+                            <a href="{{ route('communications.integrations') }}" class="flex items-center justify-center gap-1 border-t border-slate-100 px-4 py-3 text-xs font-medium text-violet-700">
+                                View Channel Details
+                                <i data-lucide="arrow-right" class="size-3.5"></i>
+                            </a>
+                        @endif
                     </article>
                     <article class="dashboard-card p-0 xl:col-span-4">
                         <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -321,10 +328,12 @@
                                     <div class="mt-1 text-xs text-slate-500">Your automation setup is optimized.</div>
                                 </div>
                             </div>
-                            <a href="{{ route('communications.integrations') }}" class="mt-4 inline-flex items-center gap-1 text-xs font-medium text-violet-700">
-                                View Recommendations
-                                <i data-lucide="arrow-right" class="size-3.5"></i>
-                            </a>
+                            @if($canManageCommunicationIntegrations)
+                                <a href="{{ route('communications.integrations') }}" class="mt-4 inline-flex items-center gap-1 text-xs font-medium text-violet-700">
+                                    View Recommendations
+                                    <i data-lucide="arrow-right" class="size-3.5"></i>
+                                </a>
+                            @endif
                         </div>
 
 

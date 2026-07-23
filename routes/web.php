@@ -130,9 +130,10 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('communications/preferences/reminders', [CommunicationController::class, 'sendPreferenceReminder'])->name('communications.preferences.reminders');
     Route::post('communications/preferences/import', [CommunicationController::class, 'importPreferences'])->name('communications.preferences.import');
     Route::put('communications/preferences/{preference}', [CommunicationController::class, 'updatePreference'])->name('communications.preferences.update');
-    Route::get('communications/integrations', [CommunicationController::class, 'integrations'])->name('communications.integrations');
-    Route::put('communications/integrations', [CommunicationController::class, 'updateIntegrations'])->name('communications.integrations.update');
-    Route::post('communications/integrations/{channel}/test', [CommunicationController::class, 'testIntegration'])->name('communications.integrations.test');
+    Route::get('communications/integrations', fn () => redirect()->route('communications.integrations'));
+    Route::get('administration/communication-integrations', [CommunicationController::class, 'integrations'])->name('communications.integrations');
+    Route::put('administration/communication-integrations', [CommunicationController::class, 'updateIntegrations'])->name('communications.integrations.update');
+    Route::post('administration/communication-integrations/{channel}/test', [CommunicationController::class, 'testIntegration'])->name('communications.integrations.test');
     Route::get('administration/users', UserDirectoryController::class)->name('users.index');
     Route::get('administration/users/export', [UserDirectoryController::class, 'export'])->name('users.export');
     Route::get('administration/users/{user}', [UserManagementController::class, 'show'])->name('users.show');

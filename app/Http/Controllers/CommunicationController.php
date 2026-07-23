@@ -12,7 +12,6 @@ use App\Models\CommunicationDelivery;
 use App\Models\CommunicationProviderSetting;
 use App\Models\CommunicationRecipient;
 use App\Models\CommunicationTemplate;
-use App\Models\EventSession;
 use App\Models\Member;
 use App\Models\Role;
 use App\Models\User;
@@ -25,6 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -856,7 +856,7 @@ final class CommunicationController extends Controller
 
     public function integrations(Request $request): View
     {
-        $this->authorizeCommunications($request);
+        $this->authorizeCommunicationIntegrations($request);
 
         return view('communications.integrations', $this->shared($request) + [
             'settings' => $this->providerSettings($request),
@@ -865,13 +865,13 @@ final class CommunicationController extends Controller
             'providerCatalog' => $this->providerCatalog(),
             'queueHealth' => $this->queueHealth($request),
             'providerFailures' => $this->providerFailures($request),
-            'breadcrumbs' => $this->breadcrumbs('Channel Integrations & Communication Settings'),
+            'breadcrumbs' => $this->administrationBreadcrumbs('Channel Integrations & Communication Settings'),
         ]);
     }
 
     public function updateIntegrations(Request $request, ActivityLogger $activityLogger): RedirectResponse
     {
-        $this->authorizeCommunications($request);
+        $this->authorizeCommunicationIntegrations($request);
         $validated = $request->validate([
             'providers' => ['required', 'array'],
             'providers.*.enabled' => ['nullable', 'boolean'],
@@ -940,7 +940,7 @@ final class CommunicationController extends Controller
 
     public function testIntegration(Request $request, string $channel, ActivityLogger $activityLogger): RedirectResponse
     {
-        $this->authorizeCommunications($request);
+        $this->authorizeCommunicationIntegrations($request);
         abort_unless(in_array($channel, self::CHANNELS, true), 404);
         $setting = $this->providerSettings($request)->firstWhere('channel', $channel);
         abort_unless($setting, 404);
@@ -1076,7 +1076,7 @@ final class CommunicationController extends Controller
         ];
     }
 
-    private function providerSettings(Request $request): \Illuminate\Support\Collection
+    private function providerSettings(Request $request): Collection
     {
         $churchId = $this->churchId($request);
         $defaults = [
@@ -1174,7 +1174,7 @@ final class CommunicationController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $preference
+     * @param  array<string, mixed>  $preference
      * @return array<int, string>
      */
     private function channelsAllowedByPreference(array $preference, ?string $category): array
@@ -1192,8 +1192,8 @@ final class CommunicationController extends Controller
     }
 
     /**
-     * @param array<int, string> $channels
-     * @param array<int, string>|null $categories
+     * @param  array<int, string>  $channels
+     * @param  array<int, string>|null  $categories
      * @return array<string, array<int, string>>
      */
     private function defaultCategoryChannels(array $channels, ?array $categories = null): array
@@ -1207,9 +1207,9 @@ final class CommunicationController extends Controller
     }
 
     /**
-     * @param array<string, mixed>|null $submitted
-     * @param array<int, string> $categories
-     * @param array<int, string> $fallbackChannels
+     * @param  array<string, mixed>|null  $submitted
+     * @param  array<int, string>  $categories
+     * @param  array<int, string>  $fallbackChannels
      * @return array<string, array<int, string>>
      */
     private function normalizeCategoryChannels(?array $submitted, array $categories, array $fallbackChannels): array
@@ -1234,7 +1234,7 @@ final class CommunicationController extends Controller
     }
 
     /**
-     * @param array<string, array<int, string>> $categoryChannels
+     * @param  array<string, array<int, string>>  $categoryChannels
      * @return array<int, string>
      */
     private function channelsFromCategoryMap(array $categoryChannels): array
@@ -1395,7 +1395,7 @@ final class CommunicationController extends Controller
         ];
     }
 
-    private function preferenceActivity(Request $request): \Illuminate\Support\Collection
+    private function preferenceActivity(Request $request): Collection
     {
         return ActivityLog::query()
             ->where('church_id', $this->churchId($request))
@@ -1844,7 +1844,7 @@ final class CommunicationController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $validated
+     * @param  array<string, mixed>  $validated
      */
     private function updatePreferencePerson(UserNotificationPreference $preference, array $validated, Request $request): void
     {
@@ -1925,7 +1925,7 @@ final class CommunicationController extends Controller
             ->when(! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id, fn (Builder $query) => $query->where('campus_id', $request->user()->campus_id));
     }
 
-    private function campuses(Request $request): \Illuminate\Support\Collection
+    private function campuses(Request $request): Collection
     {
         return Campus::query()
             ->where('church_id', $this->churchId($request))
@@ -1944,6 +1944,11 @@ final class CommunicationController extends Controller
     private function authorizeCommunications(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage communications'), 403);
+    }
+
+    private function authorizeCommunicationIntegrations(Request $request): void
+    {
+        abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage settings'), 403);
     }
 
     private function authorizeCommunicationRecord(Request $request, mixed $record): void
@@ -1965,6 +1970,15 @@ final class CommunicationController extends Controller
         return [
             ['label' => 'Dashboard', 'url' => route('dashboard')],
             ['label' => 'Communications', 'url' => route('communications.index')],
+            ['label' => $label, 'url' => null],
+        ];
+    }
+
+    private function administrationBreadcrumbs(string $label): array
+    {
+        return [
+            ['label' => 'Dashboard', 'url' => route('dashboard')],
+            ['label' => 'Administration', 'url' => route('users.index')],
             ['label' => $label, 'url' => null],
         ];
     }

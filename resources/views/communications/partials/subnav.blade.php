@@ -7,7 +7,6 @@
         ['Bulk', 'communications.bulk', 'send'],
         ['Delivery Logs', 'communications.delivery-logs', 'clipboard-list'],
         ['Preferences', 'communications.preferences', 'sliders-horizontal'],
-        ['Integrations', 'communications.integrations', 'webhook'],
     ];
 @endphp
 
