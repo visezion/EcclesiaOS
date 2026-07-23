@@ -23,8 +23,8 @@ use App\Models\MeetingIntegration;
 use App\Models\Member;
 use App\Models\Ministry;
 use App\Models\Permission;
-use App\Models\Program;
 use App\Models\PrayerRequest;
+use App\Models\Program;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\Volunteer;
@@ -309,21 +309,37 @@ SVG);
     private function seedProgramEventFlow(Church $church, array $campuses, array $members): void
     {
         foreach (['zoom', 'google_meet', 'jitsi', 'livekit'] as $provider) {
+            $settings = [
+                'internal_endpoint' => '/meetings',
+                'webhook_secret_hash' => hash('sha256', 'seeded-secret'),
+                'webhook_secret_configured' => true,
+                'webhook_event' => 'internal.participant_joined',
+                'room_prefix' => 'kingdomlife',
+                'identity_field' => 'email',
+                'recording_retention_days' => 30,
+                'last_test_status' => 'healthy',
+                'last_test_message' => 'Built-in meeting adapter is ready inside EcclesiaOS.',
+            ];
+
+            if ($provider === 'livekit') {
+                $settings = [
+                    'server_url' => 'wss://meet.techallowed.cloud',
+                    'room_prefix' => 'church',
+                    'api_key' => 'APIkey1',
+                    'api_secret_encrypted' => encrypt('secret1changeme2026cce'),
+                    'api_secret_configured' => true,
+                    'participant_token_ttl_seconds' => 7200,
+                    'participant_token_ttl_label' => '2 hrs',
+                    'last_test_status' => 'healthy',
+                    'last_test_message' => 'LiveKit credentials generated a valid participant token.',
+                ];
+            }
+
             MeetingIntegration::query()->updateOrCreate(
                 ['church_id' => $church->id, 'provider' => $provider],
                 [
                     'enabled' => true,
-                    'settings' => [
-                        'internal_endpoint' => '/meetings',
-                        'webhook_secret_hash' => hash('sha256', 'seeded-secret'),
-                        'webhook_secret_configured' => true,
-                        'webhook_event' => 'internal.participant_joined',
-                        'room_prefix' => 'kingdomlife',
-                        'identity_field' => 'email',
-                        'recording_retention_days' => 30,
-                        'last_test_status' => 'healthy',
-                        'last_test_message' => 'Built-in meeting adapter is ready inside EcclesiaOS.',
-                    ],
+                    'settings' => $settings,
                     'last_tested_at' => now()->subHours(3),
                 ],
             );

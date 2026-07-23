@@ -221,9 +221,11 @@
             </main>
 
             <aside class="space-y-4">
-                <form method="POST" action="{{ $selected ? route('communications.preferences.update', $selected) : '#' }}" class="rounded-lg border border-slate-200 bg-white shadow-sm">
-                    @csrf
-                    @method('PUT')
+                <form method="{{ $selected ? 'POST' : 'GET' }}" action="{{ $selected ? route('communications.preferences.update', $selected) : route('communications.preferences') }}" class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                    @if($selected)
+                        @csrf
+                        @method('PUT')
+                    @endif
                     <div class="flex items-start justify-between border-b border-slate-100 p-4">
                         <div class="flex items-center gap-3">
                             <span class="grid size-12 place-items-center rounded-full bg-slate-100 text-sm text-slate-700">{{ $initials ?: 'U' }}</span>

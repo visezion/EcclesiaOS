@@ -1,5 +1,6 @@
 import './bootstrap';
 import Alpine from 'alpinejs';
+import { Room, RoomEvent } from 'livekit-client';
 import {
     ArrowLeft,
     ArrowRight,
@@ -330,7 +331,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         assignmentAction() {
-            return `${this.assignmentBaseUrl}/${this.selectedUserId}`;
+            return this.selectedUser().update_url || `${this.assignmentBaseUrl}/${this.selectedUserId}`;
         },
 
         campusRows() {
@@ -407,15 +408,35 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    Alpine.data('meetingRoom', storageKey => ({
-        muted: false,
+    Alpine.data('meetingRoom', (storageKey, liveKit = null) => {
+        const liveKitPayload = liveKit ? JSON.parse(JSON.stringify(liveKit)) : null;
+        let liveKitRoom = null;
+
+        return ({
+        muted: true,
         camera: false,
         screen: false,
         chat: true,
         hand: false,
         mediaError: '',
+        liveKit: liveKitPayload,
+        liveKitConnected: false,
+        liveKitConnecting: false,
+        liveKitStatus: liveKitPayload ? 'Ready to join LiveKit' : 'Local room preview',
+        liveKitError: '',
+        remoteParticipantCount: 0,
+        attendanceMarked: Boolean(liveKitPayload?.attendance_marked),
+        attendanceRecordUrl: liveKitPayload?.attendance_record_url || null,
+        checkedInCount: liveKitPayload?.participant_count || 0,
         note: localStorage.getItem(storageKey) || '',
         stream: null,
+        checkoutSent: false,
+
+        init() {
+            window.addEventListener('beforeunload', () => {
+                this.markLiveKitCheckout(true);
+            });
+        },
 
         async startCamera() {
             if (! navigator.mediaDevices?.getUserMedia) {
@@ -439,6 +460,18 @@ document.addEventListener('alpine:init', () => {
 
         async toggleCamera() {
             this.camera = ! this.camera;
+            if (this.liveKitConnected) {
+                try {
+                    await liveKitRoom.localParticipant.setCameraEnabled(this.camera);
+                    this.liveKitError = '';
+                } catch (error) {
+                    this.camera = false;
+                    this.liveKitError = error?.message || 'Camera could not be enabled.';
+                }
+
+                return;
+            }
+
             if (! this.stream && this.camera) {
                 await this.startCamera();
             }
@@ -447,16 +480,172 @@ document.addEventListener('alpine:init', () => {
 
         async toggleMute() {
             this.muted = ! this.muted;
+            if (this.liveKitConnected) {
+                try {
+                    await liveKitRoom.localParticipant.setMicrophoneEnabled(! this.muted);
+                    this.liveKitError = '';
+                } catch (error) {
+                    this.muted = true;
+                    this.liveKitError = error?.message || 'Microphone could not be enabled.';
+                }
+
+                return;
+            }
+
             if (! this.stream) {
                 await this.startCamera();
             }
             this.stream?.getAudioTracks().forEach(track => { track.enabled = ! this.muted; });
         },
 
+        async toggleLiveKit() {
+            if (this.liveKitConnected) {
+                await this.disconnectLiveKit();
+
+                return;
+            }
+
+            await this.connectLiveKit();
+        },
+
+        async connectLiveKit() {
+            if (! this.liveKit || this.liveKitConnecting) {
+                return;
+            }
+
+            this.liveKitConnecting = true;
+            this.liveKitError = '';
+            this.liveKitStatus = 'Connecting to LiveKit...';
+
+            try {
+                liveKitRoom = new Room({ adaptiveStream: true, dynacast: true });
+                liveKitRoom
+                    .on(RoomEvent.ParticipantConnected, () => {
+                        this.remoteParticipantCount = liveKitRoom.remoteParticipants.size;
+                    })
+                    .on(RoomEvent.ParticipantDisconnected, () => {
+                        this.remoteParticipantCount = liveKitRoom.remoteParticipants.size;
+                    })
+                    .on(RoomEvent.Disconnected, () => {
+                        if (this.liveKitConnected) {
+                            void this.markLiveKitCheckout();
+                        }
+                        this.liveKitConnected = false;
+                        this.remoteParticipantCount = 0;
+                        if (! this.liveKitError) {
+                            this.liveKitStatus = 'Disconnected from LiveKit';
+                        }
+                    });
+
+                await liveKitRoom.connect(this.liveKit.server_url, this.liveKit.token);
+                this.liveKitConnected = true;
+                this.remoteParticipantCount = liveKitRoom.remoteParticipants.size;
+                this.liveKitStatus = `Connected to ${this.liveKit.room}`;
+                await this.markLiveKitAttendance();
+            } catch (error) {
+                this.liveKitConnected = false;
+                console.error('LiveKit connection failed', error);
+                this.liveKitError = this.liveKitFriendlyError(error);
+                this.liveKitStatus = 'LiveKit connection failed';
+                liveKitRoom?.disconnect();
+                liveKitRoom = null;
+            } finally {
+                this.liveKitConnecting = false;
+            }
+        },
+
+        liveKitFriendlyError(error) {
+            const message = error?.message || error?.reason || 'LiveKit connection failed.';
+
+            if (message.toLowerCase().includes('pc connection')) {
+                return `${message} LiveKit signaling worked, but the WebRTC media connection failed. Check the LiveKit server firewall/TURN setup: open UDP media ports or TCP/TURN fallback ports, and do not proxy media traffic through Cloudflare.`;
+            }
+
+            return message;
+        },
+
+        async markLiveKitAttendance() {
+            if (! this.liveKit?.mark_attendance_url || this.attendanceMarked) {
+                return;
+            }
+
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+            try {
+                const response = await fetch(this.liveKit.mark_attendance_url, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'X-CSRF-TOKEN': token } : {}),
+                    },
+                    body: JSON.stringify({
+                        connected: true,
+                        room: this.liveKit.room,
+                        remote_participants: this.remoteParticipantCount,
+                    }),
+                });
+
+                if (! response.ok) {
+                    throw new Error('LiveKit connected, but attendance could not be marked.');
+                }
+
+                const payload = await response.json();
+                this.attendanceMarked = Boolean(payload.marked);
+                this.attendanceRecordUrl = payload.record_url || this.attendanceRecordUrl;
+                this.checkedInCount = payload.participant_count ?? this.checkedInCount;
+                this.checkoutSent = false;
+            } catch (error) {
+                this.liveKitError = error?.message || 'Attendance could not be marked after joining LiveKit.';
+            }
+        },
+
+        async markLiveKitCheckout(keepalive = false) {
+            if (! this.liveKit?.mark_checkout_url || ! this.attendanceMarked || this.checkoutSent) {
+                return;
+            }
+
+            this.checkoutSent = true;
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+            try {
+                const response = await fetch(this.liveKit.mark_checkout_url, {
+                    method: 'POST',
+                    keepalive,
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'X-CSRF-TOKEN': token } : {}),
+                    },
+                    body: JSON.stringify({
+                        room: this.liveKit.room,
+                    }),
+                });
+
+                if (response.ok && ! keepalive) {
+                    const payload = await response.json();
+                    this.checkedInCount = payload.participant_count ?? Math.max(0, this.checkedInCount - 1);
+                    this.attendanceMarked = false;
+                }
+            } catch {
+                this.checkoutSent = false;
+            }
+        },
+
+        async disconnectLiveKit() {
+            await this.markLiveKitCheckout();
+            liveKitRoom?.disconnect();
+            liveKitRoom = null;
+            this.liveKitConnected = false;
+            this.remoteParticipantCount = 0;
+            this.liveKitStatus = 'Disconnected from LiveKit';
+        },
+
         saveNote() {
             localStorage.setItem(storageKey, this.note);
         },
-    }));
+    });
+    });
 });
 
 Alpine.start();

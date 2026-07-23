@@ -524,6 +524,30 @@ class AdminPagesTest extends TestCase
 
         $this->assertSame('inactive', $member->fresh()?->status);
 
+        $bulkDeleteMember = Member::query()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'first_name' => 'Bulk',
+            'last_name' => 'Delete',
+            'email' => 'bulk.delete@klgc.org',
+            'phone' => '+1 (555) 333-9999',
+            'status' => 'active',
+            'joined_at' => '2026-07-05',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('members.bulk'), [
+                'action' => 'delete',
+                'members' => [$bulkDeleteMember->opaqueId()],
+            ])
+            ->assertRedirect();
+
+        $this->assertSoftDeleted('members', ['id' => $bulkDeleteMember->id]);
+
+        $this->actingAs($admin)
+            ->get(route('members.bulk.fallback'))
+            ->assertRedirect(route('members.index'));
+
         $response = $this->actingAs($admin)->get(route('members.export'));
         $response->assertOk();
         $this->assertStringContainsString('"Member ID","Full Name",Email,Phone,Status,Campus,Family,Ministry,"Joined At","Attendance 30 Days","Giving Status"', $response->streamedContent());

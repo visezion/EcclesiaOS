@@ -54,12 +54,12 @@
                 </a>
                 <a href="{{ route('communications.delivery-logs', ['status' => 'failed']) }}" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white shadow-sm hover:bg-violet-700">
                     <i data-lucide="refresh-cw" class="size-4"></i>
-                    Retry Selected
+                    Show Failed
                     <i data-lucide="chevron-down" class="size-4"></i>
                 </a>
                 <a href="{{ route('communications.delivery-logs', ['retry_status' => 'queued']) }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm text-violet-700 shadow-sm hover:bg-violet-50">
                     <i data-lucide="rotate-cw" class="size-4"></i>
-                    Requeue Failed
+                    Retry Queue
                 </a>
             </div>
         </div>
@@ -172,7 +172,6 @@
             <div class="flex flex-col gap-3 border-b border-slate-100 p-4 xl:flex-row xl:items-center xl:justify-between">
                 <div class="flex flex-wrap items-center gap-3">
                     <span class="text-sm text-slate-600">Showing 1 to {{ $deliveries->count() }} of {{ number_format($deliveries->total()) }} results</span>
-                    <span class="text-xs text-slate-400">(0 selected)</span>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
                     <span class="inline-flex items-center gap-2 text-sm text-slate-500">Auto Refresh <span class="relative h-5 w-9 rounded-full bg-violet-600 after:absolute after:right-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white"></span></span>
@@ -184,7 +183,6 @@
                 <table class="w-full min-w-[1480px] text-left text-sm">
                     <thead class="bg-slate-50 text-xs uppercase text-slate-500">
                         <tr>
-                            <th class="px-3 py-3"><input type="checkbox" class="rounded border-slate-300 text-violet-600"></th>
                             <th class="px-3 py-3">Timestamp</th>
                             <th class="px-3 py-3">Recipient</th>
                             <th class="px-3 py-3">Channel</th>
@@ -203,7 +201,6 @@
                         @forelse($deliveries as $delivery)
                             @php($channel = $channels[$delivery->channel] ?? ['label' => Str::headline($delivery->channel), 'icon' => 'radio', 'color' => '#6d4aff', 'tone' => 'bg-violet-50 text-violet-600 ring-violet-100'])
                             <tr class="hover:bg-slate-50/70">
-                                <td class="px-3 py-3"><input type="checkbox" class="rounded border-slate-300 text-violet-600"></td>
                                 <td class="px-3 py-3 text-slate-600">{{ $delivery->created_at?->format('M d, Y h:i A') }}</td>
                                 <td class="px-3 py-3">
                                     <div class="flex items-center gap-2">
@@ -238,7 +235,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="13" class="px-5 py-12 text-center">
+                                <td colspan="12" class="px-5 py-12 text-center">
                                     <x-empty-state icon="clipboard-list" title="No delivery attempts" message="Sent campaigns and provider tests create auditable delivery records." />
                                 </td>
                             </tr>

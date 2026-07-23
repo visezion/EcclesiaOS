@@ -2,14 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\AttendanceRecord;
 use App\Models\AttendanceSession;
 use App\Models\Event;
 use App\Models\EventSession;
-use App\Models\Member;
 use App\Models\MeetingIntegration;
+use App\Models\Member;
 use App\Models\Program;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -127,6 +127,23 @@ class ModuleRoutesTest extends TestCase
         ]);
     }
 
+    public function test_all_program_event_session_pages_render_successfully(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        Event::query()
+            ->with('program')
+            ->whereNotNull('program_id')
+            ->get()
+            ->each(function (Event $event) use ($user): void {
+                $this->actingAs($user)
+                    ->get(route('event-sessions.index', [$event->program, $event]))
+                    ->assertOk()
+                    ->assertSee('Event Sessions');
+            });
+    }
+
     public function test_meeting_integrations_can_be_saved_and_tested(): void
     {
         $this->seed();
@@ -167,6 +184,127 @@ class ModuleRoutesTest extends TestCase
         $this->assertSame('healthy', $integration->settings['last_test_status']);
         $this->assertSame('Built-in meeting adapter is ready inside EcclesiaOS.', $integration->settings['last_test_message']);
         $this->assertNotNull($integration->last_tested_at);
+    }
+
+    public function test_livekit_integration_uses_real_credentials_and_generates_participant_token(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($user)
+            ->put(route('meeting-integrations.update'), [
+                'providers' => [
+                    'livekit' => [
+                        'enabled' => '1',
+                        'server_url' => 'wss://meet.techallowed.cloud',
+                        'room_prefix' => 'church',
+                        'api_key' => 'APIkey1',
+                        'api_secret' => 'secret1changeme2026cce',
+                        'participant_token_ttl' => '2 hr',
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $integration = MeetingIntegration::query()
+            ->where('church_id', $user->church_id)
+            ->where('provider', 'livekit')
+            ->firstOrFail();
+
+        $this->assertTrue($integration->enabled);
+        $this->assertSame('wss://meet.techallowed.cloud', $integration->settings['server_url']);
+        $this->assertSame('church', $integration->settings['room_prefix']);
+        $this->assertSame('APIkey1', $integration->settings['api_key']);
+        $this->assertTrue($integration->settings['api_secret_configured']);
+        $this->assertSame(7200, $integration->settings['participant_token_ttl_seconds']);
+        $this->assertSame('2 hrs', $integration->settings['participant_token_ttl_label']);
+
+        $this->actingAs($user)
+            ->post(route('meeting-integrations.test', 'livekit'))
+            ->assertRedirect();
+
+        $integration->refresh();
+        $this->assertContains($integration->settings['last_test_status'], ['healthy', 'warning']);
+        $this->assertSame('church-test-room', $integration->settings['last_test_room']);
+        $this->assertStringContainsString('wss://meet.techallowed.cloud', $integration->settings['last_test_message']);
+        $this->assertStringContainsString('TTL 2 hrs', $integration->settings['last_test_message']);
+        $this->assertArrayHasKey('last_connectivity_check', $integration->settings);
+
+        $program = Program::query()->firstOrFail();
+        $event = Event::query()->where('program_id', $program->id)->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('event-sessions.store', [$program, $event]), [
+                'title' => 'LiveKit Token Session',
+                'session_date' => '2026-08-21',
+                'starts_at' => '10:00',
+                'ends_at' => '11:00',
+                'meeting_type' => 'online',
+                'venue' => null,
+                'address' => null,
+                'capacity' => 100,
+                'status' => 'scheduled',
+                'meeting_links' => [
+                    'livekit' => ['enabled' => '1', 'room' => 'church-live-service', 'access_code' => 'LK-100'],
+                ],
+            ])
+            ->assertRedirect();
+
+        $session = EventSession::query()->where('title', 'LiveKit Token Session')->firstOrFail();
+        $attendanceSession = AttendanceSession::query()->where('event_session_id', $session->id)->firstOrFail();
+
+        $this->assertSame(0, AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->count());
+
+        $response = $this->actingAs($user)
+            ->get(route('meetings.rooms.show', [$session, 'livekit']))
+            ->assertOk()
+            ->assertSee('LiveKit Connection')
+            ->assertSee('wss://meet.techallowed.cloud')
+            ->assertSee('church-live-service');
+
+        $this->assertSame(0, AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->count());
+
+        preg_match('/eyJ[^<\\s]+/', $response->getContent(), $matches);
+        $this->assertNotEmpty($matches);
+
+        $tokenParts = explode('.', $matches[0]);
+        $this->assertCount(3, $tokenParts);
+        $claims = json_decode(base64_decode(strtr($tokenParts[1], '-_', '+/')), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame('APIkey1', $claims['iss']);
+        $this->assertSame('church-live-service', $claims['video']['room']);
+        $this->assertTrue($claims['video']['roomJoin']);
+        $this->assertSame(7200, $claims['exp'] - $claims['nbf']);
+
+        $this->actingAs($user)
+            ->postJson(route('meetings.rooms.attendance.store', [$session, 'livekit']), [
+                'connected' => true,
+                'room' => 'church-live-service',
+                'remote_participants' => 0,
+            ])
+            ->assertOk()
+            ->assertJson([
+                'marked' => true,
+                'participant_count' => 1,
+            ]);
+
+        $this->assertSame(1, AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->where('final_method', 'livekit')->count());
+        $liveKitRecord = AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->where('final_method', 'livekit')->firstOrFail();
+        $this->assertSame('online', $liveKitRecord->metadata['online_status']);
+
+        $this->actingAs($user)
+            ->postJson(route('meetings.rooms.checkout.store', [$session, 'livekit']), [
+                'room' => 'church-live-service',
+            ])
+            ->assertOk()
+            ->assertJson([
+                'checked_out' => true,
+                'participant_count' => 0,
+            ]);
+
+        $liveKitRecord->refresh();
+        $this->assertSame('checked_out', $liveKitRecord->metadata['online_status']);
+        $this->assertNotEmpty($liveKitRecord->metadata['checked_out_at']);
     }
 
     public function test_only_enabled_and_selected_builtin_meeting_methods_are_joinable(): void

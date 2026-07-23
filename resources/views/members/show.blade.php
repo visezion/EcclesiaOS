@@ -86,40 +86,56 @@
         x-data="{ editOpen: {{ request()->boolean('edit') ? 'true' : 'false' }}, careOpen: false, ministryOpen: false, actionMenu: false }"
         class="space-y-5"
     >
-        <div class="flex flex-wrap items-center justify-end gap-2">
-            <a href="mailto:{{ $member->email }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition hover:border-violet-200 hover:text-violet-700">
-                <i data-lucide="message-square-text" class="size-4"></i>
-                Send Message
-            </a>
-            <form method="POST" action="{{ route('members.check-in', $member) }}">
-                @csrf
-                <button class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition hover:border-violet-200 hover:text-violet-700">
-                    <i data-lucide="calendar-check" class="size-4"></i>
-                    Check In
-                </button>
-            </form>
-            <button type="button" @click="ministryOpen = true" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition hover:border-violet-200 hover:text-violet-700">
-                <i data-lucide="users-round" class="size-4"></i>
-                Assign Ministry
-            </button>
-            <div class="relative">
-                <button type="button" @click="actionMenu = ! actionMenu" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white shadow-sm transition hover:bg-violet-700">
-                    <i data-lucide="pencil" class="size-4"></i>
-                    Edit Member
-                    <i data-lucide="chevron-down" class="size-4"></i>
-                </button>
-                <div x-cloak x-show="actionMenu" @click.outside="actionMenu = false" class="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-slate-200 bg-white p-1 text-sm shadow-xl">
-                    <button type="button" @click="editOpen = true; actionMenu = false" class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-slate-700 hover:bg-violet-50 hover:text-violet-700"><i data-lucide="user-pen" class="size-4"></i>Edit profile details</button>
-                    <button type="button" @click="careOpen = true; actionMenu = false" class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-slate-700 hover:bg-violet-50 hover:text-violet-700"><i data-lucide="heart-handshake" class="size-4"></i>Create care task</button>
+        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div class="flex min-w-0 items-center gap-4">
+                    <a href="{{ route('members.index') }}" class="grid size-10 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Back to members">
+                        <i data-lucide="arrow-left" class="size-4"></i>
+                    </a>
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h1 class="text-2xl font-semibold tracking-normal text-slate-950">Member Profile</h1>
+                            <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs ring-1 {{ $statusClass }}"><i data-lucide="badge-check" class="size-3.5"></i>{{ $profileStatus }}</span>
+                        </div>
+                        <p class="mt-1 truncate text-sm text-slate-500">{{ $fullName }} | {{ $profile['code'] }} | {{ $member->campus?->name ?? 'Unassigned' }}</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <a href="mailto:{{ $member->email }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700">
+                        <i data-lucide="message-square-text" class="size-4"></i>
+                        Send Message
+                    </a>
                     <form method="POST" action="{{ route('members.check-in', $member) }}">
                         @csrf
-                        <button class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-slate-700 hover:bg-violet-50 hover:text-violet-700"><i data-lucide="badge-check" class="size-4"></i>Record check-in</button>
+                        <button class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700">
+                            <i data-lucide="calendar-check" class="size-4"></i>
+                            Check In
+                        </button>
                     </form>
-                    <form method="POST" action="{{ route('members.destroy', $member) }}" onsubmit="return confirm('Delete this member and remove the profile from active reports?')">
-                        @csrf
-                        @method('DELETE')
-                        <button class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-rose-600 hover:bg-rose-50"><i data-lucide="trash-2" class="size-4"></i>Delete member</button>
-                    </form>
+                    <button type="button" @click="ministryOpen = true" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700">
+                        <i data-lucide="users-round" class="size-4"></i>
+                        Assign Ministry
+                    </button>
+                    <div class="relative">
+                        <button type="button" @click="actionMenu = ! actionMenu" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-violet-700">
+                            <i data-lucide="pencil" class="size-4"></i>
+                            Edit Member
+                            <i data-lucide="chevron-down" class="size-4"></i>
+                        </button>
+                        <div x-cloak x-show="actionMenu" @click.outside="actionMenu = false" class="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-slate-200 bg-white p-1 text-sm shadow-xl">
+                            <button type="button" @click="editOpen = true; actionMenu = false" class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-slate-700 hover:bg-violet-50 hover:text-violet-700"><i data-lucide="user-pen" class="size-4"></i>Edit profile details</button>
+                            <button type="button" @click="careOpen = true; actionMenu = false" class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-slate-700 hover:bg-violet-50 hover:text-violet-700"><i data-lucide="heart-handshake" class="size-4"></i>Create care task</button>
+                            <form method="POST" action="{{ route('members.check-in', $member) }}">
+                                @csrf
+                                <button class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-slate-700 hover:bg-violet-50 hover:text-violet-700"><i data-lucide="badge-check" class="size-4"></i>Record check-in</button>
+                            </form>
+                            <form method="POST" action="{{ route('members.destroy', $member) }}" onsubmit="return confirm('Delete this member and remove the profile from active reports?')">
+                                @csrf
+                                @method('DELETE')
+                                <button class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-rose-600 hover:bg-rose-50"><i data-lucide="trash-2" class="size-4"></i>Delete member</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -132,42 +148,45 @@
         @endif
 
         <section class="grid gap-4 xl:grid-cols-[minmax(0,1.9fr)_repeat(4,minmax(160px,1fr))]">
-            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
-                <div class="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,.9fr)]">
-                    <div class="flex items-center gap-5">
-                        <div class="relative grid size-32 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-100 to-sky-100 text-3xl text-violet-700">
-                            {{ $avatarInitials }}
-                            <span class="absolute bottom-3 right-3 size-5 rounded-full border-4 border-white bg-emerald-500"></span>
-                        </div>
-                        <div class="min-w-0">
-                            <h1 class="text-3xl font-semibold tracking-normal text-slate-950">{{ $fullName }}</h1>
-                            <p class="mt-1 text-sm text-slate-500">Member ID: {{ $profile['code'] }}</p>
-                            <div class="mt-3 flex flex-wrap items-center gap-2">
-                                <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs ring-1 {{ $statusClass }}"><i data-lucide="badge-check" class="size-3.5"></i>{{ $profileStatus }}</span>
-                                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 ring-1 ring-emerald-200"><i data-lucide="leaf" class="size-3.5"></i>{{ $profile['givingStatus'] }}</span>
+            <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:col-span-2">
+                <div class="h-1.5 bg-gradient-to-r from-violet-600 via-sky-500 to-emerald-500"></div>
+                <div class="p-5">
+                    <div class="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,.9fr)]">
+                        <div class="flex items-center gap-5">
+                            <div class="relative grid size-32 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-100 via-sky-100 to-emerald-100 text-3xl font-semibold text-violet-700 ring-8 ring-slate-50">
+                                {{ $avatarInitials }}
+                                <span class="absolute bottom-3 right-3 size-5 rounded-full border-4 border-white bg-emerald-500"></span>
                             </div>
-                            <div class="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                                <span class="inline-flex items-center gap-2"><i data-lucide="calendar-days" class="size-4 text-slate-400"></i>Joined: {{ $profile['joined'] }}</span>
-                                <span class="inline-flex items-center gap-2"><i data-lucide="clock-3" class="size-4 text-slate-400"></i>Member Since: {{ $member->joined_at?->format('M Y') ?? 'N/A' }}</span>
+                            <div class="min-w-0">
+                                <h1 class="text-3xl font-semibold tracking-normal text-slate-950">{{ $fullName }}</h1>
+                                <p class="mt-1 text-sm text-slate-500">Member ID: {{ $profile['code'] }}</p>
+                                <div class="mt-3 flex flex-wrap items-center gap-2">
+                                    <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs ring-1 {{ $statusClass }}"><i data-lucide="badge-check" class="size-3.5"></i>{{ $profileStatus }}</span>
+                                    <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 ring-1 ring-emerald-200"><i data-lucide="leaf" class="size-3.5"></i>{{ $profile['givingStatus'] }}</span>
+                                </div>
+                                <div class="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                                    <span class="inline-flex items-center gap-2"><i data-lucide="calendar-days" class="size-4 text-slate-400"></i>Joined: {{ $profile['joined'] }}</span>
+                                    <span class="inline-flex items-center gap-2"><i data-lucide="clock-3" class="size-4 text-slate-400"></i>Member Since: {{ $member->joined_at?->format('M Y') ?? 'N/A' }}</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="grid gap-3 border-slate-200 text-sm lg:border-l lg:pl-6">
-                        <div class="grid grid-cols-[36px_1fr] items-center gap-3">
-                            <span class="grid size-9 place-items-center rounded-lg bg-violet-50 text-violet-600"><i data-lucide="church" class="size-4"></i></span>
-                            <span><span class="block text-xs text-slate-500">Campus</span>{{ $member->campus?->name ?? 'Unassigned' }}</span>
-                        </div>
-                        <div class="grid grid-cols-[36px_1fr] items-center gap-3">
-                            <span class="grid size-9 place-items-center rounded-lg bg-sky-50 text-sky-600"><i data-lucide="user-round-check" class="size-4"></i></span>
-                            <span><span class="block text-xs text-slate-500">Member Type</span>{{ $memberType }}</span>
-                        </div>
-                        <div class="grid grid-cols-[36px_1fr] items-center gap-3">
-                            <span class="grid size-9 place-items-center rounded-lg bg-rose-50 text-rose-600"><i data-lucide="heart" class="size-4"></i></span>
-                            <span><span class="block text-xs text-slate-500">Marital Status</span>{{ $profile['marital'] }}</span>
-                        </div>
-                        <div class="grid grid-cols-[36px_1fr] items-center gap-3">
-                            <span class="grid size-9 place-items-center rounded-lg bg-slate-50 text-slate-600"><i data-lucide="users" class="size-4"></i></span>
-                            <span><span class="block text-xs text-slate-500">Family</span>{{ $member->family?->name ?? 'No household' }}</span>
+                        <div class="grid gap-3 border-slate-200 text-sm lg:border-l lg:pl-6">
+                            <div class="grid grid-cols-[36px_1fr] items-center gap-3">
+                                <span class="grid size-9 place-items-center rounded-lg bg-violet-50 text-violet-600"><i data-lucide="church" class="size-4"></i></span>
+                                <span><span class="block text-xs text-slate-500">Campus</span>{{ $member->campus?->name ?? 'Unassigned' }}</span>
+                            </div>
+                            <div class="grid grid-cols-[36px_1fr] items-center gap-3">
+                                <span class="grid size-9 place-items-center rounded-lg bg-sky-50 text-sky-600"><i data-lucide="user-round-check" class="size-4"></i></span>
+                                <span><span class="block text-xs text-slate-500">Member Type</span>{{ $memberType }}</span>
+                            </div>
+                            <div class="grid grid-cols-[36px_1fr] items-center gap-3">
+                                <span class="grid size-9 place-items-center rounded-lg bg-rose-50 text-rose-600"><i data-lucide="heart" class="size-4"></i></span>
+                                <span><span class="block text-xs text-slate-500">Marital Status</span>{{ $profile['marital'] }}</span>
+                            </div>
+                            <div class="grid grid-cols-[36px_1fr] items-center gap-3">
+                                <span class="grid size-9 place-items-center rounded-lg bg-slate-50 text-slate-600"><i data-lucide="users" class="size-4"></i></span>
+                                <span><span class="block text-xs text-slate-500">Family</span>{{ $member->family?->name ?? 'No household' }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -490,12 +509,43 @@
 
         <div x-cloak x-show="editOpen || careOpen || ministryOpen" class="fixed inset-0 z-40 bg-slate-950/40" @click="editOpen = false; careOpen = false; ministryOpen = false"></div>
 
-        <aside x-cloak x-show="editOpen" class="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto bg-white p-6 shadow-2xl">
-            <div class="mb-5 flex items-center justify-between">
-                <h2 class="text-lg text-slate-950">Edit Member</h2>
-                <button type="button" @click="editOpen = false" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><i data-lucide="x" class="size-5"></i></button>
+        <aside x-cloak x-show="editOpen" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-5xl overflow-y-auto bg-slate-50 shadow-2xl">
+            <div class="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="flex min-w-0 items-center gap-4">
+                        <div class="grid size-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-100 to-sky-100 text-sm font-semibold text-violet-700 ring-4 ring-slate-50">{{ $avatarInitials }}</div>
+                        <div class="min-w-0">
+                            <h2 class="text-xl font-semibold tracking-normal text-slate-950">Edit Member Profile</h2>
+                            <p class="mt-1 truncate text-sm text-slate-500">{{ $fullName }} | {{ $profile['code'] }} | {{ $member->campus?->name ?? 'Unassigned' }}</p>
+                        </div>
+                    </div>
+                    <button type="button" @click="editOpen = false" class="grid size-10 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
+                        <i data-lucide="x" class="size-5"></i>
+                    </button>
+                </div>
             </div>
-            @include('members.partials.form', ['action' => route('members.update', $member), 'method' => 'PUT', 'member' => $profile])
+            <div class="p-6">
+                <div class="mb-5 grid gap-3 md:grid-cols-3">
+                    <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                        <p class="text-xs text-slate-500">Current Status</p>
+                        <p class="mt-2 text-lg font-semibold text-slate-950">{{ $profileStatus }}</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ $memberType }}</p>
+                    </div>
+                    <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                        <p class="text-xs text-slate-500">Care Level</p>
+                        <p class="mt-2 text-lg font-semibold text-slate-950">{{ Str::headline($profile['careLevel']) }}</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ $openCareTasks->count() }} open care tasks</p>
+                    </div>
+                    <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                        <p class="text-xs text-slate-500">Profile Completion</p>
+                        <p class="mt-2 text-lg font-semibold text-slate-950">{{ $profileCompletion }}%</p>
+                        <p class="mt-1 text-xs text-slate-500">Connected to live member data</p>
+                    </div>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    @include('members.partials.form', ['action' => route('members.update', $member), 'method' => 'PUT', 'member' => $profile])
+                </div>
+            </div>
         </aside>
 
         <aside x-cloak x-show="careOpen" class="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">

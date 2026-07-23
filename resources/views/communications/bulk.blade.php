@@ -100,20 +100,20 @@
                             </label>
                             <label class="space-y-1 text-xs text-slate-500">
                                 <span>Ministry</span>
-                                <select class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-                                    <option>All Ministries</option>
-                                    <option>Pastoral Care</option>
-                                    <option>Youth Ministry</option>
-                                    <option>Worship Ministry</option>
+                                <select name="ministry" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+                                    <option value="">All Ministries</option>
+                                    <option value="pastoral-care" @selected(request('ministry') === 'pastoral-care')>Pastoral Care</option>
+                                    <option value="youth-ministry" @selected(request('ministry') === 'youth-ministry')>Youth Ministry</option>
+                                    <option value="worship-ministry" @selected(request('ministry') === 'worship-ministry')>Worship Ministry</option>
                                 </select>
                             </label>
                             <label class="space-y-1 text-xs text-slate-500">
                                 <span>Role</span>
-                                <select class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-                                    <option>All Roles</option>
-                                    <option>Members</option>
-                                    <option>Volunteers</option>
-                                    <option>Ministry Leaders</option>
+                                <select name="audience_role" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+                                    <option value="">All Roles</option>
+                                    <option value="members" @selected(request('audience_role') === 'members')>Members</option>
+                                    <option value="volunteers" @selected(request('audience_role') === 'volunteers')>Volunteers</option>
+                                    <option value="ministry-leaders" @selected(request('audience_role') === 'ministry-leaders')>Ministry Leaders</option>
                                 </select>
                             </label>
                             <label class="space-y-1 text-xs text-slate-500">
@@ -127,43 +127,43 @@
                             </label>
                             <label class="space-y-1 text-xs text-slate-500">
                                 <span>Volunteers</span>
-                                <select class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-                                    <option>All Volunteers</option>
-                                    <option>Active Volunteers</option>
-                                    <option>Not Volunteering</option>
+                                <select name="volunteer_status" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+                                    <option value="">All Volunteers</option>
+                                    <option value="active" @selected(request('volunteer_status') === 'active')>Active Volunteers</option>
+                                    <option value="none" @selected(request('volunteer_status') === 'none')>Not Volunteering</option>
                                 </select>
                             </label>
                             <label class="space-y-1 text-xs text-slate-500">
                                 <span>Absentees</span>
-                                <select class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-                                    <option>In the last 30 days</option>
-                                    <option>In the last 60 days</option>
-                                    <option>Never attended</option>
+                                <select name="absentee_window" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+                                    <option value="30" @selected(request('absentee_window', '30') === '30')>In the last 30 days</option>
+                                    <option value="60" @selected(request('absentee_window') === '60')>In the last 60 days</option>
+                                    <option value="never" @selected(request('absentee_window') === 'never')>Never attended</option>
                                 </select>
                             </label>
                             <label class="space-y-1 text-xs text-slate-500">
                                 <span>Registrants</span>
-                                <select class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-                                    <option>All Registrants</option>
-                                    <option>Upcoming Events</option>
-                                    <option>Pending Payment</option>
+                                <select name="registration_status" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+                                    <option value="">All Registrants</option>
+                                    <option value="upcoming" @selected(request('registration_status') === 'upcoming')>Upcoming Events</option>
+                                    <option value="pending-payment" @selected(request('registration_status') === 'pending-payment')>Pending Payment</option>
                                 </select>
                             </label>
                             <label class="space-y-1 text-xs text-slate-500">
                                 <span>Guests</span>
-                                <select class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-                                    <option>All Guests</option>
-                                    <option>First-Time Guests</option>
-                                    <option>Follow-up Needed</option>
+                                <select name="guest_type" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+                                    <option value="">All Guests</option>
+                                    <option value="first-time" @selected(request('guest_type') === 'first-time')>First-Time Guests</option>
+                                    <option value="follow-up" @selected(request('guest_type') === 'follow-up')>Follow-up Needed</option>
                                 </select>
                             </label>
                             <label class="space-y-1 text-xs text-slate-500">
                                 <span>Follow-up Needs</span>
-                                <select class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-                                    <option>All Needs</option>
-                                    <option>Pastoral Care</option>
-                                    <option>Prayer</option>
-                                    <option>Counseling</option>
+                                <select name="follow_up_need" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+                                    <option value="">All Needs</option>
+                                    <option value="pastoral-care" @selected(request('follow_up_need') === 'pastoral-care')>Pastoral Care</option>
+                                    <option value="prayer" @selected(request('follow_up_need') === 'prayer')>Prayer</option>
+                                    <option value="counseling" @selected(request('follow_up_need') === 'counseling')>Counseling</option>
                                 </select>
                             </label>
                             <button type="submit" formmethod="GET" formaction="{{ route('communications.bulk') }}" formnovalidate class="mt-5 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 hover:border-violet-200 hover:text-violet-700">

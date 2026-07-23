@@ -170,7 +170,7 @@
                                     <div class="inline-flex items-center gap-1">
                                         <a href="{{ route('communications.templates', array_merge(request()->except('template', 'new', 'page'), ['template' => $template->opaqueId()])) }}#template-form" class="inline-grid size-8 place-items-center rounded-lg hover:bg-violet-50" title="Edit"><i data-lucide="pencil" class="size-4"></i></a>
                                         <form method="POST" action="{{ route('communications.templates.clone', $template) }}">@csrf<button class="inline-grid size-8 place-items-center rounded-lg hover:bg-violet-50" title="Clone"><i data-lucide="copy" class="size-4"></i></button></form>
-                                        <form method="POST" action="{{ route('communications.templates.destroy', $template) }}" onsubmit="return confirm('Delete this unused template?')">@csrf @method('DELETE')<button class="inline-grid size-8 place-items-center rounded-lg hover:bg-rose-50" title="Delete"><i data-lucide="ellipsis" class="size-4"></i></button></form>
+                                        <form method="POST" action="{{ route('communications.templates.destroy', $template) }}" onsubmit="return confirm('Delete this unused template?')">@csrf @method('DELETE')<button class="inline-grid size-8 place-items-center rounded-lg text-rose-600 hover:bg-rose-50" title="Delete"><i data-lucide="trash-2" class="size-4"></i></button></form>
                                     </div>
                                 </td>
                             </tr>
@@ -333,7 +333,7 @@
                     <div class="border-b border-slate-100 px-4 py-2.5"><h2 class="text-sm font-semibold text-slate-950">Channel Compatibility</h2></div>
                     <div class="grid grid-cols-5 gap-2 p-3 text-center text-xs">
                         @foreach($channels as $key => $channel)
-                            <span><i data-lucide="{{ $channel['icon'] }}" class="mx-auto mb-1 size-4 {{ in_array($key, $selectedChannels, true) ? 'text-violet-600' : 'text-slate-300' }}"></i>{{ $channel['label'] }}<i data-lucide="{{ in_array($key, $selectedChannels, true) ? 'check-circle' : 'circle' }}" class="mx-auto mt-1 size-3 {{ in_array($key, $selectedChannels, true) ? 'text-emerald-600' : 'text-slate-300' }}"></i></span>
+                            <span><i data-lucide="{{ $channel['icon'] }}" class="mx-auto mb-1 size-4 {{ in_array($key, $selectedChannels, true) ? 'text-violet-600' : 'text-slate-300' }}"></i>{{ $channel['label'] }}<i data-lucide="{{ in_array($key, $selectedChannels, true) ? 'check-circle-2' : 'circle-dot' }}" class="mx-auto mt-1 size-3 {{ in_array($key, $selectedChannels, true) ? 'text-emerald-600' : 'text-slate-300' }}"></i></span>
                         @endforeach
                     </div>
                 </section>

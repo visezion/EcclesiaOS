@@ -53,6 +53,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'meeting'])->name('event-sessions.meeting');
     Route::put('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'updateMeeting'])->name('event-sessions.meeting.update');
     Route::get('meetings/rooms/{eventSession}/{provider}', [EventFlowController::class, 'room'])->name('meetings.rooms.show');
+    Route::post('meetings/rooms/{eventSession}/{provider}/attendance', [EventFlowController::class, 'markRoomAttendance'])->name('meetings.rooms.attendance.store');
+    Route::post('meetings/rooms/{eventSession}/{provider}/checkout', [EventFlowController::class, 'markRoomCheckout'])->name('meetings.rooms.checkout.store');
     Route::get('event-sessions/{eventSession}/attendance', [EventFlowController::class, 'attendance'])->name('event-sessions.attendance');
     Route::put('event-sessions/{eventSession}/attendance', [EventFlowController::class, 'updateAttendance'])->name('event-sessions.attendance.update');
     Route::get('attendance', [EventFlowController::class, 'attendanceIndex'])->name('attendance.index');
@@ -72,6 +74,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('members', [MemberManagementController::class, 'store'])->name('members.store');
     Route::post('members/import', [MemberManagementController::class, 'import'])->name('members.import');
     Route::get('members/export', [MemberManagementController::class, 'export'])->name('members.export');
+    Route::get('members/bulk', fn () => redirect()->route('members.index')->with('error', 'Use the Bulk Actions menu to apply changes to selected members.'))->name('members.bulk.fallback');
     Route::post('members/bulk', [MemberManagementController::class, 'bulk'])->name('members.bulk');
     Route::get('members/{member}', [MemberManagementController::class, 'show'])->name('members.show');
     Route::post('members/{member}/check-in', [MemberManagementController::class, 'checkIn'])->name('members.check-in');

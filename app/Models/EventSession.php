@@ -19,6 +19,7 @@ final class EventSession extends Model
         'church_id',
         'campus_id',
         'event_id',
+        'recurrence_rule_id',
         'title',
         'session_date',
         'starts_at',
@@ -41,6 +42,11 @@ final class EventSession extends Model
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);
+    }
+
+    public function recurrenceRule(): BelongsTo
+    {
+        return $this->belongsTo(EventRecurrenceRule::class, 'recurrence_rule_id');
     }
 
     public function church(): BelongsTo

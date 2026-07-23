@@ -143,7 +143,7 @@
 
         <div class="grid gap-4 xl:grid-cols-[1fr_330px]">
             <section class="dashboard-card p-0">
-                <form method="POST" action="{{ route('members.bulk') }}">
+                <form method="POST" action="{{ route('members.bulk') }}" onsubmit="return this.querySelector('[name=action]').value !== 'delete' || confirm('Delete selected members from the directory?')">
                     @csrf
                     <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex items-center gap-2">
@@ -196,7 +196,7 @@
                         </div>
                     @else
                         <div class="overflow-x-auto">
-                            <table class="table-compact min-w-[1220px]">
+                            <table class="table-compact min-w-[1080px]">
                                 <thead>
                                     <tr>
                                         <th class="w-10"><input type="checkbox" class="rounded border-slate-300" @change="toggleAll($event)"></th>
@@ -204,8 +204,6 @@
                                         <th>Full Name</th>
                                         <th>Gender</th>
                                         <th>Phone</th>
-                                        <th>Email</th>
-                                        <th>Age</th>
                                         <th>Marital Status</th>
                                         <th>Status</th>
                                         <th>Campus</th>
@@ -230,8 +228,6 @@
                                             </td>
                                             <td>{{ $member['gender'] }}</td>
                                             <td>{{ $member['phone'] }}</td>
-                                            <td>{{ $member['email'] }}</td>
-                                            <td>{{ $member['age'] }}</td>
                                             <td>{{ $member['marital'] }}</td>
                                             <td><span class="rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 {{ $statusTone[$member['status']] ?? $statusTone['active'] }}">{{ Str::headline($member['status']) }}</span></td>
                                             <td>{{ $member['campus'] }}</td>
@@ -251,16 +247,12 @@
                                                     <a href="mailto:{{ $member['email'] }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Email member"><i data-lucide="mail" class="size-4"></i></a>
                                                     <a href="{{ route('members.show', ['member' => $member['key']]) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="View member"><i data-lucide="eye" class="size-4"></i></a>
                                                     <a href="{{ route('members.show', ['member' => $member['key'], 'edit' => 1]) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Edit member"><i data-lucide="pencil" class="size-4"></i></a>
-                                                    <form method="POST" action="{{ route('members.destroy', ['member' => $member['key']]) }}" onsubmit="return confirm('Remove this member from the directory?')">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button class="grid size-8 place-items-center rounded-lg border border-slate-200 text-rose-500 hover:bg-rose-50" title="Delete member"><i data-lucide="x" class="size-4"></i></button>
-                                                    </form>
+                                                    <button type="submit" form="delete-member-{{ $member['key'] }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-rose-500 hover:bg-rose-50" title="Delete member"><i data-lucide="x" class="size-4"></i></button>
                                                 </div>
                                             </td>
                                         </tr>
                                     @empty
-                                        <tr><td colspan="16" class="py-10 text-center text-sm text-slate-500">No members match the current filters.</td></tr>
+                                        <tr><td colspan="14" class="py-10 text-center text-sm text-slate-500">No members match the current filters.</td></tr>
                                     @endforelse
                                 </tbody>
                             </table>
@@ -271,6 +263,12 @@
                     <p class="text-sm text-slate-500">Showing {{ number_format($members->firstItem() ?? 0) }} to {{ number_format($members->lastItem() ?? 0) }} of {{ number_format($members->total()) }} members</p>
                     {{ $members->links() }}
                 </div>
+                @foreach ($members as $member)
+                    <form id="delete-member-{{ $member['key'] }}" method="POST" action="{{ route('members.destroy', ['member' => $member['key']]) }}" class="hidden" onsubmit="return confirm('Remove this member from the directory?')">
+                        @csrf
+                        @method('DELETE')
+                    </form>
+                @endforeach
             </section>
 
             <aside class="space-y-4">

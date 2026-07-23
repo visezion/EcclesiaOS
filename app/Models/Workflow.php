@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Models\Concerns\UsesOpaqueRouteKeys;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class Workflow extends Model
@@ -19,5 +20,10 @@ final class Workflow extends Model
     protected function casts(): array
     {
         return ['steps' => 'array'];
+    }
+
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(Approval::class);
     }
 }

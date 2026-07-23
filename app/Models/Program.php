@@ -38,6 +38,11 @@ final class Program extends Model
         return $this->hasMany(Event::class);
     }
 
+    public function sections(): HasMany
+    {
+        return $this->hasMany(ProgramSection::class);
+    }
+
     public function sessions(): HasManyThrough
     {
         return $this->hasManyThrough(EventSession::class, Event::class);

@@ -432,11 +432,25 @@ final class CommunicationController extends Controller
             'scheduled_at' => ['nullable', 'date'],
             'campus_id' => ['nullable', 'exists:campuses,id'],
             'member_status' => ['nullable', 'string', 'max:80'],
+            'ministry' => ['nullable', 'string', 'max:80'],
+            'audience_role' => ['nullable', 'string', 'max:80'],
+            'volunteer_status' => ['nullable', 'string', 'max:80'],
+            'absentee_window' => ['nullable', 'string', 'max:20'],
+            'registration_status' => ['nullable', 'string', 'max:80'],
+            'guest_type' => ['nullable', 'string', 'max:80'],
+            'follow_up_need' => ['nullable', 'string', 'max:80'],
         ]);
 
         $filters = [
             'campus_id' => $validated['campus_id'] ?? null,
             'member_status' => $validated['member_status'] ?? null,
+            'ministry' => $validated['ministry'] ?? null,
+            'audience_role' => $validated['audience_role'] ?? null,
+            'volunteer_status' => $validated['volunteer_status'] ?? null,
+            'absentee_window' => $validated['absentee_window'] ?? null,
+            'registration_status' => $validated['registration_status'] ?? null,
+            'guest_type' => $validated['guest_type'] ?? null,
+            'follow_up_need' => $validated['follow_up_need'] ?? null,
         ];
         if (filled($validated['template_id'] ?? null)) {
             abort_unless($this->templatesQuery($request)->whereKey($validated['template_id'])->exists(), 403);
@@ -1892,7 +1906,16 @@ final class CommunicationController extends Controller
         return $this->members($request)
             ->with('memberProfile')
             ->when(filled($filters['campus_id'] ?? null), fn (Builder $query) => $query->where('campus_id', $filters['campus_id']))
-            ->when(filled($filters['member_status'] ?? null), fn (Builder $query) => $query->where('status', $filters['member_status']));
+            ->when(filled($filters['member_status'] ?? null), fn (Builder $query) => $query->where('status', str_replace('_', ' ', (string) $filters['member_status'])))
+            ->when(($filters['audience_role'] ?? null) === 'volunteers', fn (Builder $query) => $query->whereHas('volunteers'))
+            ->when(($filters['volunteer_status'] ?? null) === 'active', fn (Builder $query) => $query->whereHas('volunteers', fn (Builder $volunteerQuery) => $volunteerQuery->where('status', 'active')))
+            ->when(($filters['volunteer_status'] ?? null) === 'none', fn (Builder $query) => $query->whereDoesntHave('volunteers'))
+            ->when(filled($filters['follow_up_need'] ?? null), fn (Builder $query) => $query->whereHas('careTasks', fn (Builder $careQuery) => $careQuery->where('type', str_replace('-', ' ', (string) $filters['follow_up_need']))))
+            ->when(in_array(($filters['absentee_window'] ?? null), ['30', '60'], true), function (Builder $query) use ($filters): void {
+                $days = (int) $filters['absentee_window'];
+                $query->whereDoesntHave('attendanceRecords', fn (Builder $attendanceQuery) => $attendanceQuery->where('service_date', '>=', now()->subDays($days)->toDateString()));
+            })
+            ->when(($filters['absentee_window'] ?? null) === 'never', fn (Builder $query) => $query->whereDoesntHave('attendanceRecords'));
     }
 
     private function members(Request $request): Builder

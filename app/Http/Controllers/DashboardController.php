@@ -6,11 +6,14 @@ namespace App\Http\Controllers;
 
 use App\Services\DashboardService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\Request;
 
 final class DashboardController extends Controller
 {
-    public function __invoke(DashboardService $dashboardService): View
+    public function __invoke(Request $request, DashboardService $dashboardService): View
     {
-        return view('dashboard.index', $dashboardService->getDashboardData());
+        abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('view dashboard'), 403);
+
+        return view('dashboard.index', $dashboardService->forUser($request->user())->getDashboardData());
     }
 }

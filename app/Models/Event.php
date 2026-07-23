@@ -42,4 +42,14 @@ final class Event extends Model
     {
         return $this->hasMany(EventSession::class);
     }
+
+    public function recurrenceRules(): HasMany
+    {
+        return $this->hasMany(EventRecurrenceRule::class);
+    }
+
+    public function sections(): HasMany
+    {
+        return $this->hasMany(ProgramSection::class);
+    }
 }

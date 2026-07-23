@@ -4,7 +4,7 @@
     $preferences = $member['communicationPreferences'] ?? [];
 @endphp
 
-<form method="POST" action="{{ $action }}" class="space-y-4">
+<form method="POST" action="{{ $action }}" class="space-y-5">
     @csrf
     @if ($isEdit)
         @method('PUT')
@@ -41,8 +41,8 @@
         </label>
     </div>
 
-    <div class="rounded-lg border border-slate-200 p-3">
-        <div class="mb-3 flex items-center gap-2 text-sm text-slate-900"><i data-lucide="user-round" class="size-4 text-violet-600"></i>Profile Details</div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="user-round" class="size-4 text-violet-600"></i>Profile Details</div>
         <div class="grid gap-3 sm:grid-cols-2">
             <label class="space-y-1 text-sm font-medium text-slate-600">Preferred Name
                 <input name="preferred_name" value="{{ $value('preferred_name') }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-violet-400 focus:ring-4 focus:ring-violet-100">
@@ -81,8 +81,8 @@
         </div>
     </div>
 
-    <div class="rounded-lg border border-slate-200 p-3">
-        <div class="mb-3 flex items-center gap-2 text-sm text-slate-900"><i data-lucide="map-pin" class="size-4 text-violet-600"></i>Address & Contact</div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="map-pin" class="size-4 text-violet-600"></i>Address & Contact</div>
         <div class="grid gap-3 sm:grid-cols-2">
             <label class="space-y-1 text-sm font-medium text-slate-600 sm:col-span-2">Address
                 <input name="address_line" value="{{ $value('address_line', $member['addressLine'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-violet-400 focus:ring-4 focus:ring-violet-100">
@@ -108,8 +108,8 @@
         </div>
     </div>
 
-    <div class="rounded-lg border border-slate-200 p-3">
-        <div class="mb-3 flex items-center gap-2 text-sm text-slate-900"><i data-lucide="briefcase-medical" class="size-4 text-violet-600"></i>Emergency & Care</div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="briefcase-medical" class="size-4 text-violet-600"></i>Emergency & Care</div>
         <div class="grid gap-3 sm:grid-cols-2">
             <label class="space-y-1 text-sm font-medium text-slate-600">Contact Name
                 <input name="emergency_contact_name" value="{{ $value('emergency_contact_name', $member['emergencyContactName'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-violet-400 focus:ring-4 focus:ring-violet-100">
@@ -136,8 +136,8 @@
         </div>
     </div>
 
-    <div class="rounded-lg border border-slate-200 p-3">
-        <div class="mb-3 flex items-center gap-2 text-sm text-slate-900"><i data-lucide="sparkles" class="size-4 text-violet-600"></i>Spiritual, Skills & Preferences</div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+        <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="sparkles" class="size-4 text-violet-600"></i>Spiritual, Skills & Preferences</div>
         <div class="grid gap-3 sm:grid-cols-2">
             <label class="space-y-1 text-sm font-medium text-slate-600">Salvation Date
                 <input name="salvation_date" type="date" value="{{ $value('salvation_date', $member['spiritualJourney']['salvation_date'] ?? '') }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-violet-400 focus:ring-4 focus:ring-violet-100">

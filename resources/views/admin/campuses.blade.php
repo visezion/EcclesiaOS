@@ -40,6 +40,7 @@
         };
         $assignmentUsers = $users->map(fn ($user) => [
             'id' => $user->id,
+            'update_url' => route('users.update', $user),
             'name' => $user->name,
             'title' => $user->title,
             'email' => $user->email,
