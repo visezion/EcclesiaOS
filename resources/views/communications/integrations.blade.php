@@ -27,6 +27,7 @@
             ['table' => 'notifications', 'note' => 'Master notification records', 'icon' => 'bell'],
             ['table' => 'message_batches', 'note' => 'Batch groups for delivery', 'icon' => 'copy-plus'],
             ['table' => 'notification_recipients', 'note' => 'Recipients and targeting data', 'icon' => 'users'],
+            ['table' => 'communication_whatsapp_groups', 'note' => 'Synced Zender WhatsApp groups', 'icon' => 'messages-square'],
             ['table' => 'communication_logs', 'note' => 'Inbound / outbound logs', 'icon' => 'list-checks'],
             ['table' => 'delivery_attempts', 'note' => 'Per-attempt delivery details', 'icon' => 'send'],
             ['table' => 'communication_settings', 'note' => 'Configured channels and providers', 'icon' => 'settings'],
@@ -119,9 +120,14 @@
                                 <span class="mt-1 block text-[11px] leading-4 text-slate-400">Turns on the selected service and any other Zender channel with complete credentials.</span>
                             </label>
                         </div>
-                        <button form="integration-form" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm text-white shadow-sm hover:bg-emerald-700">
-                            <i data-lucide="save" class="size-4"></i> Save Zender
-                        </button>
+                        <div class="flex flex-wrap gap-2">
+                            <button form="integration-form" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm text-white shadow-sm hover:bg-emerald-700">
+                                <i data-lucide="save" class="size-4"></i> Save Zender
+                            </button>
+                            <button type="submit" form="sync-zender-groups-form" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2.5 text-sm text-emerald-700 shadow-sm hover:bg-emerald-50">
+                                <i data-lucide="refresh-cw" class="size-4"></i> Sync Groups
+                            </button>
+                        </div>
                     </div>
 
                     <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
@@ -153,6 +159,123 @@
                             </select>
                             <span class="mt-1 block text-[11px] leading-4 text-slate-400">For SMS through your Android device. Ignored for partner gateways and WhatsApp.</span>
                         </label>
+                    </div>
+                </article>
+
+                <article id="zender-whatsapp-groups" class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <div class="grid gap-3 border-b border-slate-100 p-4 xl:grid-cols-[1fr_auto] xl:items-center">
+                        <div>
+                            <h2 class="flex items-center gap-2 text-base font-semibold text-slate-950"><i data-lucide="users-round" class="size-5 text-emerald-600"></i>Zender WhatsApp Groups</h2>
+                            <p class="mt-1 text-sm text-slate-500">Sync groups from Zender, then assign each group to the whole church, a campus, or a ministry for campaign targeting.</p>
+                        </div>
+                        <button type="submit" form="sync-zender-groups-form" class="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50">
+                            <i data-lucide="refresh-cw" class="size-4"></i>
+                            Fetch Latest Groups
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[980px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                                <tr>
+                                    <th class="px-4 py-3">Group</th>
+                                    <th class="px-4 py-3">Scope</th>
+                                    <th class="px-4 py-3">Campus</th>
+                                    <th class="px-4 py-3">Ministry</th>
+                                    <th class="px-4 py-3">Synced</th>
+                                    <th class="px-4 py-3 text-right">Enabled</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                @forelse($zenderGroups as $group)
+                                    <tr>
+                                        <td class="px-4 py-3">
+                                            <div class="font-semibold text-slate-900">{{ $group->name }}</div>
+                                            <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                                <span>{{ $group->provider_group_id }}</span>
+                                                @if($group->participant_count)
+                                                    <span class="rounded bg-slate-100 px-2 py-0.5">{{ number_format($group->participant_count) }} members</span>
+                                                @endif
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <select name="zender_groups[{{ $group->id }}][target_scope]" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                                @foreach(['unassigned' => 'Unassigned', 'church' => 'All Church', 'campus' => 'Campus', 'ministry' => 'Ministry', 'ignore' => 'Ignore'] as $value => $label)
+                                                    <option value="{{ $value }}" @selected($group->target_scope === $value)>{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <select name="zender_groups[{{ $group->id }}][campus_id]" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                                <option value="">No campus</option>
+                                                @foreach($campuses as $campus)
+                                                    <option value="{{ $campus->id }}" @selected($group->campus_id === $campus->id)>{{ $campus->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <select name="zender_groups[{{ $group->id }}][ministry_id]" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                                <option value="">No ministry</option>
+                                                @foreach($ministryOptions as $ministry)
+                                                    <option value="{{ $ministry->id }}" @selected($group->ministry_id === $ministry->id)>{{ $ministry->name }}{{ $ministry->campus?->name ? ' - '.$ministry->campus->name : '' }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td class="px-4 py-3 text-slate-600">{{ $group->synced_at?->diffForHumans() ?? 'Not synced' }}</td>
+                                        <td class="px-4 py-3 text-right">
+                                            <label class="inline-flex items-center justify-end gap-2">
+                                                <input type="checkbox" name="zender_groups[{{ $group->id }}][enabled]" value="1" @checked($group->enabled) class="size-4 rounded border-slate-300 text-emerald-600">
+                                                <span class="text-xs text-slate-500">Use</span>
+                                            </label>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="px-5 py-10 text-center">
+                                            <x-empty-state icon="messages-square" title="No WhatsApp groups synced" message="Save Zender WhatsApp credentials, then fetch groups from Zender." />
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-100 bg-slate-50/60 p-4">
+                        <h3 class="flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="plus" class="size-4 text-emerald-600"></i>Add Group Manually</h3>
+                        <p class="mt-1 text-xs text-slate-500">Use this when this server cannot reach Zender over HTTPS. Paste the WhatsApp group address from Zender, usually ending in <span class="font-mono">@g.us</span>.</p>
+                        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_150px_150px_150px_auto]">
+                            <label class="text-xs text-slate-500">Group Name
+                                <input form="manual-zender-group-form" name="name" required class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Example: Main Church Announcements">
+                            </label>
+                            <label class="text-xs text-slate-500">Group Address
+                                <input form="manual-zender-group-form" name="provider_group_id" required class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="120363000000000000@g.us">
+                            </label>
+                            <label class="text-xs text-slate-500">Scope
+                                <select form="manual-zender-group-form" name="target_scope" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    <option value="church">All Church</option>
+                                    <option value="campus">Campus</option>
+                                    <option value="ministry">Ministry</option>
+                                    <option value="unassigned">Unassigned</option>
+                                </select>
+                            </label>
+                            <label class="text-xs text-slate-500">Campus
+                                <select form="manual-zender-group-form" name="campus_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    <option value="">No campus</option>
+                                    @foreach($campuses as $campus)
+                                        <option value="{{ $campus->id }}">{{ $campus->name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="text-xs text-slate-500">Ministry
+                                <select form="manual-zender-group-form" name="ministry_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    <option value="">No ministry</option>
+                                    @foreach($ministryOptions as $ministry)
+                                        <option value="{{ $ministry->id }}">{{ $ministry->name }}{{ $ministry->campus?->name ? ' - '.$ministry->campus->name : '' }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <button type="submit" form="manual-zender-group-form" class="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700">
+                                <i data-lucide="plus" class="size-4"></i>Add
+                            </button>
+                        </div>
                     </div>
                 </article>
 
@@ -253,6 +376,8 @@
             @foreach($settings as $setting)
                 <form id="test-{{ $setting->channel }}" method="POST" action="{{ route('communications.integrations.test', $setting->channel) }}" class="hidden">@csrf</form>
             @endforeach
+            <form id="sync-zender-groups-form" method="POST" action="{{ route('communications.integrations.zender-groups.sync') }}" class="hidden">@csrf</form>
+            <form id="manual-zender-group-form" method="POST" action="{{ route('communications.integrations.zender-groups.store') }}" class="hidden">@csrf</form>
 
             <aside class="space-y-4">
                 <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">

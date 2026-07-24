@@ -436,9 +436,7 @@ final class MemberManagementController extends Controller
         $query->where('church_id', $user?->church_id);
 
         if ($user?->campus_id !== null) {
-            $query->where(fn (Builder $campusQuery) => $campusQuery
-                ->whereNull('campus_id')
-                ->orWhere('campus_id', $user->campus_id));
+            $query->where('campus_id', $user->campus_id);
         }
 
         return $query;
@@ -486,9 +484,7 @@ final class MemberManagementController extends Controller
         $query->where('church_id', $user?->church_id);
 
         if ($user?->campus_id !== null) {
-            $query->where(fn (Builder $campusQuery) => $campusQuery
-                ->whereNull('campus_id')
-                ->orWhere('campus_id', $user->campus_id));
+            $query->where('campus_id', $user->campus_id);
         }
 
         return $query;
@@ -506,9 +502,7 @@ final class MemberManagementController extends Controller
         $query->where('church_id', $user?->church_id);
 
         if ($user?->campus_id !== null) {
-            $query->where(fn (Builder $campusQuery) => $campusQuery
-                ->whereNull('campus_id')
-                ->orWhere('campus_id', $user->campus_id));
+            $query->where('campus_id', $user->campus_id);
         }
 
         return $query;
@@ -820,9 +814,11 @@ final class MemberManagementController extends Controller
             return;
         }
 
+        $ministry = Ministry::query()->find($ministryId);
+
         Volunteer::query()->updateOrCreate(
             ['church_id' => $member->church_id, 'member_id' => $member->id, 'ministry_id' => $ministryId],
-            ['campus_id' => $member->campus_id, 'role' => 'Team Member', 'status' => 'active', 'availability' => ['sunday' => true]],
+            ['campus_id' => $ministry?->campus_id ?? $member->campus_id, 'role' => 'Team Member', 'status' => 'active', 'availability' => ['sunday' => true]],
         );
     }
 

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Approval;
 use App\Models\AttendanceRecord;
 use App\Models\AttendanceSession;
+use App\Models\Campus;
 use App\Models\CommunicationDelivery;
 use App\Models\Event;
 use App\Models\EventRecurrenceRule;
@@ -12,6 +13,7 @@ use App\Models\EventSession;
 use App\Models\LeadershipReport;
 use App\Models\MeetingIntegration;
 use App\Models\Member;
+use App\Models\Ministry;
 use App\Models\Program;
 use App\Models\ProgramSection;
 use App\Models\ProgramSectionAssignment;
@@ -597,6 +599,69 @@ class ModuleRoutesTest extends TestCase
             ->get(route('leadership-reports.export'))
             ->assertOk()
             ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+    }
+
+    public function test_campus_leader_reports_are_limited_to_assigned_campus_ministries(): void
+    {
+        $this->seed();
+        $leader = User::query()->where('email', 'david.wilson@klgc.org')->firstOrFail();
+        $ownCampus = $leader->campus()->firstOrFail();
+        $otherCampus = Campus::query()
+            ->where('church_id', $leader->church_id)
+            ->whereKeyNot($ownCampus->id)
+            ->firstOrFail();
+        $otherMinistry = Ministry::query()->create([
+            'church_id' => $leader->church_id,
+            'campus_id' => $otherCampus->id,
+            'name' => 'Other Campus Outreach Report Team',
+            'description' => 'Should not be visible to this campus leader.',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($leader)
+            ->get(route('leadership-reports.index'))
+            ->assertOk()
+            ->assertSee($ownCampus->name)
+            ->assertDontSee('Other Campus Outreach Report Team');
+
+        $this->actingAs($leader)
+            ->post(route('leadership-reports.store'), [
+                'title' => 'Campus Scoped Leadership Report',
+                'report_type' => 'campus',
+                'campus_id' => $otherCampus->id,
+                'ministry_id' => null,
+                'assigned_to' => $leader->id,
+                'period_start' => now()->startOfWeek()->toDateString(),
+                'period_end' => now()->endOfWeek()->toDateString(),
+                'priority' => 'normal',
+                'summary' => 'Campus leader report should be saved against the assigned campus only.',
+                'submit' => '1',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('leadership_reports', [
+            'title' => 'Campus Scoped Leadership Report',
+            'campus_id' => $ownCampus->id,
+        ]);
+        $this->assertDatabaseMissing('leadership_reports', [
+            'title' => 'Campus Scoped Leadership Report',
+            'campus_id' => $otherCampus->id,
+        ]);
+
+        $this->actingAs($leader)
+            ->post(route('leadership-reports.store'), [
+                'title' => 'Blocked Cross Campus Ministry Report',
+                'report_type' => 'ministry',
+                'campus_id' => $ownCampus->id,
+                'ministry_id' => $otherMinistry->id,
+                'assigned_to' => $leader->id,
+                'period_start' => now()->startOfWeek()->toDateString(),
+                'period_end' => now()->endOfWeek()->toDateString(),
+                'priority' => 'normal',
+                'summary' => 'This ministry belongs to a different campus and must be blocked.',
+                'submit' => '1',
+            ])
+            ->assertForbidden();
     }
 
     public function test_meeting_integrations_can_be_saved_and_tested(): void

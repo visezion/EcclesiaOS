@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ActivityLog;
+use App\Models\Campus;
 use App\Models\CareTask;
 use App\Models\Church;
 use App\Models\Family;
@@ -289,6 +290,10 @@ class AdminPagesTest extends TestCase
                 'sidebar_text_color' => '#F8FAFC',
                 'sidebar_profile_color' => '#172554',
                 'card_radius' => 12,
+                'campus_singular_label' => 'Branch',
+                'campus_plural_label' => 'Branches',
+                'ministry_singular_label' => 'Department',
+                'ministry_plural_label' => 'Departments',
             ]))
             ->assertRedirect()
             ->assertSessionHas('status', 'System settings saved.');
@@ -300,6 +305,8 @@ class AdminPagesTest extends TestCase
         $this->assertSame('#0EA5E9', data_get($church->settings, 'primary_color'));
         $this->assertSame('dark', data_get($church->settings, 'theme_mode'));
         $this->assertSame('Roboto', data_get($church->settings, 'font_family'));
+        $this->assertSame('Branch', data_get($church->settings, 'campus_singular_label'));
+        $this->assertSame('Departments', data_get($church->settings, 'ministry_plural_label'));
         $this->assertDatabaseHas('activity_logs', ['action' => 'system_settings_updated']);
 
         $this->actingAs($admin)
@@ -371,6 +378,14 @@ class AdminPagesTest extends TestCase
             ->assertSee('value="#0EA5E9"', false);
 
         $this->actingAs($admin)
+            ->get(route('campuses.index'))
+            ->assertOk()
+            ->assertSee('Churches &amp; Branches', false)
+            ->assertSee('Church & Branch Distribution', false)
+            ->assertSee('Assign User to Church & Branch', false)
+            ->assertSee('Manage church branches, departments, and user assignments', false);
+
+        $this->actingAs($admin)
             ->post(route('settings.system.test-connection'), ['service' => 'smtp'])
             ->assertRedirect()
             ->assertSessionHas('status');
@@ -426,6 +441,65 @@ class AdminPagesTest extends TestCase
             'city' => 'Austin',
             'capacity' => 450,
         ]);
+    }
+
+    public function test_ministry_leader_can_only_manage_ministries_for_assigned_campus(): void
+    {
+        $this->seed();
+        $leader = User::query()->where('email', 'emily.davis@klgc.org')->firstOrFail();
+        $ownCampus = $leader->campus()->firstOrFail();
+        $otherCampus = Campus::query()
+            ->where('church_id', $leader->church_id)
+            ->whereKeyNot($ownCampus->id)
+            ->firstOrFail();
+        $otherMinistry = Ministry::query()->create([
+            'church_id' => $leader->church_id,
+            'campus_id' => $otherCampus->id,
+            'name' => 'Other Branch Media Team',
+            'description' => 'Should stay outside this leader scope.',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($leader)
+            ->get(route('ministries.index'))
+            ->assertOk()
+            ->assertSee('Ministries')
+            ->assertSee($ownCampus->name)
+            ->assertDontSee('Other Branch Media Team');
+
+        $this->actingAs($leader)
+            ->post(route('ministries.store'), [
+                'church_id' => $leader->church_id,
+                'campus_id' => $otherCampus->id,
+                'name' => 'Campus Prayer Care',
+                'description' => 'Created by a ministry leader.',
+                'status' => 'active',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('ministries', [
+            'church_id' => $leader->church_id,
+            'campus_id' => $ownCampus->id,
+            'name' => 'Campus Prayer Care',
+        ]);
+        $this->assertDatabaseMissing('ministries', [
+            'campus_id' => $otherCampus->id,
+            'name' => 'Campus Prayer Care',
+        ]);
+
+        $this->actingAs($leader)
+            ->put(route('ministries.update', $otherMinistry), [
+                'church_id' => $leader->church_id,
+                'campus_id' => $ownCampus->id,
+                'name' => 'Attempted Cross Campus Update',
+                'description' => 'Should be blocked.',
+                'status' => 'inactive',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($leader)
+            ->delete(route('ministries.destroy', $otherMinistry))
+            ->assertForbidden();
     }
 
     public function test_members_management_renders_live_directory(): void
@@ -875,6 +949,10 @@ class AdminPagesTest extends TestCase
             'default_campus_id' => $admin->campus_id,
             'multi_campus_access' => 'Role-Based Access',
             'branch_code_prefix' => 'KLGC',
+            'campus_singular_label' => 'Campus',
+            'campus_plural_label' => 'Campuses',
+            'ministry_singular_label' => 'Ministry',
+            'ministry_plural_label' => 'Ministries',
             'smtp_server' => 'smtp.klgc.org',
             'sms_provider' => 'Twilio',
             'whatsapp_integration' => '360dialog',

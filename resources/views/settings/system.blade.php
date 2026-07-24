@@ -17,7 +17,7 @@
         $sectionLinks = [
             ['id' => 'general', 'label' => 'General', 'icon' => 'settings'],
             ['id' => 'organization', 'label' => 'Organization Profile', 'icon' => 'building-2'],
-            ['id' => 'campus', 'label' => 'Campuses & Branches', 'icon' => 'network'],
+            ['id' => 'campus', 'label' => $terminology['campus_plural'].' & Branches', 'icon' => 'network'],
             ['id' => 'users', 'label' => 'Users & Access', 'icon' => 'users'],
             ['id' => 'roles', 'label' => 'Roles & Permissions', 'icon' => 'shield-check'],
             ['id' => 'security', 'label' => 'Security', 'icon' => 'shield-alert'],
@@ -274,12 +274,22 @@
                         </section>
 
                         <section id="campus" class="rounded-lg border border-slate-200 p-4">
-                            <div class="mb-4 flex items-center justify-between gap-3"><h3 class="flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="network" class="size-4 text-violet-600"></i> Church & Campus Settings</h3><button type="button" @click="edit('#campus')" class="text-xs font-medium text-violet-600">Edit</button></div>
+                            <div class="mb-4 flex items-center justify-between gap-3"><h3 class="flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="network" class="size-4 text-violet-600"></i> Church & {{ $terminology['campus_singular'] }} Settings</h3><button type="button" @click="edit('#campus')" class="text-xs font-medium text-violet-600">Edit</button></div>
                             <div class="grid gap-3">
                                 <label class="space-y-1 text-xs font-medium text-slate-500">Headquarters Church<select name="headquarters_church_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">@foreach ($churches as $item)<option value="{{ $item->id }}" @selected((int) old('headquarters_church_id', $settings['headquarters_church_id']) === $item->id)>{{ $item->name }}</option>@endforeach</select></label>
-                                <label class="space-y-1 text-xs font-medium text-slate-500">Default Campus<select name="default_campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"><option value="">No default campus</option>@foreach ($campuses as $campus)<option value="{{ $campus->id }}" @selected((int) old('default_campus_id', $settings['default_campus_id']) === $campus->id)>{{ $campus->name }}</option>@endforeach</select></label>
-                                <label class="space-y-1 text-xs font-medium text-slate-500">Multi-Campus Access<select name="multi_campus_access" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">@foreach (['Role-Based Access', 'Single Campus', 'All Campuses'] as $value)<option value="{{ $value }}" @selected(old('multi_campus_access', $settings['multi_campus_access']) === $value)>{{ $value }}</option>@endforeach</select></label>
+                                <label class="space-y-1 text-xs font-medium text-slate-500">Default {{ $terminology['campus_singular'] }}<select name="default_campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"><option value="">No default {{ Str::lower($terminology['campus_singular']) }}</option>@foreach ($campuses as $campus)<option value="{{ $campus->id }}" @selected((int) old('default_campus_id', $settings['default_campus_id']) === $campus->id)>{{ $campus->name }}</option>@endforeach</select></label>
+                                <label class="space-y-1 text-xs font-medium text-slate-500">Multi-{{ $terminology['campus_singular'] }} Access<select name="multi_campus_access" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">@foreach (['Role-Based Access', 'Single Campus', 'All Campuses'] as $value)<option value="{{ $value }}" @selected(old('multi_campus_access', $settings['multi_campus_access']) === $value)>{{ str_replace(['Campus', 'Campuses'], [$terminology['campus_singular'], $terminology['campus_plural']], $value) }}</option>@endforeach</select></label>
                                 <label class="space-y-1 text-xs font-medium text-slate-500">Branch Code Prefix<input name="branch_code_prefix" value="{{ old('branch_code_prefix', $settings['branch_code_prefix']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"></label>
+                                <div class="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                                    <div class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Admin Terminology</div>
+                                    <div class="grid gap-3 md:grid-cols-2">
+                                        <label class="space-y-1 text-xs font-medium text-slate-500">{{ $terminology['campus_singular'] }} Singular Label<input name="campus_singular_label" value="{{ old('campus_singular_label', $settings['campus_singular_label']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900" placeholder="Branch"></label>
+                                        <label class="space-y-1 text-xs font-medium text-slate-500">{{ $terminology['campus_plural'] }} Plural Label<input name="campus_plural_label" value="{{ old('campus_plural_label', $settings['campus_plural_label']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900" placeholder="Branches"></label>
+                                        <label class="space-y-1 text-xs font-medium text-slate-500">{{ $terminology['ministry_singular'] }} Singular Label<input name="ministry_singular_label" value="{{ old('ministry_singular_label', $settings['ministry_singular_label']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900" placeholder="Department"></label>
+                                        <label class="space-y-1 text-xs font-medium text-slate-500">{{ $terminology['ministry_plural'] }} Plural Label<input name="ministry_plural_label" value="{{ old('ministry_plural_label', $settings['ministry_plural_label']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900" placeholder="Departments"></label>
+                                    </div>
+                                    <p class="mt-2 text-xs text-slate-500">Changes display names only. Database fields and routes remain campus and ministry for compatibility.</p>
+                                </div>
                             </div>
                         </section>
 

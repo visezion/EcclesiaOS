@@ -12,7 +12,9 @@ use App\Models\CommunicationDelivery;
 use App\Models\CommunicationProviderSetting;
 use App\Models\CommunicationRecipient;
 use App\Models\CommunicationTemplate;
+use App\Models\CommunicationWhatsAppGroup;
 use App\Models\Member;
+use App\Models\Ministry;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
@@ -405,12 +407,25 @@ final class CommunicationController extends Controller
         $selectedCampaign = $selectedCampaignId
             ? $this->campaigns($request)->with('template')->whereKey($selectedCampaignId)->first()
             : null;
+        $zenderGroups = $this->visibleWhatsAppGroups($request)
+            ->where('enabled', true)
+            ->where('target_scope', '!=', 'ignore')
+            ->with(['campus', 'ministry'])
+            ->orderBy('name')
+            ->get();
+        $selectedGroupCount = collect((array) $request->query('whatsapp_group_ids', []))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter()
+            ->intersect($zenderGroups->pluck('id'))
+            ->unique()
+            ->count();
 
         return view('communications.bulk', $this->shared($request) + [
             'campaigns' => $campaigns,
             'selectedCampaign' => $selectedCampaign ?? $campaigns->getCollection()->first(),
             'templates' => $this->templatesQuery($request)->where('status', 'active')->orderBy('name')->get(),
-            'audienceCount' => $this->audienceQuery($request, $request->query())->count(),
+            'zenderGroups' => $zenderGroups,
+            'audienceCount' => $this->audienceQuery($request, $request->query())->count() + $selectedGroupCount,
             'stats' => $this->campaignStats($request),
             'channelMix' => $this->channelMix($request),
             'trendSeries' => $this->deliveryTrendSeries($request),
@@ -441,7 +456,26 @@ final class CommunicationController extends Controller
             'registration_status' => ['nullable', 'string', 'max:80'],
             'guest_type' => ['nullable', 'string', 'max:80'],
             'follow_up_need' => ['nullable', 'string', 'max:80'],
+            'whatsapp_group_ids' => ['nullable', 'array'],
+            'whatsapp_group_ids.*' => ['integer', 'exists:communication_whatsapp_groups,id'],
         ]);
+
+        $whatsappGroupIds = collect($validated['whatsapp_group_ids'] ?? [])
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $whatsappGroups = $this->visibleWhatsAppGroups($request)
+            ->whereIn('id', $whatsappGroupIds)
+            ->where('enabled', true)
+            ->get();
+        abort_unless(count($whatsappGroupIds) === $whatsappGroups->count(), 403);
+
+        $channels = array_values(array_unique($validated['channels']));
+        if ($whatsappGroups->isNotEmpty() && ! in_array('whatsapp', $channels, true)) {
+            $channels[] = 'whatsapp';
+        }
 
         $filters = [
             'campus_id' => $validated['campus_id'] ?? null,
@@ -453,6 +487,7 @@ final class CommunicationController extends Controller
             'registration_status' => $validated['registration_status'] ?? null,
             'guest_type' => $validated['guest_type'] ?? null,
             'follow_up_need' => $validated['follow_up_need'] ?? null,
+            'whatsapp_group_ids' => $whatsappGroupIds,
         ];
         if (filled($validated['template_id'] ?? null)) {
             abort_unless($this->templatesQuery($request)->whereKey($validated['template_id'])->exists(), 403);
@@ -460,7 +495,7 @@ final class CommunicationController extends Controller
 
         $members = $this->audienceQuery($request, $filters)->limit(5000)->get();
 
-        $campaign = DB::transaction(function () use ($request, $validated, $filters, $members): CommunicationCampaign {
+        $campaign = DB::transaction(function () use ($request, $validated, $filters, $members, $channels, $whatsappGroups): CommunicationCampaign {
             $campaign = CommunicationCampaign::query()->create([
                 'church_id' => $this->churchId($request),
                 'campus_id' => $filters['campus_id'],
@@ -469,13 +504,13 @@ final class CommunicationController extends Controller
                 'name' => $validated['name'],
                 'segment_name' => $validated['segment_name'] ?? 'Filtered members',
                 'audience_filters' => $filters,
-                'channels' => array_values($validated['channels']),
+                'channels' => $channels,
                 'subject' => $validated['subject'] ?? null,
                 'body' => $validated['body'],
                 'send_mode' => $validated['send_mode'],
                 'scheduled_at' => $validated['send_mode'] === 'scheduled' ? Carbon::parse($validated['scheduled_at'] ?? now()->addHour()) : null,
                 'status' => $validated['send_mode'] === 'scheduled' ? 'scheduled' : 'queued',
-                'recipient_count' => $members->count(),
+                'recipient_count' => $members->count() + $whatsappGroups->count(),
             ]);
 
             foreach ($members as $member) {
@@ -863,6 +898,8 @@ final class CommunicationController extends Controller
         return view('communications.integrations', $this->shared($request) + [
             'settings' => $this->providerSettings($request),
             'zenderSettings' => $this->zenderSettings($request),
+            'zenderGroups' => $this->visibleWhatsAppGroups($request)->with(['campus', 'ministry'])->orderBy('name')->get(),
+            'ministryOptions' => $this->ministries($request)->orderBy('name')->get(),
             'stats' => $this->integrationStats($request),
             'providerHealth' => $this->providerHealth($request),
             'providerCatalog' => $this->providerCatalog(),
@@ -904,6 +941,11 @@ final class CommunicationController extends Controller
             'zender.device_unique_id' => ['nullable', 'string', 'max:180'],
             'zender.gateway_unique_id' => ['nullable', 'string', 'max:180'],
             'zender.sim_slot' => ['nullable', Rule::in(['1', '2'])],
+            'zender_groups' => ['nullable', 'array'],
+            'zender_groups.*.enabled' => ['nullable', 'boolean'],
+            'zender_groups.*.target_scope' => ['nullable', Rule::in(['unassigned', 'church', 'campus', 'ministry', 'ignore'])],
+            'zender_groups.*.campus_id' => ['nullable', 'exists:campuses,id'],
+            'zender_groups.*.ministry_id' => ['nullable', 'exists:ministries,id'],
         ]);
 
         foreach (self::CHANNELS as $channel) {
@@ -950,10 +992,119 @@ final class CommunicationController extends Controller
         }
 
         $this->applyZenderSettings($request, $validated['zender'] ?? []);
+        $this->updateZenderGroupAssignments($request, $validated['zender_groups'] ?? []);
 
         $activityLogger->log('Communications', 'integrations_updated', 'Communication channel integrations were updated.', null, ['resource' => 'Communication Settings', 'status' => 'success'], $request);
 
         return back()->with('status', 'Communication integrations saved.');
+    }
+
+    public function syncZenderWhatsAppGroups(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeCommunicationIntegrations($request);
+
+        $setting = CommunicationProviderSetting::query()
+            ->where('church_id', $this->churchId($request))
+            ->where('channel', 'whatsapp')
+            ->first();
+        $settings = $setting?->settings ?? [];
+        $siteUrl = $this->normalizedZenderSiteUrl($settings['endpoint_url'] ?? null);
+        $apiKey = $setting ? $this->decryptProviderApiKey($setting) : null;
+        $accountId = (string) ($settings['account_id'] ?? '');
+
+        if (! $setting?->enabled || $siteUrl === null || $apiKey === null || blank($accountId)) {
+            return back()->with('error', 'Zender WhatsApp must be enabled with site URL, API key, and account ID before syncing groups.');
+        }
+
+        $result = $this->fetchZenderWhatsAppGroups($siteUrl, $apiKey, $accountId);
+        if (($result['ok'] ?? false) !== true) {
+            $message = (string) ($result['error'] ?? 'Zender did not return a usable WhatsApp group list.');
+            $activityLogger->log('Communications', 'zender_groups_sync_failed', $message, $setting, ['resource' => 'Zender WhatsApp Groups', 'status' => 'failed'], $request);
+
+            return back()->with('error', 'WhatsApp group sync failed: '.$message);
+        }
+
+        $groups = collect($result['groups'] ?? [])
+            ->filter(fn (array $group): bool => filled($group['provider_group_id'] ?? null) && filled($group['name'] ?? null))
+            ->unique('provider_group_id')
+            ->values();
+
+        $synced = 0;
+        foreach ($groups as $group) {
+            $existing = CommunicationWhatsAppGroup::withTrashed()
+                ->where('church_id', $this->churchId($request))
+                ->where('provider', 'zender')
+                ->where('provider_group_id', $group['provider_group_id'])
+                ->first();
+
+            $payload = [
+                'church_id' => $this->churchId($request),
+                'provider' => 'zender',
+                'provider_group_id' => $group['provider_group_id'],
+                'name' => $group['name'],
+                'participant_count' => $group['participant_count'] ?? null,
+                'invite_link' => $group['invite_link'] ?? null,
+                'enabled' => $existing?->enabled ?? true,
+                'target_scope' => $existing?->target_scope ?? 'unassigned',
+                'campus_id' => $existing?->campus_id,
+                'ministry_id' => $existing?->ministry_id,
+                'metadata' => $group['metadata'] ?? [],
+                'synced_at' => now(),
+                'deleted_at' => null,
+            ];
+
+            if ($existing) {
+                $existing->restore();
+                $existing->update($payload);
+            } else {
+                CommunicationWhatsAppGroup::query()->create($payload);
+            }
+
+            $synced++;
+        }
+
+        $activityLogger->log('Communications', 'zender_groups_synced', $synced.' Zender WhatsApp groups were synced.', $setting, ['resource' => 'Zender WhatsApp Groups', 'status' => 'success'], $request);
+
+        return back()->with('status', number_format($synced).' WhatsApp groups synced from Zender.');
+    }
+
+    public function storeZenderWhatsAppGroup(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeCommunicationIntegrations($request);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:180'],
+            'provider_group_id' => ['required', 'string', 'max:180'],
+            'target_scope' => ['required', Rule::in(['unassigned', 'church', 'campus', 'ministry'])],
+            'campus_id' => ['nullable', 'exists:campuses,id'],
+            'ministry_id' => ['nullable', 'exists:ministries,id'],
+            'participant_count' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+        ]);
+
+        $assignment = $this->whatsAppGroupAssignmentPayload(
+            $request,
+            (string) $validated['target_scope'],
+            filled($validated['campus_id'] ?? null) ? (int) $validated['campus_id'] : null,
+            filled($validated['ministry_id'] ?? null) ? (int) $validated['ministry_id'] : null,
+        );
+        $groupAddress = trim((string) $validated['provider_group_id']);
+
+        $group = CommunicationWhatsAppGroup::withTrashed()->updateOrCreate(
+            ['church_id' => $this->churchId($request), 'provider' => 'zender', 'provider_group_id' => $groupAddress],
+            [
+                'name' => $validated['name'],
+                'participant_count' => $validated['participant_count'] ?? null,
+                'enabled' => true,
+                'metadata' => ['source' => 'manual'],
+                'synced_at' => null,
+                'deleted_at' => null,
+            ] + $assignment,
+        );
+        $group->restore();
+
+        $activityLogger->log('Communications', 'zender_group_created_manually', $group->name.' WhatsApp group was added manually.', $group, ['resource' => 'Zender WhatsApp Groups', 'status' => 'success'], $request);
+
+        return back()->with('status', 'WhatsApp group added.');
     }
 
     public function testIntegration(Request $request, string $channel, ActivityLogger $activityLogger): RedirectResponse
@@ -963,7 +1114,11 @@ final class CommunicationController extends Controller
         $setting = $this->providerSettings($request)->firstWhere('channel', $channel);
         abort_unless($setting, 404);
         $validationError = $this->providerConfigurationError($setting);
-        $status = $setting->enabled && $validationError === null ? 'success' : 'failed';
+        $probeError = null;
+        if ($setting->enabled && $validationError === null && Str::contains(Str::lower($setting->provider), 'zender')) {
+            $probeError = $this->testZenderProviderConnection($setting);
+        }
+        $status = $setting->enabled && $validationError === null && $probeError === null ? 'success' : 'failed';
         $setting->update(['last_tested_at' => now(), 'last_test_status' => $status]);
 
         CommunicationDelivery::query()->create([
@@ -980,14 +1135,14 @@ final class CommunicationController extends Controller
             'attempt' => 1,
             'latency_ms' => $status === 'success' ? random_int(80, 420) : null,
             'response_code' => $status === 'success' ? '200 OK' : 'Configuration check failed',
-            'error' => $status === 'success' ? null : ($validationError ?? 'Enable the channel before testing.'),
+            'error' => $status === 'success' ? null : ($probeError ?? $validationError ?? 'Enable the channel before testing.'),
             'sent_at' => now(),
             'delivered_at' => $status === 'success' ? now() : null,
         ]);
 
         $activityLogger->log('Communications', 'integration_tested', Str::headline($channel).' integration was tested.', $setting, ['resource' => 'Communication Provider', 'status' => $status], $request);
 
-        return back()->with($status === 'success' ? 'status' : 'error', $status === 'success' ? 'Provider configuration test delivered.' : 'Provider test failed: '.($validationError ?? 'channel is disabled.'));
+        return back()->with($status === 'success' ? 'status' : 'error', $status === 'success' ? 'Provider connection test passed.' : 'Provider test failed: '.($probeError ?? $validationError ?? 'channel is disabled.'));
     }
 
     private function validateTemplate(Request $request): array
@@ -1048,6 +1203,36 @@ final class CommunicationController extends Controller
                 $failed += $status === 'failed' ? 1 : 0;
             }
             $recipient->update(['status' => 'sent']);
+        }
+
+        if (in_array('whatsapp', $campaign->channels ?? [], true)) {
+            $setting = $settings['whatsapp'] ?? null;
+            foreach ($this->campaignWhatsAppGroups($campaign) as $group) {
+                $sent++;
+                $delivery = CommunicationDelivery::query()->create([
+                    'church_id' => $campaign->church_id,
+                    'communication_campaign_id' => $campaign->id,
+                    'communication_template_id' => $campaign->template_id,
+                    'communication_whatsapp_group_id' => $group->id,
+                    'channel' => 'whatsapp',
+                    'provider' => $setting?->provider ?? 'Zender WhatsApp Gateway',
+                    'recipient_name' => $group->name,
+                    'recipient_contact' => $group->provider_group_id,
+                    'subject' => $campaign->subject,
+                    'body_excerpt' => Str::limit(strip_tags($campaign->body), 180),
+                    'event_type' => $campaign->template?->trigger_event ?? 'WhatsAppGroupCampaign',
+                    'status' => 'queued',
+                    'retry_status' => 'none',
+                    'attempt' => 1,
+                    'read_at' => null,
+                ]);
+
+                $outcome = $this->dispatchDeliveryOutcome('whatsapp', $setting, $group->provider_group_id, $campaign->body);
+                $delivery->update($outcome);
+                $status = $outcome['status'];
+                $delivered += $status === 'delivered' ? 1 : 0;
+                $failed += $status === 'failed' ? 1 : 0;
+            }
         }
 
         $campaign->update([
@@ -1114,11 +1299,11 @@ final class CommunicationController extends Controller
         $payload = $this->zenderPayload($channel, $settings, $apiKey, $recipientContact, $message);
 
         try {
-            $response = Http::asForm()
-                ->timeout(15)
+            $response = $this->zenderHttpClient()
+                ->asForm()
                 ->post($siteUrl.'/api/send/'.$channel, $payload);
         } catch (Throwable $exception) {
-            return $this->failedDeliveryOutcome('Connection failed', Str::limit($exception->getMessage(), 240));
+            return $this->failedDeliveryOutcome('Connection failed', $this->zenderConnectionError($exception));
         }
 
         $latency = (int) round((microtime(true) - $startedAt) * 1000);
@@ -1139,6 +1324,31 @@ final class CommunicationController extends Controller
             'HTTP '.$response->status(),
             $this->zenderMessageId(is_array($json) ? $json : null, $channel),
         );
+    }
+
+    private function testZenderProviderConnection(CommunicationProviderSetting $setting): ?string
+    {
+        $settings = $setting->settings ?? [];
+        $siteUrl = $this->normalizedZenderSiteUrl($settings['endpoint_url'] ?? null);
+        $apiKey = $this->decryptProviderApiKey($setting);
+
+        if ($siteUrl === null || $apiKey === null) {
+            return 'Zender site URL and API key are required.';
+        }
+
+        try {
+            $response = $this->zenderHttpClient()
+                ->get($siteUrl.'/api/get/credits', ['secret' => $apiKey]);
+        } catch (Throwable $exception) {
+            return $this->zenderConnectionError($exception);
+        }
+
+        $json = $response->json();
+        if (! $response->successful() || ! $this->zenderResponseAccepted(is_array($json) ? $json : null)) {
+            return 'Zender returned HTTP '.$response->status().': '.Str::limit($this->redactZenderSecret(is_array($json) ? (string) (data_get($json, 'message') ?? json_encode($json)) : $response->body()), 180);
+        }
+
+        return null;
     }
 
     /**
@@ -1190,6 +1400,44 @@ final class CommunicationController extends Controller
         }
 
         return rtrim(trim((string) $siteUrl), '/');
+    }
+
+    private function zenderHttpClient(): \Illuminate\Http\Client\PendingRequest
+    {
+        $curlOptions = [];
+        foreach ([
+            'CURLOPT_IPRESOLVE' => 'CURL_IPRESOLVE_V4',
+            'CURLOPT_HTTP_VERSION' => 'CURL_HTTP_VERSION_1_1',
+            'CURLOPT_SSLVERSION' => 'CURL_SSLVERSION_TLSv1_2',
+        ] as $option => $value) {
+            if (defined($option) && defined($value)) {
+                $curlOptions[constant($option)] = constant($value);
+            }
+        }
+
+        return Http::acceptJson()
+            ->timeout(25)
+            ->connectTimeout(10)
+            ->withHeaders([
+                'User-Agent' => 'EcclesiaOS Zender Client',
+            ])
+            ->withOptions($curlOptions === [] ? [] : ['curl' => $curlOptions]);
+    }
+
+    private function zenderConnectionError(Throwable $exception): string
+    {
+        $message = $this->redactZenderSecret($exception->getMessage());
+
+        if (Str::contains($message, ['cURL error 35', 'SSL_ERROR_SYSCALL', 'failed to receive handshake'])) {
+            return 'TLS connection to Zender failed from this server. Confirm the server can reach zender.vicezion.com:443, or ask Zender/hosting support to allow this server IP. Details: '.Str::limit($message, 180);
+        }
+
+        return Str::limit($message, 240);
+    }
+
+    private function redactZenderSecret(string $message): string
+    {
+        return preg_replace('/([?&]secret=)[^&\s]+/i', '$1[hidden]', $message) ?? $message;
     }
 
     private function decryptProviderApiKey(CommunicationProviderSetting $setting): ?string
@@ -1439,6 +1687,157 @@ final class CommunicationController extends Controller
                 'webhook_secret_hash' => $existing?->webhook_secret_hash,
             ],
         );
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $groups
+     */
+    private function updateZenderGroupAssignments(Request $request, array $groups): void
+    {
+        foreach ($groups as $groupId => $input) {
+            $group = $this->visibleWhatsAppGroups($request)->whereKey($groupId)->first();
+            if (! $group) {
+                continue;
+            }
+
+            $scope = (string) ($input['target_scope'] ?? 'unassigned');
+            $campusId = filled($input['campus_id'] ?? null) ? (int) $input['campus_id'] : null;
+            $ministryId = filled($input['ministry_id'] ?? null) ? (int) $input['ministry_id'] : null;
+
+            $group->update($this->whatsAppGroupAssignmentPayload($request, $scope, $campusId, $ministryId) + [
+                'enabled' => (bool) ($input['enabled'] ?? false),
+            ]);
+        }
+    }
+
+    /**
+     * @return array{target_scope: string, campus_id: ?int, ministry_id: ?int}
+     */
+    private function whatsAppGroupAssignmentPayload(Request $request, string $scope, ?int $campusId, ?int $ministryId): array
+    {
+        if ($scope === 'church') {
+            return ['target_scope' => 'church', 'campus_id' => null, 'ministry_id' => null];
+        }
+
+        if ($scope === 'campus') {
+            abort_unless($campusId !== null && $this->campuses($request)->where('id', $campusId)->isNotEmpty(), 403);
+
+            return ['target_scope' => 'campus', 'campus_id' => $campusId, 'ministry_id' => null];
+        }
+
+        if ($scope === 'ministry') {
+            $ministry = $ministryId === null ? null : $this->ministries($request)->whereKey($ministryId)->first();
+            abort_unless($ministry !== null, 403);
+
+            return ['target_scope' => 'ministry', 'campus_id' => $ministry->campus_id, 'ministry_id' => $ministry->id];
+        }
+
+        return ['target_scope' => $scope === 'ignore' ? 'ignore' : 'unassigned', 'campus_id' => null, 'ministry_id' => null];
+    }
+
+    /**
+     * @return array{ok: bool, groups?: array<int, array<string, mixed>>, error?: string}
+     */
+    private function fetchZenderWhatsAppGroups(string $siteUrl, string $apiKey, string $accountId): array
+    {
+        $endpoints = [
+            ['method' => 'get', 'path' => '/api/get/wa.groups'],
+        ];
+        $payload = ['secret' => $apiKey, 'unique' => $accountId];
+        $lastError = null;
+
+        foreach ($endpoints as $endpoint) {
+            try {
+                $request = $this->zenderHttpClient();
+                $response = $request->get($siteUrl.$endpoint['path'], $payload);
+            } catch (Throwable $exception) {
+                $lastError = $this->zenderConnectionError($exception);
+                continue;
+            }
+
+            $json = $response->json();
+            if (! $response->successful() || ! is_array($json) || ! $this->zenderResponseAccepted($json)) {
+                $lastError = 'HTTP '.$response->status().' from '.$endpoint['path'];
+                continue;
+            }
+
+            $groups = $this->normalizeZenderGroupRows($this->zenderGroupRows($json));
+            if ($groups !== []) {
+                return ['ok' => true, 'groups' => $groups];
+            }
+
+            $lastError = 'No WhatsApp groups found in '.$endpoint['path'].' response.';
+        }
+
+        return ['ok' => false, 'error' => $lastError ?? 'Unable to contact Zender group endpoints.'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     * @return array<int, array<string, mixed>>
+     */
+    private function zenderGroupRows(array $json): array
+    {
+        foreach (['data.groups', 'data.chats', 'data.results', 'data', 'groups', 'chats', 'results'] as $path) {
+            $rows = data_get($json, $path);
+            if (is_array($rows) && array_is_list($rows)) {
+                return collect($rows)->filter(fn (mixed $row): bool => is_array($row))->values()->all();
+            }
+        }
+
+        return array_is_list($json)
+            ? collect($json)->filter(fn (mixed $row): bool => is_array($row))->values()->all()
+            : [];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeZenderGroupRows(array $rows): array
+    {
+        return collect($rows)
+            ->map(function (array $row): ?array {
+                $groupId = data_get($row, 'id')
+                    ?? data_get($row, 'gid')
+                    ?? data_get($row, 'jid')
+                    ?? data_get($row, 'wid')
+                    ?? data_get($row, 'chat_id')
+                    ?? data_get($row, 'group_id')
+                    ?? data_get($row, 'uid');
+                $name = data_get($row, 'name')
+                    ?? data_get($row, 'subject')
+                    ?? data_get($row, 'title')
+                    ?? data_get($row, 'group_name');
+
+                if (blank($groupId) || blank($name)) {
+                    return null;
+                }
+
+                $type = Str::lower((string) (data_get($row, 'type') ?? data_get($row, 'chat_type') ?? ''));
+                $looksLikeGroup = Str::contains((string) $groupId, '@g.us')
+                    || Str::contains($type, 'group')
+                    || (bool) (data_get($row, 'is_group') ?? data_get($row, 'isGroup') ?? false);
+                if (! $looksLikeGroup && filled($type)) {
+                    return null;
+                }
+
+                $participants = data_get($row, 'participants');
+
+                return [
+                    'provider_group_id' => (string) $groupId,
+                    'name' => (string) $name,
+                    'participant_count' => data_get($row, 'participant_count')
+                        ?? data_get($row, 'participants_count')
+                        ?? data_get($row, 'members_count')
+                        ?? (is_array($participants) ? count($participants) : null),
+                    'invite_link' => data_get($row, 'invite_link') ?? data_get($row, 'link'),
+                    'metadata' => $row,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 
     private function syncMemberPreferences(Request $request): void
@@ -1985,6 +2384,8 @@ final class CommunicationController extends Controller
             $settings = $setting->settings ?? [];
             $processed = $this->deliveries($request)->where('channel', $setting->channel)->count();
             $failed = $this->deliveries($request)->where('channel', $setting->channel)->where('status', 'failed')->count();
+            $configurationError = $this->providerConfigurationError($setting);
+            $testedSuccessfully = $setting->last_test_status === 'success' || $setting->channel === 'in_app';
 
             return [
                 'queue' => $settings['queue'] ?? $setting->channel.'_queue',
@@ -1992,7 +2393,7 @@ final class CommunicationController extends Controller
                 'processed' => $processed,
                 'failed' => $failed,
                 'latency' => (int) round($this->deliveries($request)->where('channel', $setting->channel)->whereNotNull('latency_ms')->avg('latency_ms') ?? 0),
-                'status' => $setting->enabled && $this->providerConfigurationError($setting) === null ? 'Healthy' : 'Review',
+                'status' => $setting->enabled && $configurationError === null && $testedSuccessfully ? 'Healthy' : 'Review',
             ];
         })->all();
     }
@@ -2120,7 +2521,15 @@ final class CommunicationController extends Controller
     {
         return CommunicationDelivery::query()
             ->where('church_id', $this->churchId($request))
-            ->when(! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id, fn (Builder $query) => $query->whereHas('member', fn (Builder $memberQuery) => $memberQuery->where('campus_id', $request->user()->campus_id)));
+            ->when(! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id, function (Builder $query) use ($request): void {
+                $query->where(function (Builder $scope) use ($request): void {
+                    $scope->whereHas('member', fn (Builder $memberQuery) => $memberQuery->where('campus_id', $request->user()->campus_id))
+                        ->orWhereHas('whatsappGroup', function (Builder $groupQuery) use ($request): void {
+                            $groupQuery->where('campus_id', $request->user()->campus_id)
+                                ->orWhereHas('ministry', fn (Builder $ministryQuery) => $ministryQuery->where('campus_id', $request->user()->campus_id));
+                        });
+                });
+            });
     }
 
     private function filteredDeliveries(Request $request): Builder
@@ -2254,9 +2663,48 @@ final class CommunicationController extends Controller
             ->when(($filters['absentee_window'] ?? null) === 'never', fn (Builder $query) => $query->whereDoesntHave('attendanceRecords'));
     }
 
+    private function visibleWhatsAppGroups(Request $request): Builder
+    {
+        return CommunicationWhatsAppGroup::query()
+            ->where('church_id', $this->churchId($request))
+            ->when(! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id, function (Builder $query) use ($request): void {
+                $query->where(function (Builder $scope) use ($request): void {
+                    $scope->where('campus_id', $request->user()->campus_id)
+                        ->orWhereHas('ministry', fn (Builder $ministryQuery) => $ministryQuery->where('campus_id', $request->user()->campus_id));
+                });
+            });
+    }
+
+    private function campaignWhatsAppGroups(CommunicationCampaign $campaign): Collection
+    {
+        $groupIds = collect($campaign->audience_filters['whatsapp_group_ids'] ?? [])
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($groupIds === []) {
+            return collect();
+        }
+
+        return CommunicationWhatsAppGroup::query()
+            ->where('church_id', $campaign->church_id)
+            ->where('enabled', true)
+            ->whereIn('id', $groupIds)
+            ->get();
+    }
+
     private function members(Request $request): Builder
     {
         return Member::query()
+            ->where('church_id', $this->churchId($request))
+            ->when(! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id, fn (Builder $query) => $query->where('campus_id', $request->user()->campus_id));
+    }
+
+    private function ministries(Request $request): Builder
+    {
+        return Ministry::query()
             ->where('church_id', $this->churchId($request))
             ->when(! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id, fn (Builder $query) => $query->where('campus_id', $request->user()->campus_id));
     }
@@ -2291,6 +2739,7 @@ final class CommunicationController extends Controller
     {
         $this->authorizeCommunications($request);
         $campusId = $record->campus_id ?? $record->member?->campus_id ?? $record->user?->campus_id ?? null;
+        $campusId ??= $record->whatsappGroup?->campus_id ?? $record->whatsappGroup?->ministry?->campus_id ?? null;
 
         abort_unless($request->user()?->canAccessChurch($record->church_id ?? null), 403);
         abort_unless($request->user()?->canAccessCampus($campusId), 403);

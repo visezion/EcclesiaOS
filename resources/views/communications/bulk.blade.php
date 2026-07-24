@@ -179,6 +179,39 @@
                                 Save Segment
                             </button>
                         </div>
+                        <div class="border-t border-slate-100 p-4">
+                            <div class="mb-3 flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="messages-square" class="size-4 text-emerald-600"></i>WhatsApp Group Targets</h3>
+                                    <p class="mt-1 text-xs text-slate-500">Send the same message to selected Zender WhatsApp groups for church, campus, or ministry announcements.</p>
+                                </div>
+                                <a href="{{ route('communications.integrations') }}#zender-whatsapp-groups" class="shrink-0 text-xs font-medium text-violet-700">Manage groups</a>
+                            </div>
+                            @if($zenderGroups->isNotEmpty())
+                                <div class="grid gap-2 md:grid-cols-2">
+                                    @foreach($zenderGroups as $group)
+                                        <label class="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm hover:border-emerald-200 hover:bg-emerald-50/40">
+                                            <input type="checkbox" name="whatsapp_group_ids[]" value="{{ $group->id }}" @checked(in_array($group->id, array_map('intval', (array) old('whatsapp_group_ids', request('whatsapp_group_ids', []))), true)) class="mt-1 size-4 rounded border-slate-300 text-emerald-600">
+                                            <span class="min-w-0">
+                                                <span class="block truncate font-medium text-slate-900">{{ $group->name }}</span>
+                                                <span class="mt-1 block text-xs text-slate-500">
+                                                    {{ Str::headline($group->target_scope) }}
+                                                    @if($group->ministry)
+                                                        - {{ $group->ministry->name }}
+                                                    @elseif($group->campus)
+                                                        - {{ $group->campus->name }}
+                                                    @endif
+                                                </span>
+                                            </span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            @else
+                                <div class="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                                    No Zender WhatsApp groups are ready. Sync and assign groups from Communication Integrations.
+                                </div>
+                            @endif
+                        </div>
                         <div class="grid gap-3 border-t border-slate-100 bg-violet-50/70 px-4 py-3 sm:grid-cols-2">
                             <div>
                                 <div class="text-xs text-violet-600">Estimated Audience</div>

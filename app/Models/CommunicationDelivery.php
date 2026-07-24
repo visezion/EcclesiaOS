@@ -12,7 +12,7 @@ final class CommunicationDelivery extends Model
 {
     use UsesOpaqueRouteKeys;
 
-    protected $fillable = ['church_id', 'communication_campaign_id', 'communication_template_id', 'member_id', 'channel', 'provider', 'recipient_name', 'recipient_contact', 'subject', 'body_excerpt', 'event_type', 'status', 'retry_status', 'attempt', 'latency_ms', 'provider_message_id', 'response_code', 'error', 'sent_at', 'delivered_at', 'opened_at', 'read_at'];
+    protected $fillable = ['church_id', 'communication_campaign_id', 'communication_template_id', 'member_id', 'communication_whatsapp_group_id', 'channel', 'provider', 'recipient_name', 'recipient_contact', 'subject', 'body_excerpt', 'event_type', 'status', 'retry_status', 'attempt', 'latency_ms', 'provider_message_id', 'response_code', 'error', 'sent_at', 'delivered_at', 'opened_at', 'read_at'];
 
     protected function casts(): array
     {
@@ -42,5 +42,10 @@ final class CommunicationDelivery extends Model
     public function member(): BelongsTo
     {
         return $this->belongsTo(Member::class);
+    }
+
+    public function whatsappGroup(): BelongsTo
+    {
+        return $this->belongsTo(CommunicationWhatsAppGroup::class, 'communication_whatsapp_group_id');
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Campus;
 use App\Models\Church;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\OrganizationTerminology;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -25,12 +26,14 @@ final class CampusManagementController extends Controller
             ->get();
         $users = $this->userQuery($request)->with(['church', 'campus', 'roles'])->orderBy('name')->get();
         $roles = Role::query()->withCount('users')->orderBy('name')->get();
+        $terminology = OrganizationTerminology::forRequest($request);
 
         return view('admin.campuses', [
             'churches' => $this->churchQuery($request)->withCount('campuses')->orderBy('name')->get(),
             'campuses' => $campuses,
             'users' => $users,
             'roles' => $roles,
+            'terminology' => $terminology,
             'stats' => [
                 'churches' => $this->churchQuery($request)->count(),
                 'campuses' => $campuses->count(),
@@ -41,7 +44,7 @@ final class CampusManagementController extends Controller
             ],
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
-                ['label' => 'Churches & Campuses', 'url' => null],
+                ['label' => 'Churches & '.$terminology['campus_plural'], 'url' => null],
             ],
         ]);
     }
@@ -90,7 +93,9 @@ final class CampusManagementController extends Controller
             'map_y' => random_int(42, 72),
         ]);
 
-        return back()->with('status', 'Campus created.');
+        $terminology = OrganizationTerminology::forRequest($request);
+
+        return back()->with('status', $terminology['campus_singular'].' created.');
     }
 
     public function import(Request $request): RedirectResponse
@@ -152,7 +157,9 @@ final class CampusManagementController extends Controller
 
         fclose($handle);
 
-        return back()->with('status', number_format($imported).' campuses imported.');
+        $terminology = OrganizationTerminology::forRequest($request);
+
+        return back()->with('status', number_format($imported).' '.Str::lower($terminology['campus_plural']).' imported.');
     }
 
     /**

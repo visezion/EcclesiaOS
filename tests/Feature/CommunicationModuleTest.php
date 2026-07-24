@@ -8,6 +8,7 @@ use App\Models\CommunicationCampaign;
 use App\Models\CommunicationDelivery;
 use App\Models\CommunicationProviderSetting;
 use App\Models\CommunicationTemplate;
+use App\Models\CommunicationWhatsAppGroup;
 use App\Models\Member;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
@@ -261,6 +262,14 @@ final class CommunicationModuleTest extends TestCase
         $this->assertSame('android-device-main-campus', $smsProvider->settings['device_id']);
         $this->assertSame('oken', $smsProvider->settings['api_key_last_four']);
 
+        Http::fake([
+            'https://zender.kingdomhub.test/api/get/credits?*' => Http::response([
+                'status' => 200,
+                'message' => 'Remaining Credits',
+                'data' => ['credits' => '100.00', 'currency' => 'USD'],
+            ], 200),
+        ]);
+
         $this->actingAs($user)
             ->post(route('communications.integrations.test', 'sms'))
             ->assertRedirect();
@@ -394,6 +403,76 @@ final class CommunicationModuleTest extends TestCase
         $this->assertSame('1', $smsProvider->settings['sim_slot']);
         $this->assertSame('oken', $whatsappProvider->settings['api_key_last_four']);
 
+        Http::fake([
+            'https://zender.vicezion.com/api/get/wa.groups?*' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'groups' => [
+                        [
+                            'gid' => '120363025551111111@g.us',
+                            'subject' => 'Main Church Announcements',
+                            'participants_count' => 84,
+                            'invite_link' => 'https://chat.whatsapp.com/mainchurch',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('communications.integrations.zender-groups.sync'))
+            ->assertRedirect()
+            ->assertSessionHas('status', '1 WhatsApp groups synced from Zender.');
+
+        Http::assertSent(function ($request): bool {
+            return str_starts_with($request->url(), 'https://zender.vicezion.com/api/get/wa.groups')
+                && str_contains($request->url(), 'secret=zender-live-token')
+                && str_contains($request->url(), 'unique=wa-main-campus');
+        });
+
+        $group = CommunicationWhatsAppGroup::query()->where('name', 'Main Church Announcements')->firstOrFail();
+        $this->assertSame('120363025551111111@g.us', $group->provider_group_id);
+        $this->assertSame(84, $group->participant_count);
+        $this->assertSame('unassigned', $group->target_scope);
+
+        $this->actingAs($user)
+            ->put(route('communications.integrations.update'), [
+                'zender_groups' => [
+                    $group->id => [
+                        'enabled' => '1',
+                        'target_scope' => 'church',
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $group->refresh();
+        $this->assertTrue($group->enabled);
+        $this->assertSame('church', $group->target_scope);
+
+        $this->actingAs($user)
+            ->post(route('communications.integrations.zender-groups.store'), [
+                'name' => 'Manual Prayer Group',
+                'provider_group_id' => '120363099999999999@g.us',
+                'target_scope' => 'church',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'WhatsApp group added.');
+
+        $this->assertDatabaseHas('communication_whatsapp_groups', [
+            'church_id' => $user->church_id,
+            'provider_group_id' => '120363099999999999@g.us',
+            'name' => 'Manual Prayer Group',
+            'target_scope' => 'church',
+            'enabled' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('communications.bulk'))
+            ->assertOk()
+            ->assertSee('WhatsApp Group Targets', false)
+            ->assertSee('Main Church Announcements', false);
+
         UserNotificationPreference::query()->updateOrCreate(
             ['church_id' => $user->church_id, 'member_id' => $member->id],
             [
@@ -427,6 +506,7 @@ final class CommunicationModuleTest extends TestCase
                 'body' => 'Peace family, this is a Zender test.',
                 'send_mode' => 'immediate',
                 'member_status' => 'zender_ready',
+                'whatsapp_group_ids' => [$group->id],
             ])
             ->assertRedirect();
 
@@ -435,6 +515,15 @@ final class CommunicationModuleTest extends TestCase
                 && $request['secret'] === 'zender-live-token'
                 && $request['account'] === 'wa-main-campus'
                 && $request['recipient'] === '+15551234567'
+                && $request['type'] === 'text'
+                && $request['message'] === 'Peace family, this is a Zender test.';
+        });
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://zender.vicezion.com/api/send/whatsapp'
+                && $request['secret'] === 'zender-live-token'
+                && $request['account'] === 'wa-main-campus'
+                && $request['recipient'] === '120363025551111111@g.us'
                 && $request['type'] === 'text'
                 && $request['message'] === 'Peace family, this is a Zender test.';
         });
@@ -450,6 +539,7 @@ final class CommunicationModuleTest extends TestCase
         });
 
         $campaign = CommunicationCampaign::query()->where('name', 'Zender Dispatch Test')->firstOrFail();
+        $this->assertSame(2, $campaign->recipient_count);
 
         $this->assertDatabaseHas('communication_deliveries', [
             'communication_campaign_id' => $campaign->id,
@@ -464,6 +554,14 @@ final class CommunicationModuleTest extends TestCase
             'provider' => 'Zender SMS Gateway',
             'status' => 'delivered',
             'provider_message_id' => 'sms-message-456',
+        ]);
+        $this->assertDatabaseHas('communication_deliveries', [
+            'communication_campaign_id' => $campaign->id,
+            'communication_whatsapp_group_id' => $group->id,
+            'channel' => 'whatsapp',
+            'recipient_name' => 'Main Church Announcements',
+            'recipient_contact' => '120363025551111111@g.us',
+            'status' => 'delivered',
         ]);
     }
 }

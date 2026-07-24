@@ -64,9 +64,9 @@ final class LeadershipReportController extends Controller
             'tabCounts' => $this->tabCounts($request),
             'templates' => $this->templates(),
             'reportSettings' => $this->reportSettings($request),
-            'campuses' => Campus::query()->where('church_id', $this->churchId($request))->orderBy('name')->get(),
-            'ministries' => Ministry::query()->where('church_id', $this->churchId($request))->orderBy('name')->get(),
-            'reporters' => User::query()->where('church_id', $this->churchId($request))->orderBy('name')->get(),
+            'campuses' => $this->visibleCampuses($request)->orderBy('name')->get(),
+            'ministries' => $this->visibleMinistries($request)->orderBy('name')->get(),
+            'reporters' => $this->visibleReporters($request)->orderBy('name')->get(),
             'types' => self::TYPES,
             'statuses' => self::STATUSES,
             'breadcrumbs' => [
@@ -134,9 +134,9 @@ final class LeadershipReportController extends Controller
                 ->latest()
                 ->limit(8)
                 ->get(),
-            'campuses' => Campus::query()->where('church_id', $this->churchId($request))->orderBy('name')->get(),
-            'ministries' => Ministry::query()->where('church_id', $this->churchId($request))->orderBy('name')->get(),
-            'reporters' => User::query()->where('church_id', $this->churchId($request))->orderBy('name')->get(),
+            'campuses' => $this->visibleCampuses($request)->orderBy('name')->get(),
+            'ministries' => $this->visibleMinistries($request)->orderBy('name')->get(),
+            'reporters' => $this->visibleReporters($request)->orderBy('name')->get(),
             'types' => self::TYPES,
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
@@ -267,9 +267,40 @@ final class LeadershipReportController extends Controller
         $query = LeadershipReport::query()->where('church_id', $this->churchId($request));
 
         if (! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id !== null) {
-            $query->where(function ($scope) use ($request): void {
-                $scope->whereNull('campus_id')->orWhere('campus_id', $request->user()->campus_id);
-            });
+            $query->where('campus_id', $request->user()->campus_id);
+        }
+
+        return $query;
+    }
+
+    private function visibleCampuses(Request $request)
+    {
+        $query = Campus::query()->where('church_id', $this->churchId($request));
+
+        if (! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id !== null) {
+            $query->whereKey($request->user()->campus_id);
+        }
+
+        return $query;
+    }
+
+    private function visibleMinistries(Request $request)
+    {
+        $query = Ministry::query()->where('church_id', $this->churchId($request));
+
+        if (! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id !== null) {
+            $query->where('campus_id', $request->user()->campus_id);
+        }
+
+        return $query;
+    }
+
+    private function visibleReporters(Request $request)
+    {
+        $query = User::query()->where('church_id', $this->churchId($request));
+
+        if (! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id !== null) {
+            $query->where('campus_id', $request->user()->campus_id);
         }
 
         return $query;
@@ -329,6 +360,30 @@ final class LeadershipReportController extends Controller
             'supporting_links' => ['nullable', 'string', 'max:3000'],
             'action_items' => ['nullable', 'string', 'max:3000'],
         ]);
+
+        $user = $request->user();
+        if (! $user?->isSuperAdministrator() && $user?->campus_id !== null) {
+            $validated['campus_id'] = $user->campus_id;
+        }
+
+        if (! empty($validated['campus_id'])) {
+            abort_unless($this->visibleCampuses($request)->whereKey($validated['campus_id'])->exists(), 403);
+        }
+
+        if (! empty($validated['ministry_id'])) {
+            $ministry = $this->visibleMinistries($request)->whereKey($validated['ministry_id'])->first();
+            abort_unless($ministry !== null, 403);
+
+            if (empty($validated['campus_id'])) {
+                $validated['campus_id'] = $ministry->campus_id;
+            }
+
+            abort_unless((int) $validated['campus_id'] === (int) $ministry->campus_id, 403);
+        }
+
+        if (! empty($validated['assigned_to'])) {
+            abort_unless($this->visibleReporters($request)->whereKey($validated['assigned_to'])->exists(), 403);
+        }
 
         return [
             'campus_id' => $validated['campus_id'] ?? null,

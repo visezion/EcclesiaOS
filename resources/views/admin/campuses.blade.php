@@ -1,4 +1,4 @@
-<x-app-layout title="Churches & Campuses" :breadcrumbs="$breadcrumbs">
+<x-app-layout title="Churches & {{ $terminology['campus_plural'] }}" :breadcrumbs="$breadcrumbs">
     @php
         $typeColors = [
             'Main Campus' => ['bg' => 'bg-violet-50', 'text' => 'text-violet-700', 'ring' => 'ring-violet-200', 'hex' => '#6d4aff'],
@@ -65,8 +65,8 @@
                         <i data-lucide="network" class="size-7"></i>
                     </div>
                     <div>
-                        <h1 class="text-2xl font-bold text-slate-950">Churches & Campuses</h1>
-                        <p class="text-sm text-slate-500">Manage church branches, campuses and user assignments across your organization.</p>
+                        <h1 class="text-2xl font-bold text-slate-950">Churches & {{ $terminology['campus_plural'] }}</h1>
+                        <p class="text-sm text-slate-500">Manage church {{ Str::lower($terminology['campus_plural']) }}, {{ Str::lower($terminology['ministry_plural']) }}, and user assignments across your organization.</p>
                     </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
@@ -76,7 +76,7 @@
                     </button>
                     <button type="button" x-on:click="addOpen = true" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">
                         <i data-lucide="plus" class="size-4"></i>
-                        Add Church / Campus
+                        Add Church / {{ $terminology['campus_singular'] }}
                         <i data-lucide="chevron-up" class="size-4 rotate-180"></i>
                     </button>
                 </div>
@@ -84,7 +84,7 @@
 
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 <x-stat-card :metric="['label' => 'Total Churches', 'value' => number_format($stats['churches']), 'change' => null, 'period' => 'Active branches', 'icon' => 'network', 'color' => 'purple', 'route' => 'campuses.index']" />
-                <x-stat-card :metric="['label' => 'Total Campuses', 'value' => number_format($stats['campuses']), 'change' => null, 'period' => 'Across all churches', 'icon' => 'building-2', 'color' => 'blue', 'route' => 'campuses.index']" />
+                <x-stat-card :metric="['label' => 'Total '.$terminology['campus_plural'], 'value' => number_format($stats['campuses']), 'change' => null, 'period' => 'Across all churches', 'icon' => 'building-2', 'color' => 'blue', 'route' => 'campuses.index']" />
                 <x-stat-card :metric="['label' => 'Total Users Assigned', 'value' => number_format($stats['assigned']), 'change' => '8.2%', 'period' => 'vs last month', 'icon' => 'user-check', 'color' => 'emerald', 'route' => 'users.index']" />
                 <x-stat-card :metric="['label' => 'Active Assignments', 'value' => number_format($stats['active']), 'change' => null, 'period' => 'Active users', 'icon' => 'user-plus', 'color' => 'orange', 'route' => 'users.index']" />
                 <x-stat-card :metric="['label' => 'Pending Assignments', 'value' => number_format($stats['pending']), 'change' => null, 'period' => 'Awaiting action', 'icon' => 'shield-alert', 'color' => 'rose', 'route' => 'campuses.index']" />
@@ -95,7 +95,7 @@
                 <div class="grid gap-3 border-b border-slate-100 p-4 md:grid-cols-[1fr_160px_180px_160px_auto_auto]">
                     <div class="relative">
                         <i data-lucide="search" class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"></i>
-                        <input x-model="search" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 pr-9 text-sm" placeholder="Search churches or campuses...">
+                        <input x-model="search" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 pr-9 text-sm" placeholder="Search churches or {{ Str::lower($terminology['campus_plural']) }}...">
                     </div>
                     <select x-model="church" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                         <option value="">All Churches</option>
@@ -104,7 +104,7 @@
                         @endforeach
                     </select>
                     <select x-model="type" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                        <option value="">All Campus Types</option>
+                        <option value="">All {{ $terminology['campus_singular'] }} Types</option>
                         @foreach($campuses->pluck('type')->unique()->sort()->values() as $type)
                             <option value="{{ $type }}">{{ $type }}</option>
                         @endforeach
@@ -125,7 +125,7 @@
                         <span class="text-xs font-semibold text-slate-500">Minimum Capacity</span>
                         <input x-model="minCapacity" type="number" min="0" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Any capacity">
                     </label>
-                    <div class="flex items-end text-xs text-slate-500">Filters update the table instantly and keep all campus records loaded.</div>
+                    <div class="flex items-end text-xs text-slate-500">Filters update the table instantly and keep all {{ Str::lower($terminology['campus_singular']) }} records loaded.</div>
                 </div>
 
                 <div class="overflow-x-auto">
@@ -133,8 +133,8 @@
                         <thead>
                             <tr>
                                 <th class="w-9"></th>
-                                <th>Church / Campus</th>
-                                <th>Campus Type</th>
+                                <th>Church / {{ $terminology['campus_singular'] }}</th>
+                                <th>{{ $terminology['campus_singular'] }} Type</th>
                                 <th>Status</th>
                                 <th>Branch Pastor</th>
                                 <th>Church Administrator</th>
@@ -229,7 +229,7 @@
                     </table>
                 </div>
                 <div class="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm text-slate-500">
-                    <span>Showing <span x-text="visibleCampusCount()"></span> of {{ number_format($campuses->count()) }} campuses</span>
+                    <span>Showing <span x-text="visibleCampusCount()"></span> of {{ number_format($campuses->count()) }} {{ Str::lower($terminology['campus_plural']) }}</span>
                     <div class="flex items-center gap-2">
                         <button class="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-400"><i data-lucide="arrow-left" class="size-4"></i></button>
                         <span class="grid size-9 place-items-center rounded-lg bg-violet-600 text-sm font-semibold text-white">1</span>
@@ -241,7 +241,7 @@
             <div class="grid gap-4 xl:grid-cols-[1fr_1fr_1fr]">
                 <section class="dashboard-card">
                     <div class="mb-3 flex items-center justify-between">
-                        <h2 class="text-base font-semibold text-slate-950">Church & Campus Distribution</h2>
+                        <h2 class="text-base font-semibold text-slate-950">Church & {{ $terminology['campus_singular'] }} Distribution</h2>
                         <a href="{{ route('campuses.index') }}" class="text-xs font-semibold text-violet-600">View Map</a>
                     </div>
                     <div class="relative h-56 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
@@ -325,7 +325,7 @@
         <aside class="dashboard-card h-fit xl:sticky xl:top-20">
             <div class="mb-5 flex items-start justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-950">Assign User to Church & Campus</h2>
+                    <h2 class="text-lg font-semibold text-slate-950">Assign User to Church & {{ $terminology['campus_singular'] }}</h2>
                     <p class="mt-1 text-sm text-slate-500">Assign a user to a church and set their access scope.</p>
                 </div>
                 <button type="button" x-on:click="resetAssignment()" class="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-50"><i data-lucide="x" class="size-5"></i></button>
@@ -379,18 +379,18 @@
                 <div>
                     <div class="mb-3 flex items-center gap-3">
                         <span class="grid size-6 place-items-center rounded-md bg-violet-600 text-xs font-semibold text-white">3</span>
-                        <span class="text-sm font-semibold text-slate-900">Select Campus Access</span>
+                        <span class="text-sm font-semibold text-slate-900">Select {{ $terminology['campus_singular'] }} Access</span>
                     </div>
-                    <label class="mb-2 block text-xs font-semibold text-slate-600">Default Campus</label>
+                    <label class="mb-2 block text-xs font-semibold text-slate-600">Default {{ $terminology['campus_singular'] }}</label>
                     <select name="campus_id" x-model="selectedCampusId" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                         @foreach($campuses as $campus)
                             <option value="{{ $campus->id }}">{{ $campus->name }} - {{ $campus->city }}</option>
                         @endforeach
                     </select>
                     <div class="mt-3 space-y-2">
-                        <label class="flex items-start gap-3 rounded-lg p-2 hover:bg-slate-50"><input type="radio" x-model="accessScope" value="single" class="mt-1 text-violet-600"><span><span class="block text-sm font-semibold text-slate-900">Single Campus</span><span class="block text-xs text-slate-500">User will have access to one campus only</span></span></label>
-                        <label class="flex items-start gap-3 rounded-lg p-2 hover:bg-slate-50"><input type="radio" x-model="accessScope" value="multiple" class="mt-1 text-violet-600"><span><span class="block text-sm font-semibold text-slate-900">Multiple Campuses</span><span class="block text-xs text-slate-500">User will have access to selected campuses</span></span></label>
-                        <label class="flex items-start gap-3 rounded-lg p-2 hover:bg-slate-50"><input type="radio" x-model="accessScope" value="all" class="mt-1 text-violet-600"><span><span class="block text-sm font-semibold text-slate-900">All Campuses</span><span class="block text-xs text-slate-500">User will have access to all campuses in this church</span></span></label>
+                        <label class="flex items-start gap-3 rounded-lg p-2 hover:bg-slate-50"><input type="radio" x-model="accessScope" value="single" class="mt-1 text-violet-600"><span><span class="block text-sm font-semibold text-slate-900">Single {{ $terminology['campus_singular'] }}</span><span class="block text-xs text-slate-500">User will have access to one {{ Str::lower($terminology['campus_singular']) }} only</span></span></label>
+                        <label class="flex items-start gap-3 rounded-lg p-2 hover:bg-slate-50"><input type="radio" x-model="accessScope" value="multiple" class="mt-1 text-violet-600"><span><span class="block text-sm font-semibold text-slate-900">Multiple {{ $terminology['campus_plural'] }}</span><span class="block text-xs text-slate-500">User will have access to selected {{ Str::lower($terminology['campus_plural']) }}</span></span></label>
+                        <label class="flex items-start gap-3 rounded-lg p-2 hover:bg-slate-50"><input type="radio" x-model="accessScope" value="all" class="mt-1 text-violet-600"><span><span class="block text-sm font-semibold text-slate-900">All {{ $terminology['campus_plural'] }}</span><span class="block text-xs text-slate-500">User will have access to all {{ Str::lower($terminology['campus_plural']) }} in this church</span></span></label>
                     </div>
                 </div>
 
@@ -408,8 +408,8 @@
                     <label class="mb-2 mt-3 block text-xs font-semibold text-slate-600">Permission Template</label>
                     <select class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                         <option>Default role permissions</option>
-                        <option>Restricted campus access</option>
-                        <option>Full campus management</option>
+                        <option>Restricted {{ Str::lower($terminology['campus_singular']) }} access</option>
+                        <option>Full {{ Str::lower($terminology['campus_singular']) }} management</option>
                     </select>
                 </div>
 
@@ -427,13 +427,13 @@
             <form method="POST" action="{{ route('campuses.store') }}" class="w-full max-w-2xl rounded-xl bg-white p-5 shadow-2xl">
                 @csrf
                 <div class="mb-4 flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-slate-950">Add Church / Campus</h2>
+                    <h2 class="text-lg font-semibold text-slate-950">Add Church / {{ $terminology['campus_singular'] }}</h2>
                     <button type="button" x-on:click="addOpen = false" class="text-slate-400"><i data-lucide="x" class="size-5"></i></button>
                 </div>
                 <div class="grid gap-3 md:grid-cols-2">
                     <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Existing Church</span><select name="church_id" class="w-full rounded-lg border border-slate-200 px-3 py-2"><option value="">Create new church</option>@foreach($churches as $church)<option value="{{ $church->id }}">{{ $church->name }}</option>@endforeach</select></label>
                     <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">New Church Name</span><input name="church_name" class="w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="Only needed for new church"></label>
-                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Campus Name</span><input name="name" required class="w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="Main Campus"></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">{{ $terminology['campus_singular'] }} Name</span><input name="name" required class="w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="Main {{ $terminology['campus_singular'] }}"></label>
                     <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Type</span><select name="type" required class="w-full rounded-lg border border-slate-200 px-3 py-2"><option>Main Campus</option><option>Regional Campus</option><option>City Campus</option><option>Online Campus</option><option>Ministry Campus</option></select></label>
                     <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">City</span><input name="city" required class="w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="Dallas"></label>
                     <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Country</span><input name="country" required value="USA" class="w-full rounded-lg border border-slate-200 px-3 py-2"></label>
@@ -443,7 +443,7 @@
                 </div>
                 <div class="mt-5 flex justify-end gap-3">
                     <button type="button" x-on:click="addOpen = false" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
-                    <button type="submit" class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white">Save Campus</button>
+                    <button type="submit" class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white">Save {{ $terminology['campus_singular'] }}</button>
                 </div>
             </form>
         </div>
@@ -456,7 +456,7 @@
                     <button type="button" x-on:click="importOpen = false" class="text-slate-400"><i data-lucide="x" class="size-5"></i></button>
                 </div>
                 <input name="import_file" type="file" accept=".csv,.txt" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                <p class="mt-2 text-xs text-slate-500">CSV columns: church, campus, type, city, country, status.</p>
+                <p class="mt-2 text-xs text-slate-500">CSV columns: church, {{ Str::lower($terminology['campus_singular']) }}, type, city, country, status.</p>
                 <div class="mt-5 flex justify-end gap-3">
                     <button type="button" x-on:click="importOpen = false" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
                     <button type="submit" class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white">Import</button>

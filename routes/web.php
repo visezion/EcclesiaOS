@@ -15,6 +15,7 @@ use App\Http\Controllers\EventFlowController;
 use App\Http\Controllers\FamilyManagementController;
 use App\Http\Controllers\LeadershipReportController;
 use App\Http\Controllers\MemberManagementController;
+use App\Http\Controllers\MinistryController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\ModuleManagementController;
 use App\Http\Controllers\PastoralCareController;
@@ -105,6 +106,10 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('members/{member}/assign-ministry', [MemberManagementController::class, 'assignMinistry'])->name('members.assign-ministry');
     Route::put('members/{member}', [MemberManagementController::class, 'update'])->name('members.update');
     Route::delete('members/{member}', [MemberManagementController::class, 'destroy'])->name('members.destroy');
+    Route::get('ministries', [MinistryController::class, 'index'])->name('ministries.index');
+    Route::post('ministries', [MinistryController::class, 'store'])->name('ministries.store');
+    Route::put('ministries/{ministry}', [MinistryController::class, 'update'])->name('ministries.update');
+    Route::delete('ministries/{ministry}', [MinistryController::class, 'destroy'])->name('ministries.destroy');
     Route::get('families', [FamilyManagementController::class, 'index'])->name('families.index');
     Route::post('families', [FamilyManagementController::class, 'store'])->name('families.store');
     Route::get('families/export', [FamilyManagementController::class, 'export'])->name('families.export');
@@ -146,6 +151,8 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('communications/integrations', fn () => redirect()->route('communications.integrations'));
     Route::get('administration/communication-integrations', [CommunicationController::class, 'integrations'])->name('communications.integrations');
     Route::put('administration/communication-integrations', [CommunicationController::class, 'updateIntegrations'])->name('communications.integrations.update');
+    Route::post('administration/communication-integrations/zender/groups', [CommunicationController::class, 'storeZenderWhatsAppGroup'])->name('communications.integrations.zender-groups.store');
+    Route::post('administration/communication-integrations/zender/groups/sync', [CommunicationController::class, 'syncZenderWhatsAppGroups'])->name('communications.integrations.zender-groups.sync');
     Route::post('administration/communication-integrations/{channel}/test', [CommunicationController::class, 'testIntegration'])->name('communications.integrations.test');
     Route::get('administration/users', UserDirectoryController::class)->name('users.index');
     Route::get('administration/users/export', [UserDirectoryController::class, 'export'])->name('users.export');
@@ -183,7 +190,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'families.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'developer-hub.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'developer-hub.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
             continue;
         }
 
