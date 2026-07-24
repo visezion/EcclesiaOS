@@ -46,7 +46,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased text-slate-900" style="{{ $cssStyle }}">
-        <div x-data="{ sidebarOpen: false }" class="app-shell min-h-screen">
+        <div x-data="{ sidebarOpen: false, mobileSearchOpen: false }" class="app-shell min-h-screen">
             <x-sidebar />
             <div x-show="sidebarOpen" x-transition.opacity class="fixed inset-0 z-30 bg-slate-950/50 lg:hidden" x-on:click="sidebarOpen = false"></div>
             <div class="lg:pl-72">

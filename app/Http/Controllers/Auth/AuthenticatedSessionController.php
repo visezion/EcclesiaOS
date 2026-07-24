@@ -22,10 +22,21 @@ final class AuthenticatedSessionController extends Controller
     public function store(LoginRequest $request, ActivityLogger $activityLogger): RedirectResponse
     {
         $request->authenticate();
+
+        $user = $request->user();
+
+        if ($user?->mfa_enabled && data_get($user->account_settings, 'security.mfa_confirmed') && filled(data_get($user->account_settings, 'security.mfa_secret_encrypted'))) {
+            $request->session()->put('login.mfa_user_id', $user->id);
+            $request->session()->put('login.remember', $request->boolean('remember'));
+            Auth::guard('web')->logout();
+
+            return redirect()->route('login.mfa')->with('status', 'Password confirmed. Complete multi-factor authentication to continue.');
+        }
+
         $request->session()->regenerate();
 
-        $request->user()?->forceFill(['last_login_at' => now()])->save();
-        $activityLogger->log('Authentication', 'login', 'User signed in.', $request->user(), request: $request);
+        $user?->forceFill(['last_login_at' => now()])->save();
+        $activityLogger->log('Authentication', 'login', 'User signed in.', $user, request: $request);
 
         return redirect()->intended(route('dashboard', absolute: false));
     }

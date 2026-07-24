@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountSettingsController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\MfaController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BrandingController;
@@ -35,6 +36,8 @@ Route::post('webhooks/meeting-attendance/{provider}', [EventFlowController::clas
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
+    Route::get('login/mfa', [MfaController::class, 'challenge'])->name('login.mfa');
+    Route::post('login/mfa', [MfaController::class, 'verify'])->name('login.mfa.verify');
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
@@ -88,6 +91,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('leadership-reports/settings', [LeadershipReportController::class, 'updateSettings'])->name('leadership-reports.settings.update');
     Route::get('leadership-reports/export', [LeadershipReportController::class, 'export'])->name('leadership-reports.export');
     Route::get('leadership-reports/{leadershipReport}', [LeadershipReportController::class, 'show'])->name('leadership-reports.show');
+    Route::put('leadership-reports/{leadershipReport}', [LeadershipReportController::class, 'update'])->name('leadership-reports.update');
     Route::put('leadership-reports/{leadershipReport}/review', [LeadershipReportController::class, 'review'])->name('leadership-reports.review');
     Route::get('members', [MemberManagementController::class, 'index'])->name('members.index');
     Route::get('members/create', [MemberManagementController::class, 'create'])->name('members.create');
@@ -193,6 +197,9 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('account/settings', [AccountSettingsController::class, 'edit'])->name('account.settings');
     Route::put('account/settings', [AccountSettingsController::class, 'update'])->name('account.settings.update');
     Route::post('account/settings/test-notification', [AccountSettingsController::class, 'testNotification'])->name('account.settings.test-notification');
+    Route::get('account/mfa/setup', [AccountSettingsController::class, 'mfaSetup'])->name('account.mfa.setup');
+    Route::post('account/mfa/confirm', [AccountSettingsController::class, 'confirmMfa'])->name('account.mfa.confirm');
+    Route::post('account/mfa/recovery-codes', [AccountSettingsController::class, 'regenerateRecoveryCodes'])->name('account.mfa.recovery-codes');
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     Route::get('admin-only', fn () => 'ok')->middleware('role:Super Administrator')->name('admin.only');
 });

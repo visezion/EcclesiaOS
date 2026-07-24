@@ -80,65 +80,39 @@ final class LeadershipReportController extends Controller
     {
         $this->authorizeReports($request);
 
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:180'],
-            'report_type' => ['required', Rule::in(self::TYPES)],
-            'campus_id' => ['nullable', 'exists:campuses,id'],
-            'ministry_id' => ['nullable', 'exists:ministries,id'],
-            'assigned_to' => ['nullable', 'exists:users,id'],
-            'period_start' => ['required', 'date'],
-            'period_end' => ['required', 'date', 'after_or_equal:period_start'],
-            'priority' => ['required', Rule::in(['low', 'normal', 'high', 'urgent'])],
-            'summary' => ['required', 'string', 'max:5000'],
-            'attendance_score' => ['nullable', 'integer', 'min:0', 'max:100'],
-            'discipleship_score' => ['nullable', 'integer', 'min:0', 'max:100'],
-            'care_followups' => ['nullable', 'integer', 'min:0', 'max:100000'],
-            'volunteer_coverage' => ['nullable', 'integer', 'min:0', 'max:100'],
-            'service_notes' => ['nullable', 'string', 'max:3000'],
-            'issues' => ['nullable', 'string', 'max:3000'],
-            'plans' => ['nullable', 'string', 'max:3000'],
-            'supporting_links' => ['nullable', 'string', 'max:3000'],
-            'action_items' => ['nullable', 'string', 'max:3000'],
-        ]);
-
         $status = $request->boolean('submit') ? 'submitted' : 'draft';
-        $report = LeadershipReport::query()->create([
+        $report = LeadershipReport::query()->create($this->reportPayload($request, $status) + [
             'church_id' => $this->churchId($request),
-            'campus_id' => $validated['campus_id'] ?? null,
-            'ministry_id' => $validated['ministry_id'] ?? null,
             'submitted_by' => $request->user()->id,
-            'assigned_to' => $validated['assigned_to'] ?? null,
-            'title' => $validated['title'],
-            'report_type' => $validated['report_type'],
-            'period_start' => $validated['period_start'],
-            'period_end' => $validated['period_end'],
-            'status' => $status,
-            'priority' => $validated['priority'],
-            'summary' => $validated['summary'],
-            'submitted_at' => $status === 'submitted' ? now() : null,
-            'due_at' => now()->addDays($validated['priority'] === 'urgent' ? 1 : 3),
-            'metrics' => [
-                'attendance_score' => (int) ($validated['attendance_score'] ?? 0),
-                'discipleship_score' => (int) ($validated['discipleship_score'] ?? 0),
-                'care_followups' => (int) ($validated['care_followups'] ?? 0),
-                'volunteer_coverage' => (int) ($validated['volunteer_coverage'] ?? 0),
-                'service_notes' => $validated['service_notes'] ?? null,
-                'issues' => $validated['issues'] ?? null,
-                'plans' => $validated['plans'] ?? null,
-                'supporting_links' => collect(preg_split('/\r\n|\r|\n/', (string) ($validated['supporting_links'] ?? '')))
-                    ->filter()
-                    ->values()
-                    ->all(),
-            ],
-            'action_items' => collect(preg_split('/\r\n|\r|\n/', (string) ($validated['action_items'] ?? '')))
-                ->filter()
-                ->values()
-                ->all(),
         ]);
 
         $activityLogger->log('Leadership Reports', 'leadership_report_created', $report->title.' was created.', $report, ['resource' => 'Leadership Report', 'status' => $status], $request);
 
         return redirect()->route('leadership-reports.index', ['report' => $report->opaqueId()])->with('status', 'Leadership report saved.');
+    }
+
+    public function update(Request $request, LeadershipReport $leadershipReport, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeReports($request);
+
+        $report = $this->visibleReports($request)
+            ->whereKey($leadershipReport->id)
+            ->firstOrFail();
+
+        abort_unless(in_array($report->status, ['draft', 'returned'], true), 403);
+
+        $status = $request->boolean('submit') ? 'submitted' : 'draft';
+        $payload = $this->reportPayload($request, $status);
+
+        if ($status === 'submitted' && $report->submitted_at === null) {
+            $payload['submitted_at'] = now();
+        }
+
+        $report->update($payload);
+
+        $activityLogger->log('Leadership Reports', 'leadership_report_updated', $report->title.' was updated.', $report, ['resource' => 'Leadership Report', 'status' => $status], $request);
+
+        return redirect()->route('leadership-reports.show', $report)->with('status', $status === 'submitted' ? 'Leadership report submitted.' : 'Leadership report draft updated.');
     }
 
     public function show(Request $request, LeadershipReport $leadershipReport): View
@@ -160,6 +134,10 @@ final class LeadershipReportController extends Controller
                 ->latest()
                 ->limit(8)
                 ->get(),
+            'campuses' => Campus::query()->where('church_id', $this->churchId($request))->orderBy('name')->get(),
+            'ministries' => Ministry::query()->where('church_id', $this->churchId($request))->orderBy('name')->get(),
+            'reporters' => User::query()->where('church_id', $this->churchId($request))->orderBy('name')->get(),
+            'types' => self::TYPES,
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
                 ['label' => 'Pastor & Leadership Reports', 'url' => route('leadership-reports.index')],
@@ -327,6 +305,62 @@ final class LeadershipReportController extends Controller
             'to-me' => $query->where('assigned_to', auth()->id()),
             default => $query,
         };
+    }
+
+    private function reportPayload(Request $request, string $status): array
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:180'],
+            'report_type' => ['required', Rule::in(self::TYPES)],
+            'campus_id' => ['nullable', 'exists:campuses,id'],
+            'ministry_id' => ['nullable', 'exists:ministries,id'],
+            'assigned_to' => ['nullable', 'exists:users,id'],
+            'period_start' => ['required', 'date'],
+            'period_end' => ['required', 'date', 'after_or_equal:period_start'],
+            'priority' => ['required', Rule::in(['low', 'normal', 'high', 'urgent'])],
+            'summary' => ['required', 'string', 'max:5000'],
+            'attendance_score' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'discipleship_score' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'care_followups' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'volunteer_coverage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'service_notes' => ['nullable', 'string', 'max:3000'],
+            'issues' => ['nullable', 'string', 'max:3000'],
+            'plans' => ['nullable', 'string', 'max:3000'],
+            'supporting_links' => ['nullable', 'string', 'max:3000'],
+            'action_items' => ['nullable', 'string', 'max:3000'],
+        ]);
+
+        return [
+            'campus_id' => $validated['campus_id'] ?? null,
+            'ministry_id' => $validated['ministry_id'] ?? null,
+            'assigned_to' => $validated['assigned_to'] ?? null,
+            'title' => $validated['title'],
+            'report_type' => $validated['report_type'],
+            'period_start' => $validated['period_start'],
+            'period_end' => $validated['period_end'],
+            'status' => $status,
+            'priority' => $validated['priority'],
+            'summary' => $validated['summary'],
+            'submitted_at' => $status === 'submitted' ? now() : null,
+            'due_at' => now()->addDays($validated['priority'] === 'urgent' ? 1 : 3),
+            'metrics' => [
+                'attendance_score' => (int) ($validated['attendance_score'] ?? 0),
+                'discipleship_score' => (int) ($validated['discipleship_score'] ?? 0),
+                'care_followups' => (int) ($validated['care_followups'] ?? 0),
+                'volunteer_coverage' => (int) ($validated['volunteer_coverage'] ?? 0),
+                'service_notes' => $validated['service_notes'] ?? null,
+                'issues' => $validated['issues'] ?? null,
+                'plans' => $validated['plans'] ?? null,
+                'supporting_links' => collect(preg_split('/\r\n|\r|\n/', (string) ($validated['supporting_links'] ?? '')))
+                    ->filter()
+                    ->values()
+                    ->all(),
+            ],
+            'action_items' => collect(preg_split('/\r\n|\r|\n/', (string) ($validated['action_items'] ?? '')))
+                ->filter()
+                ->values()
+                ->all(),
+        ];
     }
 
     private function stats(Request $request): array

@@ -27,8 +27,10 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 final class CommunicationController extends Controller
 {
@@ -860,6 +862,7 @@ final class CommunicationController extends Controller
 
         return view('communications.integrations', $this->shared($request) + [
             'settings' => $this->providerSettings($request),
+            'zenderSettings' => $this->zenderSettings($request),
             'stats' => $this->integrationStats($request),
             'providerHealth' => $this->providerHealth($request),
             'providerCatalog' => $this->providerCatalog(),
@@ -873,7 +876,7 @@ final class CommunicationController extends Controller
     {
         $this->authorizeCommunicationIntegrations($request);
         $validated = $request->validate([
-            'providers' => ['required', 'array'],
+            'providers' => ['nullable', 'array'],
             'providers.*.enabled' => ['nullable', 'boolean'],
             'providers.*.provider' => ['required', 'string', 'max:80'],
             'providers.*.sender_identity' => ['nullable', 'string', 'max:180'],
@@ -884,16 +887,27 @@ final class CommunicationController extends Controller
             'providers.*.api_key' => ['nullable', 'string', 'max:1000'],
             'providers.*.account_id' => ['nullable', 'string', 'max:180'],
             'providers.*.device_id' => ['nullable', 'string', 'max:180'],
+            'providers.*.gateway_id' => ['nullable', 'string', 'max:180'],
+            'providers.*.sim_slot' => ['nullable', Rule::in(['1', '2'])],
             'providers.*.sender_number' => ['nullable', 'string', 'max:80'],
             'providers.*.webhook_url' => ['nullable', 'url', 'max:255'],
             'providers.*.queue' => ['nullable', 'string', 'max:80'],
             'providers.*.workers' => ['nullable', 'integer', 'min:1', 'max:100'],
             'providers.*.daily_limit' => ['nullable', 'integer', 'min:1', 'max:10000000'],
             'providers.*.region' => ['nullable', 'string', 'max:120'],
+            'zender' => ['nullable', 'array'],
+            'zender.enabled' => ['nullable', 'boolean'],
+            'zender.site_url' => ['nullable', 'url', 'max:255'],
+            'zender.api_key' => ['nullable', 'string', 'max:1000'],
+            'zender.service' => ['nullable', Rule::in(['sms', 'whatsapp'])],
+            'zender.whatsapp_account_id' => ['nullable', 'string', 'max:180'],
+            'zender.device_unique_id' => ['nullable', 'string', 'max:180'],
+            'zender.gateway_unique_id' => ['nullable', 'string', 'max:180'],
+            'zender.sim_slot' => ['nullable', Rule::in(['1', '2'])],
         ]);
 
         foreach (self::CHANNELS as $channel) {
-            $input = $validated['providers'][$channel] ?? [];
+            $input = ($validated['providers'] ?? [])[$channel] ?? [];
             if ($input === []) {
                 continue;
             }
@@ -907,12 +921,14 @@ final class CommunicationController extends Controller
                 'account_id' => $input['account_id'] ?? null,
                 'device_id' => $input['device_id'] ?? null,
                 'sender_number' => $input['sender_number'] ?? null,
+                'gateway_id' => $input['gateway_id'] ?? ($settings['gateway_id'] ?? null),
+                'sim_slot' => $input['sim_slot'] ?? ($settings['sim_slot'] ?? null),
                 'webhook_url' => $input['webhook_url'] ?? null,
                 'queue' => $input['queue'] ?? $channel.'_queue',
                 'workers' => (int) ($input['workers'] ?? ($settings['workers'] ?? 4)),
                 'daily_limit' => (int) ($input['daily_limit'] ?? ($settings['daily_limit'] ?? 100000)),
                 'region' => $input['region'] ?? ($settings['region'] ?? 'US Central'),
-                'provider_url' => Str::contains(Str::lower((string) $input['provider']), 'zender') ? 'https://codecanyon.net/item/zender-android-mobile-devices-as-sms-gateway-saas-platform/26594230' : ($settings['provider_url'] ?? null),
+                'provider_url' => Str::contains(Str::lower((string) $input['provider']), 'zender') ? ($input['endpoint_url'] ?? $settings['endpoint_url'] ?? 'https://zender.vicezion.com') : ($settings['provider_url'] ?? null),
             ]);
             if (filled($input['api_key'] ?? null)) {
                 $settings['api_key_encrypted'] = Crypt::encryptString((string) $input['api_key']);
@@ -932,6 +948,8 @@ final class CommunicationController extends Controller
                 ],
             );
         }
+
+        $this->applyZenderSettings($request, $validated['zender'] ?? []);
 
         $activityLogger->log('Communications', 'integrations_updated', 'Communication channel integrations were updated.', null, ['resource' => 'Communication Settings', 'status' => 'success'], $request);
 
@@ -1003,13 +1021,9 @@ final class CommunicationController extends Controller
                 }
 
                 $setting = $settings[$channel] ?? null;
-                $enabled = $channel === 'in_app' || (bool) $setting?->enabled;
-                $status = $enabled ? 'delivered' : 'failed';
                 $sent++;
-                $delivered += $status === 'delivered' ? 1 : 0;
-                $failed += $status === 'failed' ? 1 : 0;
-
-                CommunicationDelivery::query()->create([
+                $recipientContact = $this->recipientContact($recipient, $channel);
+                $delivery = CommunicationDelivery::query()->create([
                     'church_id' => $campaign->church_id,
                     'communication_campaign_id' => $campaign->id,
                     'communication_template_id' => $campaign->template_id,
@@ -1017,21 +1031,21 @@ final class CommunicationController extends Controller
                     'channel' => $channel,
                     'provider' => $setting?->provider ?? ($channel === 'in_app' ? 'Internal' : Str::headline($channel)),
                     'recipient_name' => $recipient->name,
-                    'recipient_contact' => $this->recipientContact($recipient, $channel),
+                    'recipient_contact' => $recipientContact,
                     'subject' => $campaign->subject,
                     'body_excerpt' => Str::limit(strip_tags($campaign->body), 180),
                     'event_type' => $campaign->template?->trigger_event ?? 'BulkCampaign',
-                    'status' => $status,
-                    'retry_status' => $status === 'failed' ? 'queued' : 'none',
+                    'status' => 'queued',
+                    'retry_status' => 'none',
                     'attempt' => 1,
-                    'latency_ms' => $status === 'delivered' ? random_int(90, 900) : null,
-                    'provider_message_id' => strtoupper($channel).'-'.Str::upper(Str::random(10)),
-                    'response_code' => $status === 'delivered' ? '200 OK' : 'Provider disabled',
-                    'error' => $status === 'failed' ? 'Channel is not enabled in communication integrations.' : null,
-                    'sent_at' => now(),
-                    'delivered_at' => $status === 'delivered' ? now() : null,
-                    'read_at' => $channel === 'in_app' && $status === 'delivered' ? null : null,
+                    'read_at' => null,
                 ]);
+
+                $outcome = $this->dispatchDeliveryOutcome($channel, $setting, $recipientContact, $campaign->body);
+                $delivery->update($outcome);
+                $status = $outcome['status'];
+                $delivered += $status === 'delivered' ? 1 : 0;
+                $failed += $status === 'failed' ? 1 : 0;
             }
             $recipient->update(['status' => 'sent']);
         }
@@ -1052,6 +1066,219 @@ final class CommunicationController extends Controller
             'sms', 'whatsapp' => $recipient->phone,
             default => $recipient->email,
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dispatchDeliveryOutcome(string $channel, ?CommunicationProviderSetting $setting, ?string $recipientContact, string $message): array
+    {
+        if ($channel === 'in_app') {
+            return $this->successfulDeliveryOutcome($channel, random_int(90, 900), '200 OK');
+        }
+
+        if (! $setting?->enabled) {
+            return $this->failedDeliveryOutcome('Provider disabled', 'Channel is not enabled in communication integrations.');
+        }
+
+        $configurationError = $this->providerConfigurationError($setting);
+        if ($configurationError !== null) {
+            return $this->failedDeliveryOutcome('Configuration check failed', $configurationError);
+        }
+
+        if (blank($recipientContact)) {
+            return $this->failedDeliveryOutcome('Missing recipient', 'Recipient contact is missing for this channel.');
+        }
+
+        if (in_array($channel, ['sms', 'whatsapp'], true) && Str::contains(Str::lower($setting->provider), 'zender')) {
+            return $this->sendZenderMessage($channel, $setting, (string) $recipientContact, $message);
+        }
+
+        return $this->successfulDeliveryOutcome($channel, random_int(90, 900), '200 OK');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sendZenderMessage(string $channel, CommunicationProviderSetting $setting, string $recipientContact, string $message): array
+    {
+        $startedAt = microtime(true);
+        $settings = $setting->settings ?? [];
+        $siteUrl = $this->normalizedZenderSiteUrl($settings['endpoint_url'] ?? null);
+        $apiKey = $this->decryptProviderApiKey($setting);
+
+        if ($siteUrl === null || $apiKey === null) {
+            return $this->failedDeliveryOutcome('Configuration check failed', 'Zender site URL and API key are required.');
+        }
+
+        $payload = $this->zenderPayload($channel, $settings, $apiKey, $recipientContact, $message);
+
+        try {
+            $response = Http::asForm()
+                ->timeout(15)
+                ->post($siteUrl.'/api/send/'.$channel, $payload);
+        } catch (Throwable $exception) {
+            return $this->failedDeliveryOutcome('Connection failed', Str::limit($exception->getMessage(), 240));
+        }
+
+        $latency = (int) round((microtime(true) - $startedAt) * 1000);
+        $json = $response->json();
+        $accepted = $response->successful() && $this->zenderResponseAccepted(is_array($json) ? $json : null);
+
+        if (! $accepted) {
+            return $this->failedDeliveryOutcome(
+                'HTTP '.$response->status(),
+                Str::limit((string) (is_array($json) ? (data_get($json, 'message') ?? json_encode($json)) : $response->body()), 240),
+                $latency,
+            );
+        }
+
+        return $this->successfulDeliveryOutcome(
+            $channel,
+            $latency,
+            'HTTP '.$response->status(),
+            $this->zenderMessageId(is_array($json) ? $json : null, $channel),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     * @return array<string, string|int>
+     */
+    private function zenderPayload(string $channel, array $settings, string $apiKey, string $recipientContact, string $message): array
+    {
+        $cleanMessage = trim((string) Str::of(strip_tags($message))->replaceMatches('/\s+/', ' '));
+
+        if ($channel === 'whatsapp') {
+            return [
+                'secret' => $apiKey,
+                'account' => (string) ($settings['account_id'] ?? ''),
+                'recipient' => $recipientContact,
+                'type' => 'text',
+                'message' => $cleanMessage,
+                'priority' => 2,
+            ];
+        }
+
+        $payload = [
+            'secret' => $apiKey,
+            'mode' => filled($settings['gateway_id'] ?? null) ? 'credits' : 'devices',
+            'phone' => $recipientContact,
+            'message' => $cleanMessage,
+            'priority' => 2,
+        ];
+
+        if (filled($settings['device_id'] ?? null)) {
+            $payload['device'] = (string) $settings['device_id'];
+        }
+
+        if (filled($settings['gateway_id'] ?? null)) {
+            $payload['gateway'] = (string) $settings['gateway_id'];
+        }
+
+        if (filled($settings['sim_slot'] ?? null)) {
+            $payload['sim'] = (int) $settings['sim_slot'];
+        }
+
+        return $payload;
+    }
+
+    private function normalizedZenderSiteUrl(?string $siteUrl): ?string
+    {
+        if (blank($siteUrl)) {
+            return null;
+        }
+
+        return rtrim(trim((string) $siteUrl), '/');
+    }
+
+    private function decryptProviderApiKey(CommunicationProviderSetting $setting): ?string
+    {
+        $encrypted = $setting->settings['api_key_encrypted'] ?? null;
+        if (blank($encrypted)) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString((string) $encrypted);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $json
+     */
+    private function zenderResponseAccepted(?array $json): bool
+    {
+        if ($json === null) {
+            return true;
+        }
+
+        $status = data_get($json, 'status');
+        if (is_numeric($status) && (int) $status >= 400) {
+            return false;
+        }
+
+        if (is_string($status) && in_array(Str::lower($status), ['error', 'fail', 'failed', 'false'], true)) {
+            return false;
+        }
+
+        if (data_get($json, 'data') === false || data_get($json, 'success') === false) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $json
+     */
+    private function zenderMessageId(?array $json, string $channel): string
+    {
+        $messageId = data_get($json, 'data.id')
+            ?? data_get($json, 'data.message_id')
+            ?? data_get($json, 'data.messageId')
+            ?? data_get($json, 'message_id')
+            ?? data_get($json, 'messageId');
+
+        return filled($messageId)
+            ? (string) $messageId
+            : 'ZENDER-'.strtoupper($channel).'-'.Str::upper(Str::random(10));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function successfulDeliveryOutcome(string $channel, int $latencyMs, string $responseCode, ?string $messageId = null): array
+    {
+        return [
+            'status' => 'delivered',
+            'retry_status' => 'none',
+            'latency_ms' => $latencyMs,
+            'provider_message_id' => $messageId ?? strtoupper($channel).'-'.Str::upper(Str::random(10)),
+            'response_code' => $responseCode,
+            'error' => null,
+            'sent_at' => now(),
+            'delivered_at' => now(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function failedDeliveryOutcome(string $responseCode, string $error, ?int $latencyMs = null): array
+    {
+        return [
+            'status' => 'failed',
+            'retry_status' => 'queued',
+            'latency_ms' => $latencyMs,
+            'provider_message_id' => null,
+            'response_code' => $responseCode,
+            'error' => $error,
+            'sent_at' => now(),
+            'delivered_at' => null,
+        ];
     }
 
     private function shared(Request $request): array
@@ -1083,7 +1310,7 @@ final class CommunicationController extends Controller
             'in_app' => ['System Channel', true],
             'email' => ['SendGrid', false],
             'sms' => ['Zender SMS Gateway', false],
-            'whatsapp' => ['Meta WhatsApp', false],
+            'whatsapp' => ['Zender WhatsApp Gateway', false],
             'push' => ['Firebase Cloud Messaging', false],
         ];
 
@@ -1099,13 +1326,119 @@ final class CommunicationController extends Controller
                         'workers' => $channel === 'in_app' ? 4 : 8,
                         'daily_limit' => $channel === 'sms' ? 250000 : 100000,
                         'region' => 'US Central',
-                        'provider_url' => $channel === 'sms' ? 'https://codecanyon.net/item/zender-android-mobile-devices-as-sms-gateway-saas-platform/26594230' : null,
+                        'endpoint_url' => in_array($channel, ['sms', 'whatsapp'], true) ? 'https://zender.vicezion.com' : null,
+                        'provider_url' => in_array($channel, ['sms', 'whatsapp'], true) ? 'https://zender.vicezion.com' : null,
                     ],
                 ],
             );
         }
 
         return CommunicationProviderSetting::query()->where('church_id', $churchId)->orderByRaw("case channel when 'in_app' then 1 when 'email' then 2 when 'sms' then 3 when 'whatsapp' then 4 else 5 end")->get();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function zenderSettings(Request $request): array
+    {
+        $settings = $this->providerSettings($request)->keyBy('channel');
+        $smsSettings = $settings->get('sms')?->settings ?? [];
+        $whatsappSettings = $settings->get('whatsapp')?->settings ?? [];
+
+        return [
+            'enabled' => (bool) ($settings->get('sms')?->enabled || $settings->get('whatsapp')?->enabled),
+            'site_url' => $this->normalizedZenderSiteUrl($smsSettings['endpoint_url'] ?? $whatsappSettings['endpoint_url'] ?? null) ?? 'https://zender.vicezion.com',
+            'api_key_last_four' => $smsSettings['api_key_last_four'] ?? $whatsappSettings['api_key_last_four'] ?? null,
+            'service' => $smsSettings['default_service'] ?? $whatsappSettings['default_service'] ?? 'whatsapp',
+            'whatsapp_account_id' => $whatsappSettings['account_id'] ?? '',
+            'device_unique_id' => $smsSettings['device_id'] ?? '',
+            'gateway_unique_id' => $smsSettings['gateway_id'] ?? '',
+            'sim_slot' => $smsSettings['sim_slot'] ?? '',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $zender
+     */
+    private function applyZenderSettings(Request $request, array $zender): void
+    {
+        if ($zender === []) {
+            return;
+        }
+
+        $churchId = $this->churchId($request);
+        $siteUrl = $this->normalizedZenderSiteUrl($zender['site_url'] ?? null) ?? 'https://zender.vicezion.com';
+        $service = (string) ($zender['service'] ?? 'whatsapp');
+        $enabled = (bool) ($zender['enabled'] ?? false);
+        $apiKey = (string) ($zender['api_key'] ?? '');
+
+        $this->upsertZenderChannelSetting(
+            $churchId,
+            'sms',
+            'Zender SMS Gateway',
+            $enabled && ($service === 'sms' || filled($zender['device_unique_id'] ?? null) || filled($zender['gateway_unique_id'] ?? null)),
+            [
+                'endpoint_url' => $siteUrl,
+                'provider_url' => $siteUrl,
+                'default_service' => $service,
+                'device_id' => $zender['device_unique_id'] ?? null,
+                'gateway_id' => $zender['gateway_unique_id'] ?? null,
+                'sim_slot' => $zender['sim_slot'] ?? null,
+                'queue' => 'sms_queue',
+                'workers' => 8,
+                'daily_limit' => 250000,
+                'region' => 'US Central',
+            ],
+            $apiKey,
+        );
+
+        $this->upsertZenderChannelSetting(
+            $churchId,
+            'whatsapp',
+            'Zender WhatsApp Gateway',
+            $enabled && ($service === 'whatsapp' || filled($zender['whatsapp_account_id'] ?? null)),
+            [
+                'endpoint_url' => $siteUrl,
+                'provider_url' => $siteUrl,
+                'default_service' => $service,
+                'account_id' => $zender['whatsapp_account_id'] ?? null,
+                'queue' => 'whatsapp_queue',
+                'workers' => 8,
+                'daily_limit' => 100000,
+                'region' => 'US Central',
+            ],
+            $apiKey,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     */
+    private function upsertZenderChannelSetting(int $churchId, string $channel, string $provider, bool $enabled, array $settings, string $apiKey): void
+    {
+        $existing = CommunicationProviderSetting::query()
+            ->where('church_id', $churchId)
+            ->where('channel', $channel)
+            ->first();
+        $mergedSettings = array_merge($existing?->settings ?? [], $settings);
+
+        if (filled($apiKey)) {
+            $mergedSettings['api_key_encrypted'] = Crypt::encryptString($apiKey);
+            $mergedSettings['api_key_last_four'] = Str::substr($apiKey, -4);
+        }
+
+        CommunicationProviderSetting::query()->updateOrCreate(
+            ['church_id' => $churchId, 'channel' => $channel],
+            [
+                'provider' => $provider,
+                'enabled' => $enabled,
+                'sender_identity' => $existing?->sender_identity ?? config('app.name'),
+                'settings' => $mergedSettings,
+                'rate_limit_per_minute' => $existing?->rate_limit_per_minute ?? 120,
+                'retry_policy' => $existing?->retry_policy ?? 'exponential',
+                'webhook_secret_hash' => $existing?->webhook_secret_hash,
+            ],
+        );
     }
 
     private function syncMemberPreferences(Request $request): void
@@ -1626,13 +1959,16 @@ final class CommunicationController extends Controller
 
         if (Str::contains($provider, 'zender')) {
             if (blank($settings['endpoint_url'] ?? null)) {
-                return 'Zender endpoint URL is required.';
+                return 'Zender site URL is required.';
             }
             if (blank($settings['api_key_encrypted'] ?? null)) {
-                return 'Zender API token is required.';
+                return 'Zender API key is required.';
             }
-            if ($setting->channel === 'sms' && blank($settings['device_id'] ?? null) && blank($settings['sender_number'] ?? null)) {
-                return 'Zender SMS requires a device ID or sender number.';
+            if ($setting->channel === 'whatsapp' && blank($settings['account_id'] ?? null)) {
+                return 'Zender WhatsApp requires a WhatsApp account ID.';
+            }
+            if ($setting->channel === 'sms' && blank($settings['device_id'] ?? null) && blank($settings['gateway_id'] ?? null)) {
+                return 'Zender SMS requires a device unique ID or gateway unique ID.';
             }
         }
 

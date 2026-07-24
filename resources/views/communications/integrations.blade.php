@@ -10,6 +10,7 @@
         ];
         $settingNav = [
             ['label' => 'General', 'note' => 'Global communication defaults', 'icon' => 'settings'],
+            ['label' => 'Zender', 'note' => 'WhatsApp and SMS gateway credentials', 'icon' => 'radio-tower'],
             ['label' => 'In-App', 'note' => 'In-app messaging settings', 'icon' => 'message-square'],
             ['label' => 'Email', 'note' => 'Email provider configuration', 'icon' => 'mail'],
             ['label' => 'SMS', 'note' => 'Zender / SMS gateway setup', 'icon' => 'message-square-text'],
@@ -89,6 +90,72 @@
             <form id="integration-form" method="POST" action="{{ route('communications.integrations.update') }}" class="space-y-3">
                 @csrf
                 @method('PUT')
+
+                <article id="zender" class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <div class="grid gap-4 border-b border-slate-100 p-4 xl:grid-cols-[minmax(220px,280px)_1fr_auto] xl:items-start">
+                        <div class="flex items-start gap-3">
+                            <span class="grid size-14 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                                <i data-lucide="radio-tower" class="size-7"></i>
+                            </span>
+                            <div>
+                                <div class="text-sm font-semibold text-slate-950">Zender Credential Settings</div>
+                                <p class="mt-1 text-sm text-slate-500">Configure Zender once for WhatsApp and SMS messaging inside Churchly. Saved values are used automatically when campaigns send through either channel.</p>
+                                <span class="mt-2 inline-flex rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600">Needs API permissions: sms_send, wa_send</span>
+                            </div>
+                        </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="text-xs text-slate-500">Service
+                                <select name="zender[service]" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                                    <option value="whatsapp" @selected(($zenderSettings['service'] ?? 'whatsapp') === 'whatsapp')>WhatsApp</option>
+                                    <option value="sms" @selected(($zenderSettings['service'] ?? 'whatsapp') === 'sms')>SMS</option>
+                                </select>
+                                <span class="mt-1 block text-[11px] leading-4 text-slate-400">Default Zender channel. Individual campaigns can still choose SMS or WhatsApp.</span>
+                            </label>
+                            <label class="text-xs text-slate-500">Status
+                                <span class="mt-1 flex min-h-[42px] items-center gap-3 rounded-lg border border-slate-200 px-3">
+                                    <input type="checkbox" name="zender[enabled]" value="1" @checked($zenderSettings['enabled'] ?? false) class="size-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                                    <span class="text-sm text-slate-700">Enable Zender sending</span>
+                                </span>
+                                <span class="mt-1 block text-[11px] leading-4 text-slate-400">Turns on the selected service and any other Zender channel with complete credentials.</span>
+                            </label>
+                        </div>
+                        <button form="integration-form" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm text-white shadow-sm hover:bg-emerald-700">
+                            <i data-lucide="save" class="size-4"></i> Save Zender
+                        </button>
+                    </div>
+
+                    <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+                        <label class="text-xs text-slate-500">Zender Site URL
+                            <input name="zender[site_url]" value="{{ $zenderSettings['site_url'] ?? 'https://zender.vicezion.com' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="https://zender.vicezion.com">
+                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">Enter the full Zender domain. Do not add a trailing slash.</span>
+                        </label>
+                        <label class="text-xs text-slate-500">Zender API Key
+                            <input name="zender[api_key]" type="password" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="{{ filled($zenderSettings['api_key_last_four'] ?? null) ? 'Saved key ending '.$zenderSettings['api_key_last_four'] : 'Paste API key from Zender' }}">
+                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">Paste a key from Zender with sms_send and wa_send permission.</span>
+                        </label>
+                        <label class="text-xs text-slate-500">WhatsApp Account ID
+                            <input name="zender[whatsapp_account_id]" value="{{ $zenderSettings['whatsapp_account_id'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Example: wa_01HF8Q9ZENDER">
+                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">Required for WhatsApp. Copy the account ID from the Zender dashboard.</span>
+                        </label>
+                        <label class="text-xs text-slate-500">Device Unique ID
+                            <input name="zender[device_unique_id]" value="{{ $zenderSettings['device_unique_id'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Example: android-main-campus">
+                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">For SMS through a linked Android device. Leave blank when using WhatsApp only.</span>
+                        </label>
+                        <label class="text-xs text-slate-500">Gateway Unique ID
+                            <input name="zender[gateway_unique_id]" value="{{ $zenderSettings['gateway_unique_id'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Example: gateway-partner-01">
+                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">For SMS through a partner device or gateway. This can replace the device ID.</span>
+                        </label>
+                        <label class="text-xs text-slate-500">SIM Slot
+                            <select name="zender[sim_slot]" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                                <option value="">-- Select SIM --</option>
+                                <option value="1" @selected(($zenderSettings['sim_slot'] ?? '') === '1')>SIM 1</option>
+                                <option value="2" @selected(($zenderSettings['sim_slot'] ?? '') === '2')>SIM 2</option>
+                            </select>
+                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">For SMS through your Android device. Ignored for partner gateways and WhatsApp.</span>
+                        </label>
+                    </div>
+                </article>
+
                 @foreach($settings as $setting)
                     @php
                         $meta = $channels[$setting->channel];

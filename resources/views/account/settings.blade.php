@@ -9,6 +9,7 @@
             + (($security['trusted_device_alerts'] ?? false) ? 8 : 0)
             + (filled($user->recovery_email) ? 9 : 0);
         $securityScore = min(100, $securityScore);
+        $mfaConfirmed = (bool) data_get($security, 'mfa_confirmed');
     @endphp
 
     <div class="space-y-5">
@@ -131,7 +132,11 @@
                         <button class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white"><i data-lucide="save" class="size-4"></i>Save Security</button>
                     </div>
                     <div class="grid gap-4 md:grid-cols-2">
-                        <label class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm text-slate-700">Enable multi-factor authentication<input type="checkbox" name="mfa_enabled" value="1" @checked(old('mfa_enabled', $user->mfa_enabled)) class="rounded border-slate-300 text-violet-600"></label>
+                        <div class="rounded-lg border border-slate-200 px-4 py-3 text-sm text-slate-700">
+                            <label class="flex items-center justify-between gap-3">Enable multi-factor authentication<input type="checkbox" name="mfa_enabled" value="1" @checked(old('mfa_enabled', $user->mfa_enabled)) class="rounded border-slate-300 text-violet-600"></label>
+                            <p class="mt-2 text-xs leading-5 text-slate-500">{{ $mfaConfirmed ? 'Authenticator MFA is confirmed and will be required on sign-in.' : 'Use the setup screen to scan a QR code and confirm MFA before it is enforced.' }}</p>
+                            <a href="{{ route('account.mfa.setup') }}" class="mt-3 inline-flex items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50"><i data-lucide="qr-code" class="size-4"></i>{{ $mfaConfirmed ? 'Manage scan setup' : 'Set up with scan code' }}</a>
+                        </div>
                         <label class="text-sm text-slate-600">MFA Method<select name="mfa_method" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">@foreach(['authenticator' => 'Authenticator App', 'email' => 'Email Code', 'sms' => 'SMS Code'] as $value => $label)<option value="{{ $value }}" @selected(old('mfa_method', $security['mfa_method']) === $value)>{{ $label }}</option>@endforeach</select></label>
                         <label class="text-sm text-slate-600">Recovery Email<input name="recovery_email" type="email" value="{{ old('recovery_email', $user->recovery_email) }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="recovery@example.org"></label>
                         <label class="text-sm text-slate-600">Session Timeout<select name="session_timeout_minutes" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">@foreach([15 => '15 minutes', 30 => '30 minutes', 60 => '1 hour', 120 => '2 hours', 480 => '8 hours'] as $value => $label)<option value="{{ $value }}" @selected((int) old('session_timeout_minutes', $security['session_timeout_minutes']) === $value)>{{ $label }}</option>@endforeach</select></label>

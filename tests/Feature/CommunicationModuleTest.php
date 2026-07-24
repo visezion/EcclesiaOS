@@ -6,11 +6,13 @@ namespace Tests\Feature;
 
 use App\Models\CommunicationCampaign;
 use App\Models\CommunicationDelivery;
+use App\Models\CommunicationProviderSetting;
 use App\Models\CommunicationTemplate;
 use App\Models\Member;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 final class CommunicationModuleTest extends TestCase
@@ -334,5 +336,134 @@ final class CommunicationModuleTest extends TestCase
             ->get(route('communications.delivery-logs.export'))
             ->assertOk()
             ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+    }
+
+    public function test_zender_credentials_are_saved_and_used_for_sms_and_whatsapp_campaigns(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $seedMember = Member::query()->firstOrFail();
+        $member = Member::factory()->create([
+            'church_id' => $user->church_id,
+            'campus_id' => $seedMember->campus_id,
+            'first_name' => 'Zender',
+            'last_name' => 'Member',
+            'email' => 'zender.member@example.com',
+            'phone' => '+15551234567',
+            'status' => 'zender ready',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('communications.integrations'))
+            ->assertOk()
+            ->assertSee('Zender Credential Settings', false)
+            ->assertSee('WhatsApp Account ID', false)
+            ->assertSee('Device Unique ID', false)
+            ->assertSee('-- Select SIM --', false);
+
+        $this->actingAs($user)
+            ->put(route('communications.integrations.update'), [
+                'zender' => [
+                    'enabled' => '1',
+                    'site_url' => 'https://zender.vicezion.com/',
+                    'api_key' => 'zender-live-token',
+                    'service' => 'whatsapp',
+                    'whatsapp_account_id' => 'wa-main-campus',
+                    'device_unique_id' => 'android-main-campus',
+                    'gateway_unique_id' => '',
+                    'sim_slot' => '1',
+                ],
+            ])
+            ->assertRedirect();
+
+        $whatsappProvider = CommunicationProviderSetting::query()
+            ->where('church_id', $user->church_id)
+            ->where('channel', 'whatsapp')
+            ->firstOrFail();
+        $smsProvider = CommunicationProviderSetting::query()
+            ->where('church_id', $user->church_id)
+            ->where('channel', 'sms')
+            ->firstOrFail();
+
+        $this->assertTrue($whatsappProvider->enabled);
+        $this->assertTrue($smsProvider->enabled);
+        $this->assertSame('Zender WhatsApp Gateway', $whatsappProvider->provider);
+        $this->assertSame('https://zender.vicezion.com', $whatsappProvider->settings['endpoint_url']);
+        $this->assertSame('wa-main-campus', $whatsappProvider->settings['account_id']);
+        $this->assertSame('android-main-campus', $smsProvider->settings['device_id']);
+        $this->assertSame('1', $smsProvider->settings['sim_slot']);
+        $this->assertSame('oken', $whatsappProvider->settings['api_key_last_four']);
+
+        UserNotificationPreference::query()->updateOrCreate(
+            ['church_id' => $user->church_id, 'member_id' => $member->id],
+            [
+                'channels' => ['sms', 'whatsapp'],
+                'categories' => ['events', 'attendance', 'care', 'volunteers', 'registration', 'system'],
+                'category_channels' => [
+                    'events' => ['sms', 'whatsapp'],
+                    'attendance' => ['sms', 'whatsapp'],
+                    'care' => ['sms', 'whatsapp'],
+                    'volunteers' => ['sms', 'whatsapp'],
+                    'registration' => ['sms', 'whatsapp'],
+                    'system' => ['sms', 'whatsapp'],
+                ],
+                'digest_mode' => 'instant',
+                'language' => 'en',
+                'critical_alerts' => true,
+            ],
+        );
+
+        Http::fake([
+            'https://zender.vicezion.com/api/send/whatsapp' => Http::response(['status' => 200, 'message' => 'Queued', 'data' => ['id' => 'wa-message-123']], 200),
+            'https://zender.vicezion.com/api/send/sms' => Http::response(['status' => 200, 'message' => 'Queued', 'data' => ['id' => 'sms-message-456']], 200),
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('communications.campaigns.store'), [
+                'name' => 'Zender Dispatch Test',
+                'segment_name' => 'Zender-ready members',
+                'channels' => ['sms', 'whatsapp'],
+                'subject' => 'Zender test',
+                'body' => 'Peace family, this is a Zender test.',
+                'send_mode' => 'immediate',
+                'member_status' => 'zender_ready',
+            ])
+            ->assertRedirect();
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://zender.vicezion.com/api/send/whatsapp'
+                && $request['secret'] === 'zender-live-token'
+                && $request['account'] === 'wa-main-campus'
+                && $request['recipient'] === '+15551234567'
+                && $request['type'] === 'text'
+                && $request['message'] === 'Peace family, this is a Zender test.';
+        });
+
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://zender.vicezion.com/api/send/sms'
+                && $request['secret'] === 'zender-live-token'
+                && $request['mode'] === 'devices'
+                && $request['device'] === 'android-main-campus'
+                && (string) $request['sim'] === '1'
+                && $request['phone'] === '+15551234567'
+                && $request['message'] === 'Peace family, this is a Zender test.';
+        });
+
+        $campaign = CommunicationCampaign::query()->where('name', 'Zender Dispatch Test')->firstOrFail();
+
+        $this->assertDatabaseHas('communication_deliveries', [
+            'communication_campaign_id' => $campaign->id,
+            'channel' => 'whatsapp',
+            'provider' => 'Zender WhatsApp Gateway',
+            'status' => 'delivered',
+            'provider_message_id' => 'wa-message-123',
+        ]);
+        $this->assertDatabaseHas('communication_deliveries', [
+            'communication_campaign_id' => $campaign->id,
+            'channel' => 'sms',
+            'provider' => 'Zender SMS Gateway',
+            'status' => 'delivered',
+            'provider_message_id' => 'sms-message-456',
+        ]);
     }
 }

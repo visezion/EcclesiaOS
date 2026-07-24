@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\TotpService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -177,5 +179,34 @@ class ProfileSecurityTest extends TestCase
 
         $this->assertSame(1, $user->fresh()->unreadNotifications()->count());
         $this->assertDatabaseHas('activity_logs', ['action' => 'test_notification_sent']);
+    }
+
+    public function test_authenticator_mfa_can_be_setup_with_scan_code_and_recovery_codes(): void
+    {
+        $user = User::factory()->create(['mfa_enabled' => false]);
+        $totp = app(TotpService::class);
+
+        $this->actingAs($user)
+            ->get(route('account.mfa.setup'))
+            ->assertOk()
+            ->assertSee('Set up multi-factor authentication')
+            ->assertSee('<svg', false)
+            ->assertSee('Manual setup key');
+
+        $user->refresh();
+        $secret = Crypt::decryptString($user->account_settings['security']['mfa_pending_secret_encrypted']);
+
+        $this->actingAs($user)
+            ->post(route('account.mfa.confirm'), [
+                'code' => $totp->code($secret),
+            ])
+            ->assertRedirect(route('account.mfa.setup'))
+            ->assertSessionHas('mfa_recovery_codes');
+
+        $user->refresh();
+        $this->assertTrue($user->mfa_enabled);
+        $this->assertTrue($user->account_settings['security']['mfa_confirmed']);
+        $this->assertNotEmpty($user->account_settings['security']['mfa_secret_encrypted']);
+        $this->assertCount(8, $user->account_settings['security']['mfa_recovery_code_hashes']);
     }
 }

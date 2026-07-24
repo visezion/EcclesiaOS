@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Services\ActivityLogger;
+use App\Services\TotpService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -85,12 +88,12 @@ final class AccountSettingsController extends Controller
         }
 
         if ($section === 'security') {
-            $current['security'] = [
+            $current['security'] = array_replace($current['security'], [
                 'mfa_method' => $validated['mfa_method'] ?? $current['security']['mfa_method'],
                 'login_notifications' => $request->boolean('login_notifications'),
                 'trusted_device_alerts' => $request->boolean('trusted_device_alerts'),
                 'session_timeout_minutes' => (int) ($validated['session_timeout_minutes'] ?? $current['security']['session_timeout_minutes']),
-            ];
+            ]);
 
             $user->mfa_enabled = $request->boolean('mfa_enabled');
             $user->recovery_email = $validated['recovery_email'] ?? null;
@@ -126,6 +129,91 @@ final class AccountSettingsController extends Controller
         $activityLogger->log('Account Settings', 'test_notification_sent', 'User sent a test account notification.', $user, ['resource' => 'Notifications', 'risk' => 'low', 'status' => 'success'], $request);
 
         return back()->with('status', 'Test notification created.');
+    }
+
+    public function mfaSetup(Request $request, TotpService $totpService): View
+    {
+        $user = $request->user();
+        $settings = $this->settings($user->account_settings ?? []);
+        $secret = data_get($settings, 'security.mfa_pending_secret_encrypted')
+            ? Crypt::decryptString((string) data_get($settings, 'security.mfa_pending_secret_encrypted'))
+            : $totpService->generateSecret();
+
+        data_set($settings, 'security.mfa_pending_secret_encrypted', Crypt::encryptString($secret));
+        $user->forceFill(['account_settings' => $settings])->save();
+
+        $issuer = config('app.name', 'EcclesiaOS');
+        $uri = $totpService->otpauthUri($issuer, $user->email, $secret);
+
+        return view('account.mfa-setup', [
+            'user' => $user,
+            'secret' => $secret,
+            'qrSvg' => $totpService->qrSvg($uri),
+            'recoveryCodes' => session('mfa_recovery_codes', []),
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Account Settings', 'url' => route('account.settings')],
+                ['label' => 'MFA Setup', 'url' => null],
+            ],
+        ]);
+    }
+
+    public function confirmMfa(Request $request, TotpService $totpService, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:16'],
+        ]);
+
+        $user = $request->user();
+        $settings = $this->settings($user->account_settings ?? []);
+        $encrypted = (string) data_get($settings, 'security.mfa_pending_secret_encrypted');
+
+        if ($encrypted === '') {
+            return redirect()->route('account.mfa.setup')->withErrors(['code' => 'Generate a setup code first.']);
+        }
+
+        $secret = Crypt::decryptString($encrypted);
+
+        if (! $totpService->verify($secret, (string) $validated['code'])) {
+            return back()->withErrors(['code' => 'The authenticator code is invalid or expired.']);
+        }
+
+        $recoveryCodes = $totpService->generateRecoveryCodes();
+        data_set($settings, 'security.mfa_method', 'authenticator');
+        data_set($settings, 'security.mfa_confirmed', true);
+        data_set($settings, 'security.mfa_secret_encrypted', Crypt::encryptString($secret));
+        data_set($settings, 'security.mfa_pending_secret_encrypted', null);
+        data_set($settings, 'security.mfa_recovery_code_hashes', collect($recoveryCodes)->map(fn (string $code): string => Hash::make($code))->all());
+
+        $user->forceFill([
+            'mfa_enabled' => true,
+            'account_settings' => $settings,
+        ])->save();
+
+        $activityLogger->log('Account Settings', 'mfa_enabled', 'User enabled authenticator MFA.', $user, ['resource' => 'MFA', 'status' => 'success'], $request);
+
+        return redirect()->route('account.mfa.setup')
+            ->with('status', 'Authenticator MFA is enabled. Save your recovery codes now.')
+            ->with('mfa_recovery_codes', $recoveryCodes);
+    }
+
+    public function regenerateRecoveryCodes(Request $request, TotpService $totpService, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $user = $request->user();
+        $settings = $this->settings($user->account_settings ?? []);
+
+        abort_unless($user->mfa_enabled && data_get($settings, 'security.mfa_confirmed'), 403);
+
+        $recoveryCodes = $totpService->generateRecoveryCodes();
+        data_set($settings, 'security.mfa_recovery_code_hashes', collect($recoveryCodes)->map(fn (string $code): string => Hash::make($code))->all());
+
+        $user->forceFill(['account_settings' => $settings])->save();
+
+        $activityLogger->log('Account Settings', 'mfa_recovery_codes_regenerated', 'User regenerated MFA recovery codes.', $user, ['resource' => 'MFA', 'status' => 'success'], $request);
+
+        return redirect()->route('account.mfa.setup')
+            ->with('status', 'New recovery codes generated. The old codes no longer work.')
+            ->with('mfa_recovery_codes', $recoveryCodes);
     }
 
     private function settings(array $settings): array

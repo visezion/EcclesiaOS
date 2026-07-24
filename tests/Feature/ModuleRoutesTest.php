@@ -553,6 +553,46 @@ class ModuleRoutesTest extends TestCase
             'status' => 'draft',
         ]);
 
+        $draft = LeadershipReport::query()->where('title', 'Template Created Leadership Report')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('leadership-reports.show', $draft))
+            ->assertOk()
+            ->assertSee('Edit Draft')
+            ->assertSee(route('leadership-reports.update', $draft), false);
+
+        $this->actingAs($admin)
+            ->put(route('leadership-reports.update', $draft), [
+                'title' => 'Edited Leadership Report',
+                'report_type' => 'weekly',
+                'campus_id' => $admin->campus_id,
+                'ministry_id' => null,
+                'assigned_to' => $admin->id,
+                'period_start' => now()->startOfWeek()->toDateString(),
+                'period_end' => now()->endOfWeek()->toDateString(),
+                'priority' => 'high',
+                'summary' => 'Edited draft summary ready for leadership review.',
+                'attendance_score' => 92,
+                'discipleship_score' => 89,
+                'care_followups' => 10,
+                'volunteer_coverage' => 84,
+                'service_notes' => 'Updated service notes.',
+                'issues' => 'Updated support needs.',
+                'plans' => 'Updated plans.',
+                'supporting_links' => "https://example.test/report-pack",
+                'action_items' => "Confirm reviewer\nSend final packet",
+                'submit' => '1',
+            ])
+            ->assertRedirect(route('leadership-reports.show', $draft));
+
+        $draft->refresh();
+        $this->assertSame('Edited Leadership Report', $draft->title);
+        $this->assertSame('submitted', $draft->status);
+        $this->assertSame(92, $draft->metrics['attendance_score']);
+        $this->assertSame(['https://example.test/report-pack'], $draft->metrics['supporting_links']);
+        $this->assertSame(['Confirm reviewer', 'Send final packet'], $draft->action_items);
+        $this->assertNotNull($draft->submitted_at);
+
         $this->actingAs($admin)
             ->get(route('leadership-reports.export'))
             ->assertOk()

@@ -63,6 +63,7 @@
             ->flatMap(fn ($report) => collect($report->metrics ?? [])->map(fn ($value, $key) => ['key' => $key, 'value' => (int) $value]))
             ->groupBy('key')
             ->map(fn ($rows) => round($rows->avg('value')));
+        $hintClass = 'block text-xs font-normal leading-5 text-slate-400';
     @endphp
 
     <div x-data="{ createOpen: {{ $errors->any() ? 'true' : 'false' }}, createStep: 1, createTotal: 8, nextStep() { this.createStep = Math.min(this.createTotal, this.createStep + 1) }, prevStep() { this.createStep = Math.max(1, this.createStep - 1) } }" class="space-y-5">
@@ -248,6 +249,9 @@
                                     <td class="px-4 py-3">
                                         <div class="flex justify-end gap-2">
                                             <a href="{{ route('leadership-reports.show', $report) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-violet-50 hover:text-violet-700" title="View full report"><i data-lucide="eye" class="size-4"></i></a>
+                                            @if(in_array($report->status, ['draft', 'returned'], true))
+                                                <a href="{{ route('leadership-reports.show', $report) }}#edit-report" class="grid size-8 place-items-center rounded-lg border border-violet-200 text-violet-600 hover:bg-violet-50" title="Edit draft"><i data-lucide="pencil" class="size-4"></i></a>
+                                            @endif
                                             @if(in_array($report->status, ['submitted', 'under_review'], true))
                                                 <form method="POST" action="{{ route('leadership-reports.review', $report) }}">@csrf @method('PUT')<input type="hidden" name="decision" value="approved"><button class="grid size-8 place-items-center rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50" title="Approve"><i data-lucide="check" class="size-4"></i></button></form>
                                                 <form method="POST" action="{{ route('leadership-reports.review', $report) }}">@csrf @method('PUT')<input type="hidden" name="decision" value="returned"><button class="grid size-8 place-items-center rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50" title="Return"><i data-lucide="rotate-ccw" class="size-4"></i></button></form>
@@ -284,10 +288,15 @@
                                 <div class="space-y-2">@forelse($selectedReport->action_items ?? [] as $item)<div class="flex gap-2 text-sm text-slate-600"><i data-lucide="check-circle-2" class="mt-0.5 size-4 shrink-0 text-emerald-600"></i>{{ $item }}</div>@empty<div class="text-sm text-slate-500">No action items recorded.</div>@endforelse</div>
                             </div>
                             <a href="{{ route('leadership-reports.show', $selectedReport) }}" class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"><i data-lucide="eye" class="size-4"></i>Open Full Detail</a>
+                            @if(in_array($selectedReport->status, ['draft', 'returned'], true))
+                                <a href="{{ route('leadership-reports.show', $selectedReport) }}#edit-report" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700"><i data-lucide="pencil" class="size-4"></i>Edit Draft</a>
+                            @endif
+                            @if(in_array($selectedReport->status, ['submitted', 'under_review'], true))
                             <form method="POST" action="{{ route('leadership-reports.review', $selectedReport) }}" class="space-y-3">
                                 @csrf
                                 @method('PUT')
                                 <textarea name="review_notes" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Review note or return reason">{{ $selectedReport->review_notes }}</textarea>
+                                <span class="{{ $hintClass }}">Explain your decision for the submitter. Example: Approved for the leadership packet, or return because attendance numbers need correction.</span>
                                 <div class="grid grid-cols-2 gap-2">
                                     <button name="decision" value="under_review" class="rounded-lg border border-violet-200 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50">Review</button>
                                     <button name="decision" value="approved" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Approve</button>
@@ -295,6 +304,7 @@
                                     <button name="decision" value="rejected" class="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">Reject</button>
                                 </div>
                             </form>
+                            @endif
                         </div>
                     @else
                         <div class="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Select a report to review its details.</div>
@@ -371,6 +381,7 @@
                                     <option value="{{ $reporter->id }}" @selected((string) $reportSettings['default_reviewer_id'] === (string) $reporter->id)>{{ $reporter->name }} - {{ $reporter->title }}</option>
                                 @endforeach
                             </select>
+                            <span class="{{ $hintClass }}">Preselects the reviewer on new reports. Example: Senior Pastor or Campus Overseer.</span>
                         </label>
                         <label class="space-y-1 text-xs font-semibold text-slate-500">Weekly Due Day
                             <select name="weekly_due_day" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
@@ -378,19 +389,26 @@
                                     <option value="{{ $day }}" @selected($reportSettings['weekly_due_day'] === $day)>{{ Str::headline($day) }}</option>
                                 @endforeach
                             </select>
+                            <span class="{{ $hintClass }}">Default target day for weekly report completion.</span>
                         </label>
                         <label class="space-y-1 text-xs font-semibold text-slate-500">Escalation Window
                             <input name="escalation_hours" type="number" min="1" max="720" value="{{ $reportSettings['escalation_hours'] }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                            <span class="text-xs font-normal text-slate-400">Hours before overdue reports are escalated.</span>
+                            <span class="{{ $hintClass }}">Hours before overdue reports are escalated. Example: 72 means after 3 days.</span>
                         </label>
                         <div class="grid gap-3">
-                            <label class="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700">
-                                Auto Reminders
-                                <input name="auto_reminders" value="1" type="checkbox" @checked($reportSettings['auto_reminders']) class="rounded border-slate-300 text-violet-600">
+                            <label class="rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700">
+                                <span class="flex items-center justify-between gap-3">
+                                    Auto Reminders
+                                    <input name="auto_reminders" value="1" type="checkbox" @checked($reportSettings['auto_reminders']) class="rounded border-slate-300 text-violet-600">
+                                </span>
+                                <span class="{{ $hintClass }} mt-2">When enabled, pending report reminders can be queued for draft and review stages.</span>
                             </label>
-                            <label class="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700">
-                                Require Action Items
-                                <input name="require_action_items" value="1" type="checkbox" @checked($reportSettings['require_action_items']) class="rounded border-slate-300 text-violet-600">
+                            <label class="rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700">
+                                <span class="flex items-center justify-between gap-3">
+                                    Require Action Items
+                                    <input name="require_action_items" value="1" type="checkbox" @checked($reportSettings['require_action_items']) class="rounded border-slate-300 text-violet-600">
+                                </span>
+                                <span class="{{ $hintClass }} mt-2">Encourages reports to include trackable next steps. Example: Assign follow-up owner.</span>
                             </label>
                         </div>
                     </div>
@@ -495,14 +513,15 @@
                             <div class="grid gap-4 md:grid-cols-2">
                                 <label class="space-y-1 text-xs font-semibold text-slate-500 md:col-span-2">Report Title
                                     <input name="title" value="{{ old('title') }}" placeholder="East Campus Weekly Report" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">
-                                    <span class="text-xs font-normal text-slate-400">Use a title that identifies the campus, ministry, and reporting period.</span>
+                                    <span class="{{ $hintClass }}">Used in the report list and review queue. Example: East Campus Weekly Report - Jul 20-26.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Period Start
                                     <input name="period_start" type="date" value="{{ old('period_start', now()->startOfWeek()->toDateString()) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <span class="{{ $hintClass }}">First day covered by this report.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Period End
                                     <input name="period_end" type="date" value="{{ old('period_end', now()->endOfWeek()->toDateString()) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                                    <span class="text-xs font-normal text-slate-400">Weekly reports usually end on {{ Str::headline($reportSettings['weekly_due_day']) }}.</span>
+                                    <span class="{{ $hintClass }}">Last day covered. Weekly reports usually end on {{ Str::headline($reportSettings['weekly_due_day']) }}.</span>
                                 </label>
                             </div>
                         </div>
@@ -515,19 +534,23 @@
                             <div class="grid gap-4 md:grid-cols-2">
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Report Type
                                     <select name="report_type" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">@foreach($types as $type)<option value="{{ $type }}" @selected(old('report_type') === $type)>{{ Str::headline($type) }}</option>@endforeach</select>
+                                    <span class="{{ $hintClass }}">Groups the report for dashboards and filters. Example: Campus for branch updates.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Priority
                                     <select name="priority" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">@foreach(['normal', 'high', 'urgent', 'low'] as $priority)<option value="{{ $priority }}" @selected(old('priority', 'normal') === $priority)>{{ Str::headline($priority) }}</option>@endforeach</select>
+                                    <span class="{{ $hintClass }}">Controls urgency and due timing. Use Urgent for time-sensitive leadership decisions.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Campus
                                     <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All Campuses</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected((string) old('campus_id') === (string) $campus->id)>{{ $campus->name }}</option>@endforeach</select>
+                                    <span class="{{ $hintClass }}">Select the branch this report belongs to, or leave as All Campuses for church-wide reports.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Ministry
                                     <select name="ministry_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">General Leadership</option>@foreach($ministries as $ministry)<option value="{{ $ministry->id }}" @selected((string) old('ministry_id') === (string) $ministry->id)>{{ $ministry->name }}</option>@endforeach</select>
+                                    <span class="{{ $hintClass }}">Select a ministry when the update is specific to a team. Example: Worship, Youth, Outreach.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500 md:col-span-2">Reviewer
                                     <select name="assigned_to" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Assign later</option>@foreach($reporters as $reporter)<option value="{{ $reporter->id }}" @selected((string) old('assigned_to', $reportSettings['default_reviewer_id']) === (string) $reporter->id)>{{ $reporter->name }} - {{ $reporter->title }}</option>@endforeach</select>
-                                    <span class="text-xs font-normal text-slate-400">The reviewer receives the report and can approve, return, or reject it.</span>
+                                    <span class="{{ $hintClass }}">The person responsible for reviewing and approving, returning, or rejecting the report.</span>
                                 </label>
                             </div>
                         </div>
@@ -539,6 +562,7 @@
                             </div>
                             <label class="space-y-1 text-xs font-semibold text-slate-500">Report Summary
                                 <textarea name="summary" rows="10" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Summarize attendance movement, ministry wins, pastoral care matters, volunteer coverage, and decisions needed.">{{ old('summary') }}</textarea>
+                                <span class="{{ $hintClass }}">Main narrative for leaders. Example: Attendance increased by 12%, two new care cases opened, and volunteer coverage needs support.</span>
                             </label>
                         </div>
 
@@ -550,9 +574,11 @@
                             <div class="grid gap-4 md:grid-cols-2">
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Attendance Score
                                     <input name="attendance_score" type="number" min="0" max="100" value="{{ old('attendance_score', 90) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <span class="{{ $hintClass }}">0-100 health score for attendance trend. Example: 85 means attendance is mostly healthy.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Care Follow-ups
                                     <input name="care_followups" type="number" min="0" value="{{ old('care_followups', 12) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <span class="{{ $hintClass }}">Number of pastoral care follow-ups opened or handled in this period. Example: 12.</span>
                                 </label>
                             </div>
                         </div>
@@ -565,12 +591,15 @@
                             <div class="grid gap-4 md:grid-cols-2">
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Discipleship Score
                                     <input name="discipleship_score" type="number" min="0" max="100" value="{{ old('discipleship_score', 88) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <span class="{{ $hintClass }}">0-100 score for classes, groups, mentoring, and spiritual growth engagement.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Volunteer Coverage
                                     <input name="volunteer_coverage" type="number" min="0" max="100" value="{{ old('volunteer_coverage', 82) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <span class="{{ $hintClass }}">Percentage of needed volunteer roles covered. Example: 80 means 4 of 5 roles were covered.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500 md:col-span-2">Service Notes
                                     <textarea name="service_notes" rows="6" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Service flow, sermon response, worship, media, volunteer readiness, and service issues.">{{ old('service_notes') }}</textarea>
+                                    <span class="{{ $hintClass }}">Use this for service-specific observations. Example: Worship started on time; media had one projector issue.</span>
                                 </label>
                             </div>
                         </div>
@@ -582,6 +611,7 @@
                             </div>
                             <label class="space-y-1 text-xs font-semibold text-slate-500">Issues Requiring Support
                                 <textarea name="issues" rows="8" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="List the issues that need escalation, support, budget, people, or decisions.">{{ old('issues') }}</textarea>
+                                <span class="{{ $hintClass }}">List blockers or risks leadership should act on. Example: Need two more children ministry volunteers by Sunday.</span>
                             </label>
                         </div>
 
@@ -592,9 +622,11 @@
                             </div>
                             <label class="space-y-1 text-xs font-semibold text-slate-500">Plans & Suggestions
                                 <textarea name="plans" rows="5" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Recommended next steps, ministry adjustments, decisions requested, and dates.">{{ old('plans') }}</textarea>
+                                <span class="{{ $hintClass }}">Recommended next steps. Example: Schedule volunteer training on Aug 3 and confirm care team assignments.</span>
                             </label>
                             <label class="space-y-1 text-xs font-semibold text-slate-500">Supporting Links
                                 <textarea name="supporting_links" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="One URL or document reference per line">{{ old('supporting_links') }}</textarea>
+                                <span class="{{ $hintClass }}">Add one link per line. Example: https://drive.example.com/weekly-attendance.</span>
                             </label>
                         </div>
 
@@ -603,6 +635,10 @@
                                 <h3 class="text-lg font-semibold text-slate-950">Review & Submit</h3>
                                 <p class="mt-1 text-sm text-slate-500">Save the report as a draft or submit it to the selected reviewer.</p>
                             </div>
+                            <label class="space-y-1 text-xs font-semibold text-slate-500">Action Items
+                                <textarea name="action_items" rows="5" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="One action item per line">{{ old('action_items') }}</textarea>
+                                <span class="{{ $hintClass }}">Specific follow-up tasks leaders can track. Example: Call first-time visitor families; confirm youth volunteer roster.</span>
+                            </label>
                             <div class="grid gap-3 md:grid-cols-2">
                                 <div class="rounded-lg bg-violet-50 p-4 text-sm text-violet-800"><i data-lucide="shield-check" class="mb-2 size-5"></i>Submitted reports enter the leadership review queue immediately.</div>
                                 <div class="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800"><i data-lucide="save" class="mb-2 size-5"></i>Draft reports stay in the report queue until they are ready to submit.</div>

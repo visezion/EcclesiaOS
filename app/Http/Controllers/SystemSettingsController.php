@@ -8,6 +8,7 @@ use App\Models\Church;
 use App\Models\Role;
 use App\Services\ActivityLogger;
 use App\Support\ModuleRegistry;
+use App\Support\OrganizationTerminology;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,7 @@ final class SystemSettingsController extends Controller
         return view('settings.system', [
             'church' => $church,
             'settings' => $settings,
+            'terminology' => OrganizationTerminology::fromSettings($settings),
             'stats' => $this->stats($settings),
             'health' => $this->health(),
             'compliance' => $this->compliance(),
@@ -88,6 +90,10 @@ final class SystemSettingsController extends Controller
             'default_campus_id' => ['nullable', 'exists:campuses,id'],
             'multi_campus_access' => ['required', 'string', 'max:80'],
             'branch_code_prefix' => ['nullable', 'string', 'max:20'],
+            'campus_singular_label' => ['required', 'string', 'max:40'],
+            'campus_plural_label' => ['required', 'string', 'max:40'],
+            'ministry_singular_label' => ['required', 'string', 'max:40'],
+            'ministry_plural_label' => ['required', 'string', 'max:40'],
             'smtp_server' => ['nullable', 'string', 'max:120'],
             'sms_provider' => ['nullable', 'string', 'max:80'],
             'whatsapp_integration' => ['nullable', 'string', 'max:80'],
@@ -300,6 +306,10 @@ final class SystemSettingsController extends Controller
             'default_campus_id' => Campus::query()->where('church_id', $church->id)->value('id'),
             'multi_campus_access' => 'Role-Based Access',
             'branch_code_prefix' => 'KLGC',
+            'campus_singular_label' => 'Campus',
+            'campus_plural_label' => 'Campuses',
+            'ministry_singular_label' => 'Ministry',
+            'ministry_plural_label' => 'Ministries',
             'smtp_server' => 'smtp.klgc.org',
             'sms_provider' => 'Twilio',
             'whatsapp_integration' => '360dialog',
