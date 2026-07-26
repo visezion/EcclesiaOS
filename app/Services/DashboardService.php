@@ -82,13 +82,13 @@ final class DashboardService
         return collect([
             ['label' => 'Total Members', 'value' => Number::format($memberCount), 'change' => $this->growth($this->query(Member::class), 'created_at'), 'period' => 'vs last month', 'icon' => 'users', 'color' => 'purple', 'route' => 'members.index'],
             ['label' => 'Avg. Attendance', 'value' => Number::format($attendanceAverage), 'change' => $this->attendanceGrowth(), 'period' => 'vs last month', 'icon' => 'users-round', 'color' => 'emerald', 'route' => 'attendance.index'],
-            ['label' => 'Total Giving (Month)', 'value' => Number::currency((float) $givingTotal, $currency), 'change' => $this->moneyGrowth($this->query(Donation::class), 'received_at', 'amount'), 'period' => 'vs last month', 'icon' => 'heart', 'color' => 'rose', 'route' => 'finance.index'],
+            ['label' => 'Total Giving (Month)', 'value' => Number::currency((float) $givingTotal, $currency), 'change' => $this->moneyGrowth($this->query(Donation::class), 'received_at', 'amount'), 'period' => 'vs last month', 'icon' => 'heart', 'color' => 'rose', 'route' => 'finance.index', 'sensitive_finance' => true],
             ['label' => 'Active Volunteers', 'value' => Number::format($volunteers), 'change' => $this->growth($this->query(Volunteer::class)->where('status', 'active'), 'created_at'), 'period' => 'vs last month', 'icon' => 'hand-heart', 'color' => 'indigo', 'route' => 'volunteers.index'],
             ['label' => 'Upcoming Events', 'value' => Number::format($events), 'change' => null, 'period' => 'Next: '.($this->query(Event::class)->where('starts_at', '>=', now())->orderBy('starts_at')->value('title') ?? 'None scheduled'), 'icon' => 'calendar-days', 'color' => 'orange', 'route' => 'events.index'],
             ['label' => 'Book Store Revenue', 'value' => Number::currency((float) $bookstoreRevenue, $currency), 'change' => $this->moneyGrowth($this->query(BookstoreOrder::class), 'ordered_at', 'total_amount'), 'period' => 'this month', 'icon' => 'book-open', 'color' => 'amber', 'route' => 'bookstore.index'],
             ['label' => 'Asset Health Score', 'value' => $assetHealth.'/100', 'change' => null, 'period' => $assetHealth >= 80 ? 'Good' : 'Needs attention', 'icon' => 'shield-check', 'color' => 'teal', 'route' => 'assets.index'],
         ])
-            ->filter(fn (array $metric): bool => $this->canShowRoute($metric['route']))
+            ->filter(fn (array $metric): bool => $this->canShowRoute($metric['route']) && (empty($metric['sensitive_finance']) || $this->canShowFinanceDashboardTotals()))
             ->values()
             ->all();
     }
@@ -315,7 +315,7 @@ final class DashboardService
     {
         return [
             'attendance' => $this->canShowRoute('attendance.index'),
-            'giving' => $this->canShowRoute('finance.index'),
+            'giving' => $this->canShowRoute('finance.index') && $this->canShowFinanceDashboardTotals(),
             'bookstore' => $this->canShowRoute('bookstore.index'),
             'assets' => $this->canShowRoute('assets.index'),
             'leadership' => $this->canShowRoute('leadership-reports.index'),
@@ -335,13 +335,29 @@ final class DashboardService
             return false;
         }
 
-        $permission = ModuleRegistry::moduleForRoute($route)['permission'] ?? null;
+        $module = ModuleRegistry::moduleForRoute($route);
+        $permission = $module['permission'] ?? null;
+        $permissionsAny = $module['permissions_any'] ?? [];
 
         if (! $permission || ! $this->actor || $this->actor->isSuperAdministrator()) {
+            if ($permissionsAny === [] || ! $this->actor || $this->actor->isSuperAdministrator()) {
+                return true;
+            }
+
+            return $this->actor->hasAnyPermission($permissionsAny);
+        }
+
+        if ($permissionsAny !== [] && $this->actor->hasAnyPermission($permissionsAny)) {
             return true;
         }
 
         return $this->actor->hasPermission($permission);
+    }
+
+    private function canShowFinanceDashboardTotals(): bool
+    {
+        return $this->actor?->isSuperAdministrator()
+            || (bool) $this->actor?->hasAnyPermission(['manage finance', 'view finance']);
     }
 
     private function growth($query, string $column): string

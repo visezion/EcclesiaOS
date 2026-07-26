@@ -37,4 +37,14 @@ final class Ministry extends Model
     {
         return $this->hasMany(Volunteer::class);
     }
+
+    public function donations(): HasMany
+    {
+        return $this->hasMany(Donation::class);
+    }
+
+    public function financeTransactions(): HasMany
+    {
+        return $this->hasMany(FinanceTransaction::class);
+    }
 }

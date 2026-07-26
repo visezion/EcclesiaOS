@@ -13,8 +13,10 @@ use App\Models\CareTask;
 use App\Models\ChildrenYouthRecord;
 use App\Models\CounsellingBooking;
 use App\Models\Donation;
+use App\Models\FinanceTransaction;
 use App\Models\Fund;
 use App\Models\Member;
+use App\Models\Ministry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -234,6 +236,167 @@ class OperationalModulesTest extends TestCase
             ->assertRedirect();
 
         $this->assertFalse($fund->fresh()->is_active);
+    }
+
+    public function test_finance_module_tracks_campus_income_expenses_and_ministry_giving(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $member = Member::query()->firstOrFail();
+        $fund = Fund::query()->firstOrFail();
+        $ministry = Ministry::query()->firstOrFail();
+        $campusId = $ministry->campus_id ?: $admin->campus_id;
+
+        $this->actingAs($admin)
+            ->post(route('finance.transactions.store'), [
+                'campus_id' => $campusId,
+                'ministry_id' => $ministry->id,
+                'fund_id' => $fund->id,
+                'type' => 'income',
+                'category' => 'events',
+                'amount' => 500,
+                'currency' => 'USD',
+                'method' => 'bank',
+                'frequency' => 'monthly',
+                'occurred_at' => now()->format('Y-m-d H:i:s'),
+                'reference' => 'TEST-FIN-INCOME-001',
+                'vendor_or_source' => 'Youth Department',
+                'status' => 'posted',
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($admin)
+            ->post(route('finance.transactions.store'), [
+                'campus_id' => $campusId,
+                'ministry_id' => $ministry->id,
+                'fund_id' => $fund->id,
+                'type' => 'expense',
+                'category' => 'supplies',
+                'amount' => 120,
+                'currency' => 'USD',
+                'method' => 'card',
+                'frequency' => 'one_time',
+                'occurred_at' => now()->format('Y-m-d H:i:s'),
+                'reference' => 'TEST-FIN-EXPENSE-001',
+                'vendor_or_source' => 'Event Supplier',
+                'status' => 'posted',
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($admin)
+            ->post(route('finance.donations.store'), [
+                'member_id' => $member->id,
+                'fund_id' => $fund->id,
+                'ministry_id' => $ministry->id,
+                'campus_id' => $campusId,
+                'amount' => 250,
+                'currency' => 'USD',
+                'method' => 'online',
+                'giving_source' => 'ministry',
+                'giving_frequency' => 'monthly',
+                'received_at' => now()->format('Y-m-d H:i:s'),
+                'reference' => 'TEST-MINISTRY-GIVING-001',
+                'notes' => 'Department monthly giving.',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('finance_transactions', ['reference' => 'TEST-FIN-INCOME-001', 'type' => 'income', 'ministry_id' => $ministry->id]);
+        $this->assertDatabaseHas('finance_transactions', ['reference' => 'TEST-FIN-EXPENSE-001', 'type' => 'expense', 'ministry_id' => $ministry->id]);
+        $this->assertDatabaseHas('donations', [
+            'reference' => 'TEST-MINISTRY-GIVING-001',
+            'ministry_id' => $ministry->id,
+            'giving_source' => 'ministry',
+            'giving_frequency' => 'monthly',
+        ]);
+        $this->assertTrue(FinanceTransaction::query()->where('reference', 'TEST-FIN-INCOME-001')->firstOrFail()->ministry()->exists());
+
+        $this->actingAs($admin)
+            ->get(route('finance.index'))
+            ->assertOk()
+            ->assertSee('Campus Income & Expenses', false)
+            ->assertSee('Income & Expense Ledger', false)
+            ->assertSee($ministry->name, false);
+
+        $financeOfficer = User::query()->where('email', 'michael.thompson@klgc.org')->firstOrFail();
+
+        $this->actingAs($financeOfficer)
+            ->get(route('finance.index'))
+            ->assertOk()
+            ->assertSee('Giving & Finance', false);
+    }
+
+    public function test_ministry_finance_permission_only_allows_limited_contribution_entry(): void
+    {
+        $this->seed();
+        $leader = User::query()->where('email', 'emily.davis@klgc.org')->firstOrFail();
+        $member = Member::query()->where('campus_id', $leader->campus_id)->firstOrFail();
+        $fund = Fund::query()->firstOrFail();
+        $ministry = Ministry::query()->firstOrCreate(
+            [
+                'church_id' => $leader->church_id,
+                'campus_id' => $leader->campus_id,
+                'name' => 'Finance Permission Ministry',
+            ],
+            ['status' => 'active'],
+        );
+
+        $this->actingAs($leader)
+            ->get(route('finance.index'))
+            ->assertOk()
+            ->assertSee('Ministry Contributions', false)
+            ->assertSee('Record Donation', false)
+            ->assertDontSee('Record Income / Expense', false)
+            ->assertDontSee('Export', false)
+            ->assertDontSee('Add Fund', false);
+
+        $this->actingAs($leader)
+            ->post(route('finance.donations.store'), [
+                'member_id' => $member->id,
+                'fund_id' => $fund->id,
+                'ministry_id' => $ministry->id,
+                'campus_id' => $leader->campus_id,
+                'amount' => 80,
+                'currency' => 'USD',
+                'method' => 'cash',
+                'giving_source' => 'ministry',
+                'giving_frequency' => 'monthly',
+                'received_at' => now()->format('Y-m-d H:i:s'),
+                'reference' => 'TEST-MINISTRY-LIMITED-001',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('donations', [
+            'reference' => 'TEST-MINISTRY-LIMITED-001',
+            'created_by_user_id' => $leader->id,
+            'ministry_id' => $ministry->id,
+            'giving_source' => 'ministry',
+        ]);
+
+        $this->actingAs($leader)
+            ->post(route('finance.transactions.store'), [
+                'campus_id' => $leader->campus_id,
+                'ministry_id' => $ministry->id,
+                'type' => 'expense',
+                'category' => 'supplies',
+                'amount' => 25,
+                'currency' => 'USD',
+                'method' => 'cash',
+                'frequency' => 'one_time',
+                'occurred_at' => now()->format('Y-m-d H:i:s'),
+                'reference' => 'TEST-MINISTRY-BLOCKED-EXPENSE',
+                'status' => 'posted',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($leader)
+            ->get(route('finance.export'))
+            ->assertForbidden();
+
+        $viewer = User::query()->where('email', 'jessica.lee@klgc.org')->firstOrFail();
+
+        $this->actingAs($viewer)
+            ->get(route('finance.index'))
+            ->assertForbidden();
     }
 
     public function test_bookstore_module_creates_order_items_and_reduces_stock(): void

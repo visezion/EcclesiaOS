@@ -143,6 +143,9 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('finance/donations', [FinanceController::class, 'store'])->name('finance.donations.store');
     Route::put('finance/donations/{donation}', [FinanceController::class, 'update'])->name('finance.donations.update');
     Route::delete('finance/donations/{donation}', [FinanceController::class, 'destroy'])->name('finance.donations.destroy');
+    Route::post('finance/transactions', [FinanceController::class, 'storeTransaction'])->name('finance.transactions.store');
+    Route::put('finance/transactions/{transaction}', [FinanceController::class, 'updateTransaction'])->name('finance.transactions.update');
+    Route::delete('finance/transactions/{transaction}', [FinanceController::class, 'destroyTransaction'])->name('finance.transactions.destroy');
     Route::post('finance/funds', [FinanceController::class, 'storeFund'])->name('finance.funds.store');
     Route::put('finance/funds/{fund}', [FinanceController::class, 'updateFund'])->name('finance.funds.update');
     Route::delete('finance/funds/{fund}', [FinanceController::class, 'destroyFund'])->name('finance.funds.destroy');

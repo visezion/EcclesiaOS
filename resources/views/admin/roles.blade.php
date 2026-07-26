@@ -47,7 +47,11 @@
                 ['permission' => 'manage feedback', 'label' => 'Feedback System', 'help' => 'Review survey responses, feedback, and follow-up items.', 'icon' => 'message-square-check', 'class' => 'bg-emerald-50 text-emerald-600'],
             ],
             'Resources & Finance' => [
-                ['permission' => 'manage finance', 'label' => 'Giving & Finance', 'help' => 'Manage giving, financial reports, budgets, and expenses.', 'icon' => 'badge-dollar-sign', 'class' => 'bg-emerald-50 text-emerald-600'],
+                ['permission' => 'manage finance', 'label' => 'Finance Administrator', 'help' => 'Full finance administration: funds, records, expenses, exports, and archives.', 'icon' => 'badge-dollar-sign', 'class' => 'bg-emerald-50 text-emerald-600'],
+                ['permission' => 'view finance', 'label' => 'Finance Viewer', 'help' => 'View scoped finance reports and ledgers without editing records.', 'icon' => 'chart-column', 'class' => 'bg-blue-50 text-blue-600'],
+                ['permission' => 'record finance entries', 'label' => 'Finance Entry', 'help' => 'Record scoped donations, income, and expenses without fund administration.', 'icon' => 'receipt-text', 'class' => 'bg-teal-50 text-teal-600'],
+                ['permission' => 'view ministry finance', 'label' => 'Ministry Finance View', 'help' => 'View limited ministry contribution records without full campus finance totals.', 'icon' => 'landmark', 'class' => 'bg-violet-50 text-violet-600'],
+                ['permission' => 'record ministry contributions', 'label' => 'Ministry Contributions', 'help' => 'Record ministry or department contribution records without expense controls.', 'icon' => 'hand-coins', 'class' => 'bg-amber-50 text-amber-600'],
                 ['permission' => 'manage assets', 'label' => 'Asset Inventory', 'help' => 'Manage physical assets, inventory, status, and assignments.', 'icon' => 'package-check', 'class' => 'bg-violet-50 text-violet-600'],
                 ['permission' => 'manage facilities', 'label' => 'Facilities', 'help' => 'Manage rooms, facilities, reservations, and equipment.', 'icon' => 'building-2', 'class' => 'bg-blue-50 text-blue-600'],
                 ['permission' => 'manage bookstore', 'label' => 'Book Store', 'help' => 'Manage bookstore inventory, sales, and reporting.', 'icon' => 'book-open', 'class' => 'bg-orange-50 text-orange-600'],

@@ -7,11 +7,12 @@ namespace App\Services;
 use App\Models\Asset;
 use App\Models\Event;
 use App\Models\Member;
+use App\Models\User;
 use App\Support\ModuleRegistry;
 
 final class SearchService
 {
-    public function search(?string $query): array
+    public function search(?string $query, ?User $actor = null): array
     {
         $query = trim((string) $query);
 
@@ -22,6 +23,7 @@ final class SearchService
         $navigation = collect(ModuleRegistry::visibleNavigation())
             ->flatMap(fn (array $item): array => [$item, ...($item['children'] ?? [])])
             ->filter(fn (array $item): bool => isset($item['route']))
+            ->filter(fn (array $item): bool => $this->canAccessNavigationItem($item, $actor))
             ->map(fn (array $item): array => [
                 'category' => 'Module',
                 'title' => $item['label'],
@@ -111,5 +113,12 @@ final class SearchService
     private function matches(array $result, string $query): bool
     {
         return str_contains(strtolower($result['title'].' '.$result['description'].' '.$result['category']), strtolower($query));
+    }
+
+    private function canAccessNavigationItem(array $item, ?User $actor): bool
+    {
+        return $actor?->isSuperAdministrator()
+            || (! empty($item['permissions_any']) && $actor?->hasAnyPermission($item['permissions_any']))
+            || (empty($item['permissions_any']) && (empty($item['permission']) || $actor?->hasPermission($item['permission'])));
     }
 }

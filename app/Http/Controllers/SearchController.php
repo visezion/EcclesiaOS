@@ -12,6 +12,6 @@ final class SearchController extends Controller
 {
     public function __invoke(Request $request, SearchService $searchService): View
     {
-        return view('modules.search', $searchService->search($request->string('q')->toString()));
+        return view('modules.search', $searchService->search($request->string('q')->toString(), $request->user()));
     }
 }

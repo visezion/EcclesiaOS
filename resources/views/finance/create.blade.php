@@ -1,16 +1,22 @@
 <x-app-layout title="Record Donation" :breadcrumbs="$breadcrumbs">
-    <div class="mx-auto max-w-4xl space-y-5"><div class="flex items-center justify-between gap-3"><div><h1 class="text-2xl font-semibold text-slate-950">Record Donation</h1><p class="text-sm text-slate-500">Create a donation record tied to a member, fund, campus, and payment method.</p></div><a href="{{ route('finance.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"><i data-lucide="list" class="size-4"></i>Ledger</a></div>
+    <div class="mx-auto max-w-4xl space-y-5">
+        <div class="flex items-center justify-between gap-3">
+            <div>
+                <h1 class="text-2xl font-semibold text-slate-950">Record Donation</h1>
+                <p class="text-sm text-slate-500">Create a donation record tied to a member, fund, campus, ministry, and payment method.</p>
+            </div>
+            <a href="{{ route('finance.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"><i data-lucide="list" class="size-4"></i>Ledger</a>
+        </div>
         @if ($errors->any())<div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-700">{{ $errors->first() }}</div>@endif
-        <section class="dashboard-card"><form method="POST" action="{{ route('finance.donations.store') }}" class="grid gap-4 md:grid-cols-2">@csrf
-            <label class="space-y-1 text-sm font-medium text-slate-700">Reference<input name="reference" value="{{ old('reference') }}" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Auto generated if blank"></label>
-            <label class="space-y-1 text-sm font-medium text-slate-700">Member<select name="member_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"><option value="">Anonymous giver</option>@foreach($members as $member)<option value="{{ $member->id }}" @selected(old('member_id') == $member->id)>{{ $member->first_name }} {{ $member->last_name }}</option>@endforeach</select></label>
-            <label class="space-y-1 text-sm font-medium text-slate-700">Fund<select name="fund_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"><option value="">Unassigned</option>@foreach($funds as $fund)<option value="{{ $fund->id }}" @selected(old('fund_id') == $fund->id)>{{ $fund->name }}</option>@endforeach</select></label>
-            <label class="space-y-1 text-sm font-medium text-slate-700">Campus<select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"><option value="">Unassigned</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected(old('campus_id') == $campus->id)>{{ $campus->name }}</option>@endforeach</select></label>
-            <label class="space-y-1 text-sm font-medium text-slate-700">Method<select name="method" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">@foreach($methods as $method)<option value="{{ $method }}" @selected(old('method', 'cash') === $method)>{{ Str::headline($method) }}</option>@endforeach</select></label>
-            <label class="space-y-1 text-sm font-medium text-slate-700">Amount<input name="amount" type="number" min="0.01" step="0.01" value="{{ old('amount') }}" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"></label>
-            <input type="hidden" name="currency" value="{{ $currency }}">
-            <label class="space-y-1 text-sm font-medium text-slate-700 md:col-span-2">Received At<input name="received_at" type="datetime-local" value="{{ old('received_at', now()->format('Y-m-d\\TH:i')) }}" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"></label>
-            <div class="md:col-span-2 flex justify-end gap-2"><a href="{{ route('finance.index') }}" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</a><button class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white"><i data-lucide="plus" class="size-4"></i>Record Donation</button></div>
-        </form></section>
+        <section class="dashboard-card">
+            <form method="POST" action="{{ route('finance.donations.store') }}" class="space-y-4">
+                @csrf
+                @include('finance.partials.donation-form', ['donation' => null])
+                <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                    <a href="{{ route('finance.index') }}" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</a>
+                    <button class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white"><i data-lucide="plus" class="size-4"></i>Record Donation</button>
+                </div>
+            </form>
+        </section>
     </div>
 </x-app-layout>

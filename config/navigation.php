@@ -50,7 +50,7 @@ return [
             ['label' => 'Attendance', 'route' => 'attendance.index', 'icon' => 'clipboard-check', 'permission' => 'manage attendance', 'planned' => $planned['attendance.index'], 'active_routes' => ['event-sessions.attendance', 'attendance.methods', 'attendance.check-in', 'attendance.records.show']],
         ],
     ],
-    ['label' => 'Giving & Finance', 'route' => 'finance.index', 'icon' => 'badge-dollar-sign', 'permission' => 'manage finance', 'implemented' => true, 'description' => 'Donation ledger, fund management, giving filters, exports, member giving relationships, and finance summaries.'],
+    ['label' => 'Giving & Finance', 'route' => 'finance.index', 'icon' => 'badge-dollar-sign', 'permissions_any' => ['manage finance', 'view finance', 'record finance entries', 'view ministry finance', 'record ministry contributions'], 'implemented' => true, 'description' => 'Donation ledger, fund management, giving filters, exports, member giving relationships, and finance summaries.'],
     ['label' => 'Sermons & Media', 'route' => 'sermons.index', 'icon' => 'monitor-play', 'permission' => 'manage media', 'planned' => $planned['sermons.index']],
     ['label' => 'Prayer Requests', 'route' => 'prayer-requests.index', 'icon' => 'hand-heart', 'permission' => 'manage prayer', 'badge' => '23', 'planned' => $planned['prayer-requests.index']],
     [

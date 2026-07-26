@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\UsesOpaqueRouteKeys;
-
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-final class Donation extends Model
+final class FinanceTransaction extends Model
 {
     use UsesOpaqueRouteKeys;
     use SoftDeletes;
@@ -18,23 +17,29 @@ final class Donation extends Model
     protected $fillable = [
         'church_id',
         'campus_id',
-        'member_id',
-        'created_by_user_id',
-        'fund_id',
         'ministry_id',
+        'fund_id',
+        'donation_id',
+        'created_by_user_id',
+        'type',
+        'category',
         'amount',
         'currency',
         'method',
-        'giving_source',
-        'giving_frequency',
-        'received_at',
+        'frequency',
+        'occurred_at',
         'reference',
-        'notes',
+        'vendor_or_source',
+        'description',
+        'status',
     ];
 
     protected function casts(): array
     {
-        return ['amount' => 'decimal:2', 'received_at' => 'datetime'];
+        return [
+            'amount' => 'decimal:2',
+            'occurred_at' => 'datetime',
+        ];
     }
 
     public function church(): BelongsTo
@@ -47,14 +52,9 @@ final class Donation extends Model
         return $this->belongsTo(Campus::class);
     }
 
-    public function member(): BelongsTo
+    public function ministry(): BelongsTo
     {
-        return $this->belongsTo(Member::class);
-    }
-
-    public function createdBy(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'created_by_user_id');
+        return $this->belongsTo(Ministry::class);
     }
 
     public function fund(): BelongsTo
@@ -62,8 +62,13 @@ final class Donation extends Model
         return $this->belongsTo(Fund::class);
     }
 
-    public function ministry(): BelongsTo
+    public function donation(): BelongsTo
     {
-        return $this->belongsTo(Ministry::class);
+        return $this->belongsTo(Donation::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
     }
 }

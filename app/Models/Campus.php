@@ -59,4 +59,19 @@ final class Campus extends Model
     {
         return $this->hasMany(AssetBooking::class);
     }
+
+    public function ministries(): HasMany
+    {
+        return $this->hasMany(Ministry::class);
+    }
+
+    public function donations(): HasMany
+    {
+        return $this->hasMany(Donation::class);
+    }
+
+    public function financeTransactions(): HasMany
+    {
+        return $this->hasMany(FinanceTransaction::class);
+    }
 }

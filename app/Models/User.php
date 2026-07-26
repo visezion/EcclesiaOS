@@ -126,6 +126,17 @@ class User extends Authenticatable
             ->exists();
     }
 
+    public function hasAnyPermission(array $permissions): bool
+    {
+        if ($this->hasAnyRole(['Super Administrator'])) {
+            return true;
+        }
+
+        return $this->roles()
+            ->whereHas('permissions', fn ($query) => $query->whereIn('name', $permissions))
+            ->exists();
+    }
+
     public function isSuperAdministrator(): bool
     {
         return $this->hasAnyRole(['Super Administrator']);
