@@ -49,4 +49,14 @@ final class Campus extends Model
     {
         return $this->hasMany(CareTask::class);
     }
+
+    public function counsellingBookings(): HasMany
+    {
+        return $this->hasMany(CounsellingBooking::class);
+    }
+
+    public function assetBookings(): HasMany
+    {
+        return $this->hasMany(AssetBooking::class);
+    }
 }

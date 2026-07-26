@@ -314,6 +314,8 @@ class AdminPagesTest extends TestCase
             ->assertOk()
             ->assertSee('Module Management')
             ->assertSee('All Modules')
+            ->assertSee('Studio')
+            ->assertSee('meetings.rooms.studio')
             ->assertSee(route('modules.update'), false)
             ->assertSee(route('modules.reset'), false);
 

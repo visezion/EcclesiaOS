@@ -8,6 +8,7 @@ use App\Models\Concerns\UsesOpaqueRouteKeys;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class CareTask extends Model
@@ -52,5 +53,10 @@ final class CareTask extends Model
     public function assignedUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_user_id');
+    }
+
+    public function counsellingBookings(): HasMany
+    {
+        return $this->hasMany(CounsellingBooking::class);
     }
 }

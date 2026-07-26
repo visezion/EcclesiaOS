@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Asset;
+use App\Models\Event;
+use App\Models\Member;
 use App\Support\ModuleRegistry;
 
 final class SearchService
@@ -26,24 +29,83 @@ final class SearchService
                 'url' => route($item['route']),
             ]);
 
-        $sample = collect([
-            ['category' => 'Member', 'title' => 'Sarah Johnson', 'description' => 'New member registration', 'url' => route('members.index')],
-            ['category' => 'Member', 'title' => 'Michael Thompson', 'description' => 'Donor and volunteer record', 'url' => route('members.index')],
-            ['category' => 'Event', 'title' => 'Youth Camp 2024', 'description' => 'Upcoming youth event', 'url' => route('events.index')],
-            ['category' => 'Event', 'title' => 'Sunday Worship Service', 'description' => 'Main weekly service', 'url' => route('events.index')],
-            ['category' => 'Asset', 'title' => 'Wireless Microphones', 'description' => 'Asset inventory item', 'url' => route('assets.index')],
-            ['category' => 'Asset', 'title' => 'Main Hall Projector', 'description' => 'Maintenance due soon', 'url' => route('assets.index')],
-        ]);
+        $records = collect()
+            ->when(! ModuleRegistry::isDisabledRoute('members.index'), fn ($results) => $results->merge($this->memberResults($query)))
+            ->when(! ModuleRegistry::isDisabledRoute('events.index'), fn ($results) => $results->merge($this->eventResults($query)))
+            ->when(! ModuleRegistry::isDisabledRoute('assets.index'), fn ($results) => $results->merge($this->assetResults($query)));
 
         return [
             'query' => $query,
             'results' => $navigation
-                ->merge($sample)
+                ->merge($records)
                 ->filter(fn (array $result): bool => $this->matches($result, $query))
                 ->values()
                 ->take(12)
                 ->all(),
         ];
+    }
+
+    private function memberResults(string $query): array
+    {
+        $term = '%'.$query.'%';
+
+        return Member::query()
+            ->where(fn ($member) => $member
+                ->where('first_name', 'like', $term)
+                ->orWhere('last_name', 'like', $term)
+                ->orWhere('email', 'like', $term)
+                ->orWhere('phone', 'like', $term))
+            ->limit(4)
+            ->get()
+            ->map(fn (Member $member): array => [
+                'category' => 'Member',
+                'title' => $member->first_name.' '.$member->last_name,
+                'description' => trim(($member->email ?: 'No email').' '.$member->status),
+                'url' => route('members.show', $member),
+            ])
+            ->all();
+    }
+
+    private function eventResults(string $query): array
+    {
+        $term = '%'.$query.'%';
+
+        return Event::query()
+            ->where(fn ($event) => $event
+                ->where('title', 'like', $term)
+                ->orWhere('venue', 'like', $term)
+                ->orWhere('category', 'like', $term))
+            ->latest('starts_at')
+            ->limit(4)
+            ->get()
+            ->map(fn (Event $event): array => [
+                'category' => 'Event',
+                'title' => $event->title,
+                'description' => trim(($event->venue ?: 'No venue').' '.$event->status),
+                'url' => route('events.index', ['q' => $event->title]),
+            ])
+            ->all();
+    }
+
+    private function assetResults(string $query): array
+    {
+        $term = '%'.$query.'%';
+
+        return Asset::query()
+            ->with('category')
+            ->where(fn ($asset) => $asset
+                ->where('name', 'like', $term)
+                ->orWhere('serial_number', 'like', $term)
+                ->orWhereHas('category', fn ($category) => $category->where('name', 'like', $term)))
+            ->limit(4)
+            ->get()
+            ->map(fn (Asset $asset): array => [
+                'category' => 'Asset',
+                'title' => $asset->name,
+                'description' => trim(($asset->category?->name ?: 'Uncategorized').' '.$asset->status),
+                'url' => route('assets.index', ['q' => $asset->name]),
+            ])
+            ->all();
     }
 
     private function matches(array $result, string $query): bool

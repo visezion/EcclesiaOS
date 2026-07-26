@@ -15,6 +15,7 @@ import {
     BellOff,
     BellRing,
     BarChart3,
+    Blocks,
     Bold,
     Bot,
     BookOpen,
@@ -38,6 +39,7 @@ import {
     ChevronRight,
     ChevronUp,
     Church,
+    Captions,
     CircleDot,
     CircleAlert,
     CircleCheck,
@@ -53,6 +55,7 @@ import {
     Columns3,
     Cross,
     Database,
+    DoorOpen,
     Download,
     Droplets,
     Ellipsis,
@@ -67,6 +70,7 @@ import {
     GitBranch,
     GraduationCap,
     Globe2,
+    Grip,
     Hand,
     HandCoins,
     HandHeart,
@@ -96,6 +100,7 @@ import {
     Map,
     MapPin,
     Maximize,
+    Megaphone,
     Menu,
     Minimize,
     Minus,
@@ -103,12 +108,15 @@ import {
     MessageCircleHeart,
     MessageSquare,
     MessageSquareCheck,
+    MessageSquareOff,
     MessageSquareText,
+    MessageCircleQuestion,
     MessagesSquare,
     Mic,
     MicOff,
     Monitor,
     MonitorPlay,
+    MonitorUp,
     MoreVertical,
     Network,
     PackageCheck,
@@ -138,7 +146,9 @@ import {
     ScanFace,
     ScanLine,
     ScanQrCode,
+    ScanSearch,
     ScreenShare,
+    Share2,
     SlidersHorizontal,
     ShieldAlert,
     ShieldCheck,
@@ -147,8 +157,11 @@ import {
     Sparkles,
     Star,
     Settings2,
+    Square,
     Tags,
     Target,
+    TextCursorInput,
+    Timer,
     TrendingUp,
     TriangleAlert,
     Trash2,
@@ -167,8 +180,10 @@ import {
     VideoOff,
     Wallet,
     Webhook,
+    Wifi,
     Wrench,
     X,
+    Zap,
     KeyRound,
     Lock,
     createIcons,
@@ -474,6 +489,248 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
+    Alpine.data('meetingStudio', (liveKit = null, options = {}) => {
+        const liveKitPayload = liveKit ? JSON.parse(JSON.stringify(liveKit)) : null;
+        let studioRoom = null;
+
+        return {
+            copied: false,
+            sceneTab: 'scenes',
+            liveKit: liveKitPayload,
+            liveScene: options?.live_scene || null,
+            previewScene: options?.preview_scene || null,
+            studioScenes: Array.isArray(options?.scenes) ? options.scenes : [],
+            sceneSourceUrls: options?.scene_source_urls || {},
+            selectedSceneId: String(options?.preview_scene?.id || options?.live_scene?.id || (Array.isArray(options?.scenes) && options.scenes.length ? options.scenes[0].id : '')),
+            liveParticipants: [],
+            liveParticipantStatus: liveKitPayload ? 'Connecting to LiveKit...' : 'LiveKit credentials are not available.',
+            sourceAssignUrl: options?.source_assign_url || null,
+            mainSourceAssignUrl: options?.main_source_assign_url || null,
+            csrfToken: options?.csrf_token || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+
+            init() {
+                if (this.liveKit) {
+                    void this.connectStudioRoom();
+                }
+            },
+
+            parseParticipantMetadata(participant) {
+                try {
+                    return JSON.parse(participant?.metadata || '{}');
+                } catch {
+                    return {};
+                }
+            },
+
+            async connectStudioRoom() {
+                try {
+                    studioRoom = new Room({ adaptiveStream: true, dynacast: true });
+                    studioRoom
+                        .on(RoomEvent.ParticipantConnected, () => this.syncLiveParticipants())
+                        .on(RoomEvent.ParticipantDisconnected, () => this.syncLiveParticipants())
+                        .on(RoomEvent.TrackPublished, () => this.syncLiveParticipants())
+                        .on(RoomEvent.TrackUnpublished, () => this.syncLiveParticipants())
+                        .on(RoomEvent.TrackSubscribed, () => this.syncLiveParticipants())
+                        .on(RoomEvent.TrackUnsubscribed, () => this.syncLiveParticipants())
+                        .on(RoomEvent.TrackMuted, () => this.syncLiveParticipants())
+                        .on(RoomEvent.TrackUnmuted, () => this.syncLiveParticipants())
+                        .on(RoomEvent.Disconnected, () => {
+                            this.liveParticipants = [];
+                            this.liveParticipantStatus = 'Disconnected from LiveKit.';
+                        });
+
+                    await studioRoom.connect(this.liveKit.server_url, this.liveKit.token);
+                    this.liveParticipantStatus = `Connected to ${this.liveKit.room}`;
+                    this.syncLiveParticipants();
+                } catch (error) {
+                    console.error('Studio LiveKit connection failed', error);
+                    this.liveParticipantStatus = error?.message || 'Studio could not connect to LiveKit.';
+                }
+            },
+
+            syncLiveParticipants() {
+                if (! studioRoom) {
+                    this.liveParticipants = [];
+
+                    return;
+                }
+
+                this.liveParticipants = Array.from(studioRoom.remoteParticipants.values())
+                    .map((participant) => {
+                        const metadata = this.parseParticipantMetadata(participant);
+
+                        return {
+                            identity: participant.identity,
+                            sid: participant.sid,
+                            name: participant.name || participant.identity || 'Guest',
+                            role: metadata.role || null,
+                            avatar: metadata.avatar || null,
+                            hasCamera: Array.from(participant.videoTrackPublications?.values?.() || []).some(publication => publication.track && ! publication.isMuted && publication.source !== Track.Source.ScreenShare),
+                            hasScreen: Array.from(participant.videoTrackPublications?.values?.() || []).some(publication => publication.track && ! publication.isMuted && publication.source === Track.Source.ScreenShare),
+                            hasAudio: Array.from(participant.audioTrackPublications?.values?.() || []).some(publication => publication.track && ! publication.isMuted),
+                        };
+                    })
+                    .filter(participant => participant.role !== 'studio' && participant.identity !== this.liveKit?.identity);
+
+                this.liveParticipantStatus = this.liveParticipants.length > 0
+                    ? `${this.liveParticipants.length} live participant${this.liveParticipants.length === 1 ? '' : 's'} in room`
+                    : `Connected to ${this.liveKit.room}. Waiting for participants.`;
+                this.$nextTick(() => {
+                    this.attachStudioLiveTracks();
+                    createIcons({ icons });
+                });
+            },
+
+            trackFromPublications(publications, kind, source = null) {
+                return Array.from(publications?.values?.() || [])
+                    .find(publication => publication.kind === kind && publication.track && ! publication.isMuted && (! source || publication.source === source || (source === Track.Source.Camera && ! publication.source)))
+                    ?.track || null;
+            },
+
+            studioLiveSourceKind() {
+                return this.liveScene?.settings?.source_kind === 'screen' ? 'screen' : 'camera';
+            },
+
+            studioPreviewSourceKind() {
+                return this.previewScene?.settings?.source_kind === 'screen' ? 'screen' : 'camera';
+            },
+
+            participantForScene(scene, sourceKind = 'camera') {
+                const selectedIdentity = scene?.settings?.source_identity || null;
+
+                if (selectedIdentity) {
+                    return this.liveParticipants.find(participant => participant.identity === selectedIdentity) || null;
+                }
+
+                return this.liveParticipants.find(participant => sourceKind === 'screen' ? participant.hasScreen : participant.hasCamera)
+                    || this.liveParticipants[0]
+                    || null;
+            },
+
+            studioFeaturedParticipant() {
+                return this.participantForScene(this.liveScene, this.studioLiveSourceKind());
+            },
+
+            studioPreviewParticipant() {
+                return this.participantForScene(this.previewScene, this.studioPreviewSourceKind());
+            },
+
+            studioFeaturedHasVideo() {
+                const participant = this.studioFeaturedParticipant();
+
+                if (! participant) {
+                    return false;
+                }
+
+                return this.studioLiveSourceKind() === 'screen' ? participant.hasScreen : participant.hasCamera;
+            },
+
+            studioPreviewHasVideo() {
+                const participant = this.studioPreviewParticipant();
+
+                if (! participant) {
+                    return false;
+                }
+
+                return this.studioPreviewSourceKind() === 'screen' ? participant.hasScreen : participant.hasCamera;
+            },
+
+            selectedSceneSourceUrl() {
+                return this.sceneSourceUrls[String(this.selectedSceneId)] || null;
+            },
+
+            selectedSceneTitle() {
+                const scene = this.studioScenes.find(item => String(item.id) === String(this.selectedSceneId));
+
+                return scene ? scene.title : 'No scene selected';
+            },
+
+            attachStudioLiveTracks() {
+                if (! studioRoom) {
+                    return;
+                }
+
+                const attachScene = (sceneParticipant, sourceKind, videoRef, screenRef, audioRef) => {
+                    const remoteParticipant = sceneParticipant ? studioRoom.remoteParticipants.get(sceneParticipant.identity) : null;
+                    const videoTrack = remoteParticipant
+                        ? (sourceKind === 'screen'
+                            ? this.trackFromPublications(remoteParticipant.videoTrackPublications, Track.Kind.Video, Track.Source.ScreenShare)
+                            : (this.trackFromPublications(remoteParticipant.videoTrackPublications, Track.Kind.Video, Track.Source.Camera)
+                                || this.trackFromPublications(remoteParticipant.videoTrackPublications, Track.Kind.Video)))
+                        : null;
+                    const audioTrack = remoteParticipant ? this.trackFromPublications(remoteParticipant.audioTrackPublications, Track.Kind.Audio) : null;
+
+                    if (videoRef) {
+                        if (videoTrack && sourceKind === 'camera') {
+                            videoTrack.attach(videoRef);
+                        } else {
+                            videoRef.srcObject = null;
+                        }
+                    }
+
+                    if (screenRef) {
+                        if (videoTrack && sourceKind === 'screen') {
+                            videoTrack.attach(screenRef);
+                        } else {
+                            screenRef.srcObject = null;
+                        }
+                    }
+
+                    if (audioRef) {
+                        if (audioTrack) {
+                            audioTrack.attach(audioRef);
+                        } else {
+                            audioRef.srcObject = null;
+                        }
+                    }
+                };
+
+                const participant = this.studioFeaturedParticipant();
+                const sourceKind = this.studioLiveSourceKind();
+                attachScene(participant, sourceKind, this.$refs.studioLiveVideo, this.$refs.studioLiveScreen, this.$refs.studioLiveAudio);
+
+                const previewParticipant = this.studioPreviewParticipant();
+                const previewSourceKind = this.studioPreviewSourceKind();
+                attachScene(previewParticipant, previewSourceKind, this.$refs.studioPreviewVideo, this.$refs.studioPreviewScreen, this.$refs.studioPreviewAudio);
+            },
+
+            async assignStudioSource(participant, sourceKind, target = 'preview') {
+                const assignUrl = target === 'main'
+                    ? this.mainSourceAssignUrl
+                    : (target === 'preview' ? this.sourceAssignUrl : this.sceneSourceUrls[String(target)]);
+
+                if (! assignUrl || ! participant?.identity) {
+                    this.liveParticipantStatus = 'Choose a scene before assigning a source.';
+
+                    return;
+                }
+
+                const body = new URLSearchParams();
+                body.set('_method', 'PUT');
+                body.set('manual_source_identity', participant.identity);
+                body.set('source_name', sourceKind === 'screen' ? `${participant.name} screen` : participant.name);
+                body.set('source_kind', sourceKind);
+
+                const response = await fetch(assignUrl, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                        ...(this.csrfToken ? { 'X-CSRF-TOKEN': this.csrfToken } : {}),
+                    },
+                    body,
+                });
+
+                if (response.ok || response.redirected) {
+                    window.location.reload();
+                    return;
+                }
+
+                this.liveParticipantStatus = 'Source assignment failed. Refresh and try again.';
+            },
+        };
+    });
+
     Alpine.data('meetingRoom', (storageKey, liveKit = null, participantName = 'You', options = {}) => {
         const liveKitPayload = liveKit ? JSON.parse(JSON.stringify(liveKit)) : null;
         const chatStorageKey = `${storageKey}-chat`;
@@ -481,6 +738,7 @@ document.addEventListener('alpine:init', () => {
         const qnaStateStorageKey = `${storageKey}-qna-state`;
         const pollStateStorageKey = `${storageKey}-poll-state`;
         const pollStorageKey = `${storageKey}-poll`;
+        const studioStateUrl = options?.studio_state_url || null;
         const storedChatMessages = (() => {
             try {
                 return JSON.parse(localStorage.getItem(chatStorageKey) || '[]');
@@ -523,6 +781,8 @@ document.addEventListener('alpine:init', () => {
         camera: false,
         screen: false,
         fullscreen: false,
+        playerControlsVisible: true,
+        playerControlsHideTimer: null,
         chat: true,
         roomView: 'speaker',
         sidePanel: null,
@@ -539,6 +799,9 @@ document.addEventListener('alpine:init', () => {
         remoteParticipants: [],
         primaryParticipant: null,
         activeSpeakerIdentity: null,
+        studioState: options?.studio || null,
+        studioPollOptions: [],
+        studioRefreshTimer: null,
         attendanceMarked: Boolean(liveKitPayload?.attendance_marked),
         attendanceRecordUrl: liveKitPayload?.attendance_record_url || null,
         checkedInCount: liveKitPayload?.participant_count || 0,
@@ -563,38 +826,64 @@ document.addEventListener('alpine:init', () => {
         checkoutSent: false,
 
         init() {
+            this.applyStudioState(this.studioState);
+            this.refreshStudioState();
+            if (studioStateUrl) {
+                this.studioRefreshTimer = window.setInterval(() => this.refreshStudioState(), 5000);
+            }
             window.addEventListener('beforeunload', () => {
+                if (this.studioRefreshTimer) {
+                    window.clearInterval(this.studioRefreshTimer);
+                }
                 this.markLiveKitCheckout(true);
             });
             document.addEventListener('fullscreenchange', () => {
                 this.fullscreen = Boolean(document.fullscreenElement);
+                this.revealPlayerControls();
             });
+            this.schedulePlayerControlsHide();
         },
 
-        async startCamera() {
+        attachLocalPreviewStream() {
+            if (this.$refs.preview) {
+                this.$refs.preview.srcObject = this.stream;
+            }
+            if (this.$refs.speakerPreview) {
+                this.$refs.speakerPreview.srcObject = this.stream;
+            }
+            if (this.$refs.galleryPreview) {
+                this.$refs.galleryPreview.srcObject = this.stream;
+            }
+        },
+
+        async ensureLocalMedia({ audio = false, video = false } = {}) {
             if (! navigator.mediaDevices?.getUserMedia) {
-                this.mediaError = 'Camera is not available in this browser.';
+                this.mediaError = 'Camera and microphone are not available in this browser.';
 
                 return;
             }
 
             try {
-                this.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                if (this.$refs.preview) {
-                    this.$refs.preview.srcObject = this.stream;
+                const needsAudio = audio && ! this.stream?.getAudioTracks().length;
+                const needsVideo = video && ! this.stream?.getVideoTracks().length;
+
+                if (needsAudio || needsVideo) {
+                    const newStream = await navigator.mediaDevices.getUserMedia({ audio: needsAudio, video: needsVideo });
+                    this.stream = this.stream || new MediaStream();
+                    newStream.getTracks().forEach(track => this.stream.addTrack(track));
                 }
-                if (this.$refs.speakerPreview) {
-                    this.$refs.speakerPreview.srcObject = this.stream;
-                }
-                if (this.$refs.galleryPreview) {
-                    this.$refs.galleryPreview.srcObject = this.stream;
-                }
+
+                this.attachLocalPreviewStream();
                 this.stream.getAudioTracks().forEach(track => { track.enabled = ! this.muted; });
                 this.stream.getVideoTracks().forEach(track => { track.enabled = this.camera; });
                 this.mediaError = '';
             } catch (error) {
-                this.mediaError = error?.message || 'Camera permission was not granted.';
+                this.mediaError = error?.message || 'Media permission was not granted.';
             }
+        },
+
+        async startCamera() {
+            await this.ensureLocalMedia({ audio: true, video: true });
         },
 
         async toggleCamera() {
@@ -613,7 +902,10 @@ document.addEventListener('alpine:init', () => {
             }
 
             if (! this.stream && this.camera) {
-                await this.startCamera();
+                await this.ensureLocalMedia({ video: true });
+            }
+            if (this.camera && ! this.stream?.getVideoTracks().length) {
+                await this.ensureLocalMedia({ video: true });
             }
             this.stream?.getVideoTracks().forEach(track => { track.enabled = this.camera; });
         },
@@ -632,8 +924,8 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
-            if (! this.stream) {
-                await this.startCamera();
+            if (! this.stream || ! this.stream.getAudioTracks().length) {
+                await this.ensureLocalMedia({ audio: true });
             }
             this.stream?.getAudioTracks().forEach(track => { track.enabled = ! this.muted; });
         },
@@ -757,6 +1049,8 @@ document.addEventListener('alpine:init', () => {
                     body: JSON.stringify({
                         connected: true,
                         room: this.liveKit.room,
+                        identity: this.liveKit.identity,
+                        participant_name: this.liveKit.name || this.participantName,
                         remote_participants: this.remoteParticipantCount,
                     }),
                 });
@@ -821,6 +1115,15 @@ document.addEventListener('alpine:init', () => {
         async toggleScreenShare() {
             const nextState = ! this.screen;
 
+            if (! this.liveKitConnected) {
+                this.liveKitError = this.liveKit
+                    ? 'Join the room before sharing your screen.'
+                    : 'Screen sharing requires a LiveKit room connection.';
+                this.screen = false;
+
+                return;
+            }
+
             if (this.liveKitConnected) {
                 try {
                     await liveKitRoom.localParticipant.setScreenShareEnabled(nextState);
@@ -856,6 +1159,21 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        revealPlayerControls() {
+            this.playerControlsVisible = true;
+            this.schedulePlayerControlsHide();
+        },
+
+        schedulePlayerControlsHide() {
+            if (this.playerControlsHideTimer) {
+                window.clearTimeout(this.playerControlsHideTimer);
+            }
+
+            this.playerControlsHideTimer = window.setTimeout(() => {
+                this.playerControlsVisible = false;
+            }, 3200);
+        },
+
         participantInitials(name) {
             return String(name || 'Guest')
                 .trim()
@@ -863,6 +1181,14 @@ document.addEventListener('alpine:init', () => {
                 .slice(0, 2)
                 .map(part => part.charAt(0).toUpperCase())
                 .join('') || 'G';
+        },
+
+        parseParticipantMetadata(participant) {
+            try {
+                return JSON.parse(participant?.metadata || '{}');
+            } catch {
+                return {};
+            }
         },
 
         participantAvatar(participant) {
@@ -875,9 +1201,9 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        trackFromPublications(publications, kind) {
+        trackFromPublications(publications, kind, source = null) {
             return Array.from(publications?.values?.() || [])
-                .find(publication => publication.kind === kind && publication.track && ! publication.isMuted)
+                .find(publication => publication.kind === kind && publication.track && ! publication.isMuted && (! source || publication.source === source || (source === Track.Source.Camera && ! publication.source)))
                 ?.track || null;
         },
 
@@ -890,21 +1216,26 @@ document.addEventListener('alpine:init', () => {
             }
 
             const participants = Array.from(liveKitRoom.remoteParticipants.values()).map((participant) => {
+                const metadata = this.parseParticipantMetadata(participant);
                 const name = participant.name || participant.identity || 'Guest';
-                const videoTrack = this.trackFromPublications(participant.videoTrackPublications, Track.Kind.Video);
+                const videoTrack = this.trackFromPublications(participant.videoTrackPublications, Track.Kind.Video, Track.Source.Camera)
+                    || this.trackFromPublications(participant.videoTrackPublications, Track.Kind.Video);
+                const screenTrack = this.trackFromPublications(participant.videoTrackPublications, Track.Kind.Video, Track.Source.ScreenShare);
                 const audioTrack = this.trackFromPublications(participant.audioTrackPublications, Track.Kind.Audio);
 
                 return {
                     identity: participant.identity,
                     sid: participant.sid,
                     name,
+                    role: metadata.role || null,
                     initials: this.participantInitials(name),
-                    avatar: this.participantAvatar(participant),
+                    avatar: metadata.avatar || null,
                     hasVideo: Boolean(videoTrack),
+                    hasScreen: Boolean(screenTrack),
                     hasAudio: Boolean(audioTrack),
                     isSpeaking: participant.identity === this.activeSpeakerIdentity || Boolean(participant.isSpeaking),
                 };
-            });
+            }).filter(participant => participant.role !== 'studio');
 
             this.remoteParticipants = participants;
             this.primaryParticipant = participants.find(participant => participant.identity === this.activeSpeakerIdentity && participant.hasVideo)
@@ -928,8 +1259,26 @@ document.addEventListener('alpine:init', () => {
                 .slice(0, 6);
         },
 
-        focusParticipant() {
-            return this.primaryParticipant || this.remoteParticipants[0] || null;
+        featuredParticipant() {
+            const identity = this.studioLiveScene()?.settings?.source_identity;
+
+            if (identity) {
+                return this.remoteParticipants.find(participant => participant.identity === identity) || this.primaryParticipant || null;
+            }
+
+            return this.primaryParticipant;
+        },
+
+        featuredSourceKind() {
+            return this.studioLiveScene()?.settings?.source_kind === 'screen' ? 'screen' : 'camera';
+        },
+
+        featuredHasVideo(participant) {
+            if (! participant) {
+                return false;
+            }
+
+            return this.featuredSourceKind() === 'screen' ? participant.hasScreen : participant.hasVideo;
         },
 
         attachLiveKitTracks() {
@@ -938,12 +1287,20 @@ document.addEventListener('alpine:init', () => {
             }
 
             Array.from(liveKitRoom.remoteParticipants.values()).forEach((participant) => {
-                const videoTrack = this.trackFromPublications(participant.videoTrackPublications, Track.Kind.Video);
+                const videoTrack = this.trackFromPublications(participant.videoTrackPublications, Track.Kind.Video, Track.Source.Camera)
+                    || this.trackFromPublications(participant.videoTrackPublications, Track.Kind.Video);
+                const screenTrack = this.trackFromPublications(participant.videoTrackPublications, Track.Kind.Video, Track.Source.ScreenShare);
                 const audioTrack = this.trackFromPublications(participant.audioTrackPublications, Track.Kind.Audio);
 
                 document.querySelectorAll('[data-livekit-video]').forEach((element) => {
                     if (element.getAttribute('data-livekit-video') === participant.identity && videoTrack) {
                         videoTrack.attach(element);
+                    }
+                });
+
+                document.querySelectorAll('[data-livekit-screen]').forEach((element) => {
+                    if (element.getAttribute('data-livekit-screen') === participant.identity && screenTrack) {
+                        screenTrack.attach(element);
                     }
                 });
 
@@ -993,6 +1350,89 @@ document.addEventListener('alpine:init', () => {
                     this.$refs.chatScroll.scrollTop = this.$refs.chatScroll.scrollHeight;
                 }
             });
+        },
+
+        async refreshStudioState() {
+            if (! studioStateUrl) {
+                return;
+            }
+
+            try {
+                const response = await fetch(studioStateUrl, { headers: { Accept: 'application/json' } });
+                if (! response.ok) {
+                    return;
+                }
+
+                this.applyStudioState(await response.json());
+            } catch {
+                // Studio state polling is best effort; room media must keep working.
+            }
+        },
+
+        applyStudioState(state) {
+            if (! state) {
+                return;
+            }
+
+            this.studioState = state;
+            this.qnaEnabled = state.qna_enabled !== false;
+
+            if (Array.isArray(state.qna)) {
+                this.qnaItems = state.qna.map(question => ({
+                    id: `db-${question.id}`,
+                    author: question.author || 'Guest',
+                    body: question.body || '',
+                    at: question.at || '',
+                    votes: question.votes || 0,
+                    pinned: Boolean(question.pinned),
+                    status: question.status || 'open',
+                }));
+            }
+
+            if (state.poll_visible !== false && state.poll) {
+                this.pollId = `db-${state.poll.id}`;
+                this.pollOpen = Boolean(state.poll.is_open);
+                this.pollQuestion = state.poll.question || '';
+                this.studioPollOptions = Array.isArray(state.poll.options) ? state.poll.options : [];
+                this.pollOptions = this.studioPollOptions.map(option => option.label);
+                this.pollVotes = {};
+                this.studioPollOptions.forEach((option) => {
+                    for (let index = 0; index < (option.votes || 0); index += 1) {
+                        this.pollVotes[`db-${option.id}-${index}`] = option.label;
+                    }
+                });
+            }
+        },
+
+        studioChatVisible() {
+            return this.studioState?.chat_visible !== false;
+        },
+
+        studioLowerThird() {
+            return this.studioState?.lower_third || {};
+        },
+
+        studioLowerThirdStyle() {
+            const backgroundUrl = this.studioLowerThird()?.background_url;
+            const backgroundStyle = this.studioLowerThird()?.background_style;
+
+            if (! backgroundUrl) {
+                return backgroundStyle || '';
+            }
+
+            return `background-image: linear-gradient(90deg, rgba(0,0,0,.94), rgba(7,19,33,.86), rgba(0,0,0,.62)), url("${String(backgroundUrl).replaceAll('"', '%22')}"); background-size: cover; background-position: center;`;
+        },
+
+        studioScripture() {
+            return this.studioState?.scripture || {};
+        },
+
+        studioLiveScene() {
+            return this.studioState?.live_scene || null;
+        },
+
+        studioTickerText() {
+            return this.studioState?.ticker_text || '';
         },
 
         openPanel(panel, tab = null) {
@@ -1098,7 +1538,7 @@ document.addEventListener('alpine:init', () => {
         async sendChatMessage() {
             const body = this.chatDraft.trim();
 
-            if (! body) {
+            if (! body || ! this.studioChatVisible()) {
                 return;
             }
 
@@ -1187,6 +1627,34 @@ document.addEventListener('alpine:init', () => {
 
             if (! body || ! this.qnaEnabled) {
                 return;
+            }
+
+            if (this.studioState?.qna_submit_url) {
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+                try {
+                    const response = await fetch(this.studioState.qna_submit_url, {
+                        method: 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            ...(token ? { 'X-CSRF-TOKEN': token } : {}),
+                        },
+                        body: JSON.stringify({ body }),
+                    });
+
+                    if (! response.ok) {
+                        throw new Error('Question could not be sent to the host.');
+                    }
+
+                    const payload = await response.json();
+                    this.questionDraft = '';
+                    this.applyStudioState(payload.studio || null);
+
+                    return;
+                } catch (error) {
+                    this.liveKitError = error?.message || 'Question could not be sent to the host.';
+                }
             }
 
             const question = {
@@ -1296,9 +1764,41 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
-        votePoll(option) {
+        async votePoll(option) {
             if (! this.pollOpen || ! this.hasActivePoll()) {
                 return;
+            }
+
+            if (this.studioState?.poll?.vote_url) {
+                const selected = this.studioPollOptions.find(item => item.label === option);
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+                if (! selected) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(this.studioState.poll.vote_url, {
+                        method: 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            ...(token ? { 'X-CSRF-TOKEN': token } : {}),
+                        },
+                        body: JSON.stringify({ option: selected.id }),
+                    });
+
+                    if (! response.ok) {
+                        throw new Error('Poll vote could not be saved.');
+                    }
+
+                    const payload = await response.json();
+                    this.applyStudioState(payload.studio || null);
+
+                    return;
+                } catch (error) {
+                    this.liveKitError = error?.message || 'Poll vote could not be saved.';
+                }
             }
 
             const voter = this.liveKit?.identity || participantName || 'local-user';
@@ -1434,6 +1934,7 @@ const icons = {
     BellOff,
     BellRing,
     BarChart3,
+    Blocks,
     Bold,
     Bot,
     BookOpen,
@@ -1457,6 +1958,7 @@ const icons = {
     ChevronRight,
     ChevronUp,
     Church,
+    Captions,
     CircleAlert,
     CircleCheck,
     CircleDot,
@@ -1472,6 +1974,7 @@ const icons = {
     CopyPlus,
     Cross,
     Database,
+    DoorOpen,
     Download,
     Droplets,
     Ellipsis,
@@ -1486,6 +1989,7 @@ const icons = {
     GitBranch,
     GraduationCap,
     Globe2,
+    Grip,
     Hand,
     HandCoins,
     HandHeart,
@@ -1515,6 +2019,7 @@ const icons = {
     Map,
     MapPin,
     Maximize,
+    Megaphone,
     Menu,
     Minimize,
     Minus,
@@ -1522,12 +2027,15 @@ const icons = {
     MessageCircleHeart,
     MessageSquare,
     MessageSquareCheck,
+    MessageSquareOff,
     MessageSquareText,
+    MessageCircleQuestion,
     MessagesSquare,
     Mic,
     MicOff,
     Monitor,
     MonitorPlay,
+    MonitorUp,
     MoreVertical,
     Network,
     PackageCheck,
@@ -1557,7 +2065,9 @@ const icons = {
     ScanFace,
     ScanLine,
     ScanQrCode,
+    ScanSearch,
     ScreenShare,
+    Share2,
     SlidersHorizontal,
     ShieldAlert,
     ShieldCheck,
@@ -1566,8 +2076,11 @@ const icons = {
     Sparkles,
     Star,
     Settings2,
+    Square,
     Tags,
     Target,
+    TextCursorInput,
+    Timer,
     TrendingUp,
     TriangleAlert,
     Trash2,
@@ -1586,8 +2099,10 @@ const icons = {
     VideoOff,
     Wallet,
     Webhook,
+    Wifi,
     Wrench,
     X,
+    Zap,
     KeyRound,
     Lock,
 };

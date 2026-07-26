@@ -15,6 +15,12 @@ use App\Models\Event;
 use App\Models\EventRecurrenceRule;
 use App\Models\EventSession;
 use App\Models\MeetingIntegration;
+use App\Models\MeetingPoll;
+use App\Models\MeetingPollOption;
+use App\Models\MeetingPollVote;
+use App\Models\MeetingQnaItem;
+use App\Models\MeetingScene;
+use App\Models\MeetingStudioState;
 use App\Models\Member;
 use App\Models\Program;
 use App\Models\ProgramSection;
@@ -32,6 +38,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -660,14 +667,9 @@ final class EventFlowController extends Controller
             $activityLogger->log('Meetings', 'meeting_room_joined', $member->first_name.' joined '.$provider.' internally.', $record, ['resource' => 'Built-in Meeting Room', 'risk' => 'low', 'status' => 'success'], $request);
         }
 
-        $agendaSections = ProgramSection::query()
-            ->with(['assignments.user', 'assignments.member'])
-            ->where('program_id', $eventSession->event->program_id)
-            ->where(fn (Builder $query) => $query->whereNull('event_id')->orWhere('event_id', $eventSession->event_id))
-            ->orderBy('position')
-            ->orderBy('planned_start_time')
-            ->get();
-        $canManageRoomInteractions = ! $guestAccess && ($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage events'));
+        $agendaSections = $this->agendaSectionsForSession($eventSession);
+        $canManageRoomInteractions = ! $guestAccess && $this->canManageStudioBackroom($request);
+        $shortRoomCode = Str::lower(base_convert((string) $eventSession->getKey(), 10, 36));
 
         return view('events.room', [
             'session' => $eventSession,
@@ -681,6 +683,8 @@ final class EventFlowController extends Controller
             'agendaSections' => $agendaSections,
             'canManageRoomInteractions' => $canManageRoomInteractions,
             'guestParticipant' => $guestAccess ? $guest : null,
+            'studioStatePayload' => $this->studioStatePayload($eventSession, $provider),
+            'studioStateUrl' => route('meetings.rooms.short.state', [$shortRoomCode, $provider]),
             'breadcrumbs' => $this->breadcrumbs([
                 ['Meetings', route('meetings.index')],
                 [$eventSession->title, route('event-sessions.meeting', $eventSession)],
@@ -697,6 +701,619 @@ final class EventFlowController extends Controller
     private function guestRoomSessionKey(EventSession $eventSession, string $provider): string
     {
         return 'meeting_guest.'.$eventSession->getKey().'.'.$provider;
+    }
+
+    public function studio(Request $request, EventSession $eventSession, string $provider): View
+    {
+        $this->authorizeStudioBackroom($request, $eventSession);
+        abort_unless(in_array($provider, self::ONLINE_METHODS, true), 404);
+
+        $eventSession->load(['event.program', 'campus', 'attendanceSession']);
+        abort_unless($this->sessionHasSelectedProvider($eventSession, $provider), 403);
+
+        [$state, $scenes] = $this->ensureStudioSetup($eventSession, $provider);
+        $agendaSections = $this->agendaSectionsForSession($eventSession);
+        $attendanceSession = $this->ensureAttendanceSession($eventSession);
+        $participants = $this->activeRoomParticipants($attendanceSession, $provider);
+        $sourceParticipants = $attendanceSession->records()
+            ->with('member')
+            ->where('final_method', $provider)
+            ->latest('checked_in_at')
+            ->get();
+        $integration = MeetingIntegration::query()
+            ->where('church_id', $eventSession->church_id)
+            ->where('provider', $provider)
+            ->first();
+        $poll = MeetingPoll::query()
+            ->with(['options'])
+            ->where('event_session_id', $eventSession->id)
+            ->latest()
+            ->first();
+        $questions = MeetingQnaItem::query()
+            ->where('event_session_id', $eventSession->id)
+            ->latest('is_pinned')
+            ->latest()
+            ->limit(30)
+            ->get();
+
+        return view('events.studio', [
+            'session' => $eventSession,
+            'provider' => $provider,
+            'meta' => $this->providerMeta()[$provider],
+            'state' => $state->load(['liveScene', 'previewScene']),
+            'scenes' => $scenes,
+            'agendaSections' => $agendaSections,
+            'participants' => $participants,
+            'sourceParticipants' => $sourceParticipants,
+            'poll' => $poll,
+            'questions' => $questions,
+            'studioStatePayload' => $this->studioStatePayload($eventSession, $provider),
+            'studioLiveKitPayload' => $provider === 'livekit' && $integration?->enabled ? $this->liveKitStudioPayload($integration, $eventSession, $request) : null,
+            'lowerThirdBackgroundPresets' => $this->lowerThirdBackgroundPresets(),
+            'roomUrl' => route('meetings.rooms.show', [$eventSession, $provider]),
+            'shortRoomUrl' => route('meetings.rooms.short', [Str::lower(base_convert((string) $eventSession->getKey(), 10, 36)), $provider]),
+        ]);
+    }
+
+    public function storeStudioScene(Request $request, EventSession $eventSession, string $provider): RedirectResponse
+    {
+        $this->authorizeStudioBackroom($request, $eventSession);
+        abort_unless(in_array($provider, self::ONLINE_METHODS, true), 404);
+
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:120'],
+            'scene_type' => ['required', Rule::in(['camera', 'screen', 'scripture', 'presentation', 'countdown', 'media', 'agenda'])],
+            'description' => ['nullable', 'string', 'max:500'],
+            'source_identity' => ['nullable', 'string', 'max:180'],
+            'manual_source_identity' => ['nullable', 'string', 'max:180'],
+            'source_name' => ['nullable', 'string', 'max:120'],
+            'source_kind' => ['nullable', Rule::in(['camera', 'screen'])],
+            'scripture_reference' => ['nullable', 'string', 'max:120'],
+            'scripture_text' => ['nullable', 'string', 'max:700'],
+            'countdown_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
+            'media_url' => ['nullable', 'string', 'max:500'],
+            'agenda_notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $settings = [];
+        $mediaUrl = null;
+        $sceneType = $validated['scene_type'];
+
+        if (in_array($sceneType, ['camera', 'screen'], true)) {
+            $identity = trim((string) (($validated['manual_source_identity'] ?? null) ?: ($validated['source_identity'] ?? null) ?: ''));
+            $settings = [
+                'source_identity' => $identity ?: null,
+                'source_name' => ($validated['source_name'] ?? null) ?: ($identity ?: null),
+                'source_kind' => $sceneType === 'screen' ? 'screen' : ($validated['source_kind'] ?? 'camera'),
+            ];
+        } elseif ($sceneType === 'scripture') {
+            $settings = [
+                'reference' => $validated['scripture_reference'] ?? null,
+                'text' => $validated['scripture_text'] ?? null,
+            ];
+        } elseif ($sceneType === 'countdown') {
+            $settings = ['minutes' => (int) ($validated['countdown_minutes'] ?? 5)];
+        } elseif (in_array($sceneType, ['media', 'presentation'], true)) {
+            $mediaUrl = $validated['media_url'] ?? null;
+            $settings = ['media_url' => $mediaUrl];
+        } elseif ($sceneType === 'agenda') {
+            $settings = ['notes' => $validated['agenda_notes'] ?? null];
+        }
+
+        MeetingScene::query()->create([
+            'church_id' => $eventSession->church_id,
+            'campus_id' => $eventSession->campus_id,
+            'event_session_id' => $eventSession->id,
+            'title' => $validated['title'],
+            'scene_type' => $sceneType,
+            'description' => $validated['description'] ?? null,
+            'media_url' => $mediaUrl,
+            'position' => (int) MeetingScene::query()->where('event_session_id', $eventSession->id)->max('position') + 1,
+            'status' => 'ready',
+            'settings' => collect($settings)->reject(fn ($value): bool => $value === null || $value === '')->all(),
+        ]);
+
+        return back()->with('status', 'Studio scene added.');
+    }
+
+    public function previewStudioScene(Request $request, EventSession $eventSession, string $provider, MeetingScene $scene): RedirectResponse
+    {
+        $this->authorizeStudioBackroom($request, $eventSession);
+        $this->authorizeStudioScene($eventSession, $scene);
+        $state = $this->ensureStudioSetup($eventSession, $provider)[0];
+        $state->update(['preview_scene_id' => $scene->id, 'updated_by' => $request->user()?->id]);
+
+        return back()->with('status', 'Preview scene selected.');
+    }
+
+    public function takeStudioSceneLive(Request $request, EventSession $eventSession, string $provider, MeetingScene $scene): RedirectResponse
+    {
+        $this->authorizeStudioBackroom($request, $eventSession);
+        $this->authorizeStudioScene($eventSession, $scene);
+        $state = $this->ensureStudioSetup($eventSession, $provider)[0];
+
+        DB::transaction(function () use ($eventSession, $scene, $state, $request): void {
+            MeetingScene::query()->where('event_session_id', $eventSession->id)->update(['is_live' => false]);
+            $scene->update(['is_live' => true, 'status' => 'live']);
+            $state->update([
+                'live_scene_id' => $scene->id,
+                'preview_scene_id' => $scene->id,
+                'stream_status' => 'live',
+                'updated_by' => $request->user()?->id,
+            ]);
+        });
+
+        return back()->with('status', 'Scene is now live.');
+    }
+
+    public function updateStudioSceneSource(Request $request, EventSession $eventSession, string $provider, MeetingScene $scene): RedirectResponse
+    {
+        $this->authorizeStudioBackroom($request, $eventSession);
+        $this->authorizeStudioScene($eventSession, $scene);
+
+        $validated = $request->validate([
+            'source_identity' => ['nullable', 'string', 'max:180'],
+            'manual_source_identity' => ['nullable', 'string', 'max:180'],
+            'source_name' => ['nullable', 'string', 'max:120'],
+            'source_kind' => ['required', Rule::in(['camera', 'screen'])],
+        ]);
+
+        $identity = trim((string) (($validated['manual_source_identity'] ?? null) ?: ($validated['source_identity'] ?? null) ?: ''));
+        $settings = $scene->settings ?? [];
+        $settings['source_identity'] = $identity ?: null;
+        $settings['source_name'] = $validated['source_name'] ?: $identity ?: null;
+        $settings['source_kind'] = $validated['source_kind'];
+
+        $scene->update(['settings' => $settings]);
+
+        return back()->with('status', 'Scene source updated.');
+    }
+
+    public function destroyStudioScene(Request $request, EventSession $eventSession, string $provider, MeetingScene $scene): RedirectResponse
+    {
+        $this->authorizeStudioBackroom($request, $eventSession);
+        $this->authorizeStudioScene($eventSession, $scene);
+
+        $activeSceneCount = MeetingScene::query()
+            ->where('event_session_id', $eventSession->id)
+            ->count();
+
+        if ($activeSceneCount <= 1) {
+            return back()->with('status', 'Keep at least one studio screen available.');
+        }
+
+        $state = $this->ensureStudioSetup($eventSession, $provider)[0];
+        $replacement = MeetingScene::query()
+            ->where('event_session_id', $eventSession->id)
+            ->where($scene->getKeyName(), '!=', $scene->getKey())
+            ->orderBy('position')
+            ->first();
+
+        DB::transaction(function () use ($request, $scene, $state, $replacement): void {
+            $updates = ['updated_by' => $request->user()?->id];
+
+            if ((int) $state->live_scene_id === (int) $scene->getKey()) {
+                $updates['live_scene_id'] = $replacement?->id;
+                $replacement?->update(['is_live' => true, 'status' => 'live']);
+            }
+
+            if ((int) $state->preview_scene_id === (int) $scene->getKey()) {
+                $updates['preview_scene_id'] = $replacement?->id;
+            }
+
+            $state->update($updates);
+            $scene->update(['is_live' => false, 'status' => 'archived']);
+            $scene->delete();
+        });
+
+        return back()->with('status', 'Studio screen deleted.');
+    }
+
+    public function updateStudioState(Request $request, EventSession $eventSession, string $provider): RedirectResponse
+    {
+        $this->authorizeStudioBackroom($request, $eventSession);
+        $state = $this->ensureStudioSetup($eventSession, $provider)[0];
+        $backgroundPresets = $this->lowerThirdBackgroundPresets();
+
+        $validated = $request->validate([
+            'speaker_name' => ['nullable', 'string', 'max:120'],
+            'speaker_role' => ['nullable', 'string', 'max:120'],
+            'service_label' => ['nullable', 'string', 'max:120'],
+            'scripture_reference' => ['nullable', 'string', 'max:120'],
+            'scripture_text' => ['nullable', 'string', 'max:700'],
+            'ticker_text' => ['nullable', 'string', 'max:160'],
+            'countdown_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
+            'chat_visible' => ['nullable', 'boolean'],
+            'qna_enabled' => ['nullable', 'boolean'],
+            'poll_visible' => ['nullable', 'boolean'],
+            'stream_status' => ['nullable', Rule::in(['preview', 'live', 'paused', 'ended'])],
+            'audio_mixer' => ['nullable', 'array'],
+            'audio_mixer.*' => ['nullable', 'integer', 'min:-60', 'max:12'],
+            'quick_actions' => ['nullable', 'array'],
+            'quick_actions.*' => ['nullable', 'string', 'max:180'],
+            'destination_name' => ['nullable', 'string', 'max:120'],
+            'destination_status' => ['nullable', Rule::in(['ready', 'live', 'paused', 'offline'])],
+            'lower_third_background' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'lower_third_background_preset' => ['nullable', Rule::in(array_keys($backgroundPresets))],
+            'remove_lower_third_background' => ['nullable', 'boolean'],
+        ]);
+        $lowerThirdBackgroundUrl = null;
+        if ($request->hasFile('lower_third_background')) {
+            $lowerThirdBackgroundUrl = Storage::disk('public')->url(
+                $request->file('lower_third_background')->store('studio/lower-thirds', 'public')
+            );
+        }
+
+        $lowerThirdPreset = $validated['lower_third_background_preset'] ?? null;
+        $removeLowerThirdBackground = $request->boolean('remove_lower_third_background');
+        $hasLowerThird = $request->hasAny(['speaker_name', 'speaker_role', 'service_label', 'lower_third_background_preset', 'remove_lower_third_background']) || filled($lowerThirdBackgroundUrl);
+        $hasScripture = $request->hasAny(['scripture_reference', 'scripture_text']);
+        $lowerThird = $state->lower_third ?? [];
+
+        if ($hasLowerThird) {
+            $lowerThird = [
+                'speaker_name' => $request->has('speaker_name') ? ($validated['speaker_name'] ?? null) : ($lowerThird['speaker_name'] ?? null),
+                'speaker_role' => $request->has('speaker_role') ? ($validated['speaker_role'] ?? null) : ($lowerThird['speaker_role'] ?? null),
+                'service_label' => $request->has('service_label') ? ($validated['service_label'] ?? null) : ($lowerThird['service_label'] ?? null),
+                'background_url' => $removeLowerThirdBackground || filled($lowerThirdPreset) ? null : ($lowerThirdBackgroundUrl ?: ($lowerThird['background_url'] ?? null)),
+                'background_style' => $removeLowerThirdBackground || filled($lowerThirdBackgroundUrl) ? null : (filled($lowerThirdPreset) ? $backgroundPresets[$lowerThirdPreset]['style'] : ($lowerThird['background_style'] ?? null)),
+                'background_label' => $removeLowerThirdBackground || filled($lowerThirdBackgroundUrl) ? null : (filled($lowerThirdPreset) ? $backgroundPresets[$lowerThirdPreset]['label'] : ($lowerThird['background_label'] ?? null)),
+            ];
+        }
+
+        $quickActions = collect($state->quick_actions ?? [])
+            ->merge($validated['quick_actions'] ?? [])
+            ->reject(fn ($value): bool => $value === null || $value === '')
+            ->all();
+        $audioMixer = collect($validated['audio_mixer'] ?? [])
+            ->map(fn ($value): int => (int) $value)
+            ->all();
+        $destinations = $state->destinations ?? [];
+
+        if (filled($validated['destination_name'] ?? null)) {
+            $destinations[] = [
+                'name' => $validated['destination_name'],
+                'status' => $validated['destination_status'] ?? 'ready',
+            ];
+        }
+
+        $state->update([
+            'lower_third' => $hasLowerThird ? $lowerThird : $state->lower_third,
+            'scripture' => $hasScripture ? [
+                'reference' => $validated['scripture_reference'] ?? null,
+                'text' => $validated['scripture_text'] ?? null,
+            ] : $state->scripture,
+            'ticker_text' => $request->has('ticker_text') ? ($validated['ticker_text'] ?? null) : $state->ticker_text,
+            'countdown_ends_at' => $request->has('countdown_minutes') ? (((int) ($validated['countdown_minutes'] ?? 0)) > 0 ? now()->addMinutes((int) $validated['countdown_minutes']) : null) : $state->countdown_ends_at,
+            'chat_visible' => $request->has('chat_visible') ? $request->boolean('chat_visible') : $state->chat_visible,
+            'qna_enabled' => $request->has('qna_enabled') ? $request->boolean('qna_enabled') : $state->qna_enabled,
+            'poll_visible' => $request->has('poll_visible') ? $request->boolean('poll_visible') : $state->poll_visible,
+            'stream_status' => $validated['stream_status'] ?? $state->stream_status,
+            'audio_mixer' => $request->has('audio_mixer') ? array_merge($state->audio_mixer ?? [], $audioMixer) : $state->audio_mixer,
+            'destinations' => filled($validated['destination_name'] ?? null) ? $destinations : $state->destinations,
+            'quick_actions' => $request->has('quick_actions') ? $quickActions : $state->quick_actions,
+            'updated_by' => $request->user()?->id,
+        ]);
+
+        return back()->with('status', 'Studio controls updated.');
+    }
+
+    public function storeStudioPoll(Request $request, EventSession $eventSession, string $provider): RedirectResponse
+    {
+        $this->authorizeStudioBackroom($request, $eventSession);
+
+        $validated = $request->validate([
+            'question' => ['required', 'string', 'max:180'],
+            'options' => ['required', 'array', 'min:2', 'max:6'],
+            'options.*' => ['nullable', 'string', 'max:100'],
+        ]);
+        $options = collect($validated['options'])->map(fn ($option): string => trim((string) $option))->filter()->values();
+        abort_if($options->count() < 2, 422, 'Add at least two poll options.');
+
+        DB::transaction(function () use ($eventSession, $request, $validated, $options): void {
+            MeetingPoll::query()->where('event_session_id', $eventSession->id)->update(['is_open' => false]);
+            $poll = MeetingPoll::query()->create([
+                'church_id' => $eventSession->church_id,
+                'campus_id' => $eventSession->campus_id,
+                'event_session_id' => $eventSession->id,
+                'question' => $validated['question'],
+                'is_open' => true,
+                'show_results' => true,
+                'created_by' => $request->user()?->id,
+            ]);
+            $options->each(fn (string $label, int $index) => $poll->options()->create(['label' => $label, 'position' => $index + 1]));
+        });
+
+        return back()->with('status', 'Poll published.');
+    }
+
+    public function updateStudioPoll(Request $request, EventSession $eventSession, string $provider, MeetingPoll $poll): RedirectResponse
+    {
+        $this->authorizeStudioBackroom($request, $eventSession);
+        abort_unless($poll->event_session_id === $eventSession->id, 404);
+
+        $validated = $request->validate([
+            'action' => ['required', Rule::in(['open', 'close', 'hide_results', 'show_results'])],
+        ]);
+
+        $poll->update(match ($validated['action']) {
+            'open' => ['is_open' => true],
+            'close' => ['is_open' => false],
+            'hide_results' => ['show_results' => false],
+            'show_results' => ['show_results' => true],
+        });
+
+        return back()->with('status', 'Poll updated.');
+    }
+
+    public function updateStudioQuestion(Request $request, EventSession $eventSession, string $provider, MeetingQnaItem $question): RedirectResponse
+    {
+        $this->authorizeStudioBackroom($request, $eventSession);
+        abort_unless($question->event_session_id === $eventSession->id, 404);
+
+        $validated = $request->validate([
+            'action' => ['required', Rule::in(['pin', 'unpin', 'answered', 'open'])],
+        ]);
+
+        $question->update(match ($validated['action']) {
+            'pin' => ['is_pinned' => true],
+            'unpin' => ['is_pinned' => false],
+            'answered' => ['status' => 'answered', 'answered_at' => now()],
+            'open' => ['status' => 'open', 'answered_at' => null],
+        });
+
+        return back()->with('status', 'Question updated.');
+    }
+
+    public function publicStudioState(string $code, string $provider): JsonResponse
+    {
+        abort_unless(in_array($provider, self::ONLINE_METHODS, true), 404);
+
+        return response()->json($this->studioStatePayload($this->eventSessionFromShortCode($code), $provider));
+    }
+
+    public function storePublicQuestion(Request $request, string $code, string $provider): JsonResponse
+    {
+        abort_unless(in_array($provider, self::ONLINE_METHODS, true), 404);
+        $eventSession = $this->eventSessionFromShortCode($code);
+        $state = $this->ensureStudioSetup($eventSession, $provider)[0];
+        abort_unless($state->qna_enabled, 403);
+
+        $validated = $request->validate(['body' => ['required', 'string', 'max:500']]);
+        $guest = $request->session()->get($this->guestRoomSessionKey($eventSession, $provider), []);
+        $author = $request->user()?->name ?: ($guest['name'] ?? 'Guest');
+
+        MeetingQnaItem::query()->create([
+            'church_id' => $eventSession->church_id,
+            'campus_id' => $eventSession->campus_id,
+            'event_session_id' => $eventSession->id,
+            'user_id' => $request->user()?->id,
+            'guest_identity' => $guest['identity'] ?? null,
+            'author_name' => $author,
+            'body' => $validated['body'],
+        ]);
+
+        return response()->json(['ok' => true, 'studio' => $this->studioStatePayload($eventSession, $provider)]);
+    }
+
+    public function storePublicPollVote(Request $request, string $code, string $provider, MeetingPoll $poll): JsonResponse
+    {
+        abort_unless(in_array($provider, self::ONLINE_METHODS, true), 404);
+        $eventSession = $this->eventSessionFromShortCode($code);
+        abort_unless($poll->event_session_id === $eventSession->id && $poll->is_open, 403);
+
+        $validated = $request->validate(['option' => ['required', 'integer']]);
+        $option = MeetingPollOption::query()
+            ->where('meeting_poll_id', $poll->id)
+            ->whereKey($validated['option'])
+            ->firstOrFail();
+        $guest = $request->session()->get($this->guestRoomSessionKey($eventSession, $provider), []);
+        $guestIdentity = $request->user() ? null : ($guest['identity'] ?? $request->session()->getId());
+
+        DB::transaction(function () use ($poll, $option, $request, $guestIdentity): void {
+            $vote = MeetingPollVote::query()->updateOrCreate(
+                [
+                    'meeting_poll_id' => $poll->id,
+                    'user_id' => $request->user()?->id,
+                    'guest_identity' => $request->user() ? null : $guestIdentity,
+                ],
+                ['meeting_poll_option_id' => $option->id],
+            );
+
+            $poll->options->each(fn (MeetingPollOption $pollOption) => $pollOption->update(['votes_count' => MeetingPollVote::query()->where('meeting_poll_option_id', $pollOption->id)->count()]));
+        });
+
+        return response()->json(['ok' => true, 'studio' => $this->studioStatePayload($eventSession, $provider)]);
+    }
+
+    private function ensureStudioSetup(EventSession $eventSession, string $provider): array
+    {
+        abort_unless(in_array($provider, self::ONLINE_METHODS, true), 404);
+        abort_unless($this->sessionHasSelectedProvider($eventSession, $provider), 403);
+
+        $sceneDefaults = [
+            ['Main Camera', 'camera', 'Primary speaker camera'],
+            ['Screen Share', 'screen', 'Participant screen share'],
+            ['Worship Band', 'camera', 'Worship team and stage audio'],
+            ['Audience Cam', 'camera', 'Congregation view'],
+            ['Scripture Slide', 'scripture', 'Bible reference or sermon verse'],
+            ['Presentation', 'presentation', 'Slides and media'],
+            ['Countdown', 'countdown', 'Service countdown timer'],
+        ];
+
+        foreach ($sceneDefaults as $index => [$title, $type, $description]) {
+            MeetingScene::query()->firstOrCreate(
+                ['event_session_id' => $eventSession->id, 'title' => $title],
+                [
+                    'church_id' => $eventSession->church_id,
+                    'campus_id' => $eventSession->campus_id,
+                    'scene_type' => $type,
+                    'description' => $description,
+                    'position' => $index + 1,
+                    'status' => $index === 0 ? 'live' : 'ready',
+                    'settings' => in_array($type, ['camera', 'screen'], true) ? ['source_kind' => $type === 'screen' ? 'screen' : 'camera'] : [],
+                    'is_live' => $index === 0,
+                ],
+            );
+        }
+
+        $scenes = MeetingScene::query()
+            ->where('event_session_id', $eventSession->id)
+            ->orderBy('position')
+            ->get();
+        $liveScene = $scenes->firstWhere('is_live', true) ?: $scenes->first();
+
+        $state = MeetingStudioState::query()->firstOrCreate(
+            ['event_session_id' => $eventSession->id, 'provider' => $provider],
+            [
+                'church_id' => $eventSession->church_id,
+                'campus_id' => $eventSession->campus_id,
+                'live_scene_id' => $liveScene?->id,
+                'preview_scene_id' => $liveScene?->id,
+                'lower_third' => [
+                    'speaker_name' => null,
+                    'speaker_role' => null,
+                    'service_label' => $eventSession->title,
+                ],
+                'scripture' => ['reference' => null, 'text' => null],
+                'chat_visible' => true,
+                'qna_enabled' => true,
+                'poll_visible' => true,
+                'stream_status' => 'preview',
+                'audio_mixer' => [
+                    'pastor_mic' => -2,
+                    'worship_band' => -5,
+                    'audience' => -10,
+                    'background_music' => -18,
+                    'system_audio' => -6,
+                ],
+                'destinations' => [
+                    ['name' => 'YouTube Live', 'status' => 'ready'],
+                    ['name' => 'Facebook Live', 'status' => 'ready'],
+                    ['name' => 'OBS (RTMP)', 'status' => 'ready'],
+                ],
+                'quick_actions' => [],
+            ],
+        );
+
+        if (! $state->live_scene_id && $liveScene) {
+            $state->update(['live_scene_id' => $liveScene->id, 'preview_scene_id' => $liveScene->id]);
+        }
+
+        return [$state->fresh(['liveScene', 'previewScene']), $scenes];
+    }
+
+    private function agendaSectionsForSession(EventSession $eventSession): Collection
+    {
+        return ProgramSection::query()
+            ->with(['assignments.user', 'assignments.member'])
+            ->where('program_id', $eventSession->event->program_id)
+            ->where(fn (Builder $query) => $query->whereNull('event_id')->orWhere('event_id', $eventSession->event_id))
+            ->orderBy('position')
+            ->orderBy('planned_start_time')
+            ->get();
+    }
+
+    private function lowerThirdBackgroundPresets(): array
+    {
+        return [
+            'royal-violet' => [
+                'label' => 'Royal Violet',
+                'style' => 'background: radial-gradient(circle at 18% 35%, rgba(124,58,237,.62), transparent 26%), linear-gradient(90deg, rgba(0,0,0,.94), rgba(39,18,88,.9), rgba(7,19,33,.72));',
+            ],
+            'gold-sanctuary' => [
+                'label' => 'Gold Sanctuary',
+                'style' => 'background: radial-gradient(circle at 12% 45%, rgba(245,158,11,.45), transparent 24%), linear-gradient(90deg, rgba(0,0,0,.94), rgba(55,37,8,.9), rgba(7,19,33,.72));',
+            ],
+            'midnight-blue' => [
+                'label' => 'Midnight Blue',
+                'style' => 'background: radial-gradient(circle at 22% 30%, rgba(37,99,235,.55), transparent 28%), linear-gradient(90deg, rgba(0,0,0,.94), rgba(8,31,66,.9), rgba(5,10,20,.72));',
+            ],
+            'emerald-light' => [
+                'label' => 'Emerald Light',
+                'style' => 'background: radial-gradient(circle at 16% 36%, rgba(16,185,129,.42), transparent 25%), linear-gradient(90deg, rgba(0,0,0,.94), rgba(6,47,41,.88), rgba(7,19,33,.72));',
+            ],
+        ];
+    }
+
+    private function studioStatePayload(EventSession $eventSession, string $provider): array
+    {
+        $eventSession->loadMissing(['event.program', 'campus']);
+        [$state, $scenes] = $this->ensureStudioSetup($eventSession, $provider);
+        $shortRoomCode = Str::lower(base_convert((string) $eventSession->getKey(), 10, 36));
+        $poll = MeetingPoll::query()
+            ->with('options')
+            ->where('event_session_id', $eventSession->id)
+            ->latest()
+            ->first();
+        $questions = MeetingQnaItem::query()
+            ->where('event_session_id', $eventSession->id)
+            ->whereIn('status', ['open', 'answered'])
+            ->latest('is_pinned')
+            ->latest()
+            ->limit(20)
+            ->get();
+
+        return [
+            'updated_at' => $state->updated_at?->toIso8601String(),
+            'stream_status' => $state->stream_status,
+            'chat_visible' => $state->chat_visible,
+            'qna_enabled' => $state->qna_enabled,
+            'poll_visible' => $state->poll_visible,
+            'ticker_text' => $state->ticker_text,
+            'countdown_ends_at' => $state->countdown_ends_at?->toIso8601String(),
+            'lower_third' => $state->lower_third ?: [],
+            'scripture' => $state->scripture ?: [],
+            'qna_submit_url' => route('meetings.rooms.short.qna.store', [$shortRoomCode, $provider]),
+            'live_scene' => $state->liveScene ? [
+                'id' => $state->liveScene->id,
+                'title' => $state->liveScene->title,
+                'type' => $state->liveScene->scene_type,
+                'description' => $state->liveScene->description,
+                'settings' => $state->liveScene->settings ?: [],
+            ] : null,
+            'preview_scene' => $state->previewScene ? [
+                'id' => $state->previewScene->id,
+                'title' => $state->previewScene->title,
+                'type' => $state->previewScene->scene_type,
+                'description' => $state->previewScene->description,
+                'settings' => $state->previewScene->settings ?: [],
+            ] : null,
+            'scenes' => $scenes->map(fn (MeetingScene $scene): array => [
+                'id' => $scene->id,
+                'title' => $scene->title,
+                'type' => $scene->scene_type,
+                'description' => $scene->description,
+                'settings' => $scene->settings ?: [],
+                'is_live' => $scene->is_live,
+            ])->values()->all(),
+            'poll' => $poll ? [
+                'id' => $poll->id,
+                'question' => $poll->question,
+                'is_open' => $poll->is_open,
+                'show_results' => $poll->show_results,
+                'vote_url' => route('meetings.rooms.short.polls.vote', [$shortRoomCode, $provider, $poll]),
+                'options' => $poll->options->map(fn (MeetingPollOption $option): array => [
+                    'id' => $option->id,
+                    'label' => $option->label,
+                    'votes' => $option->votes_count,
+                ])->values()->all(),
+            ] : null,
+            'qna' => $questions->map(fn (MeetingQnaItem $question): array => [
+                'id' => $question->id,
+                'author' => $question->author_name,
+                'body' => $question->body,
+                'status' => $question->status,
+                'votes' => $question->votes_count,
+                'pinned' => $question->is_pinned,
+                'at' => $question->created_at?->format('h:i A'),
+            ])->values()->all(),
+        ];
+    }
+
+    private function authorizeStudioScene(EventSession $eventSession, MeetingScene $scene): void
+    {
+        abort_unless($scene->event_session_id === $eventSession->id, 404);
     }
 
     public function markRoomAttendance(Request $request, EventSession $eventSession, string $provider, ActivityLogger $activityLogger): JsonResponse
@@ -722,6 +1339,8 @@ final class EventFlowController extends Controller
             'connected' => ['required', 'boolean'],
             'room' => ['nullable', 'string', 'max:160'],
             'remote_participants' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'identity' => ['nullable', 'string', 'max:180'],
+            'participant_name' => ['nullable', 'string', 'max:120'],
         ]);
         abort_unless((bool) $payload['connected'], 422, 'Attendance can only be marked after a successful room connection.');
 
@@ -737,6 +1356,9 @@ final class EventFlowController extends Controller
                 'internal_room' => true,
                 'room_provider' => $provider,
                 'room' => $payload['room'] ?? ($eventSession->meeting_links[$provider]['room'] ?? null),
+                'livekit_identity' => $payload['identity'] ?? null,
+                'participant_name' => $payload['participant_name'] ?? null,
+                'avatar' => $request->user()?->avatar_src,
                 'remote_participants' => (int) ($payload['remote_participants'] ?? 0),
                 'connected_before_attendance' => true,
                 'online_status' => 'online',
@@ -1629,6 +2251,34 @@ final class EventFlowController extends Controller
         ];
     }
 
+    private function liveKitStudioPayload(MeetingIntegration $integration, EventSession $eventSession, Request $request): array
+    {
+        $settings = $integration->settings ?? [];
+        $this->validateLiveKitSettings($integration);
+
+        $room = (string) ($eventSession->meeting_links['livekit']['room'] ?? Str::slug((string) ($settings['room_prefix'] ?? 'church')).'-livekit-'.$eventSession->id);
+        $ttlSeconds = (int) ($settings['participant_token_ttl_seconds'] ?? 7200);
+        $operatorName = $request->user()?->name ?? 'Studio Operator';
+        $identity = 'studio-'.$eventSession->getKey().'-'.($request->user()?->getKey() ?? Str::random(8));
+
+        return [
+            'server_url' => (string) $settings['server_url'],
+            'room' => $room,
+            'identity' => $identity,
+            'name' => $operatorName.' Studio',
+            'token' => $this->generateLiveKitToken(
+                (string) $settings['api_key'],
+                $this->decryptLiveKitSecret($settings),
+                $room,
+                $identity,
+                $operatorName.' Studio',
+                $ttlSeconds,
+                ['role' => 'studio', 'hidden' => true],
+            ),
+            'expires_at' => now()->addSeconds($ttlSeconds)->toIso8601String(),
+        ];
+    }
+
     private function roomAttendanceRecord(AttendanceSession $attendanceSession, Member $member): ?AttendanceRecord
     {
         return AttendanceRecord::query()
@@ -1964,6 +2614,17 @@ final class EventFlowController extends Controller
     private function authorizeEvents(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage events'), 403);
+    }
+
+    private function canManageStudioBackroom(Request $request): bool
+    {
+        return $request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage studio');
+    }
+
+    private function authorizeStudioBackroom(Request $request, EventSession $session): void
+    {
+        abort_unless($this->canManageStudioBackroom($request), 403);
+        abort_unless($request->user()?->canAccessChurch($session->church_id) && $request->user()?->canAccessCampus($session->campus_id), 403);
     }
 
     private function authorizeAttendance(Request $request): void

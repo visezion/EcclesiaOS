@@ -9,6 +9,7 @@ use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\AttendanceRecord;
 use App\Models\BookstoreOrder;
+use App\Models\BookstoreOrderItem;
 use App\Models\BookstoreProduct;
 use App\Models\Campus;
 use App\Models\Church;
@@ -19,21 +20,26 @@ use App\Models\Fund;
 use App\Models\Member;
 use App\Models\Ministry;
 use App\Models\PrayerRequest;
+use App\Models\Staff;
 use App\Models\User;
 use App\Models\Volunteer;
+use App\Support\ModuleRegistry;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Number;
 
 final class DashboardService
 {
     private ?User $actor = null;
+    private ?Church $church = null;
 
     public function forUser(?User $user): self
     {
         $this->actor = $user;
+        $this->church = null;
 
         return $this;
     }
@@ -54,6 +60,7 @@ final class DashboardService
             'insights' => $this->getInsights(),
             'activities' => $this->getRecentActivities(),
             'quickActions' => $this->getQuickActions(),
+            'dashboardSections' => $this->getDashboardSections(),
         ];
     }
 
@@ -72,7 +79,7 @@ final class DashboardService
         $bookstoreRevenue = $this->query(BookstoreOrder::class)->whereMonth('ordered_at', now()->month)->sum('total_amount');
         $assetHealth = $this->assetHealthScore();
 
-        return [
+        return collect([
             ['label' => 'Total Members', 'value' => Number::format($memberCount), 'change' => $this->growth($this->query(Member::class), 'created_at'), 'period' => 'vs last month', 'icon' => 'users', 'color' => 'purple', 'route' => 'members.index'],
             ['label' => 'Avg. Attendance', 'value' => Number::format($attendanceAverage), 'change' => $this->attendanceGrowth(), 'period' => 'vs last month', 'icon' => 'users-round', 'color' => 'emerald', 'route' => 'attendance.index'],
             ['label' => 'Total Giving (Month)', 'value' => Number::currency((float) $givingTotal, $currency), 'change' => $this->moneyGrowth($this->query(Donation::class), 'received_at', 'amount'), 'period' => 'vs last month', 'icon' => 'heart', 'color' => 'rose', 'route' => 'finance.index'],
@@ -80,7 +87,10 @@ final class DashboardService
             ['label' => 'Upcoming Events', 'value' => Number::format($events), 'change' => null, 'period' => 'Next: '.($this->query(Event::class)->where('starts_at', '>=', now())->orderBy('starts_at')->value('title') ?? 'None scheduled'), 'icon' => 'calendar-days', 'color' => 'orange', 'route' => 'events.index'],
             ['label' => 'Book Store Revenue', 'value' => Number::currency((float) $bookstoreRevenue, $currency), 'change' => $this->moneyGrowth($this->query(BookstoreOrder::class), 'ordered_at', 'total_amount'), 'period' => 'this month', 'icon' => 'book-open', 'color' => 'amber', 'route' => 'bookstore.index'],
             ['label' => 'Asset Health Score', 'value' => $assetHealth.'/100', 'change' => null, 'period' => $assetHealth >= 80 ? 'Good' : 'Needs attention', 'icon' => 'shield-check', 'color' => 'teal', 'route' => 'assets.index'],
-        ];
+        ])
+            ->filter(fn (array $metric): bool => $this->canShowRoute($metric['route']))
+            ->values()
+            ->all();
     }
 
     public function getAttendanceTrend(): array
@@ -124,11 +134,24 @@ final class DashboardService
         $lowStock = $this->query(BookstoreProduct::class)->whereColumn('stock_quantity', '<=', 'reorder_level')->count();
         $orders = $this->query(BookstoreOrder::class)->whereMonth('ordered_at', now()->month)->count();
         $revenue = $this->query(BookstoreOrder::class)->whereMonth('ordered_at', now()->month)->sum('total_amount');
-        $categoryTotals = $this->query(BookstoreProduct::class)
-            ->select('category', DB::raw('sum(stock_quantity) as total'))
-            ->groupBy('category')
+        $categoryTotals = BookstoreOrderItem::query()
+            ->join('bookstore_orders', 'bookstore_orders.id', '=', 'bookstore_order_items.bookstore_order_id')
+            ->leftJoin('bookstore_products', 'bookstore_products.id', '=', 'bookstore_order_items.bookstore_product_id')
+            ->whereNull('bookstore_orders.deleted_at')
+            ->when($this->church(), fn ($query, Church $church) => $query->where('bookstore_orders.church_id', $church->id))
+            ->select(DB::raw("coalesce(bookstore_products.category, 'Uncategorized') as category"), DB::raw('sum(bookstore_order_items.line_total) as total'))
+            ->groupBy(DB::raw("coalesce(bookstore_products.category, 'Uncategorized')"))
             ->pluck('total', 'category');
-        $categorySum = max(1, (int) $categoryTotals->sum());
+        $categorySum = max(1, (float) $categoryTotals->sum());
+        $topBooks = BookstoreOrderItem::query()
+            ->join('bookstore_orders', 'bookstore_orders.id', '=', 'bookstore_order_items.bookstore_order_id')
+            ->whereNull('bookstore_orders.deleted_at')
+            ->when($this->church(), fn ($query, Church $church) => $query->where('bookstore_orders.church_id', $church->id))
+            ->select('bookstore_order_items.product_name', DB::raw('sum(bookstore_order_items.quantity) as sold'), DB::raw('sum(bookstore_order_items.line_total) as revenue'))
+            ->groupBy('bookstore_order_items.product_name')
+            ->orderByDesc('sold')
+            ->limit(5)
+            ->get();
 
         return [
             'totals' => [
@@ -137,14 +160,14 @@ final class DashboardService
                 ['label' => 'Orders (This Month)', 'value' => Number::format($orders), 'note' => $this->growth($this->query(BookstoreOrder::class), 'ordered_at'), 'icon' => 'receipt'],
                 ['label' => 'Revenue (This Month)', 'value' => Number::currency((float) $revenue, $currency), 'note' => $this->moneyGrowth($this->query(BookstoreOrder::class), 'ordered_at', 'total_amount'), 'icon' => 'wallet'],
             ],
-            'topBooks' => $this->query(BookstoreProduct::class)->orderByDesc('stock_quantity')->limit(5)->get()->map(fn (BookstoreProduct $product): array => [
-                'title' => $product->name,
-                'sold' => max(0, 150 - $product->stock_quantity),
-                'revenue' => Number::currency((float) (max(0, 150 - $product->stock_quantity) * $product->price), $currency),
+            'topBooks' => $topBooks->map(fn ($book): array => [
+                'title' => $book->product_name,
+                'sold' => (int) $book->sold,
+                'revenue' => Number::currency((float) $book->revenue, $currency),
             ])->all(),
             'categories' => $categoryTotals->map(fn ($total, string $category): array => [
                 'label' => $category,
-                'value' => (int) round(($total / $categorySum) * 100),
+                'value' => (int) round(((float) $total / $categorySum) * 100),
             ])->values()->all(),
         ];
     }
@@ -168,14 +191,21 @@ final class DashboardService
 
     public function getLeadershipReport(): array
     {
+        $staffTotal = $this->query(Staff::class)->count();
+        $activeStaff = $this->query(Staff::class)->where('employment_status', 'active')->count();
+        $staffScore = $staffTotal > 0 ? (int) round(($activeStaff / $staffTotal) * 100) : 0;
+        $campusTotal = $this->query(Campus::class)->count();
+        $activeCampuses = $this->query(Campus::class)->where('status', 'active')->count();
+        $branchScore = $campusTotal > 0 ? (int) round(($activeCampuses / $campusTotal) * 100) : 0;
+
         return [
             ['label' => 'Sermon Engagement', 'value' => Number::format($this->query(ActivityLog::class)->where('module', 'Sermons')->count()), 'change' => $this->growth($this->query(ActivityLog::class)->where('module', 'Sermons'), 'created_at'), 'status' => '', 'icon' => 'podcast', 'sparkline' => $this->sparkline($this->query(ActivityLog::class))],
             ['label' => 'Counselling Sessions', 'value' => Number::format($this->query(PrayerRequest::class)->whereNotNull('followed_up_at')->count()), 'change' => $this->growth($this->query(PrayerRequest::class), 'created_at'), 'status' => '', 'icon' => 'heart-handshake', 'sparkline' => $this->sparkline($this->query(PrayerRequest::class))],
             ['label' => 'Discipleship Growth', 'value' => Number::format($this->query(Member::class)->where('joined_at', '>=', now()->subMonths(6))->count()), 'change' => $this->growth($this->query(Member::class), 'joined_at'), 'status' => '', 'icon' => 'graduation-cap', 'sparkline' => $this->sparkline($this->query(Member::class), 'joined_at')],
-            ['label' => 'Branch Performance', 'value' => $this->assetHealthScore().'%', 'change' => null, 'status' => 'Avg. Score', 'icon' => 'map', 'sparkline' => $this->sparkline($this->query(Campus::class))],
+            ['label' => 'Branch Performance', 'value' => $branchScore.'%', 'change' => null, 'status' => 'Active Campuses', 'icon' => 'map', 'sparkline' => $this->sparkline($this->query(Campus::class))],
             ['label' => 'Ministry Performance', 'value' => Number::format($this->query(Ministry::class)->where('status', 'active')->count()), 'change' => null, 'status' => 'Active', 'icon' => 'landmark', 'sparkline' => $this->sparkline($this->query(Ministry::class))],
             ['label' => 'Leadership Tasks', 'value' => $this->query(ActivityLog::class)->where('module', 'Access Control')->count().'/'.$this->query(ActivityLog::class)->count(), 'change' => null, 'status' => 'Completed', 'icon' => 'list-checks', 'sparkline' => $this->sparkline($this->query(ActivityLog::class))],
-            ['label' => 'Staff KPI Score', 'value' => '90%', 'change' => null, 'status' => 'Overall', 'icon' => 'user-check', 'sparkline' => $this->sparkline($this->query(Volunteer::class))],
+            ['label' => 'Staff KPI Score', 'value' => $staffScore.'%', 'change' => null, 'status' => 'Active Staff', 'icon' => 'user-check', 'sparkline' => $this->sparkline($this->query(Staff::class))],
         ];
     }
 
@@ -183,9 +213,13 @@ final class DashboardService
     {
         $responses = $this->query(Feedback::class)->count();
         $resolved = $this->query(Feedback::class)->where('status', 'resolved')->count();
+        $positive = $this->query(Feedback::class)->where('sentiment', 'positive')->count();
+        $negative = $this->query(Feedback::class)->where('sentiment', 'negative')->count();
+        $satisfaction = $responses > 0 ? (int) round(($positive / $responses) * 100) : 0;
+        $nps = $responses > 0 ? (int) round((($positive - $negative) / $responses) * 100) : 0;
 
         return [
-            'summary' => ['responses' => $responses, 'satisfaction' => '4.6/5', 'nps' => $responses > 0 ? (int) round(($resolved / $responses) * 100) : 0],
+            'summary' => ['responses' => $responses, 'satisfaction' => $satisfaction.'%', 'nps' => $nps, 'resolved' => $resolved],
             'counts' => [
                 ['label' => 'Suggestions', 'value' => $this->query(Feedback::class)->where('type', 'suggestion')->count(), 'color' => 'emerald'],
                 ['label' => 'Complaints', 'value' => $this->query(Feedback::class)->where('type', 'complaint')->count(), 'color' => 'rose'],
@@ -262,7 +296,7 @@ final class DashboardService
 
     public function getQuickActions(): array
     {
-        return [
+        return collect([
             ['label' => 'Add Member', 'route' => 'members.index', 'icon' => 'user-plus', 'color' => 'purple'],
             ['label' => 'Record Attendance', 'route' => 'attendance.index', 'icon' => 'clipboard-check', 'color' => 'blue'],
             ['label' => 'Create Event', 'route' => 'events.index', 'icon' => 'calendar-plus', 'color' => 'emerald'],
@@ -271,7 +305,43 @@ final class DashboardService
             ['label' => 'Send Message', 'route' => 'communications.index', 'icon' => 'send', 'color' => 'sky'],
             ['label' => 'Review Feedback', 'route' => 'feedback.index', 'icon' => 'message-circle-heart', 'color' => 'rose'],
             ['label' => 'Generate Report', 'route' => 'reports.index', 'icon' => 'file-chart-column', 'color' => 'teal'],
+        ])
+            ->filter(fn (array $action): bool => $this->canShowRoute($action['route']))
+            ->values()
+            ->all();
+    }
+
+    public function getDashboardSections(): array
+    {
+        return [
+            'attendance' => $this->canShowRoute('attendance.index'),
+            'giving' => $this->canShowRoute('finance.index'),
+            'bookstore' => $this->canShowRoute('bookstore.index'),
+            'assets' => $this->canShowRoute('assets.index'),
+            'leadership' => $this->canShowRoute('leadership-reports.index'),
+            'feedback' => $this->canShowRoute('feedback.index'),
+            'events' => $this->canShowRoute('events.index'),
+            'ministries' => $this->canShowRoute('ministries.index'),
+            'campuses' => $this->canShowRoute('campuses.index'),
+            'insights' => $this->canShowRoute('reports.index'),
+            'activity' => $this->canShowRoute('audit-logs.index'),
+            'quickActions' => $this->getQuickActions() !== [],
         ];
+    }
+
+    private function canShowRoute(string $route): bool
+    {
+        if (! Route::has($route) || ModuleRegistry::isDisabledRoute($route, $this->church())) {
+            return false;
+        }
+
+        $permission = ModuleRegistry::moduleForRoute($route)['permission'] ?? null;
+
+        if (! $permission || ! $this->actor || $this->actor->isSuperAdministrator()) {
+            return true;
+        }
+
+        return $this->actor->hasPermission($permission);
     }
 
     private function growth($query, string $column): string
@@ -354,5 +424,18 @@ final class DashboardService
         }
 
         return $query;
+    }
+
+    private function church(): ?Church
+    {
+        if ($this->church instanceof Church) {
+            return $this->church;
+        }
+
+        $this->church = $this->actor?->church_id
+            ? Church::query()->find($this->actor->church_id)
+            : Church::query()->first();
+
+        return $this->church;
     }
 }

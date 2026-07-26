@@ -10,6 +10,7 @@ use App\Models\AttendanceRecord;
 use App\Models\AttendanceSession;
 use App\Models\AttendanceVerification;
 use App\Models\BookstoreOrder;
+use App\Models\BookstoreOrderItem;
 use App\Models\BookstoreProduct;
 use App\Models\Campus;
 use App\Models\CareTask;
@@ -654,8 +655,10 @@ SVG);
             ['Victory in Worship', 'Music', 10.00, 65],
         ];
 
+        $seededProducts = collect();
+
         foreach ($products as $index => [$name, $category, $price, $stock]) {
-            BookstoreProduct::query()->updateOrCreate(
+            $seededProducts->push(BookstoreProduct::query()->updateOrCreate(
                 ['church_id' => $church->id, 'sku' => 'BOOK-'.$index],
                 [
                     'campus_id' => array_values($campuses)[$index % count($campuses)]->id,
@@ -666,20 +669,33 @@ SVG);
                     'reorder_level' => 20,
                     'status' => 'active',
                 ],
-            );
+            ));
         }
 
         foreach (range(1, 32) as $i) {
-            BookstoreOrder::query()->updateOrCreate(
+            $product = $seededProducts[($i - 1) % max($seededProducts->count(), 1)];
+            $quantity = ($i % 3) + 1;
+            $lineTotal = (float) $product->price * $quantity;
+            $order = BookstoreOrder::query()->updateOrCreate(
                 ['order_number' => 'KH-ORDER-'.str_pad((string) $i, 4, '0', STR_PAD_LEFT)],
                 [
                     'church_id' => $church->id,
                     'campus_id' => array_values($campuses)[$i % count($campuses)]->id,
                     'member_id' => null,
-                    'total_amount' => 180 + ($i * 7),
+                    'total_amount' => $lineTotal,
                     'currency' => 'USD',
                     'status' => 'paid',
                     'ordered_at' => now()->subDays($i),
+                ],
+            );
+
+            BookstoreOrderItem::query()->updateOrCreate(
+                ['bookstore_order_id' => $order->id, 'bookstore_product_id' => $product->id],
+                [
+                    'product_name' => $product->name,
+                    'quantity' => $quantity,
+                    'unit_price' => $product->price,
+                    'line_total' => $lineTotal,
                 ],
             );
         }

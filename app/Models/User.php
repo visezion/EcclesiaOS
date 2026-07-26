@@ -100,6 +100,16 @@ class User extends Authenticatable
         return $this->hasMany(ActivityLog::class);
     }
 
+    public function counsellingBookings(): HasMany
+    {
+        return $this->hasMany(CounsellingBooking::class, 'counselor_user_id');
+    }
+
+    public function assetBookings(): HasMany
+    {
+        return $this->hasMany(AssetBooking::class, 'assigned_user_id');
+    }
+
     public function hasAnyRole(array $roles): bool
     {
         return $this->roles()->whereIn('name', $roles)->exists();

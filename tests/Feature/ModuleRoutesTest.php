@@ -12,15 +12,23 @@ use App\Models\EventRecurrenceRule;
 use App\Models\EventSession;
 use App\Models\LeadershipReport;
 use App\Models\MeetingIntegration;
+use App\Models\MeetingPoll;
+use App\Models\MeetingQnaItem;
+use App\Models\MeetingScene;
+use App\Models\MeetingStudioState;
 use App\Models\Member;
 use App\Models\Ministry;
+use App\Models\Permission;
 use App\Models\Program;
 use App\Models\ProgramSection;
 use App\Models\ProgramSectionAssignment;
+use App\Models\Role;
 use App\Models\User;
 use App\Models\Workflow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ModuleRoutesTest extends TestCase
@@ -790,6 +798,229 @@ class ModuleRoutesTest extends TestCase
             ->get($shortRoomUrl)
             ->assertRedirect(route('meetings.rooms.show', [$session, 'livekit']));
 
+        $studioUrl = route('meetings.rooms.studio', [$session, 'livekit']);
+        $this->actingAs($user)
+            ->get($studioUrl)
+            ->assertOk()
+            ->assertSee('Live')
+            ->assertDontSee('LiveNow')
+            ->assertSee('Programs &amp; Attendance', false)
+            ->assertSee("sceneTab = 'sources'", false)
+            ->assertSee('studioLiveVideo', false)
+            ->assertSee('Main Screen')
+            ->assertSee('Main Cam')
+            ->assertSee('Input Source')
+            ->assertSee('Save Source')
+            ->assertSee('Scene Screen')
+            ->assertSee('Participant Screen')
+            ->assertSee('Countdown minutes')
+            ->assertSee('Verse text to show on screen')
+            ->assertSee('Add Screen')
+            ->assertSee('Add Media Scene')
+            ->assertSee('Save Bottom Title')
+            ->assertSee('Upload Background Image')
+            ->assertSee('Create background')
+            ->assertSee('Current Poll');
+
+        $eventOnlyRole = Role::query()->create([
+            'name' => 'Event Manager Only',
+            'slug' => 'event-manager-only',
+            'description' => 'Event manager without studio access',
+        ]);
+        $eventOnlyRole->permissions()->attach(Permission::query()->where('name', 'manage events')->firstOrFail());
+        $eventOnlyUser = User::factory()->create([
+            'church_id' => $session->church_id,
+            'campus_id' => $session->campus_id,
+            'email' => 'event.only@kingdomhub.test',
+        ]);
+        $eventOnlyUser->roles()->attach($eventOnlyRole);
+
+        $studioRole = Role::query()->create([
+            'name' => 'Studio Operator',
+            'slug' => 'studio-operator',
+            'description' => 'Studio backroom operator',
+        ]);
+        $studioRole->permissions()->attach(Permission::query()->where('name', 'manage studio')->firstOrFail());
+        $studioUser = User::factory()->create([
+            'church_id' => $session->church_id,
+            'campus_id' => $session->campus_id,
+            'email' => 'studio.operator@kingdomhub.test',
+        ]);
+        $studioUser->roles()->attach($studioRole);
+
+        $this->actingAs($eventOnlyUser)
+            ->get(route('meetings.rooms.show', [$session, 'livekit']))
+            ->assertOk()
+            ->assertDontSee($studioUrl, false)
+            ->assertDontSee('Upload title background');
+
+        $this->actingAs($eventOnlyUser)
+            ->get($studioUrl)
+            ->assertForbidden();
+
+        $this->actingAs($eventOnlyUser)
+            ->put(route('meetings.rooms.studio.state.update', [$session, 'livekit']), [
+                'speaker_name' => 'Unauthorized Operator',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($studioUser)
+            ->get($studioUrl)
+            ->assertOk()
+            ->assertSee('Programs &amp; Attendance', false);
+
+        $scene = MeetingScene::query()->where('event_session_id', $session->id)->where('title', 'Scripture Slide')->firstOrFail();
+
+        $this->actingAs($user)
+            ->put(route('meetings.rooms.studio.scenes.source', [$session, 'livekit', $scene]), [
+                'source_identity' => 'victor.adams@members.klgc.org',
+                'source_name' => 'Pastor Victor Camera',
+                'source_kind' => 'camera',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('victor.adams@members.klgc.org', $scene->fresh()->settings['source_identity']);
+        $this->assertSame('camera', $scene->fresh()->settings['source_kind']);
+
+        $cameraScene = MeetingScene::query()->where('event_session_id', $session->id)->where('title', 'Main Camera')->firstOrFail();
+        $screenScene = MeetingScene::query()->where('event_session_id', $session->id)->where('title', 'Worship Band')->firstOrFail();
+
+        $this->actingAs($user)
+            ->put(route('meetings.rooms.studio.scenes.source', [$session, 'livekit', $cameraScene]), [
+                'source_identity' => 'camera.user@members.klgc.org',
+                'source_name' => 'Camera User',
+                'source_kind' => 'camera',
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($user)
+            ->put(route('meetings.rooms.studio.scenes.source', [$session, 'livekit', $screenScene]), [
+                'source_identity' => 'screen.user@members.klgc.org',
+                'source_name' => 'Screen User screen',
+                'source_kind' => 'screen',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('camera.user@members.klgc.org', $cameraScene->fresh()->settings['source_identity']);
+        $this->assertSame('camera', $cameraScene->fresh()->settings['source_kind']);
+        $this->assertSame('screen.user@members.klgc.org', $screenScene->fresh()->settings['source_identity']);
+        $this->assertSame('screen', $screenScene->fresh()->settings['source_kind']);
+
+        $this->actingAs($user)
+            ->post(route('meetings.rooms.studio.scenes.live', [$session, 'livekit', $scene]))
+            ->assertRedirect();
+
+        $this->assertSame($scene->id, MeetingStudioState::query()->where('event_session_id', $session->id)->where('provider', 'livekit')->firstOrFail()->live_scene_id);
+
+        $this->actingAs($user)
+            ->put(route('meetings.rooms.studio.state.update', [$session, 'livekit']), [
+                'speaker_name' => 'Pastor Victor',
+                'speaker_role' => 'Senior Pastor',
+                'service_label' => 'Sunday Worship',
+                'scripture_reference' => 'Matthew 18:20',
+                'scripture_text' => 'For where two or three are gathered in my name, there am I among them.',
+                'ticker_text' => 'Welcome to worship',
+                'chat_visible' => '1',
+                'qna_enabled' => '1',
+                'poll_visible' => '1',
+                'stream_status' => 'live',
+                'audio_mixer' => ['pastor_mic' => '-1', 'audience' => '-8'],
+                'quick_actions' => ['transition' => 'cut', 'transition_duration' => '0.5s'],
+                'destination_name' => 'Church Website',
+                'destination_status' => 'ready',
+            ])
+            ->assertRedirect();
+
+        Storage::fake('public');
+        $this->actingAs($user)
+            ->put(route('meetings.rooms.studio.state.update', [$session, 'livekit']), [
+                'lower_third_background' => UploadedFile::fake()->image('lower-third.png', 1200, 260),
+            ])
+            ->assertRedirect();
+
+        $state = MeetingStudioState::query()->where('event_session_id', $session->id)->where('provider', 'livekit')->firstOrFail();
+        $this->assertSame(-1, $state->audio_mixer['pastor_mic']);
+        $this->assertSame('cut', $state->quick_actions['transition']);
+        $this->assertContains('Church Website', collect($state->destinations)->pluck('name')->all());
+        $this->assertStringContainsString('/storage/studio/lower-thirds/', $state->lower_third['background_url']);
+
+        $this->actingAs($user)
+            ->put(route('meetings.rooms.studio.state.update', [$session, 'livekit']), [
+                'lower_third_background_preset' => 'gold-sanctuary',
+            ])
+            ->assertRedirect();
+
+        $state = $state->fresh();
+        $this->assertNull($state->lower_third['background_url']);
+        $this->assertSame('Gold Sanctuary', $state->lower_third['background_label']);
+        $this->assertStringContainsString('rgba(245,158,11', $state->lower_third['background_style']);
+
+        $this->actingAs($user)
+            ->post(route('meetings.rooms.studio.scenes.store', [$session, 'livekit']), [
+                'title' => 'Guest Testimony Screen',
+                'scene_type' => 'camera',
+                'description' => 'Guest camera testimony',
+            ])
+            ->assertRedirect();
+
+        $extraScene = MeetingScene::query()->where('event_session_id', $session->id)->where('title', 'Guest Testimony Screen')->firstOrFail();
+
+        $this->actingAs($user)
+            ->delete(route('meetings.rooms.studio.scenes.destroy', [$session, 'livekit', $extraScene]))
+            ->assertRedirect();
+
+        $this->assertSoftDeleted($extraScene);
+
+        $this->actingAs($user)
+            ->post(route('meetings.rooms.studio.scenes.store', [$session, 'livekit']), [
+                'title' => 'Guest Screen Share',
+                'scene_type' => 'screen',
+                'description' => 'Guest shares presentation',
+                'source_identity' => 'guest-presenter',
+                'source_name' => 'Guest Presenter screen',
+            ])
+            ->assertRedirect();
+
+        $screenShareScene = MeetingScene::query()->where('event_session_id', $session->id)->where('title', 'Guest Screen Share')->firstOrFail();
+        $this->assertSame('screen', $screenShareScene->scene_type);
+        $this->assertSame('screen', $screenShareScene->settings['source_kind']);
+        $this->assertSame('guest-presenter', $screenShareScene->settings['source_identity']);
+
+        $this->actingAs($user)
+            ->post(route('meetings.rooms.studio.scenes.store', [$session, 'livekit']), [
+                'title' => 'Offering Countdown',
+                'scene_type' => 'countdown',
+                'description' => 'Offering timer',
+                'countdown_minutes' => 7,
+            ])
+            ->assertRedirect();
+
+        $countdownScene = MeetingScene::query()->where('event_session_id', $session->id)->where('title', 'Offering Countdown')->firstOrFail();
+        $this->assertSame(7, $countdownScene->settings['minutes']);
+
+        $this->actingAs($user)
+            ->post(route('meetings.rooms.studio.scenes.store', [$session, 'livekit']), [
+                'title' => 'Memory Verse',
+                'scene_type' => 'scripture',
+                'scripture_reference' => 'John 3:16',
+                'scripture_text' => 'For God so loved the world.',
+            ])
+            ->assertRedirect();
+
+        $scriptureScene = MeetingScene::query()->where('event_session_id', $session->id)->where('title', 'Memory Verse')->firstOrFail();
+        $this->assertSame('John 3:16', $scriptureScene->settings['reference']);
+        $this->assertSame('For God so loved the world.', $scriptureScene->settings['text']);
+
+        $this->actingAs($user)
+            ->post(route('meetings.rooms.studio.polls.store', [$session, 'livekit']), [
+                'question' => 'Which area should this meeting focus on next?',
+                'options' => ['Prayer', 'Outreach', 'Leadership', 'Operations'],
+            ])
+            ->assertRedirect();
+
+        $poll = MeetingPoll::query()->where('event_session_id', $session->id)->latest()->firstOrFail();
+        $this->assertSame(['Prayer', 'Outreach', 'Leadership', 'Operations'], $poll->options()->pluck('label')->all());
+
         $this->app['auth']->guard()->logout();
         $this->flushSession();
 
@@ -809,9 +1040,46 @@ class ModuleRoutesTest extends TestCase
         $guestResponse = $this->get($shortRoomUrl)
             ->assertOk()
             ->assertSee('Guest Visitor')
-            ->assertSee('Guest access');
+            ->assertSee('Guest access')
+            ->assertSee('toggleLiveKit()', false)
+            ->assertSee('toggleMute()', false)
+            ->assertSee('toggleCamera()', false)
+            ->assertSee('toggleScreenShare()', false);
 
         $this->assertStringContainsString('\u0022mark_attendance_url\u0022:null', $guestResponse->getContent());
+
+        preg_match('/eyJ[^<\\s]+/', $guestResponse->getContent(), $guestMatches);
+        $this->assertNotEmpty($guestMatches);
+
+        $guestTokenParts = explode('.', $guestMatches[0]);
+        $this->assertCount(3, $guestTokenParts);
+        $guestClaims = json_decode(base64_decode(strtr($guestTokenParts[1], '-_', '+/')), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertStringStartsWith('guest-'.$session->getKey().'-livekit-', $guestClaims['sub']);
+        $this->assertSame('Guest Visitor', $guestClaims['name']);
+        $this->assertTrue($guestClaims['video']['roomJoin']);
+        $this->assertTrue($guestClaims['video']['canPublish']);
+        $this->assertTrue($guestClaims['video']['canSubscribe']);
+        $this->assertTrue($guestClaims['video']['canPublishData']);
+
+        $this->postJson(route('meetings.rooms.short.qna.store', [$shortRoomCode, 'livekit']), [
+            'body' => 'Can you pray for the outreach team?',
+        ])->assertOk();
+        $this->assertTrue(MeetingQnaItem::query()->where('event_session_id', $session->id)->where('body', 'Can you pray for the outreach team?')->exists());
+
+        $option = $poll->options()->where('label', 'Prayer')->firstOrFail();
+        $this->postJson(route('meetings.rooms.short.polls.vote', [$shortRoomCode, 'livekit', $poll]), [
+            'option' => $option->id,
+        ])->assertOk();
+        $this->assertSame(1, $option->fresh()->votes_count);
+
+        $this->getJson(route('meetings.rooms.short.state', [$shortRoomCode, 'livekit']))
+            ->assertOk()
+            ->assertJsonPath('live_scene.title', 'Scripture Slide')
+            ->assertJsonPath('live_scene.settings.source_identity', 'victor.adams@members.klgc.org')
+            ->assertJsonPath('lower_third.speaker_name', 'Pastor Victor')
+            ->assertJsonPath('poll.question', 'Which area should this meeting focus on next?')
+            ->assertJsonPath('qna.0.body', 'Can you pray for the outreach team?');
 
         $this->assertSame(0, AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->count());
 
@@ -825,12 +1093,17 @@ class ModuleRoutesTest extends TestCase
         $this->assertSame('APIkey1', $claims['iss']);
         $this->assertSame('church-live-service', $claims['video']['room']);
         $this->assertTrue($claims['video']['roomJoin']);
+        $this->assertTrue($claims['video']['canPublish']);
+        $this->assertTrue($claims['video']['canSubscribe']);
+        $this->assertTrue($claims['video']['canPublishData']);
         $this->assertSame(7200, $claims['exp'] - $claims['nbf']);
 
         $this->actingAs($user)
             ->postJson(route('meetings.rooms.attendance.store', [$session, 'livekit']), [
                 'connected' => true,
                 'room' => 'church-live-service',
+                'identity' => $claims['sub'],
+                'participant_name' => 'Victor Adams',
                 'remote_participants' => 0,
             ])
             ->assertOk()
@@ -842,6 +1115,15 @@ class ModuleRoutesTest extends TestCase
         $this->assertSame(1, AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->where('final_method', 'livekit')->count());
         $liveKitRecord = AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->where('final_method', 'livekit')->firstOrFail();
         $this->assertSame('online', $liveKitRecord->metadata['online_status']);
+        $this->assertSame($claims['sub'], $liveKitRecord->metadata['livekit_identity']);
+        $this->assertSame('Victor Adams', $liveKitRecord->metadata['participant_name']);
+
+        $this->actingAs($user)
+            ->get($studioUrl)
+            ->assertOk()
+            ->assertSee($claims['sub'])
+            ->assertSee('1 active')
+            ->assertSee('Put screen share on Main Screen', false);
 
         $this->actingAs($user)
             ->postJson(route('meetings.rooms.checkout.store', [$session, 'livekit']), [
@@ -856,6 +1138,31 @@ class ModuleRoutesTest extends TestCase
         $liveKitRecord->refresh();
         $this->assertSame('checked_out', $liveKitRecord->metadata['online_status']);
         $this->assertNotEmpty($liveKitRecord->metadata['checked_out_at']);
+
+        $church = $user->church()->firstOrFail();
+        $church->forceFill([
+            'settings' => array_merge($church->settings ?? [], [
+                'disabled_modules' => ['meetings.rooms.studio'],
+            ]),
+        ])->save();
+
+        $this->actingAs($user)
+            ->get(route('meetings.rooms.show', [$session, 'livekit']))
+            ->assertOk()
+            ->assertDontSee(route('meetings.rooms.studio', [$session, 'livekit']), false);
+
+        $this->actingAs($user)
+            ->get($studioUrl)
+            ->assertNotFound();
+
+        $this->actingAs($user)
+            ->put(route('meetings.rooms.studio.state.update', [$session, 'livekit']), [
+                'speaker_name' => 'Disabled Studio',
+            ])
+            ->assertNotFound();
+
+        $this->getJson(route('meetings.rooms.short.state', [$shortRoomCode, 'livekit']))
+            ->assertNotFound();
     }
 
     public function test_livekit_tokens_use_raw_secret_when_existing_settings_were_legacy_encrypted(): void

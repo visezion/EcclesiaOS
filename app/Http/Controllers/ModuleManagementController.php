@@ -9,7 +9,9 @@ use App\Models\BookstoreOrder;
 use App\Models\BookstoreProduct;
 use App\Models\Campus;
 use App\Models\Church;
+use App\Models\ChildrenYouthRecord;
 use App\Models\CommunicationDelivery;
+use App\Models\CareTask;
 use App\Models\Donation;
 use App\Models\Event;
 use App\Models\Facility;
@@ -241,18 +243,25 @@ final class ModuleManagementController extends Controller
             'assets.index' => number_format(Asset::query()->count()).' assets',
             'facilities.index' => number_format(Facility::query()->count()).' facilities',
             'bookstore.index' => number_format(BookstoreProduct::query()->count()).' products / '.number_format(BookstoreOrder::query()->count()).' orders',
+            'children-youth.index' => number_format(ChildrenYouthRecord::query()->count()).' children/youth records',
+            'counselling.index' => number_format(CareTask::query()->whereIn('type', ['Counseling', 'Family Care'])->count()).' counselling cases',
             'feedback.index' => number_format(Feedback::query()->count()).' feedback records',
             'staff.index' => number_format(Staff::query()->count()).' staff records',
             'workflows.index' => number_format(Workflow::query()->count()).' workflows',
             'leadership-reports.index' => number_format(LeadershipReport::query()->count()).' leadership reports',
             'users.index' => number_format(User::query()->count()).' users',
             'roles.index' => number_format(Role::query()->count()).' roles',
+            'meetings.rooms.studio' => 'Live production controls',
             default => 'Navigation module',
         };
     }
 
     private function descriptionForModule(array $item): string
     {
+        if (filled($item['description'] ?? null)) {
+            return (string) $item['description'];
+        }
+
         $planned = collect($item['planned'] ?? [])->take(3)->implode(', ');
 
         return $planned !== '' ? $planned : 'Core system administration and access control.';

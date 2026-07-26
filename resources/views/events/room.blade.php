@@ -34,10 +34,11 @@
             .'&location='.rawurlencode($venue)
             .'&dates='.$calendarStart->format('Ymd\THis\Z').'/'.$calendarEnd->format('Ymd\THis\Z');
         $teamAssignments = $agendaSections->flatMap(fn ($section) => $section->assignments);
+        $studioEnabled = ! \App\Support\ModuleRegistry::isDisabledRoute('meetings.rooms.studio', $session->church);
     @endphp
 
     <div
-        x-data="meetingRoom('meeting-note-{{ $session->opaqueId() }}-{{ $provider }}', @js($liveKitPayload ?? null), @js($memberName), @js(['can_manage_interactions' => $canManageRoomInteractions, 'avatar' => $memberAvatarUrl]))"
+        x-data="meetingRoom('meeting-room-{{ $shortRoomCode }}-{{ $provider }}', @js($liveKitPayload ?? null), @js($memberName), @js(['can_manage_interactions' => $canManageRoomInteractions, 'avatar' => $memberAvatarUrl, 'studio_state_url' => $studioEnabled ? $studioStateUrl : null, 'studio' => $studioEnabled ? $studioStatePayload : null]))"
         x-init="sidePanel = 'chat'; panelTab = 'chat'"
         class="min-h-screen overflow-hidden bg-sidebar text-white"
     >
@@ -64,6 +65,11 @@
                                     <i data-lucide="log-in" class="size-5"></i>
                                 </a>
                             @else
+                                @if($canManageRoomInteractions && $studioEnabled)
+                                    <a href="{{ route('meetings.rooms.studio', [$session, $provider]) }}" class="grid size-10 place-items-center rounded-lg text-white/75 hover:bg-white/10 hover:text-white" title="Open studio backroom">
+                                        <i data-lucide="monitor-play" class="size-5"></i>
+                                    </a>
+                                @endif
                                 <a href="{{ route('event-sessions.meeting', $session) }}" class="grid size-10 place-items-center rounded-lg text-white/75 hover:bg-white/10 hover:text-white" title="Room settings">
                                     <i data-lucide="settings" class="size-5"></i>
                                 </a>
@@ -92,20 +98,22 @@
                 >
                     <main class="min-w-0 space-y-4 fullscreen:h-full fullscreen:min-h-0 fullscreen:overflow-hidden">
                         <section class="overflow-hidden rounded-lg border border-white/10 bg-black/30 shadow-2xl shadow-black/30 fullscreen:flex fullscreen:h-full fullscreen:min-h-0 fullscreen:flex-col">
-                            <div class="relative bg-black fullscreen:min-h-0 fullscreen:flex-1">
+                            <div class="relative bg-black fullscreen:min-h-0 fullscreen:flex-1" @mousemove="revealPlayerControls()" @click="revealPlayerControls()" @touchstart.passive="revealPlayerControls()" @keydown.window="revealPlayerControls()">
                                 <div x-show="roomView === 'speaker'" class="relative aspect-video min-h-[360px] overflow-hidden bg-brand-navy fullscreen:h-full fullscreen:min-h-0 fullscreen:aspect-auto">
-                                    <template x-if="primaryParticipant">
+                                    <template x-if="featuredParticipant()">
                                         <div class="absolute inset-0">
-                                            <video x-bind:data-livekit-video="primaryParticipant.identity" autoplay playsinline class="h-full w-full bg-brand-navy object-cover"></video>
-                                            <div x-show="!primaryParticipant.hasVideo" class="absolute inset-0 grid place-items-center bg-gradient-to-br from-[#0b1020] via-[#23115c] to-[#050914]">
-                                                <img x-show="primaryParticipant.avatar" :src="primaryParticipant.avatar" :alt="primaryParticipant.name" class="size-28 rounded-full object-cover ring-1 ring-white/25">
-                                                <div x-show="!primaryParticipant.avatar" class="grid size-28 place-items-center rounded-full bg-white/10 text-4xl font-semibold ring-1 ring-white/20" x-text="primaryParticipant.initials"></div>
+                                            <video x-show="featuredSourceKind() === 'camera'" x-bind:data-livekit-video="featuredParticipant().identity" autoplay playsinline class="h-full w-full bg-brand-navy object-cover"></video>
+                                            <video x-show="featuredSourceKind() === 'screen'" x-bind:data-livekit-screen="featuredParticipant().identity" autoplay playsinline class="h-full w-full bg-brand-navy object-contain"></video>
+                                            <div x-show="!featuredHasVideo(featuredParticipant())" class="absolute inset-0 grid place-items-center bg-gradient-to-br from-[#0b1020] via-[#23115c] to-[#050914]">
+                                                <img x-show="featuredParticipant().avatar" :src="featuredParticipant().avatar" :alt="featuredParticipant().name" class="size-28 rounded-full object-cover ring-1 ring-white/25">
+                                                <div x-show="!featuredParticipant().avatar" class="grid size-28 place-items-center rounded-full bg-white/10 text-4xl font-semibold ring-1 ring-white/20" x-text="featuredParticipant().initials"></div>
+                                                <div class="mt-4 text-center text-sm text-white/60" x-text="featuredSourceKind() === 'screen' ? 'Waiting for screen share' : 'Camera is off'"></div>
                                             </div>
-                                            <audio x-bind:data-livekit-audio="primaryParticipant.identity" autoplay></audio>
+                                            <audio x-bind:data-livekit-audio="featuredParticipant().identity" autoplay></audio>
                                         </div>
                                     </template>
 
-                                    <div x-show="!primaryParticipant" class="absolute inset-0 bg-gradient-to-br from-[#061225] via-[#14347d] to-[#050914]">
+                                    <div x-show="!featuredParticipant()" class="absolute inset-0 bg-gradient-to-br from-[#061225] via-[#14347d] to-[#050914]">
                                         <video x-ref="speakerPreview" x-show="camera && stream && !liveKitConnected" autoplay muted playsinline class="absolute inset-0 h-full w-full object-cover"></video>
                                         <video x-ref="speakerLocalLiveKitVideo" x-show="camera && liveKitConnected" autoplay muted playsinline class="absolute inset-0 h-full w-full object-cover"></video>
                                         <div class="absolute inset-0 opacity-60" style="background: radial-gradient(circle at 34% 30%, rgba(59, 130, 246, .85), transparent 26%), radial-gradient(circle at 70% 65%, rgba(124, 58, 237, .65), transparent 30%);"></div>
@@ -147,6 +155,37 @@
                                             </div>
                                         </template>
                                     </div>
+
+                                    <div x-show="false" x-cloak class="absolute left-4 top-16 max-w-xs rounded-lg border border-white/10 bg-black/55 px-3 py-2 text-xs shadow-xl backdrop-blur">
+                                        <div class="font-bold uppercase text-violet-200" x-text="studioLiveScene()?.type || 'scene'"></div>
+                                        <div class="mt-1 truncate text-sm font-semibold text-white" x-text="studioLiveScene()?.title"></div>
+                                        <div x-show="studioLiveScene()?.settings?.source_identity" class="mt-1 truncate text-[11px] text-white/55" x-text="`${studioLiveScene()?.settings?.source_name || studioLiveScene()?.settings?.source_identity} · ${studioLiveScene()?.settings?.source_kind || 'camera'}`"></div>
+                                    </div>
+
+                                    <div x-show="studioScripture().reference || studioScripture().text" x-cloak class="absolute right-4 top-16 max-w-sm rounded-lg border border-violet-300/30 bg-black/60 p-4 text-left shadow-xl backdrop-blur">
+                                        <div class="flex items-center gap-2 text-xs font-semibold uppercase text-violet-200"><i data-lucide="book-open" class="size-3.5"></i>Scripture</div>
+                                        <p class="mt-2 text-base leading-6 text-white" x-text="studioScripture().text"></p>
+                                        <div class="mt-2 text-sm font-semibold text-violet-200" x-text="studioScripture().reference"></div>
+                                    </div>
+
+                                    <div x-show="studioLowerThird().speaker_name || studioLowerThird().speaker_role || studioLowerThird().service_label" x-cloak x-bind:style="studioLowerThirdStyle()" class="absolute left-4 right-4 max-w-3xl overflow-hidden rounded-xl border border-amber-300/25 bg-gradient-to-r from-black/90 via-[#071321]/92 to-black/70 p-3 shadow-2xl shadow-black/45 backdrop-blur-md transition-all duration-300 sm:left-6 sm:right-auto sm:min-w-[500px] sm:p-4" :class="playerControlsVisible ? 'bottom-24 fullscreen:bottom-28' : 'bottom-5 fullscreen:bottom-6'">
+                                        <div class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/90 to-transparent"></div>
+                                        <div class="pointer-events-none absolute -top-5 left-0 right-0 h-9 opacity-80">
+                                            <div class="h-full w-full border-t border-amber-300/55" style="clip-path: polygon(0 76%, 22% 42%, 48% 64%, 74% 38%, 100% 60%, 100% 100%, 0 100%);"></div>
+                                        </div>
+                                        <div class="relative flex items-center gap-3 sm:gap-4">
+                                            <span class="grid size-12 shrink-0 place-items-center rounded-lg bg-amber-500/15 text-amber-200 ring-1 ring-amber-200/20 sm:size-14"><i data-lucide="church" class="size-6 sm:size-7"></i></span>
+                                            <div class="min-w-0">
+                                                <div class="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-200/85" x-text="studioLowerThird().service_label || '{{ $session->event->program?->name ?? 'Live Service' }}'"></div>
+                                                <div class="truncate text-xl font-black leading-tight text-white sm:text-3xl" x-text="studioLowerThird().speaker_name || studioLiveScene()?.title || '{{ $session->title }}'"></div>
+                                                <div class="mt-1 truncate text-sm font-medium text-white/68" x-text="studioLowerThird().speaker_role || '{{ $session->event->title }}'"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div x-show="studioTickerText()" x-cloak class="absolute bottom-0 left-0 right-0 bg-violet-600/90 px-4 py-2 text-sm font-semibold text-white">
+                                        <span x-text="studioTickerText()"></span>
+                                    </div>
                                 </div>
 
                                 <div x-show="roomView === 'gallery'" class="grid min-h-[520px] gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 fullscreen:h-full fullscreen:min-h-0 fullscreen:auto-rows-fr fullscreen:overflow-y-auto">
@@ -183,29 +222,6 @@
                                     </template>
                                 </div>
 
-                                <div x-show="roomView === 'focus'" class="relative aspect-video min-h-[520px] overflow-hidden bg-brand-navy fullscreen:h-full fullscreen:min-h-0 fullscreen:aspect-auto">
-                                    <template x-if="focusParticipant()">
-                                        <div class="absolute inset-0">
-                                            <video x-bind:data-livekit-video="focusParticipant().identity" autoplay playsinline class="h-full w-full bg-brand-navy object-contain"></video>
-                                            <div x-show="!focusParticipant().hasVideo" class="absolute inset-0 grid place-items-center bg-gradient-to-br from-[#0b1020] via-[#23115c] to-[#050914]">
-                                                <img x-show="focusParticipant().avatar" :src="focusParticipant().avatar" :alt="focusParticipant().name" class="size-32 rounded-full object-cover ring-1 ring-white/25">
-                                                <div x-show="!focusParticipant().avatar" class="grid size-32 place-items-center rounded-full bg-white/10 text-5xl font-semibold ring-1 ring-white/20" x-text="focusParticipant().initials"></div>
-                                            </div>
-                                            <audio x-bind:data-livekit-audio="focusParticipant().identity" autoplay></audio>
-                                        </div>
-                                    </template>
-                                    <div x-show="!focusParticipant()" class="absolute inset-0 grid place-items-center bg-gradient-to-br from-[#061225] via-[#14347d] to-[#050914]">
-                                        <div class="text-center">
-                                            @if($memberAvatarUrl)
-                                                <img src="{{ $memberAvatarUrl }}" alt="{{ $memberName }}" class="mx-auto size-32 rounded-full object-cover ring-1 ring-white/25">
-                                            @else
-                                                <div class="mx-auto grid size-32 place-items-center rounded-full bg-white/10 text-5xl font-semibold ring-1 ring-white/20">{{ $memberInitials }}</div>
-                                            @endif
-                                            <div class="mt-4 text-xl font-semibold">Focus view is ready.</div>
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <div class="pointer-events-none absolute left-4 top-4 flex flex-wrap items-center gap-2">
                                     <span class="inline-flex items-center rounded px-3 py-1.5 text-xs font-bold uppercase tracking-wide" :class="liveKitConnected ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white'">
                                         <span x-text="liveKitConnected ? 'Live' : 'Ready'"></span>
@@ -223,9 +239,9 @@
                                     </div>
                                 </div>
 
-                                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-4">
-                                    <div class="mb-4 h-1.5 overflow-hidden rounded-full bg-white/15">
-                                        <div class="h-full w-[76%] rounded-full bg-rose-500"></div>
+                                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/88 via-black/45 to-transparent px-4 pb-4 pt-6 transition-all duration-300" :class="playerControlsVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-5 opacity-0'">
+                                    <div class="absolute inset-x-0 top-0 h-1.5 overflow-hidden bg-white/15">
+                                        <div class="h-full rounded-r-full bg-rose-500 shadow-[0_0_18px_rgba(244,63,94,.65)] transition-all duration-500" :class="liveKitConnected ? 'w-full' : 'w-3/4'"></div>
                                     </div>
                                     <div class="flex items-center justify-between gap-3">
                                         <div class="flex items-center gap-2">
@@ -254,9 +270,6 @@
                                             </button>
                                             <button type="button" @click="roomView = 'gallery'" class="grid size-10 place-items-center rounded-lg hover:bg-white/10" :class="roomView === 'gallery' ? 'bg-violet-600 text-white' : 'text-white'" title="Gallery view">
                                                 <i data-lucide="layout-grid" class="size-5"></i>
-                                            </button>
-                                            <button type="button" @click="roomView = 'focus'" class="grid size-10 place-items-center rounded-lg hover:bg-white/10" :class="roomView === 'focus' ? 'bg-violet-600 text-white' : 'text-white'" title="Focus view">
-                                                <i data-lucide="maximize" class="size-5"></i>
                                             </button>
                                             <button type="button" @click="toggleScreenShare()" class="grid size-10 place-items-center rounded-lg hover:bg-white/10" :class="screen ? 'text-violet-300' : 'text-white'" title="Share screen">
                                                 <i data-lucide="screen-share" class="size-5"></i>
@@ -294,6 +307,15 @@
                                         <button type="button" @click="copyRoomLink(@js($roomUrl))" class="grid size-10 place-items-center rounded-full bg-blue-600 text-white hover:bg-blue-500" title="Copy short link">
                                             <i data-lucide="link" class="size-4"></i>
                                         </button>
+                                        @if($canManageRoomInteractions && $studioEnabled)
+                                            <form method="POST" enctype="multipart/form-data" action="{{ route('meetings.rooms.studio.state.update', [$session, $provider]) }}">
+                                                @csrf @method('PUT')
+                                                <label class="grid size-10 cursor-pointer place-items-center rounded-full bg-amber-500/15 text-amber-100 ring-1 ring-amber-300/25 hover:bg-amber-500/25" title="Upload title background">
+                                                    <i data-lucide="upload" class="size-4"></i>
+                                                    <input type="file" name="lower_third_background" accept="image/png,image/jpeg,image/webp" class="hidden" onchange="this.form.submit()">
+                                                </label>
+                                            </form>
+                                        @endif
                                         <a href="{{ $whatsappShareUrl }}" target="_blank" rel="noopener noreferrer" class="grid size-10 place-items-center rounded-full bg-[#25D366] text-white hover:brightness-110" title="Share on WhatsApp" aria-label="Share on WhatsApp">
                                             <svg viewBox="0 0 24 24" class="size-5" aria-hidden="true" fill="currentColor">
                                                 <path d="M19.05 4.91A9.82 9.82 0 0 0 12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.73 1.2h.01c5.46 0 9.91-4.44 9.91-9.9a9.86 9.86 0 0 0-2.9-7.01Zm-7.01 15.24h-.01a8.23 8.23 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.22 8.22 0 0 1-1.26-4.38c0-4.55 3.7-8.25 8.26-8.25a8.2 8.2 0 0 1 5.83 2.42 8.2 8.2 0 0 1 2.41 5.84c0 4.54-3.7 8.23-8.25 8.23Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.8-.23-.09-.39-.13-.56.12-.16.25-.64.8-.79.97-.14.16-.29.18-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.15-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.12-.15.16-.25.25-.42.08-.16.04-.31-.02-.43-.06-.13-.56-1.34-.76-1.84-.2-.48-.4-.41-.56-.42h-.48c-.17 0-.43.06-.66.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.54c.13.17 1.74 2.65 4.21 3.72.59.25 1.05.4 1.41.51.59.19 1.13.16 1.55.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.08.15-1.18-.06-.11-.22-.17-.47-.29Z"/>
@@ -428,6 +450,9 @@
                             </div>
 
                             <div x-show="panelTab === 'chat'" class="flex min-h-0 flex-1 flex-col">
+                                <div x-show="!studioChatVisible()" x-cloak class="border-b border-amber-300/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+                                    Chat is hidden by the studio host.
+                                </div>
                                 <div x-ref="chatScroll" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
                                     <template x-for="message in chatMessages" :key="message.id">
                                         <div class="flex gap-3">
@@ -465,7 +490,7 @@
                                         </template>
                                     </div>
                                     <div class="relative flex gap-2">
-                                        <input x-ref="chatInput" x-model="chatDraft" @input="handleChatInput()" @keydown.escape="mentionOpen = false" class="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/10 px-3 py-3 text-sm text-white outline-none placeholder:text-white/45 focus:border-violet-400 focus:ring-2 focus:ring-violet-500/25" placeholder="Type @ for direct message...">
+                                        <input x-ref="chatInput" x-model="chatDraft" @input="handleChatInput()" @keydown.escape="mentionOpen = false" :disabled="!studioChatVisible()" class="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/10 px-3 py-3 text-sm text-white outline-none placeholder:text-white/45 disabled:cursor-not-allowed disabled:opacity-50 focus:border-violet-400 focus:ring-2 focus:ring-violet-500/25" placeholder="Type @ for direct message...">
                                         <div x-cloak x-show="mentionOpen" class="absolute bottom-14 left-0 z-20 max-h-56 w-full overflow-y-auto rounded-lg border border-white/10 bg-[#0b1320] p-2 shadow-lg">
                                             <template x-for="participant in filteredMentionRecipients()" :key="participant.identity">
                                                 <button type="button" @click="selectMentionRecipient(participant)" class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-white/10">
@@ -479,7 +504,7 @@
                                             </template>
                                             <div x-show="filteredMentionRecipients().length === 0" class="px-2 py-3 text-center text-xs text-white/50">No room participants available.</div>
                                         </div>
-                                        <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-500">
+                                        <button type="submit" :disabled="!studioChatVisible()" class="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50">
                                             Send
                                         </button>
                                     </div>

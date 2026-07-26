@@ -8,6 +8,7 @@ use App\Models\Concerns\UsesOpaqueRouteKeys;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class Asset extends Model
@@ -25,5 +26,20 @@ final class Asset extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(AssetCategory::class, 'asset_category_id');
+    }
+
+    public function church(): BelongsTo
+    {
+        return $this->belongsTo(Church::class);
+    }
+
+    public function campus(): BelongsTo
+    {
+        return $this->belongsTo(Campus::class);
+    }
+
+    public function bookings(): HasMany
+    {
+        return $this->hasMany(AssetBooking::class);
     }
 }

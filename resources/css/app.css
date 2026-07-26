@@ -158,6 +158,12 @@
         box-shadow: 0 14px 34px rgb(15 23 42 / 0.075);
     }
 
+    @media (min-width: 1280px) {
+        .dashboard-auto-span {
+            grid-column: span var(--dashboard-span, 12) / span var(--dashboard-span, 12);
+        }
+    }
+
     .workflow-filter-grid {
         display: grid;
         gap: 0.75rem;

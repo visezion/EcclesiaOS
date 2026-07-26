@@ -21,6 +21,7 @@ class DashboardServiceTest extends TestCase
         $this->assertArrayHasKey('attendanceTrend', $data);
         $this->assertArrayHasKey('givingOverview', $data);
         $this->assertArrayHasKey('quickActions', $data);
+        $this->assertArrayHasKey('dashboardSections', $data);
         $this->assertCount(7, $data['summaryMetrics']);
         $this->assertNotEmpty($data['attendanceTrend']['values']);
         $this->assertSame(number_format(Member::query()->count()), $data['summaryMetrics'][0]['value']);

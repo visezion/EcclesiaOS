@@ -161,8 +161,9 @@
                                                         </label>
                                                     @endif
 
-                                                    @if (! $module['disabled'] && \Illuminate\Support\Facades\Route::has($module['route']))
-                                                        <a href="{{ route($module['route']) }}" class="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Open {{ $module['label'] }}">
+                                                    @php($openRoute = $module['open_route'] ?? $module['route'])
+                                                    @if (! $module['disabled'] && \Illuminate\Support\Facades\Route::has($openRoute))
+                                                        <a href="{{ route($openRoute) }}" class="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Open {{ $module['label'] }}">
                                                             <i data-lucide="external-link" class="size-4"></i>
                                                         </a>
                                                     @endif

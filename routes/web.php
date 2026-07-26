@@ -1,18 +1,23 @@
 <?php
 
 use App\Http\Controllers\AccountSettingsController;
+use App\Http\Controllers\AssetInventoryController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\MfaController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\BookstoreController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CampusManagementController;
+use App\Http\Controllers\ChildrenYouthController;
 use App\Http\Controllers\CommunicationController;
+use App\Http\Controllers\CounsellingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeveloperHubController;
 use App\Http\Controllers\EventFlowController;
 use App\Http\Controllers\FamilyManagementController;
+use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\LeadershipReportController;
 use App\Http\Controllers\MemberManagementController;
 use App\Http\Controllers\MinistryController;
@@ -36,6 +41,9 @@ Route::post('webhooks/meeting-attendance/{provider}', [EventFlowController::clas
 
 Route::get('m/{code}/{provider}', [EventFlowController::class, 'shortRoom'])->whereAlphaNumeric('code')->name('meetings.rooms.short');
 Route::post('m/{code}/{provider}/join', [EventFlowController::class, 'joinShortRoom'])->whereAlphaNumeric('code')->name('meetings.rooms.short.join');
+Route::get('m/{code}/{provider}/state', [EventFlowController::class, 'publicStudioState'])->whereAlphaNumeric('code')->middleware('module.enabled')->name('meetings.rooms.short.state');
+Route::post('m/{code}/{provider}/qna', [EventFlowController::class, 'storePublicQuestion'])->whereAlphaNumeric('code')->middleware('module.enabled')->name('meetings.rooms.short.qna.store');
+Route::post('m/{code}/{provider}/polls/{poll}/vote', [EventFlowController::class, 'storePublicPollVote'])->whereAlphaNumeric('code')->middleware('module.enabled')->name('meetings.rooms.short.polls.vote');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -69,6 +77,16 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'meeting'])->name('event-sessions.meeting');
     Route::put('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'updateMeeting'])->name('event-sessions.meeting.update');
     Route::get('meetings/rooms/{eventSession}/{provider}', [EventFlowController::class, 'room'])->name('meetings.rooms.show');
+    Route::get('meetings/rooms/{eventSession}/{provider}/studio', [EventFlowController::class, 'studio'])->name('meetings.rooms.studio');
+    Route::post('meetings/rooms/{eventSession}/{provider}/studio/scenes', [EventFlowController::class, 'storeStudioScene'])->name('meetings.rooms.studio.scenes.store');
+    Route::post('meetings/rooms/{eventSession}/{provider}/studio/scenes/{scene}/preview', [EventFlowController::class, 'previewStudioScene'])->name('meetings.rooms.studio.scenes.preview');
+    Route::post('meetings/rooms/{eventSession}/{provider}/studio/scenes/{scene}/live', [EventFlowController::class, 'takeStudioSceneLive'])->name('meetings.rooms.studio.scenes.live');
+    Route::put('meetings/rooms/{eventSession}/{provider}/studio/scenes/{scene}/source', [EventFlowController::class, 'updateStudioSceneSource'])->name('meetings.rooms.studio.scenes.source');
+    Route::delete('meetings/rooms/{eventSession}/{provider}/studio/scenes/{scene}', [EventFlowController::class, 'destroyStudioScene'])->name('meetings.rooms.studio.scenes.destroy');
+    Route::put('meetings/rooms/{eventSession}/{provider}/studio/state', [EventFlowController::class, 'updateStudioState'])->name('meetings.rooms.studio.state.update');
+    Route::post('meetings/rooms/{eventSession}/{provider}/studio/polls', [EventFlowController::class, 'storeStudioPoll'])->name('meetings.rooms.studio.polls.store');
+    Route::put('meetings/rooms/{eventSession}/{provider}/studio/polls/{poll}', [EventFlowController::class, 'updateStudioPoll'])->name('meetings.rooms.studio.polls.update');
+    Route::put('meetings/rooms/{eventSession}/{provider}/studio/qna/{question}', [EventFlowController::class, 'updateStudioQuestion'])->name('meetings.rooms.studio.qna.update');
     Route::post('meetings/rooms/{eventSession}/{provider}/attendance', [EventFlowController::class, 'markRoomAttendance'])->name('meetings.rooms.attendance.store');
     Route::post('meetings/rooms/{eventSession}/{provider}/checkout', [EventFlowController::class, 'markRoomCheckout'])->name('meetings.rooms.checkout.store');
     Route::get('event-sessions/{eventSession}/attendance', [EventFlowController::class, 'attendance'])->name('event-sessions.attendance');
@@ -118,6 +136,66 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('families/export', [FamilyManagementController::class, 'export'])->name('families.export');
     Route::put('families/{family}', [FamilyManagementController::class, 'update'])->name('families.update');
     Route::delete('families/{family}', [FamilyManagementController::class, 'destroy'])->name('families.destroy');
+    Route::get('finance', [FinanceController::class, 'index'])->name('finance.index');
+    Route::get('finance/overview', [FinanceController::class, 'overview'])->name('finance.overview');
+    Route::get('finance/donations/create', [FinanceController::class, 'create'])->name('finance.donations.create');
+    Route::get('finance/donations/{donation}/edit', [FinanceController::class, 'edit'])->name('finance.donations.edit');
+    Route::post('finance/donations', [FinanceController::class, 'store'])->name('finance.donations.store');
+    Route::put('finance/donations/{donation}', [FinanceController::class, 'update'])->name('finance.donations.update');
+    Route::delete('finance/donations/{donation}', [FinanceController::class, 'destroy'])->name('finance.donations.destroy');
+    Route::post('finance/funds', [FinanceController::class, 'storeFund'])->name('finance.funds.store');
+    Route::put('finance/funds/{fund}', [FinanceController::class, 'updateFund'])->name('finance.funds.update');
+    Route::delete('finance/funds/{fund}', [FinanceController::class, 'destroyFund'])->name('finance.funds.destroy');
+    Route::get('finance/export', [FinanceController::class, 'export'])->name('finance.export');
+    Route::get('assets', [AssetInventoryController::class, 'index'])->name('assets.index');
+    Route::get('assets/overview', [AssetInventoryController::class, 'overview'])->name('assets.overview');
+    Route::get('assets/create', [AssetInventoryController::class, 'create'])->name('assets.create');
+    Route::get('assets/{asset}/edit', [AssetInventoryController::class, 'edit'])->name('assets.edit');
+    Route::post('assets', [AssetInventoryController::class, 'store'])->name('assets.store');
+    Route::post('assets/bookings', [AssetInventoryController::class, 'storeBooking'])->name('assets.bookings.store');
+    Route::put('assets/bookings/{booking}', [AssetInventoryController::class, 'updateBooking'])->name('assets.bookings.update');
+    Route::delete('assets/bookings/{booking}', [AssetInventoryController::class, 'destroyBooking'])->name('assets.bookings.destroy');
+    Route::put('assets/{asset}', [AssetInventoryController::class, 'update'])->name('assets.update');
+    Route::delete('assets/{asset}', [AssetInventoryController::class, 'destroy'])->name('assets.destroy');
+    Route::post('asset-categories', [AssetInventoryController::class, 'storeCategory'])->name('asset-categories.store');
+    Route::get('assets/export', [AssetInventoryController::class, 'export'])->name('assets.export');
+    Route::get('bookstore', [BookstoreController::class, 'index'])->name('bookstore.index');
+    Route::get('bookstore/overview', [BookstoreController::class, 'overview'])->name('bookstore.overview');
+    Route::get('bookstore/library', [BookstoreController::class, 'library'])->name('bookstore.library');
+    Route::get('bookstore/products/create', [BookstoreController::class, 'createProduct'])->name('bookstore.products.create');
+    Route::get('bookstore/products/{product}/edit', [BookstoreController::class, 'editProduct'])->name('bookstore.products.edit');
+    Route::get('bookstore/orders/create', [BookstoreController::class, 'createOrder'])->name('bookstore.orders.create');
+    Route::post('bookstore/products', [BookstoreController::class, 'storeProduct'])->name('bookstore.products.store');
+    Route::put('bookstore/products/{product}', [BookstoreController::class, 'updateProduct'])->name('bookstore.products.update');
+    Route::delete('bookstore/products/{product}', [BookstoreController::class, 'destroyProduct'])->name('bookstore.products.destroy');
+    Route::post('bookstore/orders', [BookstoreController::class, 'storeOrder'])->name('bookstore.orders.store');
+    Route::put('bookstore/orders/{order}', [BookstoreController::class, 'updateOrder'])->name('bookstore.orders.update');
+    Route::delete('bookstore/orders/{order}', [BookstoreController::class, 'destroyOrder'])->name('bookstore.orders.destroy');
+    Route::get('bookstore/orders/export', [BookstoreController::class, 'exportOrders'])->name('bookstore.orders.export');
+    Route::post('bookstore/library/loans', [BookstoreController::class, 'storeLibraryLoan'])->name('bookstore.library.loans.store');
+    Route::put('bookstore/library/loans/{loan}', [BookstoreController::class, 'updateLibraryLoan'])->name('bookstore.library.loans.update');
+    Route::delete('bookstore/library/loans/{loan}', [BookstoreController::class, 'destroyLibraryLoan'])->name('bookstore.library.loans.destroy');
+    Route::get('bookstore/library/export', [BookstoreController::class, 'exportLibrary'])->name('bookstore.library.export');
+    Route::get('bookstore/export', [BookstoreController::class, 'export'])->name('bookstore.export');
+    Route::get('children-youth', [ChildrenYouthController::class, 'index'])->name('children-youth.index');
+    Route::get('children-youth/overview', [ChildrenYouthController::class, 'overview'])->name('children-youth.overview');
+    Route::get('children-youth/create', [ChildrenYouthController::class, 'create'])->name('children-youth.create');
+    Route::get('children-youth/{record}/edit', [ChildrenYouthController::class, 'edit'])->name('children-youth.edit');
+    Route::post('children-youth', [ChildrenYouthController::class, 'store'])->name('children-youth.store');
+    Route::put('children-youth/{record}', [ChildrenYouthController::class, 'update'])->name('children-youth.update');
+    Route::delete('children-youth/{record}', [ChildrenYouthController::class, 'destroy'])->name('children-youth.destroy');
+    Route::get('children-youth/export', [ChildrenYouthController::class, 'export'])->name('children-youth.export');
+    Route::get('counselling', [CounsellingController::class, 'index'])->name('counselling.index');
+    Route::get('counselling/overview', [CounsellingController::class, 'overview'])->name('counselling.overview');
+    Route::get('counselling/create', [CounsellingController::class, 'create'])->name('counselling.create');
+    Route::get('counselling/{case}/edit', [CounsellingController::class, 'edit'])->name('counselling.edit');
+    Route::post('counselling', [CounsellingController::class, 'store'])->name('counselling.store');
+    Route::post('counselling/bookings', [CounsellingController::class, 'storeBooking'])->name('counselling.bookings.store');
+    Route::put('counselling/bookings/{booking}', [CounsellingController::class, 'updateBooking'])->name('counselling.bookings.update');
+    Route::delete('counselling/bookings/{booking}', [CounsellingController::class, 'destroyBooking'])->name('counselling.bookings.destroy');
+    Route::put('counselling/{case}', [CounsellingController::class, 'update'])->name('counselling.update');
+    Route::delete('counselling/{case}', [CounsellingController::class, 'destroy'])->name('counselling.destroy');
+    Route::get('counselling/export', [CounsellingController::class, 'export'])->name('counselling.export');
     Route::get('settings', SystemSettingsController::class)->name('settings.index');
     Route::put('settings/system', [SystemSettingsController::class, 'update'])->name('settings.system.update');
     Route::put('settings/system/reset', [SystemSettingsController::class, 'reset'])->name('settings.system.reset');
@@ -193,7 +271,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'developer-hub.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'developer-hub.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
             continue;
         }
 

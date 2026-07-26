@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Models\Concerns\UsesOpaqueRouteKeys;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -62,5 +63,25 @@ final class EventSession extends Model
     public function attendanceSession(): HasOne
     {
         return $this->hasOne(AttendanceSession::class);
+    }
+
+    public function meetingScenes(): HasMany
+    {
+        return $this->hasMany(MeetingScene::class);
+    }
+
+    public function meetingStudioStates(): HasMany
+    {
+        return $this->hasMany(MeetingStudioState::class);
+    }
+
+    public function meetingPolls(): HasMany
+    {
+        return $this->hasMany(MeetingPoll::class);
+    }
+
+    public function meetingQnaItems(): HasMany
+    {
+        return $this->hasMany(MeetingQnaItem::class);
     }
 }

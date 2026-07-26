@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Models\Concerns\UsesOpaqueRouteKeys;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class AssetCategory extends Model
@@ -17,5 +18,10 @@ final class AssetCategory extends Model
     public function assets(): HasMany
     {
         return $this->hasMany(Asset::class);
+    }
+
+    public function church(): BelongsTo
+    {
+        return $this->belongsTo(Church::class);
     }
 }

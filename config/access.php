@@ -11,6 +11,7 @@ return [
         'manage attendance',
         'manage finance',
         'manage events',
+        'manage studio',
         'manage media',
         'manage prayer',
         'manage communications',
@@ -32,7 +33,7 @@ return [
 
     'roles' => [
         'Super Administrator' => ['*'],
-        'Church Administrator' => ['view dashboard', 'manage users', 'manage roles', 'manage permissions', 'view audit log', 'manage members', 'manage attendance', 'manage events', 'manage communications', 'manage ministries', 'manage campuses', 'manage staff', 'view reports', 'manage settings'],
+        'Church Administrator' => ['view dashboard', 'manage users', 'manage roles', 'manage permissions', 'view audit log', 'manage members', 'manage attendance', 'manage events', 'manage studio', 'manage communications', 'manage ministries', 'manage campuses', 'manage staff', 'view reports', 'manage settings'],
         'Senior Pastor' => ['view dashboard', 'manage members', 'manage attendance', 'manage prayer', 'manage communications', 'manage ministries', 'manage campuses', 'view leadership reports', 'manage feedback', 'view reports'],
         'Branch Pastor' => ['view dashboard', 'manage members', 'manage attendance', 'manage prayer', 'manage communications', 'manage ministries', 'view leadership reports', 'manage feedback'],
         'Finance Officer' => ['view dashboard', 'manage finance', 'view reports'],
