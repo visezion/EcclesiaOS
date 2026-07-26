@@ -1019,6 +1019,7 @@ final class CommunicationController extends Controller
         $result = $this->fetchZenderWhatsAppGroups($siteUrl, $apiKey, $accountId);
         if (($result['ok'] ?? false) !== true) {
             $message = (string) ($result['error'] ?? 'Zender did not return a usable WhatsApp group list.');
+            $setting->update(['last_tested_at' => now(), 'last_test_status' => 'failed']);
             $activityLogger->log('Communications', 'zender_groups_sync_failed', $message, $setting, ['resource' => 'Zender WhatsApp Groups', 'status' => 'failed'], $request);
 
             return back()->with('error', 'WhatsApp group sync failed: '.$message);
@@ -1064,6 +1065,7 @@ final class CommunicationController extends Controller
         }
 
         $activityLogger->log('Communications', 'zender_groups_synced', $synced.' Zender WhatsApp groups were synced.', $setting, ['resource' => 'Zender WhatsApp Groups', 'status' => 'success'], $request);
+        $setting->update(['last_tested_at' => now(), 'last_test_status' => 'success']);
 
         return back()->with('status', number_format($synced).' WhatsApp groups synced from Zender.');
     }

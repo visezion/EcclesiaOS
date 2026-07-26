@@ -89,7 +89,6 @@ return [
         'children' => [
             ['label' => 'User Management', 'route' => 'users.index', 'icon' => 'users', 'permission' => 'manage users'],
             ['label' => 'Roles & Permissions', 'route' => 'roles.index', 'icon' => 'shield-check', 'permission' => 'manage roles'],
-            ['label' => 'Churches & Campuses', 'route' => 'campuses.index', 'icon' => 'landmark', 'permission' => 'manage campuses'],
             ['label' => 'System Settings', 'route' => 'settings.index', 'icon' => 'settings', 'permission' => 'manage settings'],
             ['label' => 'Meeting Integrations', 'route' => 'meeting-integrations.index', 'icon' => 'radio-tower', 'permission' => 'manage settings'],
             ['label' => 'Communication Integrations', 'route' => 'communications.integrations', 'icon' => 'webhook', 'permission' => 'manage settings'],

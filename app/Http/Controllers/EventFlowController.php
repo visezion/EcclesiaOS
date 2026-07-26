@@ -547,7 +547,73 @@ final class EventFlowController extends Controller
 
     public function room(Request $request, EventSession $eventSession, string $provider, ActivityLogger $activityLogger): View
     {
-        $this->authorizeSession($request, $eventSession);
+        return $this->renderRoom($request, $eventSession, $provider, $activityLogger);
+    }
+
+    public function shortRoom(Request $request, string $code, string $provider, ActivityLogger $activityLogger): View|RedirectResponse
+    {
+        abort_unless(in_array($provider, self::ONLINE_METHODS, true), 404);
+
+        $eventSession = $this->eventSessionFromShortCode($code);
+
+        if ($request->user()) {
+            return redirect()->route('meetings.rooms.show', [$eventSession, $provider]);
+        }
+
+        $eventSession->load(['event.program', 'campus', 'attendanceSession']);
+        $attendanceSession = $this->ensureAttendanceSession($eventSession);
+        abort_unless($this->sessionHasSelectedProvider($eventSession, $provider), 403);
+        abort_unless(in_array($provider, $attendanceSession->methods ?? [], true), 403);
+
+        $integration = MeetingIntegration::query()
+            ->where('church_id', $eventSession->church_id)
+            ->where('provider', $provider)
+            ->firstOrFail();
+        abort_unless($integration->enabled, 403);
+
+        $guest = $request->session()->get($this->guestRoomSessionKey($eventSession, $provider));
+
+        if (! filled($guest['name'] ?? null)) {
+            return view('events.guest-join', [
+                'session' => $eventSession,
+                'provider' => $provider,
+                'meta' => $this->providerMeta()[$provider],
+                'joinUrl' => route('meetings.rooms.short.join', [Str::lower(base_convert((string) $eventSession->getKey(), 10, 36)), $provider]),
+                'loginUrl' => route('meetings.rooms.show', [$eventSession, $provider]),
+            ]);
+        }
+
+        return $this->renderRoom($request, $eventSession, $provider, $activityLogger, true, $guest);
+    }
+
+    public function joinShortRoom(Request $request, string $code, string $provider): RedirectResponse
+    {
+        abort_unless(in_array($provider, self::ONLINE_METHODS, true), 404);
+
+        $eventSession = $this->eventSessionFromShortCode($code);
+        $eventSession->load(['attendanceSession']);
+        $attendanceSession = $this->ensureAttendanceSession($eventSession);
+        abort_unless($this->sessionHasSelectedProvider($eventSession, $provider), 403);
+        abort_unless(in_array($provider, $attendanceSession->methods ?? [], true), 403);
+
+        $validated = $request->validate([
+            'guest_name' => ['required', 'string', 'min:2', 'max:80'],
+        ]);
+
+        $request->session()->put($this->guestRoomSessionKey($eventSession, $provider), [
+            'name' => trim($validated['guest_name']),
+            'identity' => 'guest-'.$eventSession->getKey().'-'.$provider.'-'.Str::lower((string) Str::random(10)),
+        ]);
+
+        return redirect()->route('meetings.rooms.short', [Str::lower(base_convert((string) $eventSession->getKey(), 10, 36)), $provider]);
+    }
+
+    private function renderRoom(Request $request, EventSession $eventSession, string $provider, ActivityLogger $activityLogger, bool $guestAccess = false, array $guest = []): View
+    {
+        if (! $guestAccess) {
+            $this->authorizeSession($request, $eventSession);
+        }
+
         abort_unless(in_array($provider, self::ONLINE_METHODS, true), 404);
 
         $eventSession->load(['event.program', 'campus', 'attendanceSession']);
@@ -561,7 +627,7 @@ final class EventFlowController extends Controller
             ->firstOrFail();
         abort_unless($integration->enabled, 403);
 
-        $member = $this->memberForUser($request);
+        $member = $guestAccess ? null : $this->memberForUser($request);
         $record = null;
 
         if ($member && $provider === 'livekit') {
@@ -587,12 +653,21 @@ final class EventFlowController extends Controller
 
         $activeRoomParticipants = $this->activeRoomParticipants($attendanceSession, $provider);
         $liveKitPayload = $provider === 'livekit'
-            ? $this->liveKitRoomPayload($integration, $eventSession, $attendanceSession, $request, $record, $activeRoomParticipants->count())
+            ? $this->liveKitRoomPayload($integration, $eventSession, $attendanceSession, $request, $record, $activeRoomParticipants->count(), $guestAccess ? $guest : [])
             : null;
 
         if ($record && $provider !== 'livekit') {
             $activityLogger->log('Meetings', 'meeting_room_joined', $member->first_name.' joined '.$provider.' internally.', $record, ['resource' => 'Built-in Meeting Room', 'risk' => 'low', 'status' => 'success'], $request);
         }
+
+        $agendaSections = ProgramSection::query()
+            ->with(['assignments.user', 'assignments.member'])
+            ->where('program_id', $eventSession->event->program_id)
+            ->where(fn (Builder $query) => $query->whereNull('event_id')->orWhere('event_id', $eventSession->event_id))
+            ->orderBy('position')
+            ->orderBy('planned_start_time')
+            ->get();
+        $canManageRoomInteractions = ! $guestAccess && ($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage events'));
 
         return view('events.room', [
             'session' => $eventSession,
@@ -603,12 +678,25 @@ final class EventFlowController extends Controller
             'record' => $record,
             'liveKitPayload' => $liveKitPayload,
             'activeRoomParticipants' => $activeRoomParticipants,
+            'agendaSections' => $agendaSections,
+            'canManageRoomInteractions' => $canManageRoomInteractions,
+            'guestParticipant' => $guestAccess ? $guest : null,
             'breadcrumbs' => $this->breadcrumbs([
                 ['Meetings', route('meetings.index')],
                 [$eventSession->title, route('event-sessions.meeting', $eventSession)],
                 ['Built-in Room', null],
             ]),
         ]);
+    }
+
+    private function eventSessionFromShortCode(string $code): EventSession
+    {
+        return EventSession::query()->findOrFail((int) base_convert(Str::lower($code), 36, 10));
+    }
+
+    private function guestRoomSessionKey(EventSession $eventSession, string $provider): string
+    {
+        return 'meeting_guest.'.$eventSession->getKey().'.'.$provider;
     }
 
     public function markRoomAttendance(Request $request, EventSession $eventSession, string $provider, ActivityLogger $activityLogger): JsonResponse
@@ -1503,16 +1591,19 @@ final class EventFlowController extends Controller
         ];
     }
 
-    private function liveKitRoomPayload(MeetingIntegration $integration, EventSession $eventSession, AttendanceSession $attendanceSession, Request $request, ?AttendanceRecord $record, int $activeParticipantCount): array
+    private function liveKitRoomPayload(MeetingIntegration $integration, EventSession $eventSession, AttendanceSession $attendanceSession, Request $request, ?AttendanceRecord $record, int $activeParticipantCount, array $guest = []): array
     {
         $settings = $integration->settings ?? [];
         $this->validateLiveKitSettings($integration);
 
         $room = (string) ($eventSession->meeting_links['livekit']['room'] ?? Str::slug((string) ($settings['room_prefix'] ?? 'church')).'-livekit-'.$eventSession->id);
         $member = $this->memberForUser($request);
-        $identity = $member?->email ?: $request->user()?->email ?: 'guest-'.($request->user()?->id ?? Str::random(8));
-        $name = $member ? trim($member->first_name.' '.$member->last_name) : ($request->user()?->name ?? 'Guest');
+        $guestName = trim((string) ($guest['name'] ?? ''));
+        $guestIdentity = trim((string) ($guest['identity'] ?? ''));
+        $identity = $guestIdentity ?: ($member?->email ?: $request->user()?->email ?: 'guest-'.Str::random(8));
+        $name = $guestName ?: ($member ? trim($member->first_name.' '.$member->last_name) : ($request->user()?->name ?? 'Guest'));
         $ttlSeconds = (int) ($settings['participant_token_ttl_seconds'] ?? 7200);
+        $isGuest = filled($guestName);
 
         return [
             'server_url' => (string) $settings['server_url'],
@@ -1526,11 +1617,12 @@ final class EventFlowController extends Controller
                 $identity,
                 $name,
                 $ttlSeconds,
+                ['avatar' => $request->user()?->avatar_src],
             ),
             'ttl_label' => $this->formatLiveKitTokenTtl($ttlSeconds),
             'expires_at' => now()->addSeconds($ttlSeconds)->toIso8601String(),
-            'mark_attendance_url' => route('meetings.rooms.attendance.store', [$eventSession, 'livekit']),
-            'mark_checkout_url' => route('meetings.rooms.checkout.store', [$eventSession, 'livekit']),
+            'mark_attendance_url' => $isGuest ? null : route('meetings.rooms.attendance.store', [$eventSession, 'livekit']),
+            'mark_checkout_url' => $isGuest ? null : route('meetings.rooms.checkout.store', [$eventSession, 'livekit']),
             'attendance_marked' => (bool) $record,
             'attendance_record_url' => $record && $member ? route('attendance.records.show', [$attendanceSession, $member->opaqueId()]) : null,
             'participant_count' => $activeParticipantCount,
@@ -1617,7 +1709,7 @@ final class EventFlowController extends Controller
         return false;
     }
 
-    private function generateLiveKitToken(string $apiKey, string $apiSecret, string $room, string $identity, string $name, int $ttlSeconds): string
+    private function generateLiveKitToken(string $apiKey, string $apiSecret, string $room, string $identity, string $name, int $ttlSeconds, array $metadata = []): string
     {
         $now = now()->timestamp;
         $payload = [
@@ -1634,6 +1726,11 @@ final class EventFlowController extends Controller
                 'canPublishData' => true,
             ],
         ];
+
+        $metadata = array_filter($metadata, fn ($value): bool => filled($value));
+        if ($metadata !== []) {
+            $payload['metadata'] = json_encode($metadata, JSON_THROW_ON_ERROR);
+        }
 
         $segments = [
             $this->base64UrlEncode(json_encode(['alg' => 'HS256', 'typ' => 'JWT'], JSON_THROW_ON_ERROR)),
@@ -1806,6 +1903,10 @@ final class EventFlowController extends Controller
     private function memberForUser(Request $request): ?Member
     {
         $user = $request->user();
+
+        if (! $user) {
+            return null;
+        }
 
         return Member::query()
             ->where(fn (Builder $query) => $query->where('email', $user?->email)->orWhere('phone', $user?->phone))

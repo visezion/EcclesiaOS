@@ -73,8 +73,8 @@
             @endforeach
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-[230px_1fr_560px]">
-            <aside class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <section class="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+            <aside class="h-fit rounded-lg border border-slate-200 bg-white shadow-sm xl:sticky xl:top-4">
                 <div class="border-b border-slate-100 p-4">
                     <div class="flex items-center gap-2 text-sm font-semibold text-violet-700"><i data-lucide="settings" class="size-4"></i> Settings</div>
                 </div>
@@ -99,25 +99,22 @@
                                 <i data-lucide="radio-tower" class="size-7"></i>
                             </span>
                             <div>
-                                <div class="text-sm font-semibold text-slate-950">Zender Credential Settings</div>
-                                <p class="mt-1 text-sm text-slate-500">Configure Zender once for WhatsApp and SMS messaging inside Churchly. Saved values are used automatically when campaigns send through either channel.</p>
-                                <span class="mt-2 inline-flex rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600">Needs API permissions: sms_send, wa_send</span>
+                                <div class="text-sm font-semibold text-slate-950">Zender Setup</div>
+                                <p class="mt-1 text-sm text-slate-500">Connect Zender to send SMS, WhatsApp messages, and WhatsApp group updates.</p>
                             </div>
                         </div>
                         <div class="grid gap-3 sm:grid-cols-2">
-                            <label class="text-xs text-slate-500">Service
+                            <label class="text-xs text-slate-500">Default Send Type
                                 <select name="zender[service]" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                                     <option value="whatsapp" @selected(($zenderSettings['service'] ?? 'whatsapp') === 'whatsapp')>WhatsApp</option>
                                     <option value="sms" @selected(($zenderSettings['service'] ?? 'whatsapp') === 'sms')>SMS</option>
                                 </select>
-                                <span class="mt-1 block text-[11px] leading-4 text-slate-400">Default Zender channel. Individual campaigns can still choose SMS or WhatsApp.</span>
                             </label>
                             <label class="text-xs text-slate-500">Status
                                 <span class="mt-1 flex min-h-[42px] items-center gap-3 rounded-lg border border-slate-200 px-3">
                                     <input type="checkbox" name="zender[enabled]" value="1" @checked($zenderSettings['enabled'] ?? false) class="size-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
                                     <span class="text-sm text-slate-700">Enable Zender sending</span>
                                 </span>
-                                <span class="mt-1 block text-[11px] leading-4 text-slate-400">Turns on the selected service and any other Zender channel with complete credentials.</span>
                             </label>
                         </div>
                         <div class="flex flex-wrap gap-2">
@@ -131,34 +128,35 @@
                     </div>
 
                     <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
-                        <label class="text-xs text-slate-500">Zender Site URL
+                        <label class="text-xs text-slate-500">Zender URL
                             <input name="zender[site_url]" value="{{ $zenderSettings['site_url'] ?? 'https://zender.vicezion.com' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="https://zender.vicezion.com">
-                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">Enter the full Zender domain. Do not add a trailing slash.</span>
                         </label>
-                        <label class="text-xs text-slate-500">Zender API Key
+                        <label class="text-xs text-slate-500">API Key
                             <input name="zender[api_key]" type="password" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="{{ filled($zenderSettings['api_key_last_four'] ?? null) ? 'Saved key ending '.$zenderSettings['api_key_last_four'] : 'Paste API key from Zender' }}">
-                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">Paste a key from Zender with sms_send and wa_send permission.</span>
                         </label>
-                        <label class="text-xs text-slate-500">WhatsApp Account ID
+                        <label class="text-xs text-slate-500">WhatsApp Unique ID
                             <input name="zender[whatsapp_account_id]" value="{{ $zenderSettings['whatsapp_account_id'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Example: wa_01HF8Q9ZENDER">
-                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">Required for WhatsApp. Copy the account ID from the Zender dashboard.</span>
                         </label>
-                        <label class="text-xs text-slate-500">Device Unique ID
-                            <input name="zender[device_unique_id]" value="{{ $zenderSettings['device_unique_id'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Example: android-main-campus">
-                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">For SMS through a linked Android device. Leave blank when using WhatsApp only.</span>
-                        </label>
-                        <label class="text-xs text-slate-500">Gateway Unique ID
-                            <input name="zender[gateway_unique_id]" value="{{ $zenderSettings['gateway_unique_id'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Example: gateway-partner-01">
-                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">For SMS through a partner device or gateway. This can replace the device ID.</span>
-                        </label>
-                        <label class="text-xs text-slate-500">SIM Slot
-                            <select name="zender[sim_slot]" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                                <option value="">-- Select SIM --</option>
-                                <option value="1" @selected(($zenderSettings['sim_slot'] ?? '') === '1')>SIM 1</option>
-                                <option value="2" @selected(($zenderSettings['sim_slot'] ?? '') === '2')>SIM 2</option>
-                            </select>
-                            <span class="mt-1 block text-[11px] leading-4 text-slate-400">For SMS through your Android device. Ignored for partner gateways and WhatsApp.</span>
-                        </label>
+                    </div>
+                    <div class="border-t border-slate-100 p-4">
+                        <details class="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                            <summary class="cursor-pointer text-sm font-medium text-slate-800">SMS settings</summary>
+                            <div class="mt-3 grid gap-4 md:grid-cols-3">
+                                <label class="text-xs text-slate-500">Android Device ID
+                                    <input name="zender[device_unique_id]" value="{{ $zenderSettings['device_unique_id'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm" placeholder="android-main-campus">
+                                </label>
+                                <label class="text-xs text-slate-500">Gateway ID
+                                    <input name="zender[gateway_unique_id]" value="{{ $zenderSettings['gateway_unique_id'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm" placeholder="gateway-partner-01">
+                                </label>
+                                <label class="text-xs text-slate-500">SIM
+                                    <select name="zender[sim_slot]" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm">
+                                        <option value="">Select SIM</option>
+                                        <option value="1" @selected(($zenderSettings['sim_slot'] ?? '') === '1')>SIM 1</option>
+                                        <option value="2" @selected(($zenderSettings['sim_slot'] ?? '') === '2')>SIM 2</option>
+                                    </select>
+                                </label>
+                            </div>
+                        </details>
                     </div>
                 </article>
 
@@ -166,7 +164,7 @@
                     <div class="grid gap-3 border-b border-slate-100 p-4 xl:grid-cols-[1fr_auto] xl:items-center">
                         <div>
                             <h2 class="flex items-center gap-2 text-base font-semibold text-slate-950"><i data-lucide="users-round" class="size-5 text-emerald-600"></i>Zender WhatsApp Groups</h2>
-                            <p class="mt-1 text-sm text-slate-500">Sync groups from Zender, then assign each group to the whole church, a campus, or a ministry for campaign targeting.</p>
+                            <p class="mt-1 text-sm text-slate-500">Use groups for church, campus, or ministry announcements.</p>
                         </div>
                         <button type="submit" form="sync-zender-groups-form" class="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50">
                             <i data-lucide="refresh-cw" class="size-4"></i>
@@ -174,7 +172,7 @@
                         </button>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[980px] text-left text-sm">
+                        <table class="w-full min-w-[820px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500">
                                 <tr>
                                     <th class="px-4 py-3">Group</th>
@@ -198,14 +196,14 @@
                                             </div>
                                         </td>
                                         <td class="px-4 py-3">
-                                            <select name="zender_groups[{{ $group->id }}][target_scope]" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                            <select name="zender_groups[{{ $group->id }}][target_scope]" class="w-full min-w-[130px] rounded-lg border border-slate-200 px-3 py-2 text-sm">
                                                 @foreach(['unassigned' => 'Unassigned', 'church' => 'All Church', 'campus' => 'Campus', 'ministry' => 'Ministry', 'ignore' => 'Ignore'] as $value => $label)
                                                     <option value="{{ $value }}" @selected($group->target_scope === $value)>{{ $label }}</option>
                                                 @endforeach
                                             </select>
                                         </td>
                                         <td class="px-4 py-3">
-                                            <select name="zender_groups[{{ $group->id }}][campus_id]" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                            <select name="zender_groups[{{ $group->id }}][campus_id]" class="w-full min-w-[150px] rounded-lg border border-slate-200 px-3 py-2 text-sm">
                                                 <option value="">No campus</option>
                                                 @foreach($campuses as $campus)
                                                     <option value="{{ $campus->id }}" @selected($group->campus_id === $campus->id)>{{ $campus->name }}</option>
@@ -213,7 +211,7 @@
                                             </select>
                                         </td>
                                         <td class="px-4 py-3">
-                                            <select name="zender_groups[{{ $group->id }}][ministry_id]" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                            <select name="zender_groups[{{ $group->id }}][ministry_id]" class="w-full min-w-[170px] rounded-lg border border-slate-200 px-3 py-2 text-sm">
                                                 <option value="">No ministry</option>
                                                 @foreach($ministryOptions as $ministry)
                                                     <option value="{{ $ministry->id }}" @selected($group->ministry_id === $ministry->id)>{{ $ministry->name }}{{ $ministry->campus?->name ? ' - '.$ministry->campus->name : '' }}</option>
@@ -231,7 +229,7 @@
                                 @empty
                                     <tr>
                                         <td colspan="6" class="px-5 py-10 text-center">
-                                            <x-empty-state icon="messages-square" title="No WhatsApp groups synced" message="Save Zender WhatsApp credentials, then fetch groups from Zender." />
+                                            <x-empty-state icon="messages-square" title="No WhatsApp groups yet" message="Fetch groups from Zender or add one manually." />
                                         </td>
                                     </tr>
                                 @endforelse
@@ -240,15 +238,15 @@
                     </div>
                     <div class="border-t border-slate-100 bg-slate-50/60 p-4">
                         <h3 class="flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="plus" class="size-4 text-emerald-600"></i>Add Group Manually</h3>
-                        <p class="mt-1 text-xs text-slate-500">Use this when this server cannot reach Zender over HTTPS. Paste the WhatsApp group address from Zender, usually ending in <span class="font-mono">@g.us</span>.</p>
-                        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_150px_150px_150px_auto]">
+                        <p class="mt-1 text-xs text-slate-500">Paste the group address from Zender. It usually ends in <span class="font-mono">@g.us</span>.</p>
+                        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_1fr_150px_160px_180px_auto]">
                             <label class="text-xs text-slate-500">Group Name
                                 <input form="manual-zender-group-form" name="name" required class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Example: Main Church Announcements">
                             </label>
                             <label class="text-xs text-slate-500">Group Address
                                 <input form="manual-zender-group-form" name="provider_group_id" required class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="120363000000000000@g.us">
                             </label>
-                            <label class="text-xs text-slate-500">Scope
+                            <label class="text-xs text-slate-500">Send To
                                 <select form="manual-zender-group-form" name="target_scope" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                     <option value="church">All Church</option>
                                     <option value="campus">Campus</option>
@@ -272,7 +270,7 @@
                                     @endforeach
                                 </select>
                             </label>
-                            <button type="submit" form="manual-zender-group-form" class="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700">
+                            <button type="submit" form="manual-zender-group-form" class="self-end inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700">
                                 <i data-lucide="plus" class="size-4"></i>Add
                             </button>
                         </div>
@@ -290,7 +288,7 @@
                         $providerLink = $config['provider_url'] ?? null;
                     @endphp
                     <article id="{{ Str::slug($meta['label']) }}" class="rounded-lg border border-slate-200 bg-white shadow-sm">
-                        <div class="grid gap-4 border-b border-slate-100 p-4 xl:grid-cols-[250px_1fr_1fr_1fr_auto] xl:items-start">
+                        <div class="grid gap-4 border-b border-slate-100 p-4 lg:grid-cols-[minmax(220px,280px)_1fr_auto] lg:items-start">
                             <div class="flex items-start gap-3">
                                 <span class="grid size-14 shrink-0 place-items-center rounded-lg ring-1 {{ $meta['tone'] }}">
                                     <i data-lucide="{{ $meta['icon'] }}" class="size-7"></i>
@@ -304,19 +302,21 @@
                                     @endif
                                 </div>
                             </div>
-                            <label class="text-xs text-slate-500">Provider
-                                <select name="providers[{{ $setting->channel }}][provider]" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                                    @foreach($catalog as $provider)
-                                        <option value="{{ $provider['value'] }}" @selected($setting->provider === $provider['value'])>{{ $provider['label'] }}</option>
-                                    @endforeach
-                                </select>
-                            </label>
-                            <label class="text-xs text-slate-500">Sender Identity
-                                <input name="providers[{{ $setting->channel }}][sender_identity]" value="{{ $setting->sender_identity }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                            </label>
-                            <label class="text-xs text-slate-500">Webhook Secret
-                                <input name="providers[{{ $setting->channel }}][webhook_secret]" type="password" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="{{ $setting->webhook_secret_hash ? 'Verified secret configured' : 'Set webhook secret' }}">
-                            </label>
+                            <div class="grid gap-3 sm:grid-cols-3">
+                                <label class="text-xs text-slate-500">Provider
+                                    <select name="providers[{{ $setting->channel }}][provider]" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                                        @foreach($catalog as $provider)
+                                            <option value="{{ $provider['value'] }}" @selected($setting->provider === $provider['value'])>{{ $provider['label'] }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="text-xs text-slate-500">Sender
+                                    <input name="providers[{{ $setting->channel }}][sender_identity]" value="{{ $setting->sender_identity }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                                </label>
+                                <label class="text-xs text-slate-500">Webhook Secret
+                                    <input name="providers[{{ $setting->channel }}][webhook_secret]" type="password" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="{{ $setting->webhook_secret_hash ? 'Secret saved' : 'Set secret' }}">
+                                </label>
+                            </div>
                             <div class="flex items-center gap-3">
                                 <button type="submit" form="test-{{ $setting->channel }}" class="rounded-lg border border-violet-200 px-4 py-2.5 text-sm text-violet-700 hover:bg-violet-50">Test Connection</button>
                                 <label class="relative inline-flex cursor-pointer items-center">
@@ -327,7 +327,7 @@
                             </div>
                         </div>
 
-                        <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                             <label class="text-xs text-slate-500">API / Base URL
                                 <input name="providers[{{ $setting->channel }}][endpoint_url]" value="{{ $config['endpoint_url'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="{{ $setting->channel === 'sms' ? 'https://zender.example.com' : 'https://api.provider.com' }}">
                             </label>
@@ -379,48 +379,49 @@
             <form id="sync-zender-groups-form" method="POST" action="{{ route('communications.integrations.zender-groups.sync') }}" class="hidden">@csrf</form>
             <form id="manual-zender-group-form" method="POST" action="{{ route('communications.integrations.zender-groups.store') }}" class="hidden">@csrf</form>
 
-            <aside class="space-y-4">
-                <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <h2 class="text-base font-semibold text-slate-950">Notification Architecture</h2>
-                    <div class="mt-4 grid grid-cols-[1fr_auto_1fr_auto_130px] items-center gap-3 text-sm">
-                        <div class="rounded-lg border border-violet-200 bg-violet-50 p-3">
-                            <div class="mb-2 font-medium text-violet-800">Domain Events</div>
-                            @foreach($architectureEvents as $event)
-                                <div class="border-t border-violet-100 py-1 text-xs text-violet-700">{{ $event }}</div>
-                            @endforeach
-                        </div>
-                        <i data-lucide="arrow-right" class="size-5 text-slate-400"></i>
-                        <div class="rounded-lg border border-violet-200 bg-violet-50 p-3">
-                            <div class="mb-2 font-medium text-violet-800">Queued Listeners</div>
-                            @foreach($architectureListeners as $listener)
-                                <div class="border-t border-violet-100 py-1 text-xs text-violet-700">{{ $listener }}</div>
-                            @endforeach
-                        </div>
-                        <i data-lucide="arrow-right" class="size-5 text-slate-400"></i>
-                        <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                            <div class="mb-2 font-medium text-emerald-800">Channels</div>
-                            @foreach($channels as $channel)
-                                <div class="flex items-center gap-2 border-t border-emerald-100 py-1 text-xs text-emerald-700"><i data-lucide="{{ $channel['icon'] }}" class="size-3"></i>{{ $channel['label'] }}</div>
-                            @endforeach
-                        </div>
-                    </div>
-                </section>
-
-                <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <h2 class="text-base font-semibold text-slate-950">Communication Data Model <span class="text-slate-500">(Table References)</span></h2>
-                    <div class="mt-4 grid gap-3 sm:grid-cols-3">
-                        @foreach($dataTables as $table)
-                            <div class="rounded-lg border border-slate-200 p-3">
-                                <div class="flex items-center gap-2 text-xs font-medium text-violet-700"><i data-lucide="{{ $table['icon'] }}" class="size-4"></i>{{ $table['table'] }}</div>
-                                <div class="mt-1 text-xs text-slate-500">{{ $table['note'] }}</div>
-                            </div>
-                        @endforeach
-                    </div>
-                </section>
-            </aside>
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-[1.1fr_1.1fr_1fr_1fr_1fr]">
+        <section class="grid gap-4 lg:grid-cols-2">
+            <article class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 class="text-base font-semibold text-slate-950">Notification Flow</h2>
+                <div class="mt-4 grid gap-3 text-sm lg:grid-cols-[1fr_auto_1fr_auto_150px] lg:items-start">
+                    <div class="rounded-lg border border-violet-200 bg-violet-50 p-3">
+                        <div class="mb-2 font-medium text-violet-800">Events</div>
+                        @foreach($architectureEvents as $event)
+                            <div class="border-t border-violet-100 py-1 text-xs text-violet-700">{{ $event }}</div>
+                        @endforeach
+                    </div>
+                    <i data-lucide="arrow-right" class="hidden size-5 text-slate-400 lg:mt-12 lg:block"></i>
+                    <div class="rounded-lg border border-violet-200 bg-violet-50 p-3">
+                        <div class="mb-2 font-medium text-violet-800">Listeners</div>
+                        @foreach($architectureListeners as $listener)
+                            <div class="border-t border-violet-100 py-1 text-xs text-violet-700">{{ $listener }}</div>
+                        @endforeach
+                    </div>
+                    <i data-lucide="arrow-right" class="hidden size-5 text-slate-400 lg:mt-12 lg:block"></i>
+                    <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                        <div class="mb-2 font-medium text-emerald-800">Channels</div>
+                        @foreach($channels as $channel)
+                            <div class="flex items-center gap-2 border-t border-emerald-100 py-1 text-xs text-emerald-700"><i data-lucide="{{ $channel['icon'] }}" class="size-3"></i>{{ $channel['label'] }}</div>
+                        @endforeach
+                    </div>
+                </div>
+            </article>
+
+            <article class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 class="text-base font-semibold text-slate-950">Communication Tables</h2>
+                <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    @foreach($dataTables as $table)
+                        <div class="rounded-lg border border-slate-200 p-3">
+                            <div class="flex items-center gap-2 text-xs font-medium text-violet-700"><i data-lucide="{{ $table['icon'] }}" class="size-4"></i>{{ $table['table'] }}</div>
+                            <div class="mt-1 text-xs text-slate-500">{{ $table['note'] }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            </article>
+        </section>
+
+        <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <article class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <h2 class="text-sm font-semibold text-slate-950">System Health</h2>
                 <div class="mt-4 grid gap-2 text-xs sm:grid-cols-2">

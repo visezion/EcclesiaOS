@@ -1,6 +1,6 @@
 import './bootstrap';
 import Alpine from 'alpinejs';
-import { Room, RoomEvent } from 'livekit-client';
+import { Room, RoomEvent, Track } from 'livekit-client';
 import {
     ArrowLeft,
     ArrowRight,
@@ -95,7 +95,9 @@ import {
     MailX,
     Map,
     MapPin,
+    Maximize,
     Menu,
+    Minimize,
     Minus,
     Moon,
     MessageCircleHeart,
@@ -472,16 +474,61 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    Alpine.data('meetingRoom', (storageKey, liveKit = null) => {
+    Alpine.data('meetingRoom', (storageKey, liveKit = null, participantName = 'You', options = {}) => {
         const liveKitPayload = liveKit ? JSON.parse(JSON.stringify(liveKit)) : null;
+        const chatStorageKey = `${storageKey}-chat`;
+        const qnaStorageKey = `${storageKey}-qna`;
+        const qnaStateStorageKey = `${storageKey}-qna-state`;
+        const pollStateStorageKey = `${storageKey}-poll-state`;
+        const pollStorageKey = `${storageKey}-poll`;
+        const storedChatMessages = (() => {
+            try {
+                return JSON.parse(localStorage.getItem(chatStorageKey) || '[]');
+            } catch {
+                return [];
+            }
+        })();
+        const storedQuestions = (() => {
+            try {
+                return JSON.parse(localStorage.getItem(qnaStorageKey) || '[]');
+            } catch {
+                return [];
+            }
+        })();
+        const storedPollVotes = (() => {
+            try {
+                return JSON.parse(localStorage.getItem(pollStorageKey) || '{}');
+            } catch {
+                return {};
+            }
+        })();
+        const storedQnaState = (() => {
+            try {
+                return JSON.parse(localStorage.getItem(qnaStateStorageKey) || '{}');
+            } catch {
+                return {};
+            }
+        })();
+        const storedPollState = (() => {
+            try {
+                return JSON.parse(localStorage.getItem(pollStateStorageKey) || '{}');
+            } catch {
+                return {};
+            }
+        })();
         let liveKitRoom = null;
 
         return ({
         muted: true,
         camera: false,
         screen: false,
+        fullscreen: false,
         chat: true,
+        roomView: 'speaker',
+        sidePanel: null,
+        panelTab: 'chat',
         hand: false,
+        canManageInteractions: Boolean(options?.can_manage_interactions),
         mediaError: '',
         liveKit: liveKitPayload,
         liveKitConnected: false,
@@ -489,16 +536,38 @@ document.addEventListener('alpine:init', () => {
         liveKitStatus: liveKitPayload ? 'Ready to join LiveKit' : 'Local room preview',
         liveKitError: '',
         remoteParticipantCount: 0,
+        remoteParticipants: [],
+        primaryParticipant: null,
+        activeSpeakerIdentity: null,
         attendanceMarked: Boolean(liveKitPayload?.attendance_marked),
         attendanceRecordUrl: liveKitPayload?.attendance_record_url || null,
         checkedInCount: liveKitPayload?.participant_count || 0,
         note: localStorage.getItem(storageKey) || '',
+        chatDraft: '',
+        chatMessages: storedChatMessages,
+        chatRecipientIdentity: null,
+        chatRecipientName: null,
+        mentionOpen: false,
+        mentionQuery: '',
+        qnaEnabled: storedQnaState.enabled !== false,
+        questionDraft: '',
+        qnaItems: storedQuestions,
+        pollId: storedPollState.id || null,
+        pollOpen: Boolean(storedPollState.open),
+        pollQuestion: storedPollState.question || '',
+        pollOptions: Array.isArray(storedPollState.options) ? storedPollState.options : [],
+        pollDraftQuestion: '',
+        pollDraftOptions: ['', '', '', ''],
+        pollVotes: storedPollVotes,
         stream: null,
         checkoutSent: false,
 
         init() {
             window.addEventListener('beforeunload', () => {
                 this.markLiveKitCheckout(true);
+            });
+            document.addEventListener('fullscreenchange', () => {
+                this.fullscreen = Boolean(document.fullscreenElement);
             });
         },
 
@@ -514,6 +583,12 @@ document.addEventListener('alpine:init', () => {
                 if (this.$refs.preview) {
                     this.$refs.preview.srcObject = this.stream;
                 }
+                if (this.$refs.speakerPreview) {
+                    this.$refs.speakerPreview.srcObject = this.stream;
+                }
+                if (this.$refs.galleryPreview) {
+                    this.$refs.galleryPreview.srcObject = this.stream;
+                }
                 this.stream.getAudioTracks().forEach(track => { track.enabled = ! this.muted; });
                 this.stream.getVideoTracks().forEach(track => { track.enabled = this.camera; });
                 this.mediaError = '';
@@ -527,6 +602,7 @@ document.addEventListener('alpine:init', () => {
             if (this.liveKitConnected) {
                 try {
                     await liveKitRoom.localParticipant.setCameraEnabled(this.camera);
+                    this.attachLocalLiveKitTracks();
                     this.liveKitError = '';
                 } catch (error) {
                     this.camera = false;
@@ -586,9 +662,38 @@ document.addEventListener('alpine:init', () => {
                 liveKitRoom
                     .on(RoomEvent.ParticipantConnected, () => {
                         this.remoteParticipantCount = liveKitRoom.remoteParticipants.size;
+                        this.syncRemoteParticipants();
                     })
                     .on(RoomEvent.ParticipantDisconnected, () => {
                         this.remoteParticipantCount = liveKitRoom.remoteParticipants.size;
+                        this.syncRemoteParticipants();
+                    })
+                    .on(RoomEvent.TrackSubscribed, () => {
+                        this.syncRemoteParticipants();
+                    })
+                    .on(RoomEvent.TrackUnsubscribed, (track) => {
+                        track?.detach?.();
+                        this.syncRemoteParticipants();
+                    })
+                    .on(RoomEvent.TrackMuted, () => {
+                        this.syncRemoteParticipants();
+                    })
+                    .on(RoomEvent.TrackUnmuted, () => {
+                        this.syncRemoteParticipants();
+                    })
+                    .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+                        this.activeSpeakerIdentity = speakers?.[0]?.identity || null;
+                        this.syncRemoteParticipants();
+                    })
+                    .on(RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+                        this.receiveRoomData(payload, participant, topic);
+                    })
+                    .on(RoomEvent.LocalTrackPublished, () => {
+                        this.attachLocalLiveKitTracks();
+                    })
+                    .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+                        publication?.track?.detach?.();
+                        this.attachLocalLiveKitTracks();
                     })
                     .on(RoomEvent.Disconnected, () => {
                         if (this.liveKitConnected) {
@@ -596,14 +701,20 @@ document.addEventListener('alpine:init', () => {
                         }
                         this.liveKitConnected = false;
                         this.remoteParticipantCount = 0;
+                        this.remoteParticipants = [];
+                        this.primaryParticipant = null;
                         if (! this.liveKitError) {
                             this.liveKitStatus = 'Disconnected from LiveKit';
                         }
                     });
 
                 await liveKitRoom.connect(this.liveKit.server_url, this.liveKit.token);
+                await liveKitRoom.localParticipant.setMicrophoneEnabled(! this.muted);
+                await liveKitRoom.localParticipant.setCameraEnabled(this.camera);
                 this.liveKitConnected = true;
                 this.remoteParticipantCount = liveKitRoom.remoteParticipants.size;
+                this.syncRemoteParticipants();
+                this.attachLocalLiveKitTracks();
                 this.liveKitStatus = `Connected to ${this.liveKit.room}`;
                 await this.markLiveKitAttendance();
             } catch (error) {
@@ -702,11 +813,606 @@ document.addEventListener('alpine:init', () => {
             liveKitRoom = null;
             this.liveKitConnected = false;
             this.remoteParticipantCount = 0;
+            this.remoteParticipants = [];
+            this.primaryParticipant = null;
             this.liveKitStatus = 'Disconnected from LiveKit';
+        },
+
+        async toggleScreenShare() {
+            const nextState = ! this.screen;
+
+            if (this.liveKitConnected) {
+                try {
+                    await liveKitRoom.localParticipant.setScreenShareEnabled(nextState);
+                    this.screen = nextState;
+                    this.liveKitError = '';
+                } catch (error) {
+                    this.liveKitError = error?.message || 'Screen sharing could not be changed.';
+                }
+
+                return;
+            }
+
+            this.screen = nextState;
+        },
+
+        async toggleFullscreen(element) {
+            if (! document.fullscreenEnabled || ! element?.requestFullscreen) {
+                this.mediaError = 'Fullscreen is not available in this browser.';
+
+                return;
+            }
+
+            try {
+                if (document.fullscreenElement) {
+                    await document.exitFullscreen();
+                } else {
+                    await element.requestFullscreen();
+                }
+
+                this.mediaError = '';
+            } catch (error) {
+                this.mediaError = error?.message || 'Fullscreen could not be changed.';
+            }
+        },
+
+        participantInitials(name) {
+            return String(name || 'Guest')
+                .trim()
+                .split(/\s+/)
+                .slice(0, 2)
+                .map(part => part.charAt(0).toUpperCase())
+                .join('') || 'G';
+        },
+
+        participantAvatar(participant) {
+            try {
+                const metadata = JSON.parse(participant?.metadata || '{}');
+
+                return metadata.avatar || null;
+            } catch {
+                return null;
+            }
+        },
+
+        trackFromPublications(publications, kind) {
+            return Array.from(publications?.values?.() || [])
+                .find(publication => publication.kind === kind && publication.track && ! publication.isMuted)
+                ?.track || null;
+        },
+
+        syncRemoteParticipants() {
+            if (! liveKitRoom) {
+                this.remoteParticipants = [];
+                this.primaryParticipant = null;
+
+                return;
+            }
+
+            const participants = Array.from(liveKitRoom.remoteParticipants.values()).map((participant) => {
+                const name = participant.name || participant.identity || 'Guest';
+                const videoTrack = this.trackFromPublications(participant.videoTrackPublications, Track.Kind.Video);
+                const audioTrack = this.trackFromPublications(participant.audioTrackPublications, Track.Kind.Audio);
+
+                return {
+                    identity: participant.identity,
+                    sid: participant.sid,
+                    name,
+                    initials: this.participantInitials(name),
+                    avatar: this.participantAvatar(participant),
+                    hasVideo: Boolean(videoTrack),
+                    hasAudio: Boolean(audioTrack),
+                    isSpeaking: participant.identity === this.activeSpeakerIdentity || Boolean(participant.isSpeaking),
+                };
+            });
+
+            this.remoteParticipants = participants;
+            this.primaryParticipant = participants.find(participant => participant.identity === this.activeSpeakerIdentity && participant.hasVideo)
+                || participants.find(participant => participant.hasVideo)
+                || participants[0]
+                || null;
+            this.$nextTick(() => this.attachLiveKitTracks());
+        },
+
+        totalParticipantCount() {
+            return 1 + this.remoteParticipants.length;
+        },
+
+        visibleRemoteParticipants() {
+            if (! this.primaryParticipant) {
+                return this.remoteParticipants.slice(0, 6);
+            }
+
+            return this.remoteParticipants
+                .filter(participant => participant.identity !== this.primaryParticipant.identity)
+                .slice(0, 6);
+        },
+
+        focusParticipant() {
+            return this.primaryParticipant || this.remoteParticipants[0] || null;
+        },
+
+        attachLiveKitTracks() {
+            if (! liveKitRoom) {
+                return;
+            }
+
+            Array.from(liveKitRoom.remoteParticipants.values()).forEach((participant) => {
+                const videoTrack = this.trackFromPublications(participant.videoTrackPublications, Track.Kind.Video);
+                const audioTrack = this.trackFromPublications(participant.audioTrackPublications, Track.Kind.Audio);
+
+                document.querySelectorAll('[data-livekit-video]').forEach((element) => {
+                    if (element.getAttribute('data-livekit-video') === participant.identity && videoTrack) {
+                        videoTrack.attach(element);
+                    }
+                });
+
+                document.querySelectorAll('[data-livekit-audio]').forEach((element) => {
+                    if (element.getAttribute('data-livekit-audio') === participant.identity && audioTrack) {
+                        audioTrack.attach(element);
+                    }
+                });
+            });
+
+            this.attachLocalLiveKitTracks();
+        },
+
+        attachLocalLiveKitTracks() {
+            if (! liveKitRoom) {
+                return;
+            }
+
+            const videoTrack = this.trackFromPublications(liveKitRoom.localParticipant.videoTrackPublications, Track.Kind.Video);
+
+            if (videoTrack) {
+                if (this.$refs.localLiveKitVideo) {
+                    videoTrack.attach(this.$refs.localLiveKitVideo);
+                }
+                if (this.$refs.speakerLocalLiveKitVideo) {
+                    videoTrack.attach(this.$refs.speakerLocalLiveKitVideo);
+                }
+                if (this.$refs.galleryLocalLiveKitVideo) {
+                    videoTrack.attach(this.$refs.galleryLocalLiveKitVideo);
+                }
+            }
         },
 
         saveNote() {
             localStorage.setItem(storageKey, this.note);
+        },
+
+        persistChat() {
+            localStorage.setItem(chatStorageKey, JSON.stringify(this.chatMessages.slice(-80)));
+        },
+
+        appendChatMessage(message) {
+            this.chatMessages = [...this.chatMessages, message].slice(-80);
+            this.persistChat();
+            this.$nextTick(() => {
+                if (this.$refs.chatScroll) {
+                    this.$refs.chatScroll.scrollTop = this.$refs.chatScroll.scrollHeight;
+                }
+            });
+        },
+
+        openPanel(panel, tab = null) {
+            if (this.sidePanel === panel && (! tab || this.panelTab === tab)) {
+                this.sidePanel = null;
+
+                return;
+            }
+
+            this.sidePanel = panel;
+
+            if (tab) {
+                this.panelTab = tab;
+            }
+        },
+
+        chatRecipients() {
+            return this.remoteParticipants.map(participant => ({
+                identity: participant.identity,
+                name: participant.name,
+                initials: participant.initials,
+                avatar: participant.avatar,
+            }));
+        },
+
+        filteredMentionRecipients() {
+            const query = this.mentionQuery.toLowerCase();
+
+            return this.chatRecipients()
+                .filter(participant => ! query || participant.name.toLowerCase().includes(query) || participant.identity.toLowerCase().includes(query))
+                .slice(0, 8);
+        },
+
+        setChatRecipient(participant) {
+            if (! participant) {
+                this.clearChatRecipient();
+
+                return;
+            }
+
+            this.chatRecipientIdentity = participant.identity;
+            this.chatRecipientName = participant.name;
+        },
+
+        clearChatRecipient() {
+            this.chatRecipientIdentity = null;
+            this.chatRecipientName = null;
+        },
+
+        handleChatInput() {
+            const match = this.chatDraft.match(/(^|\s)@([^\s@]*)$/);
+            this.mentionOpen = Boolean(match);
+            this.mentionQuery = match ? match[2] : '';
+        },
+
+        selectMentionRecipient(participant) {
+            this.setChatRecipient(participant);
+            this.chatDraft = this.chatDraft.replace(/(^|\s)@([^\s@]*)$/, '$1').trimStart();
+            this.mentionOpen = false;
+            this.mentionQuery = '';
+            this.$nextTick(() => this.$refs.chatInput?.focus());
+        },
+
+        async publishRoomData(payload, options = {}) {
+            if (! liveKitRoom || ! this.liveKitConnected) {
+                return;
+            }
+
+            await liveKitRoom.localParticipant.publishData(new TextEncoder().encode(JSON.stringify(payload)), {
+                reliable: true,
+                topic: 'room-chat',
+                ...options,
+            });
+        },
+
+        async copyRoomLink(url = window.location.href) {
+            try {
+                await navigator.clipboard.writeText(url);
+                this.mediaError = '';
+                this.liveKitStatus = 'Room link copied.';
+            } catch {
+                this.mediaError = 'Room link could not be copied by this browser.';
+            }
+        },
+
+        async shareRoom(title = document.title, url = window.location.href) {
+            if (navigator.share) {
+                try {
+                    await navigator.share({ title, url });
+                    this.mediaError = '';
+
+                    return;
+                } catch (error) {
+                    if (error?.name === 'AbortError') {
+                        return;
+                    }
+                }
+            }
+
+            await this.copyRoomLink(url);
+        },
+
+        async sendChatMessage() {
+            const body = this.chatDraft.trim();
+
+            if (! body) {
+                return;
+            }
+
+            const message = {
+                id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                author: participantName || this.liveKit?.name || 'You',
+                body,
+                at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                local: true,
+                avatar: options?.avatar || this.liveKit?.avatar || null,
+                direct: Boolean(this.chatRecipientIdentity),
+                recipientIdentity: this.chatRecipientIdentity,
+                recipientName: this.chatRecipientName,
+            };
+
+            this.chatDraft = '';
+            this.mentionOpen = false;
+            this.appendChatMessage(message);
+
+            if (! liveKitRoom || ! this.liveKitConnected) {
+                return;
+            }
+
+            try {
+                await this.publishRoomData({
+                    type: 'chat',
+                    id: message.id,
+                    author: message.author,
+                    avatar: message.avatar,
+                    body: message.body,
+                    at: message.at,
+                    direct: message.direct,
+                    recipientIdentity: message.recipientIdentity,
+                    recipientName: message.recipientName,
+                }, {
+                    ...(this.chatRecipientIdentity ? { destinationIdentities: [this.chatRecipientIdentity] } : {}),
+                });
+            } catch (error) {
+                this.liveKitError = error?.message || 'Chat message could not be sent to the room.';
+            }
+        },
+
+        persistQuestions() {
+            localStorage.setItem(qnaStorageKey, JSON.stringify(this.qnaItems.slice(-60)));
+        },
+
+        persistQnaState() {
+            localStorage.setItem(qnaStateStorageKey, JSON.stringify({ enabled: this.qnaEnabled }));
+        },
+
+        setQnaEnabled(enabled) {
+            if (! this.canManageInteractions) {
+                return;
+            }
+
+            this.qnaEnabled = Boolean(enabled);
+            this.persistQnaState();
+            this.publishRoomData({ type: 'qna_state', enabled: this.qnaEnabled }).catch((error) => {
+                this.liveKitError = error?.message || 'Q&A status could not be sent to the room.';
+            });
+        },
+
+        clearQuestions() {
+            if (! this.canManageInteractions) {
+                return;
+            }
+
+            this.qnaItems = [];
+            this.persistQuestions();
+            this.publishRoomData({ type: 'qna_clear' }).catch((error) => {
+                this.liveKitError = error?.message || 'Q&A could not be cleared for the room.';
+            });
+        },
+
+        appendQuestion(question) {
+            if (this.qnaItems.some(item => item.id === question.id)) {
+                return;
+            }
+
+            this.qnaItems = [question, ...this.qnaItems].slice(0, 60);
+            this.persistQuestions();
+        },
+
+        async sendQuestion() {
+            const body = this.questionDraft.trim();
+
+            if (! body || ! this.qnaEnabled) {
+                return;
+            }
+
+            const question = {
+                id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                author: participantName || this.liveKit?.name || 'You',
+                body,
+                at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                votes: 1,
+                local: true,
+            };
+
+            this.questionDraft = '';
+            this.appendQuestion(question);
+
+            try {
+                await this.publishRoomData({ type: 'question', ...question });
+            } catch (error) {
+                this.liveKitError = error?.message || 'Question could not be sent to the room.';
+            }
+        },
+
+        upvoteQuestion(id) {
+            this.qnaItems = this.qnaItems.map(item => item.id === id ? { ...item, votes: (item.votes || 0) + 1 } : item);
+            this.persistQuestions();
+        },
+
+        persistPollVotes() {
+            localStorage.setItem(pollStorageKey, JSON.stringify(this.pollVotes));
+        },
+
+        persistPollState() {
+            localStorage.setItem(pollStateStorageKey, JSON.stringify({
+                id: this.pollId,
+                open: this.pollOpen,
+                question: this.pollQuestion,
+                options: this.pollOptions,
+            }));
+        },
+
+        hasActivePoll() {
+            return Boolean(this.pollId && this.pollQuestion && this.pollOptions.length >= 2);
+        },
+
+        publishPollState() {
+            return this.publishRoomData({
+                type: 'poll_state',
+                id: this.pollId,
+                open: this.pollOpen,
+                question: this.pollQuestion,
+                options: this.pollOptions,
+            });
+        },
+
+        createPoll() {
+            if (! this.canManageInteractions) {
+                return;
+            }
+
+            const question = this.pollDraftQuestion.trim();
+            const options = this.pollDraftOptions
+                .map(option => option.trim())
+                .filter(Boolean)
+                .slice(0, 6);
+
+            if (! question || options.length < 2) {
+                this.liveKitError = 'A poll needs a question and at least two answers.';
+
+                return;
+            }
+
+            this.pollId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            this.pollOpen = true;
+            this.pollQuestion = question;
+            this.pollOptions = options;
+            this.pollVotes = {};
+            this.pollDraftQuestion = '';
+            this.pollDraftOptions = ['', '', '', ''];
+            this.liveKitError = '';
+            this.persistPollState();
+            this.persistPollVotes();
+            this.publishPollState().catch((error) => {
+                this.liveKitError = error?.message || 'Poll could not be sent to the room.';
+            });
+        },
+
+        closePoll() {
+            if (! this.canManageInteractions || ! this.hasActivePoll()) {
+                return;
+            }
+
+            this.pollOpen = false;
+            this.persistPollState();
+            this.publishPollState().catch((error) => {
+                this.liveKitError = error?.message || 'Poll status could not be sent to the room.';
+            });
+        },
+
+        reopenPoll() {
+            if (! this.canManageInteractions || ! this.hasActivePoll()) {
+                return;
+            }
+
+            this.pollOpen = true;
+            this.persistPollState();
+            this.publishPollState().catch((error) => {
+                this.liveKitError = error?.message || 'Poll status could not be sent to the room.';
+            });
+        },
+
+        votePoll(option) {
+            if (! this.pollOpen || ! this.hasActivePoll()) {
+                return;
+            }
+
+            const voter = this.liveKit?.identity || participantName || 'local-user';
+            this.pollVotes = { ...this.pollVotes, [voter]: option };
+            this.persistPollVotes();
+
+            this.publishRoomData({
+                type: 'poll_vote',
+                voter,
+                option,
+            }).catch((error) => {
+                this.liveKitError = error?.message || 'Poll vote could not be sent to the room.';
+            });
+        },
+
+        pollTotalVotes() {
+            return Object.keys(this.pollVotes).length;
+        },
+
+        pollPercent(option) {
+            const total = this.pollTotalVotes();
+
+            if (! total) {
+                return 0;
+            }
+
+            return Math.round((Object.values(this.pollVotes).filter(value => value === option).length / total) * 100);
+        },
+
+        receiveRoomData(payload, participant, topic) {
+            if (topic && topic !== 'room-chat') {
+                return;
+            }
+
+            try {
+                const decoded = new TextDecoder().decode(payload);
+                const message = JSON.parse(decoded);
+
+                if (message.type === 'question') {
+                    if (! this.qnaEnabled) {
+                        return;
+                    }
+
+                    this.appendQuestion({
+                        id: message.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                        author: message.author || participant?.name || participant?.identity || 'Guest',
+                        body: message.body || '',
+                        at: message.at || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        votes: message.votes || 1,
+                        local: false,
+                    });
+
+                    return;
+                }
+
+                if (message.type === 'qna_state') {
+                    this.qnaEnabled = message.enabled !== false;
+                    this.persistQnaState();
+
+                    return;
+                }
+
+                if (message.type === 'qna_clear') {
+                    this.qnaItems = [];
+                    this.persistQuestions();
+
+                    return;
+                }
+
+                if (message.type === 'poll_state') {
+                    this.pollId = message.id || null;
+                    this.pollOpen = Boolean(message.open);
+                    this.pollQuestion = message.question || '';
+                    this.pollOptions = Array.isArray(message.options) ? message.options : [];
+                    this.pollVotes = {};
+                    this.persistPollState();
+                    this.persistPollVotes();
+
+                    return;
+                }
+
+                if (message.type === 'poll_vote' && message.voter && message.option) {
+                    if (! this.hasActivePoll()) {
+                        return;
+                    }
+
+                    this.pollVotes = { ...this.pollVotes, [message.voter]: message.option };
+                    this.persistPollVotes();
+
+                    return;
+                }
+
+                if (message.type !== 'chat' || this.chatMessages.some(item => item.id === message.id)) {
+                    return;
+                }
+
+                if (message.direct && message.recipientIdentity && message.recipientIdentity !== this.liveKit?.identity) {
+                    return;
+                }
+
+                this.appendChatMessage({
+                    id: message.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                    author: message.author || participant?.name || participant?.identity || 'Guest',
+                    body: message.body || '',
+                    at: message.at || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    local: false,
+                    avatar: message.avatar || this.participantAvatar(participant),
+                    direct: Boolean(message.direct),
+                    recipientIdentity: message.recipientIdentity || this.liveKit?.identity || null,
+                    recipientName: message.recipientName || this.liveKit?.name || 'You',
+                });
+            } catch {
+                // Ignore non-chat room data.
+            }
         },
     });
     });
@@ -808,7 +1514,9 @@ const icons = {
     MailX,
     Map,
     MapPin,
+    Maximize,
     Menu,
+    Minimize,
     Minus,
     Moon,
     MessageCircleHeart,

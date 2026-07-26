@@ -365,10 +365,10 @@ final class CommunicationModuleTest extends TestCase
         $this->actingAs($user)
             ->get(route('communications.integrations'))
             ->assertOk()
-            ->assertSee('Zender Credential Settings', false)
-            ->assertSee('WhatsApp Account ID', false)
-            ->assertSee('Device Unique ID', false)
-            ->assertSee('-- Select SIM --', false);
+            ->assertSee('Zender Setup', false)
+            ->assertSee('WhatsApp Unique ID', false)
+            ->assertSee('SMS settings', false)
+            ->assertSee('Select SIM', false);
 
         $this->actingAs($user)
             ->put(route('communications.integrations.update'), [

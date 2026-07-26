@@ -1,4 +1,10 @@
-@props(['title' => config('app.name'), 'breadcrumbs' => []])
+@props([
+    'title' => config('app.name'),
+    'breadcrumbs' => [],
+    'chromeless' => false,
+    'hideTopbar' => false,
+    'mainClass' => 'px-4 py-5 sm:px-6 lg:px-7',
+])
 
 @php
     $brandingChurch = \App\Models\Church::query()->first();
@@ -46,32 +52,38 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased text-slate-900" style="{{ $cssStyle }}">
-        <div x-data="{ sidebarOpen: false, mobileSearchOpen: false }" class="app-shell min-h-screen">
-            <x-sidebar />
-            <div x-show="sidebarOpen" x-transition.opacity class="fixed inset-0 z-30 bg-slate-950/50 lg:hidden" x-on:click="sidebarOpen = false"></div>
-            <div class="lg:pl-72">
-                <x-topbar />
-                <main class="px-4 py-5 sm:px-6 lg:px-7">
-                    @if (session('impersonator_id'))
-                        <div class="mb-4 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
-                            <span>You are impersonating {{ auth()->user()?->name }}.</span>
-                            <form method="POST" action="{{ route('users.impersonation.stop') }}">
-                                @csrf
-                                <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700">
-                                    <i data-lucide="arrow-left" class="size-4"></i>
-                                    Return to Admin
-                                </button>
-                            </form>
-                        </div>
-                    @endif
+        @if($chromeless)
+            {{ $slot }}
+        @else
+            <div x-data="{ sidebarOpen: false, mobileSearchOpen: false }" class="app-shell min-h-screen">
+                <x-sidebar />
+                <div x-show="sidebarOpen" x-transition.opacity class="fixed inset-0 z-30 bg-slate-950/50 lg:hidden" x-on:click="sidebarOpen = false"></div>
+                <div class="lg:pl-72">
+                    @unless($hideTopbar)
+                        <x-topbar />
+                    @endunless
+                    <main class="{{ $mainClass }}">
+                        @if (session('impersonator_id'))
+                            <div class="mb-4 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+                                <span>You are impersonating {{ auth()->user()?->name }}.</span>
+                                <form method="POST" action="{{ route('users.impersonation.stop') }}">
+                                    @csrf
+                                    <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700">
+                                        <i data-lucide="arrow-left" class="size-4"></i>
+                                        Return to Admin
+                                    </button>
+                                </form>
+                            </div>
+                        @endif
 
-                    @if ($breadcrumbs)
-                        <x-breadcrumbs :items="$breadcrumbs" />
-                    @endif
+                        @if ($breadcrumbs)
+                            <x-breadcrumbs :items="$breadcrumbs" />
+                        @endif
 
-                    {{ $slot }}
-                </main>
+                        {{ $slot }}
+                    </main>
+                </div>
             </div>
-        </div>
+        @endif
     </body>
 </html>

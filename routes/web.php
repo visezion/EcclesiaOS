@@ -34,6 +34,9 @@ Route::post('webhooks/meeting-attendance/{provider}', [EventFlowController::clas
     ->name('meeting-attendance.webhook')
     ->withoutMiddleware([VerifyCsrfToken::class]);
 
+Route::get('m/{code}/{provider}', [EventFlowController::class, 'shortRoom'])->whereAlphaNumeric('code')->name('meetings.rooms.short');
+Route::post('m/{code}/{provider}/join', [EventFlowController::class, 'joinShortRoom'])->whereAlphaNumeric('code')->name('meetings.rooms.short.join');
+
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('login', [AuthenticatedSessionController::class, 'store'])->name('login.store');

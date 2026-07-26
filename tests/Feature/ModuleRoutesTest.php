@@ -782,6 +782,37 @@ class ModuleRoutesTest extends TestCase
             ->assertSee('wss://meet.techallowed.cloud')
             ->assertSee('church-live-service');
 
+        $shortRoomUrl = route('meetings.rooms.short', [strtolower(base_convert((string) $session->getKey(), 10, 36)), 'livekit']);
+
+        $this->assertStringContainsString(str_replace('/', '\\/', $shortRoomUrl), $response->getContent());
+
+        $this->actingAs($user)
+            ->get($shortRoomUrl)
+            ->assertRedirect(route('meetings.rooms.show', [$session, 'livekit']));
+
+        $this->app['auth']->guard()->logout();
+        $this->flushSession();
+
+        $this->get($shortRoomUrl)
+            ->assertOk()
+            ->assertSee('Join as guest')
+            ->assertSee('Log in instead')
+            ->assertSee('Your name');
+
+        $shortRoomCode = strtolower(base_convert((string) $session->getKey(), 10, 36));
+
+        $this->post(route('meetings.rooms.short.join', [$shortRoomCode, 'livekit']), [
+            'guest_name' => 'Guest Visitor',
+        ])
+            ->assertRedirect($shortRoomUrl);
+
+        $guestResponse = $this->get($shortRoomUrl)
+            ->assertOk()
+            ->assertSee('Guest Visitor')
+            ->assertSee('Guest access');
+
+        $this->assertStringContainsString('\u0022mark_attendance_url\u0022:null', $guestResponse->getContent());
+
         $this->assertSame(0, AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->count());
 
         preg_match('/eyJ[^<\\s]+/', $response->getContent(), $matches);
