@@ -252,7 +252,7 @@ final class CommunicationModuleTest extends TestCase
             ])
             ->assertRedirect();
 
-        $smsProvider = \App\Models\CommunicationProviderSetting::query()
+        $smsProvider = CommunicationProviderSetting::query()
             ->where('church_id', $user->church_id)
             ->where('channel', 'sms')
             ->firstOrFail();

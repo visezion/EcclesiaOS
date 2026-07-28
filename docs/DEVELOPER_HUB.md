@@ -311,7 +311,28 @@ Before submitting work:
 - `php artisan route:cache`
 - `php artisan view:cache`
 
-## 14. Ownership Expectations
+## 14. Safe Production Update Path
+
+Use this path when updating a live installation or shipping a new feature:
+
+1. Create a database backup and confirm the previous production build can be restored.
+2. Put the app in maintenance mode when the release includes migrations or breaking config changes.
+3. Pull the approved code.
+4. Run `composer install --no-dev --optimize-autoloader`.
+5. Run `npm ci && npm run build`.
+6. Run `php artisan migrate --force`.
+7. Run `php artisan config:cache`, `php artisan route:cache`, and `php artisan view:cache`.
+8. Smoke-test login, dashboard, active modules, admin settings, and the changed feature path.
+9. Bring the app out of maintenance mode.
+10. Watch logs, queues, failed jobs, and auth errors for at least 15 minutes.
+
+Rollback expectation:
+
+- Restore the previous code and build artifacts.
+- Restore the database backup if the migration changed data in a way that cannot be reversed safely.
+- Clear and rebuild Laravel caches after rollback.
+
+## 15. Ownership Expectations
 
 When adding or changing a module, the developer owns:
 

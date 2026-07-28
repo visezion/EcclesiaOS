@@ -7,6 +7,8 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\MfaController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\SocialAuthController;
+use App\Http\Controllers\AuthenticationSettingsController;
 use App\Http\Controllers\BookstoreController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CampusManagementController;
@@ -48,6 +50,8 @@ Route::post('m/{code}/{provider}/polls/{poll}/vote', [EventFlowController::class
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
+    Route::get('auth/{provider}/redirect', [SocialAuthController::class, 'redirect'])->name('social.redirect');
+    Route::get('auth/{provider}/callback', [SocialAuthController::class, 'callback'])->name('social.callback');
     Route::get('login/mfa', [MfaController::class, 'challenge'])->name('login.mfa');
     Route::post('login/mfa', [MfaController::class, 'verify'])->name('login.mfa.verify');
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
@@ -114,6 +118,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('leadership-reports/export', [LeadershipReportController::class, 'export'])->name('leadership-reports.export');
     Route::get('leadership-reports/{leadershipReport}', [LeadershipReportController::class, 'show'])->name('leadership-reports.show');
     Route::put('leadership-reports/{leadershipReport}', [LeadershipReportController::class, 'update'])->name('leadership-reports.update');
+    Route::delete('leadership-reports/{leadershipReport}', [LeadershipReportController::class, 'destroy'])->name('leadership-reports.destroy');
     Route::put('leadership-reports/{leadershipReport}/review', [LeadershipReportController::class, 'review'])->name('leadership-reports.review');
     Route::get('members', [MemberManagementController::class, 'index'])->name('members.index');
     Route::get('members/create', [MemberManagementController::class, 'create'])->name('members.create');
@@ -249,6 +254,8 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('administration/modules', ModuleManagementController::class)->name('modules.index');
     Route::put('administration/modules', [ModuleManagementController::class, 'update'])->name('modules.update');
     Route::put('administration/modules/reset', [ModuleManagementController::class, 'reset'])->name('modules.reset');
+    Route::get('administration/authentication', [AuthenticationSettingsController::class, 'index'])->name('auth-settings.index');
+    Route::put('administration/authentication', [AuthenticationSettingsController::class, 'update'])->name('auth-settings.update');
     Route::get('administration/developer-hub', DeveloperHubController::class)->name('developer-hub.index');
     Route::get('administration/audit-logs', AuditLogController::class)->name('audit-logs.index');
     Route::get('administration/audit-logs/export', [AuditLogController::class, 'export'])->name('audit-logs.export');
@@ -274,7 +281,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'developer-hub.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
             continue;
         }
 

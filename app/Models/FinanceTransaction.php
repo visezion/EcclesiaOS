@@ -11,8 +11,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class FinanceTransaction extends Model
 {
-    use UsesOpaqueRouteKeys;
     use SoftDeletes;
+    use UsesOpaqueRouteKeys;
 
     protected $fillable = [
         'church_id',

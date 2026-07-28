@@ -52,6 +52,14 @@ final class DeveloperHubController extends Controller
                 ['command' => 'npm run build', 'purpose' => 'Compiles Tailwind, Alpine, charts, and icons.'],
                 ['command' => 'php artisan route:list', 'purpose' => 'Confirms named routes and endpoints.'],
             ],
+            'releaseSteps' => [
+                'Create a database backup and confirm the previous production build is restorable.',
+                'Put the app in maintenance mode when the release includes migrations or breaking config changes.',
+                'Pull the approved code, install optimized Composer dependencies, and run fresh frontend assets.',
+                'Run migrations with --force, then cache config, routes, events, and views.',
+                'Smoke-test login, dashboard, active modules, admin settings, and the changed feature path.',
+                'Bring the app out of maintenance mode and watch logs, queues, and failed jobs for at least 15 minutes.',
+            ],
             'layoutRules' => [
                 'Use x-app-layout for authenticated pages and pass breadcrumbs.',
                 'Keep primary workflows visible on the first screen; do not create marketing-style landing pages for tools.',

@@ -1,17 +1,20 @@
 @php($isEdit = filled($order))
 
 @if(! $isEdit)
-    <label class="space-y-1 text-sm font-medium text-slate-700">
-        Product
-        <select name="bookstore_product_id" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-            <option value="">Select product</option>
-            @foreach($productOptions as $productOption)
-                <option value="{{ $productOption->id }}" @selected((string) old('bookstore_product_id') === (string) $productOption->id)>
-                    {{ $productOption->name }} &middot; {{ $currency }} {{ number_format((float) $productOption->price, 2) }} &middot; {{ number_format($productOption->stock_quantity) }} in stock
-                </option>
-            @endforeach
-        </select>
-    </label>
+    <x-searchable-select
+        name="bookstore_product_id"
+        label="Product"
+        :required="true"
+        placeholder="Search products by title, author, SKU, or format"
+        :selected="old('bookstore_product_id')"
+        :options="$productOptions->map(fn ($productOption) => [
+            'value' => $productOption->id,
+            'label' => $productOption->name,
+            'meta' => trim(($productOption->author ?: 'No author').' - '.$currency.' '.number_format((float) $productOption->price, 2).' - '.number_format($productOption->stock_quantity).' in stock'),
+            'initials' => Str::substr($productOption->name, 0, 2),
+            'search' => trim(($productOption->sku ?? '').' '.($productOption->isbn ?? '').' '.($productOption->format ?? '')),
+        ])->values()"
+    />
 
     <label class="space-y-1 text-sm font-medium text-slate-700">
         Quantity
@@ -34,25 +37,33 @@
     </label>
 </div>
 
-<label class="space-y-1 text-sm font-medium text-slate-700">
-    Member
-    <select name="member_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-        <option value="">Walk-in sale</option>
-        @foreach($members as $member)
-            <option value="{{ $member->id }}" @selected((string) old('member_id', $order?->member_id) === (string) $member->id)>{{ $member->first_name }} {{ $member->last_name }}{{ $member->campus ? ' - '.$member->campus->name : '' }}</option>
-        @endforeach
-    </select>
-</label>
+<x-searchable-select
+    name="member_id"
+    label="Member"
+    empty-label="Walk-in sale"
+    placeholder="Search members by name, email, or campus"
+    :selected="$order?->member_id"
+    :options="$members->map(fn ($member) => [
+        'value' => $member->id,
+        'label' => trim($member->first_name.' '.$member->last_name),
+        'meta' => trim(($member->email ?: 'No email').' - '.($member->campus?->name ?? 'No campus')),
+        'initials' => Str::substr($member->first_name, 0, 1).Str::substr($member->last_name, 0, 1),
+    ])->values()"
+/>
 
-<label class="space-y-1 text-sm font-medium text-slate-700">
-    Campus
-    <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-        <option value="">Use member/product campus</option>
-        @foreach($campuses as $campus)
-            <option value="{{ $campus->id }}" @selected((string) old('campus_id', $order?->campus_id) === (string) $campus->id)>{{ $campus->name }}</option>
-        @endforeach
-    </select>
-</label>
+<x-searchable-select
+    name="campus_id"
+    label="Campus"
+    empty-label="Use member/product campus"
+    placeholder="Search campus"
+    :selected="$order?->campus_id"
+    :options="$campuses->map(fn ($campus) => [
+        'value' => $campus->id,
+        'label' => $campus->name,
+        'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+        'initials' => Str::substr($campus->name, 0, 2),
+    ])->values()"
+/>
 
 @if($isEdit)
     <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">

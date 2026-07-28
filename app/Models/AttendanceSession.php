@@ -12,8 +12,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class AttendanceSession extends Model
 {
-    use UsesOpaqueRouteKeys;
     use SoftDeletes;
+    use UsesOpaqueRouteKeys;
 
     protected $fillable = [
         'church_id',
@@ -49,6 +49,11 @@ final class AttendanceSession extends Model
     public function eventSession(): BelongsTo
     {
         return $this->belongsTo(EventSession::class);
+    }
+
+    public function campus(): BelongsTo
+    {
+        return $this->belongsTo(Campus::class);
     }
 
     public function records(): HasMany

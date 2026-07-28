@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\AttendanceSession;
 use App\Models\Campus;
 use App\Models\Church;
 use App\Models\LeadershipReport;
@@ -27,6 +28,7 @@ final class LeadershipReportController extends Controller
     {
         $this->authorizeReports($request);
 
+        $canViewAllLeadershipReports = $this->canViewAllLeadershipReports($request);
         $filters = [
             'tab' => (string) $request->query('tab', 'overview'),
             'status' => (string) $request->query('status', 'all'),
@@ -35,6 +37,11 @@ final class LeadershipReportController extends Controller
             'q' => trim((string) $request->query('q', '')),
             'report' => (string) $request->query('report', ''),
         ];
+
+        if ($filters['tab'] === 'all' && ! $canViewAllLeadershipReports) {
+            $filters['tab'] = 'overview';
+        }
+
         $base = $this->visibleReports($request)->with(['campus', 'ministry', 'submitter', 'reviewer', 'reviewedBy']);
         $reports = $this->applyFilters(clone $base, $filters)
             ->latest('submitted_at')
@@ -62,11 +69,14 @@ final class LeadershipReportController extends Controller
             'relationships' => $this->relationships($request),
             'recentActivity' => $this->recentActivity($request),
             'tabCounts' => $this->tabCounts($request),
+            'canViewAllLeadershipReports' => $canViewAllLeadershipReports,
+            'canReviewLeadershipReports' => $this->canReviewLeadershipReports($request),
             'templates' => $this->templates(),
             'reportSettings' => $this->reportSettings($request),
             'campuses' => $this->visibleCampuses($request)->orderBy('name')->get(),
             'ministries' => $this->visibleMinistries($request)->orderBy('name')->get(),
             'reporters' => $this->visibleReporters($request)->orderBy('name')->get(),
+            'attendanceSources' => $this->attendanceSources($request),
             'types' => self::TYPES,
             'statuses' => self::STATUSES,
             'breadcrumbs' => [
@@ -115,6 +125,28 @@ final class LeadershipReportController extends Controller
         return redirect()->route('leadership-reports.show', $report)->with('status', $status === 'submitted' ? 'Leadership report submitted.' : 'Leadership report draft updated.');
     }
 
+    public function destroy(Request $request, LeadershipReport $leadershipReport, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeReports($request);
+
+        $report = $this->visibleReports($request)
+            ->whereKey($leadershipReport->id)
+            ->firstOrFail();
+
+        abort_unless($report->status === 'draft' && (int) $report->submitted_by === (int) $request->user()->id, 403);
+
+        $title = $report->title;
+
+        $activityLogger->log('Leadership Reports', 'leadership_report_deleted', $title.' draft was deleted.', $report, [
+            'resource' => 'Leadership Report',
+            'status' => 'deleted',
+        ], $request);
+
+        $report->delete();
+
+        return redirect()->route('leadership-reports.index', ['tab' => 'my'])->with('status', 'Draft report deleted.');
+    }
+
     public function show(Request $request, LeadershipReport $leadershipReport): View
     {
         $this->authorizeReports($request);
@@ -137,6 +169,7 @@ final class LeadershipReportController extends Controller
             'campuses' => $this->visibleCampuses($request)->orderBy('name')->get(),
             'ministries' => $this->visibleMinistries($request)->orderBy('name')->get(),
             'reporters' => $this->visibleReporters($request)->orderBy('name')->get(),
+            'canReviewLeadershipReports' => $this->canReviewLeadershipReports($request),
             'types' => self::TYPES,
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
@@ -149,6 +182,7 @@ final class LeadershipReportController extends Controller
     public function review(Request $request, LeadershipReport $leadershipReport, ActivityLogger $activityLogger): RedirectResponse
     {
         $this->authorizeReports($request);
+        abort_unless($this->canReviewLeadershipReports($request), 403);
         abort_unless($request->user()?->canAccessChurch($leadershipReport->church_id), 403);
 
         $validated = $request->validate([
@@ -199,29 +233,37 @@ final class LeadershipReportController extends Controller
     public function updateSettings(Request $request, ActivityLogger $activityLogger): RedirectResponse
     {
         $this->authorizeReports($request);
+        $canReviewLeadershipReports = $this->canReviewLeadershipReports($request);
 
         $validated = $request->validate([
             'default_reviewer_id' => ['nullable', 'exists:users,id'],
             'weekly_due_day' => ['required', Rule::in(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])],
             'auto_reminders' => ['nullable', 'boolean'],
             'require_action_items' => ['nullable', 'boolean'],
-            'escalation_hours' => ['required', 'integer', 'min:1', 'max:720'],
+            'escalation_hours' => [$canReviewLeadershipReports ? 'required' : 'nullable', 'integer', 'min:1', 'max:720'],
         ]);
 
-        $church = Church::query()->findOrFail($this->churchId($request));
-        $settings = $church->settings ?? [];
+        if (! empty($validated['default_reviewer_id'])) {
+            abort_unless($this->visibleReporters($request)->whereKey($validated['default_reviewer_id'])->exists(), 403);
+        }
+
+        $user = $request->user();
+        $settings = $user->account_settings ?? [];
+        $currentReportSettings = $this->reportSettings($request);
         $settings['leadership_reports'] = [
             'default_reviewer_id' => $validated['default_reviewer_id'] ?? null,
             'weekly_due_day' => $validated['weekly_due_day'],
             'auto_reminders' => $request->boolean('auto_reminders'),
             'require_action_items' => $request->boolean('require_action_items'),
-            'escalation_hours' => (int) $validated['escalation_hours'],
-            'updated_by' => $request->user()?->name,
+            'escalation_hours' => $canReviewLeadershipReports
+                ? (int) $validated['escalation_hours']
+                : (int) $currentReportSettings['escalation_hours'],
+            'updated_by' => $user->name,
             'updated_at' => now()->toDateTimeString(),
         ];
-        $church->forceFill(['settings' => $settings])->save();
+        $user->forceFill(['account_settings' => $settings])->save();
 
-        $activityLogger->log('Leadership Reports', 'leadership_report_settings_updated', 'Leadership report settings were updated.', $church, [
+        $activityLogger->log('Leadership Reports', 'leadership_report_settings_updated', 'Leadership report settings were updated.', $user, [
             'resource' => 'Leadership Report Settings',
             'status' => 'success',
         ], $request);
@@ -266,7 +308,7 @@ final class LeadershipReportController extends Controller
     {
         $query = LeadershipReport::query()->where('church_id', $this->churchId($request));
 
-        if (! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id !== null) {
+        if (! $this->hasBroadLeadershipCampusScope($request) && $request->user()?->campus_id !== null) {
             $query->where('campus_id', $request->user()->campus_id);
         }
 
@@ -277,7 +319,7 @@ final class LeadershipReportController extends Controller
     {
         $query = Campus::query()->where('church_id', $this->churchId($request));
 
-        if (! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id !== null) {
+        if (! $this->hasBroadLeadershipCampusScope($request) && $request->user()?->campus_id !== null) {
             $query->whereKey($request->user()->campus_id);
         }
 
@@ -288,7 +330,7 @@ final class LeadershipReportController extends Controller
     {
         $query = Ministry::query()->where('church_id', $this->churchId($request));
 
-        if (! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id !== null) {
+        if (! $this->hasBroadLeadershipCampusScope($request) && $request->user()?->campus_id !== null) {
             $query->where('campus_id', $request->user()->campus_id);
         }
 
@@ -299,7 +341,7 @@ final class LeadershipReportController extends Controller
     {
         $query = User::query()->where('church_id', $this->churchId($request));
 
-        if (! $request->user()?->isSuperAdministrator() && $request->user()?->campus_id !== null) {
+        if (! $this->hasBroadLeadershipCampusScope($request) && $request->user()?->campus_id !== null) {
             $query->where('campus_id', $request->user()->campus_id);
         }
 
@@ -350,6 +392,8 @@ final class LeadershipReportController extends Controller
             'period_end' => ['required', 'date', 'after_or_equal:period_start'],
             'priority' => ['required', Rule::in(['low', 'normal', 'high', 'urgent'])],
             'summary' => ['required', 'string', 'max:5000'],
+            'attendance_session_ids' => ['nullable', 'array'],
+            'attendance_session_ids.*' => ['integer', 'exists:attendance_sessions,id'],
             'attendance_score' => ['nullable', 'integer', 'min:0', 'max:100'],
             'discipleship_score' => ['nullable', 'integer', 'min:0', 'max:100'],
             'care_followups' => ['nullable', 'integer', 'min:0', 'max:100000'],
@@ -362,7 +406,7 @@ final class LeadershipReportController extends Controller
         ]);
 
         $user = $request->user();
-        if (! $user?->isSuperAdministrator() && $user?->campus_id !== null) {
+        if (! $this->hasBroadLeadershipCampusScope($request) && $user?->campus_id !== null) {
             $validated['campus_id'] = $user->campus_id;
         }
 
@@ -385,6 +429,8 @@ final class LeadershipReportController extends Controller
             abort_unless($this->visibleReporters($request)->whereKey($validated['assigned_to'])->exists(), 403);
         }
 
+        $attendanceMetrics = $this->attendanceMetrics($request, $validated);
+
         return [
             'campus_id' => $validated['campus_id'] ?? null,
             'ministry_id' => $validated['ministry_id'] ?? null,
@@ -399,7 +445,11 @@ final class LeadershipReportController extends Controller
             'submitted_at' => $status === 'submitted' ? now() : null,
             'due_at' => now()->addDays($validated['priority'] === 'urgent' ? 1 : 3),
             'metrics' => [
-                'attendance_score' => (int) ($validated['attendance_score'] ?? 0),
+                'attendance_score' => $attendanceMetrics['score'],
+                'attendance_source' => $attendanceMetrics['source'],
+                'attendance_total' => $attendanceMetrics['total'],
+                'attendance_expected' => $attendanceMetrics['expected'],
+                'attendance_sessions' => $attendanceMetrics['sessions'],
                 'discipleship_score' => (int) ($validated['discipleship_score'] ?? 0),
                 'care_followups' => (int) ($validated['care_followups'] ?? 0),
                 'volunteer_coverage' => (int) ($validated['volunteer_coverage'] ?? 0),
@@ -413,6 +463,104 @@ final class LeadershipReportController extends Controller
             ],
             'action_items' => collect(preg_split('/\r\n|\r|\n/', (string) ($validated['action_items'] ?? '')))
                 ->filter()
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function attendanceSources(Request $request)
+    {
+        return $this->attendanceSourceQuery($request)
+            ->whereHas('eventSession', fn ($query) => $query->whereDate('session_date', '<=', now()->toDateString()))
+            ->latest('opens_at')
+            ->limit(120)
+            ->get()
+            ->map(function (AttendanceSession $attendanceSession): array {
+                $eventSession = $attendanceSession->eventSession;
+                $present = (int) ($attendanceSession->present_records_count ?? 0);
+                $expected = (int) ($attendanceSession->expected_attendance ?? 0);
+
+                return [
+                    'id' => $attendanceSession->id,
+                    'title' => $eventSession?->title ?? $attendanceSession->title,
+                    'event' => $eventSession?->event?->title,
+                    'date' => $eventSession?->session_date?->toDateString() ?? $attendanceSession->opens_at?->toDateString(),
+                    'date_label' => $eventSession?->session_date?->format('M d, Y') ?? $attendanceSession->opens_at?->format('M d, Y'),
+                    'campus_id' => $attendanceSession->campus_id,
+                    'campus' => $attendanceSession->campus?->name ?? $eventSession?->campus?->name ?? 'All Campuses',
+                    'present' => $present,
+                    'expected' => $expected,
+                    'score' => $expected > 0 ? min(100, (int) round(($present / $expected) * 100)) : min(100, $present),
+                    'status' => $attendanceSession->status,
+                ];
+            })
+            ->values();
+    }
+
+    private function attendanceSourceQuery(Request $request)
+    {
+        $query = AttendanceSession::query()
+            ->with(['eventSession.event', 'eventSession.campus', 'campus'])
+            ->withCount([
+                'records',
+                'records as present_records_count' => fn ($records) => $records->whereIn('status', ['present', 'late']),
+            ])
+            ->where('church_id', $this->churchId($request))
+            ->whereHas('eventSession');
+
+        if (! $this->hasBroadLeadershipCampusScope($request) && $request->user()?->campus_id !== null) {
+            $query->where('campus_id', $request->user()->campus_id);
+        }
+
+        return $query;
+    }
+
+    private function attendanceMetrics(Request $request, array $validated): array
+    {
+        $ids = collect($validated['attendance_session_ids'] ?? [])
+            ->map(fn ($id): int => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return [
+                'score' => (int) ($validated['attendance_score'] ?? 0),
+                'source' => 'manual',
+                'total' => null,
+                'expected' => null,
+                'sessions' => [],
+            ];
+        }
+
+        $periodStart = Carbon::parse($validated['period_start'])->toDateString();
+        $periodEnd = Carbon::parse($validated['period_end'])->toDateString();
+        $sessions = $this->attendanceSourceQuery($request)
+            ->whereIn('id', $ids->all())
+            ->whereHas('eventSession', fn ($query) => $query
+                ->whereBetween('session_date', [$periodStart, $periodEnd])
+                ->whereDate('session_date', '<=', now()->toDateString()))
+            ->when(! empty($validated['campus_id']), fn ($query) => $query->where('campus_id', $validated['campus_id']))
+            ->get();
+
+        abort_unless($sessions->count() === $ids->count(), 422, 'Selected attendance must match the report period and scope.');
+
+        $total = $sessions->sum(fn (AttendanceSession $session): int => (int) ($session->present_records_count ?? 0));
+        $expected = $sessions->sum(fn (AttendanceSession $session): int => (int) ($session->expected_attendance ?? 0));
+
+        return [
+            'score' => $expected > 0 ? min(100, (int) round(($total / $expected) * 100)) : min(100, (int) $total),
+            'source' => 'recorded',
+            'total' => (int) $total,
+            'expected' => (int) $expected,
+            'sessions' => $sessions
+                ->map(fn (AttendanceSession $session): array => [
+                    'id' => $session->id,
+                    'title' => $session->eventSession?->title ?? $session->title,
+                    'date' => $session->eventSession?->session_date?->toDateString(),
+                    'present' => (int) ($session->present_records_count ?? 0),
+                    'expected' => (int) ($session->expected_attendance ?? 0),
+                ])
                 ->values()
                 ->all(),
         ];
@@ -500,9 +648,9 @@ final class LeadershipReportController extends Controller
                 'priority' => 'normal',
                 'icon' => 'calendar-check',
                 'tone' => 'bg-violet-50 text-violet-600 ring-violet-100',
-                'description' => 'Attendance, care follow-ups, ministry health, and branch needs for a weekly review cycle.',
-                'summary' => 'Weekly campus report covering attendance, discipleship, pastoral care follow-ups, volunteer coverage, risks, and recommended leadership actions.',
-                'actions' => "Confirm campus attendance variance\nDocument open pastoral care follow-ups\nSubmit priority ministry support needs",
+                'description' => 'Attendance, care follow-ups, ministry health, department updates, and branch needs for a weekly review cycle.',
+                'summary' => 'Weekly campus report covering attendance, discipleship, care and leadership follow-ups, volunteer coverage, risks, and recommended actions.',
+                'actions' => "Confirm campus attendance variance\nDocument open care or leadership follow-ups\nSubmit priority ministry support needs",
                 'metrics' => [90, 86, 8, 82],
             ],
             [
@@ -522,9 +670,9 @@ final class LeadershipReportController extends Controller
                 'priority' => 'urgent',
                 'icon' => 'hand-heart',
                 'tone' => 'bg-rose-50 text-rose-600 ring-rose-100',
-                'description' => 'Sensitive pastoral care summary for counseling, visitation, prayer, and follow-up ownership.',
-                'summary' => 'Pastoral care brief summarizing active care cases, counseling referrals, visitation needs, prayer requests, and follow-up ownership.',
-                'actions' => "Assign care owner for each open case\nSchedule follow-up calls\nEscalate confidential pastoral matters",
+                'description' => 'Sensitive care summary for counseling, visitation, prayer, ministry support, and follow-up ownership.',
+                'summary' => 'Care brief summarizing active care cases, counseling referrals, visitation needs, prayer requests, ministry concerns, and follow-up ownership.',
+                'actions' => "Assign care owner for each open case\nSchedule follow-up calls\nEscalate confidential care or leadership matters",
                 'metrics' => [78, 84, 14, 74],
             ],
             [
@@ -543,7 +691,12 @@ final class LeadershipReportController extends Controller
 
     private function reportSettings(Request $request): array
     {
-        $settings = data_get(Church::query()->find($this->churchId($request))?->settings, 'leadership_reports', []);
+        $settings = data_get($request->user()?->account_settings, 'leadership_reports');
+        $legacyChurchSettings = data_get(Church::query()->find($this->churchId($request))?->settings, 'leadership_reports', []);
+
+        if (! is_array($settings)) {
+            $settings = is_array($legacyChurchSettings) ? $legacyChurchSettings : [];
+        }
 
         return [
             'default_reviewer_id' => $settings['default_reviewer_id'] ?? null,
@@ -561,9 +714,9 @@ final class LeadershipReportController extends Controller
         $base = $this->visibleReports($request);
 
         return [
-            ['label' => 'Pastor -> Senior Pastor', 'count' => (clone $base)->whereNotNull('assigned_to')->count()],
+            ['label' => 'Reporter -> Reviewer', 'count' => (clone $base)->whereNotNull('assigned_to')->count()],
             ['label' => 'Campus -> Headquarters', 'count' => (clone $base)->whereNotNull('campus_id')->count()],
-            ['label' => 'Ministry -> Pastor', 'count' => (clone $base)->whereNotNull('ministry_id')->count()],
+            ['label' => 'Ministry -> Leader', 'count' => (clone $base)->whereNotNull('ministry_id')->count()],
         ];
     }
 
@@ -580,6 +733,28 @@ final class LeadershipReportController extends Controller
     private function churchId(Request $request): int
     {
         return (int) ($request->user()?->church_id ?? Church::query()->value('id'));
+    }
+
+    private function hasBroadLeadershipCampusScope(Request $request): bool
+    {
+        $user = $request->user();
+
+        return $user?->isSuperAdministrator()
+            || $user?->campus_id === null
+            || $user?->hasAnyRole(['Church Administrator', 'Senior Pastor'])
+            || $user?->hasPermission('manage campuses');
+    }
+
+    private function canViewAllLeadershipReports(Request $request): bool
+    {
+        return $this->hasBroadLeadershipCampusScope($request);
+    }
+
+    private function canReviewLeadershipReports(Request $request): bool
+    {
+        $user = $request->user();
+
+        return $user?->isSuperAdministrator() || (bool) $user?->hasPermission('review leadership reports');
     }
 
     private function decodeReportId(string $opaqueId): ?int

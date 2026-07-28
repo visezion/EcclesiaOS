@@ -41,8 +41,66 @@
 
                 <section class="grid gap-4 lg:grid-cols-3">
                     <div class="dashboard-card"><h3 class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="phone" class="size-4 text-violet-600"></i> Emergency Contact</h3><div class="grid gap-3"><input name="emergency_contact_name" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Contact name"><input name="emergency_contact_relationship" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Relationship"><input name="emergency_contact_phone" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Phone number"></div></div>
-                    <div class="dashboard-card"><h3 class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="users-round" class="size-4 text-violet-600"></i> Household Assignment</h3><div class="grid gap-3"><select name="family_id" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Assign to existing household</option>@foreach($families as $family)<option value="{{ $family->id }}">{{ $family->name }}</option>@endforeach</select><input name="family_name" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Or create new household"></div></div>
-                    <div class="dashboard-card"><h3 class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="landmark" class="size-4 text-violet-600"></i> Church Assignment</h3><div class="grid gap-3"><select name="church_id" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">@foreach($churches as $church)<option value="{{ $church->id }}">{{ $church->name }}</option>@endforeach</select><select name="campus_id" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Select campus</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}">{{ $campus->name }}</option>@endforeach</select><select name="ministry_id" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Assign ministry</option>@foreach($ministries as $ministry)<option value="{{ $ministry->id }}">{{ $ministry->name }}</option>@endforeach</select></div></div>
+                    <div class="dashboard-card">
+                        <h3 class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="users-round" class="size-4 text-violet-600"></i> Household Assignment</h3>
+                        <div class="grid gap-3">
+                            <x-searchable-select
+                                name="family_id"
+                                label="Household"
+                                empty-label="Create new household"
+                                placeholder="Search households"
+                                :options="$families->map(fn ($family) => [
+                                    'value' => $family->id,
+                                    'label' => $family->name,
+                                    'meta' => trim(($family->campus?->name ?? 'No campus').' - '.($family->primaryContact?->first_name ? trim($family->primaryContact->first_name.' '.$family->primaryContact->last_name) : 'No primary contact')),
+                                    'initials' => Str::substr($family->name, 0, 2),
+                                ])->values()"
+                            />
+                            <input name="family_name" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Or create new household">
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <h3 class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="landmark" class="size-4 text-violet-600"></i> Church Assignment</h3>
+                        <div class="grid gap-3">
+                            <x-searchable-select
+                                name="church_id"
+                                label="Church"
+                                :required="true"
+                                placeholder="Search churches"
+                                :selected="old('church_id', $churches->first()?->id)"
+                                :options="$churches->map(fn ($church) => [
+                                    'value' => $church->id,
+                                    'label' => $church->name,
+                                    'meta' => 'Church workspace',
+                                    'initials' => Str::substr($church->name, 0, 2),
+                                ])->values()"
+                            />
+                            <x-searchable-select
+                                name="campus_id"
+                                label="Campus"
+                                empty-label="Select later"
+                                placeholder="Search campuses"
+                                :options="$campuses->map(fn ($campus) => [
+                                    'value' => $campus->id,
+                                    'label' => $campus->name,
+                                    'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+                                    'initials' => Str::substr($campus->name, 0, 2),
+                                ])->values()"
+                            />
+                            <x-searchable-select
+                                name="ministry_id"
+                                label="Ministry"
+                                empty-label="Assign later"
+                                placeholder="Search ministries"
+                                :options="$ministries->map(fn ($ministry) => [
+                                    'value' => $ministry->id,
+                                    'label' => $ministry->name,
+                                    'meta' => trim(($ministry->campus?->name ?? 'All campuses').' - '.($ministry->leader?->first_name ? trim($ministry->leader->first_name.' '.$ministry->leader->last_name) : 'No leader')),
+                                    'initials' => Str::substr($ministry->name, 0, 2),
+                                ])->values()"
+                            />
+                        </div>
+                    </div>
                 </section>
 
                 <div class="dashboard-card flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><a href="{{ route('members.index') }}" class="rounded-lg border border-slate-200 px-4 py-2.5 text-center text-sm font-medium text-slate-700">Cancel</a><div class="flex gap-2"><button name="status" value="new" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700"><i data-lucide="save" class="mr-2 inline size-4"></i>Save Draft</button><button class="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white">Create Member</button></div></div>

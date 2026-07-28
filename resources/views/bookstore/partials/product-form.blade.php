@@ -47,15 +47,19 @@
     </label>
 </div>
 
-<label class="space-y-1 text-sm font-medium text-slate-700">
-    Campus
-    <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-        <option value="">Unassigned</option>
-        @foreach($campuses as $campus)
-            <option value="{{ $campus->id }}" @selected((string) old('campus_id', $product?->campus_id) === (string) $campus->id)>{{ $campus->name }}</option>
-        @endforeach
-    </select>
-</label>
+<x-searchable-select
+    name="campus_id"
+    label="Campus"
+    empty-label="Unassigned"
+    placeholder="Search campus"
+    :selected="$product?->campus_id"
+    :options="$campuses->map(fn ($campus) => [
+        'value' => $campus->id,
+        'label' => $campus->name,
+        'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+        'initials' => Str::substr($campus->name, 0, 2),
+    ])->values()"
+/>
 
 <div class="grid gap-4 sm:grid-cols-2">
     <label class="space-y-1 text-sm font-medium text-slate-700">

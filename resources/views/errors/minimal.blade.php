@@ -4,20 +4,27 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>@yield('code') - {{ config('app.name') }}</title>
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        <style>
+            * { box-sizing: border-box; }
+            body { margin: 0; min-height: 100vh; background: #f6f8fc; color: #0f172a; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+            main { display: grid; min-height: 100vh; place-items: center; padding: 2.5rem 1rem; }
+            section { width: 100%; max-width: 34rem; overflow: hidden; border: 1px solid #dfe6f2; border-radius: 12px; background: #fff; padding: 2rem; text-align: center; box-shadow: 0 18px 44px rgb(15 23 42 / 0.10); }
+            .mark { display: grid; width: 4rem; height: 4rem; margin: 0 auto; place-items: center; border-radius: 1rem; background: #ede9fe; color: #6d4aff; font-size: 2rem; font-weight: 700; }
+            .code { margin: 1.25rem 0 0; color: #6d4aff; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+            h1 { margin: 0.5rem 0 0; color: #020617; font-size: 1.55rem; line-height: 1.18; }
+            .message { margin: 0.75rem 0 0; color: #64748b; font-size: 0.95rem; line-height: 1.6; }
+            a { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 1.5rem; border-radius: 0.5rem; background: #6d4aff; padding: 0.72rem 1rem; color: #fff; font-size: 0.875rem; font-weight: 700; text-decoration: none; }
+            a:hover { background: #5b38ef; }
+        </style>
     </head>
-    <body class="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
-        <main class="grid min-h-screen place-items-center px-4 py-10">
-            <section class="dashboard-card w-full max-w-lg text-center">
-                <div class="mx-auto grid size-16 place-items-center rounded-2xl bg-violet-100 text-violet-600">
-                    <i data-lucide="shield-alert" class="size-8"></i>
-                </div>
-                <p class="mt-5 text-sm font-bold uppercase tracking-wide text-violet-600">@yield('code')</p>
-                <h1 class="mt-2 text-2xl font-bold text-slate-950">@yield('title')</h1>
-                <p class="mt-2 text-sm text-slate-500">@yield('message')</p>
-                <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="mt-6 inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700">
-                    <i data-lucide="arrow-left" class="size-4"></i> Return safely
-                </a>
+    <body>
+        <main>
+            <section>
+                <div class="mark">!</div>
+                <p class="code">@yield('code')</p>
+                <h1>@yield('title')</h1>
+                <p class="message">@yield('message')</p>
+                <a href="{{ auth()->check() ? route('dashboard') : route('login') }}">Return safely</a>
             </section>
         </main>
     </body>

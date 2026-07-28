@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\UsesOpaqueRouteKeys;
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,9 +13,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class Campus extends Model
 {
-    use UsesOpaqueRouteKeys;
     use HasFactory;
     use SoftDeletes;
+    use UsesOpaqueRouteKeys;
 
     protected $fillable = ['church_id', 'name', 'slug', 'type', 'city', 'country', 'address', 'capacity', 'map_x', 'map_y', 'metadata', 'status'];
 

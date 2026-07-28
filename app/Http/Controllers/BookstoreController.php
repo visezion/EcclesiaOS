@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ScopesOperationalRecords;
+use App\Models\Approval;
 use App\Models\BookstoreLibraryLoan;
 use App\Models\BookstoreOrder;
 use App\Models\BookstoreOrderItem;
 use App\Models\BookstoreProduct;
-use App\Models\Member;
+use App\Models\CommunicationDelivery;
+use App\Models\User;
+use App\Models\Workflow;
 use App\Services\ActivityLogger;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,6 +20,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Number;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -25,10 +29,16 @@ final class BookstoreController extends Controller
     use ScopesOperationalRecords;
 
     private const PRODUCT_STATUSES = ['active', 'inactive', 'out_of_stock'];
+
     private const PRODUCT_FORMATS = ['hardcopy', 'ebook', 'bundle'];
+
     private const ORDER_STATUSES = ['paid', 'pending', 'refunded', 'cancelled'];
+
     private const LOAN_TYPES = ['borrow', 'rent', 'digital_access'];
-    private const LOAN_STATUSES = ['active', 'returned', 'overdue', 'cancelled', 'expired'];
+
+    private const LOAN_STATUSES = ['pending_approval', 'active', 'returned', 'overdue', 'cancelled', 'expired'];
+
+    private const LOAN_APPROVAL_STATUSES = ['not_required', 'pending', 'approved', 'rejected'];
 
     public function index(Request $request): View
     {
@@ -110,7 +120,7 @@ final class BookstoreController extends Controller
         $catalogQuery = $this->scopeChurchCampus(BookstoreProduct::query(), $request)->with('campus');
         $this->applyProductFilters($catalogQuery, $request);
 
-        $loanQuery = $this->scopeChurchCampus(BookstoreLibraryLoan::query(), $request)->with(['product', 'member', 'campus', 'handledBy']);
+        $loanQuery = $this->scopeChurchCampus(BookstoreLibraryLoan::query(), $request)->with(['product', 'member', 'campus', 'handledBy', 'approval']);
         $this->applyLibraryLoanFilters($loanQuery, $request);
 
         return view('bookstore.library', [
@@ -124,6 +134,7 @@ final class BookstoreController extends Controller
             'productFormats' => self::PRODUCT_FORMATS,
             'loanTypes' => self::LOAN_TYPES,
             'loanStatuses' => self::LOAN_STATUSES,
+            'approvalStatuses' => self::LOAN_APPROVAL_STATUSES,
             'currency' => $this->currency($request),
             'libraryStats' => $this->libraryStats($request),
             'breadcrumbs' => [
@@ -318,17 +329,14 @@ final class BookstoreController extends Controller
     {
         $this->authorizePermission($request, 'manage bookstore');
         $validated = $this->validatedLibraryLoan($request);
+        $requiresApproval = in_array($validated['loan_type'], ['borrow', 'rent'], true);
 
-        $loan = DB::transaction(function () use ($request, $validated): BookstoreLibraryLoan {
+        $loan = DB::transaction(function () use ($request, $validated, $requiresApproval): BookstoreLibraryLoan {
             $product = $this->scopeChurchCampus(BookstoreProduct::query(), $request)->lockForUpdate()->findOrFail($validated['bookstore_product_id']);
             $this->authorizeLibraryProductAction($product, $validated['loan_type']);
 
             if (in_array($validated['loan_type'], ['borrow', 'rent'], true)) {
                 abort_if($product->stock_quantity < 1, 422, 'No physical copies are available for this library action.');
-                $product->decrement('stock_quantity');
-                if ($product->fresh()->stock_quantity <= 0) {
-                    $product->update(['status' => 'out_of_stock']);
-                }
             }
 
             $member = $this->visibleMembers($request)->findOrFail($validated['member_id']);
@@ -342,7 +350,8 @@ final class BookstoreController extends Controller
                 'handled_by_user_id' => $request->user()?->id,
                 'loan_number' => 'LIB-'.now()->format('YmdHis').'-'.random_int(100, 999),
                 'loan_type' => $validated['loan_type'],
-                'status' => 'active',
+                'status' => $requiresApproval ? 'pending_approval' : 'active',
+                'approval_status' => $requiresApproval ? 'pending' : 'not_required',
                 'checked_out_at' => $validated['checked_out_at'],
                 'due_at' => $validated['due_at'],
                 'returned_at' => null,
@@ -351,6 +360,16 @@ final class BookstoreController extends Controller
                 'notes' => $validated['notes'] ?? null,
             ]);
         });
+
+        if ($requiresApproval) {
+            $approval = $this->requestLibraryLoanApproval($request, $loan);
+            $this->notifyLibraryLoanRequester($loan, 'Library request submitted', 'Your '.$loan->loan_type.' request for '.$loan->product?->name.' is waiting for approval.');
+            $activityLogger->log('Bookstore', 'library_loan_approval_requested', 'Library record '.$loan->loan_number.' was sent for approval.', $loan, ['resource' => 'Library Loan', 'risk' => 'medium', 'status' => 'success', 'approval_id' => $approval->id], $request);
+
+            return back()->with('status', 'Library request sent for approval.');
+        }
+
+        $this->notifyLibraryLoanRequester($loan, 'Library access granted', 'Digital access for '.$loan->product?->name.' has been activated.');
 
         $activityLogger->log('Bookstore', 'library_loan_created', 'Library record '.$loan->loan_number.' was created.', $loan, ['resource' => 'Library Loan', 'risk' => 'low', 'status' => 'success'], $request);
 
@@ -372,6 +391,8 @@ final class BookstoreController extends Controller
         ]);
 
         DB::transaction(function () use ($loan, $validated): void {
+            abort_if($loan->approval_status === 'pending' && $validated['status'] !== 'pending_approval', 422, 'Pending library requests must be approved or rejected from Workflow & Approvals.');
+
             if (! in_array($loan->status, ['returned', 'cancelled', 'expired'], true) && in_array($validated['status'], ['returned', 'cancelled', 'expired'], true)) {
                 $this->restoreLibraryStock($loan);
             }
@@ -397,18 +418,35 @@ final class BookstoreController extends Controller
     {
         $this->authorizePermission($request, 'manage bookstore');
         $this->authorizeScopedRecord($request, $loan);
+        $wasPendingApproval = $loan->approval_status === 'pending';
 
         DB::transaction(function () use ($loan): void {
             if (! in_array($loan->status, ['returned', 'cancelled', 'expired'], true)) {
                 $this->restoreLibraryStock($loan);
             }
 
-            $loan->update(['status' => 'returned', 'returned_at' => now()]);
+            if ($loan->approval_status === 'pending') {
+                $loan->approval?->update([
+                    'status' => 'rejected',
+                    'rejected_at' => now(),
+                    'notes' => 'Cancelled from the library register before approval.',
+                ]);
+            }
+
+            $loan->update([
+                'status' => $loan->approval_status === 'pending' ? 'cancelled' : 'returned',
+                'approval_status' => $loan->approval_status === 'pending' ? 'rejected' : $loan->approval_status,
+                'returned_at' => now(),
+            ]);
         });
 
-        $activityLogger->log('Bookstore', 'library_loan_returned', 'Library record '.$loan->loan_number.' was returned.', $loan, ['resource' => 'Library Loan', 'risk' => 'low', 'status' => 'success'], $request);
+        if ($wasPendingApproval) {
+            $this->notifyLibraryLoanRequester($loan->fresh() ?? $loan, 'Library request cancelled', 'The '.$loan->loan_type.' request for '.$loan->product?->name.' was cancelled before approval.');
+        }
 
-        return back()->with('status', 'Library item returned.');
+        $activityLogger->log('Bookstore', $wasPendingApproval ? 'library_loan_cancelled' : 'library_loan_returned', 'Library record '.$loan->loan_number.($wasPendingApproval ? ' was cancelled.' : ' was returned.'), $loan, ['resource' => 'Library Loan', 'risk' => 'low', 'status' => 'success'], $request);
+
+        return back()->with('status', $wasPendingApproval ? 'Library request cancelled.' : 'Library item returned.');
     }
 
     public function export(Request $request): StreamedResponse
@@ -474,7 +512,7 @@ final class BookstoreController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['Loan Number', 'Type', 'Status', 'Product', 'Member', 'Campus', 'Checked Out', 'Due', 'Returned', 'Rental Amount', 'Currency']);
+            fputcsv($handle, ['Loan Number', 'Type', 'Status', 'Approval', 'Product', 'Member', 'Campus', 'Checked Out', 'Due', 'Returned', 'Rental Amount', 'Currency']);
             $query = $this->scopeChurchCampus(BookstoreLibraryLoan::query(), $request)->with(['product', 'member', 'campus'])->latest('checked_out_at');
             $this->applyLibraryLoanFilters($query, $request);
 
@@ -482,6 +520,7 @@ final class BookstoreController extends Controller
                 $loan->loan_number,
                 $loan->loan_type,
                 $loan->status,
+                $loan->approval_status,
                 $loan->product?->name,
                 $loan->member ? $loan->member->first_name.' '.$loan->member->last_name : '',
                 $loan->campus?->name,
@@ -592,6 +631,7 @@ final class BookstoreController extends Controller
         });
         $query->when($request->filled('loan_type'), fn (Builder $query) => $query->where('loan_type', $request->string('loan_type')));
         $query->when($request->filled('loan_status'), fn (Builder $query) => $query->where('status', $request->string('loan_status')));
+        $query->when($request->filled('approval_status'), fn (Builder $query) => $query->where('approval_status', $request->string('approval_status')));
         $query->when($request->filled('loan_campus_id'), fn (Builder $query) => $query->where('campus_id', (int) $request->query('loan_campus_id')));
     }
 
@@ -635,6 +675,7 @@ final class BookstoreController extends Controller
             'bookstore' => (clone $baseProducts)->count(),
             'catalog' => (clone $baseProducts)->where(fn (Builder $query) => $query->where('is_library_item', true)->orWhere('borrowable', true)->orWhere('rentable', true)->orWhereIn('format', ['ebook', 'bundle']))->count(),
             'active' => (clone $baseLoans)->where('status', 'active')->count(),
+            'pending' => (clone $baseLoans)->where('approval_status', 'pending')->count(),
             'overdue' => (clone $baseLoans)->where(fn (Builder $query) => $query->where('status', 'overdue')->orWhere(fn (Builder $due) => $due->where('status', 'active')->whereNotNull('due_at')->where('due_at', '<', now())))->count(),
             'digital' => (clone $baseLoans)->where('loan_type', 'digital_access')->count(),
             'rentals' => (clone $baseLoans)->where('loan_type', 'rent')->whereIn('status', ['active', 'overdue'])->count(),
@@ -701,9 +742,146 @@ final class BookstoreController extends Controller
         }
     }
 
+    private function requestLibraryLoanApproval(Request $request, BookstoreLibraryLoan $loan): Approval
+    {
+        $loan->loadMissing(['product', 'member', 'campus']);
+
+        $workflow = Workflow::query()->firstOrCreate(
+            [
+                'church_id' => $loan->church_id,
+                'module' => 'bookstore_library',
+                'name' => 'Library Borrow/Rent Approval',
+            ],
+            [
+                'status' => 'active',
+                'steps' => [
+                    'description' => 'Borrow and rent requests must be approved before a physical copy is issued.',
+                    'approval_type' => 'sequential',
+                    'timeout_hours' => 72,
+                    'steps' => [
+                        [
+                            'position' => 1,
+                            'label' => 'Library Review',
+                            'role' => 'Book Store Manager',
+                            'mode' => 'required',
+                            'required' => true,
+                            'instructions' => 'Confirm member eligibility, due date, rental amount, and available stock.',
+                        ],
+                    ],
+                ],
+            ],
+        );
+
+        $approval = Approval::query()->create([
+            'church_id' => $loan->church_id,
+            'workflow_id' => $workflow->id,
+            'approvable_type' => $loan::class,
+            'approvable_id' => $loan->id,
+            'action' => 'library_'.$loan->loan_type,
+            'requested_by' => $request->user()?->id,
+            'status' => 'pending',
+            'notes' => Str::headline($loan->loan_type).' request requires approval before checkout.',
+            'payload' => [
+                'loan_number' => $loan->loan_number,
+                'loan_type' => $loan->loan_type,
+                'book' => $loan->product?->name,
+                'member' => trim(($loan->member?->first_name ?? '').' '.($loan->member?->last_name ?? '')),
+                'campus' => $loan->campus?->name,
+                'due_at' => $loan->due_at?->toDateTimeString(),
+                'rental_amount' => $loan->rental_amount,
+                'currency' => $loan->currency,
+            ],
+            'submitted_at' => now(),
+        ]);
+
+        $this->notifyLibraryApprovers($approval, $loan);
+
+        return $approval;
+    }
+
+    private function notifyLibraryApprovers(Approval $approval, BookstoreLibraryLoan $loan): void
+    {
+        $loan->loadMissing(['product', 'member', 'campus']);
+        $subject = 'Library approval needed: '.$loan->product?->name;
+        $message = trim(($loan->member?->first_name ?? '').' '.($loan->member?->last_name ?? '')).' requested to '.str_replace('_', ' ', $loan->loan_type).' '.$loan->product?->name.'. Review it in Workflow & Approvals.';
+
+        User::query()
+            ->where(fn (Builder $query) => $query->where('church_id', $approval->church_id)->orWhereNull('church_id'))
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereHas('roles', fn (Builder $roles) => $roles->whereIn('name', ['Super Administrator', 'Church Administrator', 'Senior Pastor', 'Book Store Manager']))
+                    ->orWhereHas('roles.permissions', fn (Builder $permissions) => $permissions->whereIn('name', ['manage workflows', 'manage bookstore']));
+            })
+            ->get()
+            ->each(function (User $user) use ($approval, $subject, $message): void {
+                foreach (['in_app', 'email'] as $channel) {
+                    $this->queueLibraryMessage(
+                        churchId: $approval->church_id,
+                        channel: $channel,
+                        recipientName: $user->name,
+                        recipientContact: $user->email,
+                        subject: $subject,
+                        message: $message,
+                        eventType: 'LibraryLoanApprovalRequested',
+                    );
+                }
+            });
+    }
+
+    private function notifyLibraryLoanRequester(BookstoreLibraryLoan $loan, string $subject, string $message): void
+    {
+        $loan->loadMissing(['handledBy', 'member']);
+
+        if ($loan->handledBy) {
+            foreach (['in_app', 'email'] as $channel) {
+                $this->queueLibraryMessage(
+                    churchId: $loan->church_id,
+                    channel: $channel,
+                    recipientName: $loan->handledBy->name,
+                    recipientContact: $loan->handledBy->email,
+                    subject: $subject,
+                    message: $message,
+                    eventType: 'LibraryLoanNotification',
+                );
+            }
+        }
+
+        if ($loan->member) {
+            foreach (['in_app', 'email'] as $channel) {
+                $this->queueLibraryMessage(
+                    churchId: $loan->church_id,
+                    memberId: $loan->member_id,
+                    channel: $channel,
+                    recipientName: trim(($loan->member->first_name ?? '').' '.($loan->member->last_name ?? '')) ?: 'Member',
+                    recipientContact: $loan->member->email,
+                    subject: $subject,
+                    message: $message,
+                    eventType: 'LibraryLoanMemberNotification',
+                );
+            }
+        }
+    }
+
+    private function queueLibraryMessage(int $churchId, string $channel, string $recipientName, ?string $recipientContact, string $subject, string $message, string $eventType, ?int $memberId = null): void
+    {
+        CommunicationDelivery::query()->create([
+            'church_id' => $churchId,
+            'member_id' => $memberId,
+            'channel' => $channel,
+            'provider' => 'ecclesiaos',
+            'recipient_name' => $recipientName,
+            'recipient_contact' => $recipientContact,
+            'subject' => $subject,
+            'body_excerpt' => Str::limit($message, 240),
+            'event_type' => $eventType,
+            'status' => 'queued',
+            'sent_at' => now(),
+        ]);
+    }
+
     private function restoreLibraryStock(BookstoreLibraryLoan $loan): void
     {
-        if (! in_array($loan->loan_type, ['borrow', 'rent'], true)) {
+        if (! in_array($loan->loan_type, ['borrow', 'rent'], true) || ! in_array($loan->status, ['active', 'overdue'], true)) {
             return;
         }
 

@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\ScopesOperationalRecords;
 use App\Models\Asset;
 use App\Models\AssetBooking;
 use App\Models\AssetCategory;
+use App\Models\Campus;
 use App\Models\Member;
 use App\Models\User;
 use App\Services\ActivityLogger;
@@ -27,7 +28,9 @@ final class AssetInventoryController extends Controller
     use ScopesOperationalRecords;
 
     private const STATUSES = ['available', 'in_use', 'maintenance', 'retired'];
+
     private const CONDITIONS = ['excellent', 'good', 'fair', 'maintenance', 'critical'];
+
     private const BOOKING_STATUSES = ['reserved', 'checked_out', 'returned', 'cancelled', 'overdue'];
 
     public function index(Request $request): View
@@ -298,7 +301,7 @@ final class AssetInventoryController extends Controller
         $validated['asset_id'] = $asset->id;
         $validated['church_id'] = $asset->church_id;
         $validated['campus_id'] = filled($validated['campus_id'] ?? null)
-            ? OpaqueId::decode($validated['campus_id'], \App\Models\Campus::class)
+            ? OpaqueId::decode($validated['campus_id'], Campus::class)
             : $asset->campus_id;
         $validated['member_id'] = filled($validated['member_id'] ?? null)
             ? OpaqueId::decode($validated['member_id'], Member::class)

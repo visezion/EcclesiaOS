@@ -16,6 +16,7 @@ use App\Support\ModuleRegistry;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -33,6 +34,7 @@ class AdminPagesTest extends TestCase
             'users.index' => 'Users Management',
             'roles.index' => 'Roles &amp; Permissions',
             'campuses.index' => 'Churches &amp; Campuses',
+            'auth-settings.index' => 'Authentication',
             'developer-hub.index' => 'Developer Hub',
             'audit-logs.index' => 'Audit Logs',
         ] as $route => $text) {
@@ -903,6 +905,53 @@ class AdminPagesTest extends TestCase
             ->assertRedirect();
 
         $this->assertFalse($role->fresh()?->permissions()->exists());
+    }
+
+    public function test_administrator_can_configure_social_authentication_providers(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('auth-settings.index'))
+            ->assertOk()
+            ->assertSee('Authentication', false)
+            ->assertSee('Google', false)
+            ->assertSee('Facebook', false)
+            ->assertSee('LinkedIn', false)
+            ->assertSee('X', false);
+
+        $this->actingAs($admin)
+            ->put(route('auth-settings.update'), [
+                'providers' => [
+                    ['provider' => 'google', 'enabled' => '1', 'client_id' => 'google-client-id', 'client_secret' => 'google-secret'],
+                    ['provider' => 'facebook', 'enabled' => '1', 'client_id' => 'facebook-client-id', 'client_secret' => 'facebook-secret'],
+                    ['provider' => 'linkedin', 'enabled' => '1', 'client_id' => 'linkedin-client-id', 'client_secret' => 'linkedin-secret'],
+                    ['provider' => 'x', 'enabled' => '1', 'client_id' => 'x-client-id', 'client_secret' => 'x-secret'],
+                    ['provider' => 'github', 'enabled' => '1', 'client_id' => 'github-client-id', 'client_secret' => 'github-secret'],
+                    ['provider' => 'microsoft', 'enabled' => '0', 'client_id' => '', 'client_secret' => ''],
+                ],
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Authentication providers saved.');
+
+        $settings = Church::query()->firstOrFail()->settings;
+        $this->assertTrue(data_get($settings, 'social_auth.providers.google.enabled'));
+        $this->assertSame('google-client-id', data_get($settings, 'social_auth.providers.google.client_id'));
+        $this->assertSame('google-secret', Crypt::decryptString(data_get($settings, 'social_auth.providers.google.client_secret_encrypted')));
+
+        auth()->logout();
+        $this->flushSession();
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertDontSee('Workspace', false)
+            ->assertSee('Google', false)
+            ->assertSee('Facebook', false)
+            ->assertSee('LinkedIn', false)
+            ->assertSee('X', false)
+            ->assertSee('GitHub', false)
+            ->assertDontSee('Microsoft', false);
     }
 
     /**

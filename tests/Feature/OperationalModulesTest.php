@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Approval;
 use App\Models\Asset;
 use App\Models\AssetBooking;
 use App\Models\AssetCategory;
@@ -11,6 +12,7 @@ use App\Models\BookstoreOrderItem;
 use App\Models\BookstoreProduct;
 use App\Models\CareTask;
 use App\Models\ChildrenYouthRecord;
+use App\Models\CommunicationDelivery;
 use App\Models\CounsellingBooking;
 use App\Models\Donation;
 use App\Models\FinanceTransaction;
@@ -572,14 +574,63 @@ class OperationalModulesTest extends TestCase
 
         $loan = BookstoreLibraryLoan::query()->where('bookstore_product_id', $product->id)->latest()->firstOrFail();
         $this->assertSame('borrow', $loan->loan_type);
+        $this->assertSame('pending_approval', $loan->status);
+        $this->assertSame('pending', $loan->approval_status);
+        $this->assertSame($originalStock, $product->fresh()->stock_quantity);
+
+        $approval = Approval::query()
+            ->where('approvable_type', BookstoreLibraryLoan::class)
+            ->where('approvable_id', $loan->id)
+            ->firstOrFail();
+
+        $this->assertSame('pending', $approval->status);
+        $this->assertDatabaseHas('communication_deliveries', [
+            'event_type' => 'LibraryLoanApprovalRequested',
+            'channel' => 'in_app',
+            'status' => 'queued',
+        ]);
+        $this->assertDatabaseHas('communication_deliveries', [
+            'event_type' => 'LibraryLoanApprovalRequested',
+            'channel' => 'email',
+            'status' => 'queued',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('workflows.approvals.approve', $approval))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Approval approved and library loan activated.');
+
+        $loan->refresh();
         $this->assertSame('active', $loan->status);
+        $this->assertSame('approved', $loan->approval_status);
         $this->assertSame($originalStock - 1, $product->fresh()->stock_quantity);
+        $this->assertGreaterThan(0, CommunicationDelivery::query()->where('event_type', 'LibraryLoanMemberNotification')->count());
 
         $this->actingAs($admin)
             ->delete(route('bookstore.library.loans.destroy', $loan))
             ->assertRedirect();
 
         $this->assertSame('returned', $loan->fresh()->status);
+        $this->assertSame($originalStock, $product->fresh()->stock_quantity);
+
+        $this->actingAs($admin)
+            ->post(route('bookstore.library.loans.store'), [
+                'bookstore_product_id' => $product->id,
+                'member_id' => $member->id,
+                'campus_id' => $member->campus_id,
+                'loan_type' => 'rent',
+                'checked_out_at' => now()->format('Y-m-d H:i:s'),
+                'due_at' => now()->addDays(7)->format('Y-m-d H:i:s'),
+                'rental_amount' => 4.99,
+                'currency' => 'USD',
+                'notes' => 'Rent test.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Library request sent for approval.');
+
+        $rentLoan = BookstoreLibraryLoan::query()->where('bookstore_product_id', $product->id)->where('loan_type', 'rent')->latest()->firstOrFail();
+        $this->assertSame('pending_approval', $rentLoan->status);
+        $this->assertSame('pending', $rentLoan->approval_status);
         $this->assertSame($originalStock, $product->fresh()->stock_quantity);
 
         $ebook = BookstoreProduct::query()->create([

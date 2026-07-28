@@ -27,11 +27,14 @@
             'overview' => 'Overview',
             'my' => 'My Reports',
             'to-me' => 'Reports To Me',
-            'all' => 'All Reports',
+            'all' => 'All Leadership Reports',
             'analytics' => 'Analytics',
             'templates' => 'Templates',
             'settings' => 'Settings',
         ];
+        if (! $canViewAllLeadershipReports) {
+            unset($tabLabels['all']);
+        }
         $listTitle = match ($activeTab) {
             'my' => 'My Submitted Reports',
             'to-me' => 'Reports Assigned To Me',
@@ -66,7 +69,16 @@
         $hintClass = 'block text-xs font-normal leading-5 text-slate-400';
     @endphp
 
-    <div x-data="{ createOpen: {{ $errors->any() ? 'true' : 'false' }}, createStep: 1, createTotal: 8, nextStep() { this.createStep = Math.min(this.createTotal, this.createStep + 1) }, prevStep() { this.createStep = Math.max(1, this.createStep - 1) } }" class="space-y-5">
+    <div x-data="leadershipReportWizard({
+        create_open: {{ $errors->any() ? 'true' : 'false' }},
+        period_start: @js(old('period_start', now()->startOfWeek()->toDateString())),
+        period_end: @js(old('period_end', now()->endOfWeek()->toDateString())),
+        campus_id: @js(old('campus_id', '')),
+        ministry_id: @js(old('ministry_id', '')),
+        attendance_score: @js(old('attendance_score', 90)),
+        selected_attendance_session_ids: @js(collect(old('attendance_session_ids', []))->map(fn ($id) => (string) $id)->values()),
+        attendance_sources: @js($attendanceSources),
+    })" class="space-y-5">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
                 <h1 class="text-2xl font-semibold text-slate-950">Pastor & Leadership Reports</h1>
@@ -225,7 +237,7 @@
                         <label class="sr-only" for="leadership-report-search">Search reports</label>
                         <div class="relative">
                             <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"></i>
-                            <input id="leadership-report-search" name="q" value="{{ $filters['q'] }}" placeholder="Search reports, pastors, campuses..." class="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm">
+                            <input id="leadership-report-search" name="q" value="{{ $filters['q'] }}" placeholder="Search reports, pastors, leaders, campuses..." class="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm">
                         </div>
                     </div>
                     <select name="status" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">@foreach(['all' => 'All Statuses'] + collect($statuses)->mapWithKeys(fn($status) => [$status => Str::headline($status)])->all() as $value => $label)<option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>@endforeach</select>
@@ -238,7 +250,7 @@
                         <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th class="px-4 py-3">Report Title</th><th class="px-4 py-3">From</th><th class="px-4 py-3">To</th><th class="px-4 py-3">Period</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Submitted</th><th class="px-4 py-3 text-right">Actions</th></tr></thead>
                         <tbody class="divide-y divide-slate-100">
                             @forelse($reports as $report)
-                                @php($meta = $statusMeta[$report->status] ?? $statusMeta['draft'])
+                                <?php $meta = $statusMeta[$report->status] ?? $statusMeta['draft']; ?>
                                 <tr class="{{ $selectedReport?->id === $report->id ? 'bg-violet-50/60' : 'bg-white' }}">
                                     <td class="px-4 py-3"><a href="{{ route('leadership-reports.show', $report) }}" class="font-semibold text-violet-700">{{ $report->title }}</a><div class="text-xs text-slate-500">{{ Str::headline($report->report_type) }} report</div></td>
                                     <td class="px-4 py-3 text-slate-600">{{ $report->submitter?->name }}</td>
@@ -252,7 +264,14 @@
                                             @if(in_array($report->status, ['draft', 'returned'], true))
                                                 <a href="{{ route('leadership-reports.show', $report) }}#edit-report" class="grid size-8 place-items-center rounded-lg border border-violet-200 text-violet-600 hover:bg-violet-50" title="Edit draft"><i data-lucide="pencil" class="size-4"></i></a>
                                             @endif
-                                            @if(in_array($report->status, ['submitted', 'under_review'], true))
+                                            @if($report->status === 'draft' && (int) $report->submitted_by === (int) auth()->id())
+                                                <form method="POST" action="{{ route('leadership-reports.destroy', $report) }}" onsubmit="return confirm('Delete this draft report?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button class="grid size-8 place-items-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50" title="Delete draft"><i data-lucide="trash-2" class="size-4"></i></button>
+                                                </form>
+                                            @endif
+                                            @if($canReviewLeadershipReports && in_array($report->status, ['submitted', 'under_review'], true))
                                                 <form method="POST" action="{{ route('leadership-reports.review', $report) }}">@csrf @method('PUT')<input type="hidden" name="decision" value="approved"><button class="grid size-8 place-items-center rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50" title="Approve"><i data-lucide="check" class="size-4"></i></button></form>
                                                 <form method="POST" action="{{ route('leadership-reports.review', $report) }}">@csrf @method('PUT')<input type="hidden" name="decision" value="returned"><button class="grid size-8 place-items-center rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50" title="Return"><i data-lucide="rotate-ccw" class="size-4"></i></button></form>
                                             @endif
@@ -272,7 +291,10 @@
                 <section class="dashboard-card">
                     <div class="mb-4 flex items-center justify-between"><h2 class="text-base font-semibold text-slate-950">Selected Report</h2>@if($selectedReport)<span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $priorityClasses[$selectedReport->priority] ?? $priorityClasses['normal'] }}">{{ Str::headline($selectedReport->priority) }}</span>@endif</div>
                     @if($selectedReport)
-                        @php($meta = $statusMeta[$selectedReport->status] ?? $statusMeta['draft'])
+                        <?php
+                            $meta = $statusMeta[$selectedReport->status] ?? $statusMeta['draft'];
+                            $canDeleteSelectedReport = $selectedReport->status === 'draft' && (int) $selectedReport->submitted_by === (int) auth()->id();
+                        ?>
                         <div class="space-y-4">
                             <div><div class="font-semibold text-slate-950">{{ $selectedReport->title }}</div><div class="mt-1 text-xs text-slate-500">{{ $selectedReport->campus?->name ?? 'All Campuses' }} - {{ $selectedReport->ministry?->name ?? 'General Leadership' }}</div></div>
                             <p class="text-sm leading-6 text-slate-600">{{ $selectedReport->summary }}</p>
@@ -291,7 +313,14 @@
                             @if(in_array($selectedReport->status, ['draft', 'returned'], true))
                                 <a href="{{ route('leadership-reports.show', $selectedReport) }}#edit-report" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700"><i data-lucide="pencil" class="size-4"></i>Edit Draft</a>
                             @endif
-                            @if(in_array($selectedReport->status, ['submitted', 'under_review'], true))
+                            @if($canDeleteSelectedReport)
+                                <form method="POST" action="{{ route('leadership-reports.destroy', $selectedReport) }}" onsubmit="return confirm('Delete this draft report?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"><i data-lucide="trash-2" class="size-4"></i>Delete Draft</button>
+                                </form>
+                            @endif
+                            @if($canReviewLeadershipReports && in_array($selectedReport->status, ['submitted', 'under_review'], true))
                             <form method="POST" action="{{ route('leadership-reports.review', $selectedReport) }}" class="space-y-3">
                                 @csrf
                                 @method('PUT')
@@ -369,20 +398,27 @@
                     <div class="mb-5 flex items-start justify-between gap-4">
                         <div>
                             <h2 class="text-lg font-semibold text-slate-950">Leadership Report Settings</h2>
-                            <p class="mt-1 text-sm text-slate-500">Controls report ownership, due dates, reminders, and escalation behavior for this church.</p>
+                            <p class="mt-1 text-sm text-slate-500">{{ $canReviewLeadershipReports ? 'Controls your default reviewer, due dates, reminders, and escalation behavior when you create reports.' : 'Controls your default reviewer, due dates, and reminder preferences when you create reports.' }}</p>
                         </div>
                         <span class="grid size-12 place-items-center rounded-xl bg-violet-50 text-violet-600 ring-1 ring-violet-100"><i data-lucide="settings" class="size-6"></i></span>
                     </div>
                     <div class="grid gap-4 md:grid-cols-2">
-                        <label class="space-y-1 text-xs font-semibold text-slate-500">Default Reviewer
-                            <select name="default_reviewer_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                                <option value="">No default reviewer</option>
-                                @foreach($reporters as $reporter)
-                                    <option value="{{ $reporter->id }}" @selected((string) $reportSettings['default_reviewer_id'] === (string) $reporter->id)>{{ $reporter->name }} - {{ $reporter->title }}</option>
-                                @endforeach
-                            </select>
-                            <span class="{{ $hintClass }}">Preselects the reviewer on new reports. Example: Senior Pastor or Campus Overseer.</span>
-                        </label>
+                        <x-searchable-select
+                            name="default_reviewer_id"
+                            label="Default Reviewer"
+                            empty-label="No default reviewer"
+                            placeholder="Search reviewer by name, title, or email"
+                            :selected="$reportSettings['default_reviewer_id']"
+                            hint="Preselects the reviewer on new reports. Example: Senior Pastor or Campus Overseer."
+                            class="text-xs font-semibold text-slate-500"
+                            :options="$reporters->map(fn ($reporter) => [
+                                'value' => $reporter->id,
+                                'label' => $reporter->name,
+                                'meta' => trim(($reporter->title ?: 'Team Member').' - '.($reporter->email ?: 'No email')),
+                                'avatar' => $reporter->avatar_src,
+                                'initials' => Str::of($reporter->name)->explode(' ')->filter()->map(fn ($part) => Str::substr($part, 0, 1))->take(2)->join(''),
+                            ])->values()"
+                        />
                         <label class="space-y-1 text-xs font-semibold text-slate-500">Weekly Due Day
                             <select name="weekly_due_day" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                                 @foreach(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as $day)
@@ -391,10 +427,12 @@
                             </select>
                             <span class="{{ $hintClass }}">Default target day for weekly report completion.</span>
                         </label>
-                        <label class="space-y-1 text-xs font-semibold text-slate-500">Escalation Window
-                            <input name="escalation_hours" type="number" min="1" max="720" value="{{ $reportSettings['escalation_hours'] }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                            <span class="{{ $hintClass }}">Hours before overdue reports are escalated. Example: 72 means after 3 days.</span>
-                        </label>
+                        @if($canReviewLeadershipReports)
+                            <label class="space-y-1 text-xs font-semibold text-slate-500">Escalation Window
+                                <input name="escalation_hours" type="number" min="1" max="720" value="{{ $reportSettings['escalation_hours'] }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                <span class="{{ $hintClass }}">Hours before overdue reports are escalated. Example: 72 means after 3 days.</span>
+                            </label>
+                        @endif
                         <div class="grid gap-3">
                             <label class="rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700">
                                 <span class="flex items-center justify-between gap-3">
@@ -416,11 +454,13 @@
                 </form>
                 <aside class="space-y-4">
                     <article class="dashboard-card">
-                        <h2 class="mb-3 text-base font-semibold text-slate-950">Current Policy</h2>
+                        <h2 class="mb-3 text-base font-semibold text-slate-950">Your Current Defaults</h2>
                         <div class="space-y-3 text-sm">
                             <div class="flex justify-between gap-3"><span class="text-slate-500">Default reviewer</span><span class="font-semibold text-slate-950">{{ $reporters->firstWhere('id', $reportSettings['default_reviewer_id'])?->name ?? 'Not assigned' }}</span></div>
                             <div class="flex justify-between gap-3"><span class="text-slate-500">Weekly due day</span><span class="font-semibold text-slate-950">{{ Str::headline($reportSettings['weekly_due_day']) }}</span></div>
-                            <div class="flex justify-between gap-3"><span class="text-slate-500">Escalation</span><span class="font-semibold text-slate-950">{{ $reportSettings['escalation_hours'] }} hours</span></div>
+                            @if($canReviewLeadershipReports)
+                                <div class="flex justify-between gap-3"><span class="text-slate-500">Escalation</span><span class="font-semibold text-slate-950">{{ $reportSettings['escalation_hours'] }} hours</span></div>
+                            @endif
                             <div class="flex justify-between gap-3"><span class="text-slate-500">Last updated</span><span class="font-semibold text-slate-950">{{ $reportSettings['updated_at'] ?? 'System default' }}</span></div>
                         </div>
                     </article>
@@ -439,17 +479,41 @@
                 <h2 class="mb-4 text-base font-semibold text-slate-950">Report Workflow Paths</h2>
                 <div class="grid gap-5 md:grid-cols-2">
                     @foreach([
-                        ['Pastor / Department', 'Submit', 'Senior Pastor Review', 'Decision', 'Complete'],
-                        ['Campus Pastor', 'Prepare', 'Submit to District', 'District Review', 'Complete'],
+                        [
+                            'label' => 'Pastor / Leader / Department',
+                            'accent' => 'border-violet-200 bg-violet-50/40',
+                            'badge' => 'bg-violet-50 text-violet-700 ring-violet-100',
+                            'steps' => [
+                                ['label' => 'Submit', 'icon' => 'send', 'tone' => 'bg-blue-50 text-blue-600 ring-blue-100'],
+                                ['label' => 'Senior Leader Review', 'icon' => 'user-round-check', 'tone' => 'bg-violet-50 text-violet-600 ring-violet-100'],
+                                ['label' => 'Decision', 'icon' => 'scale', 'tone' => 'bg-orange-50 text-orange-600 ring-orange-100'],
+                                ['label' => 'Complete', 'icon' => 'check-circle-2', 'tone' => 'bg-emerald-50 text-emerald-600 ring-emerald-100'],
+                            ],
+                        ],
+                        [
+                            'label' => 'Campus / Ministry Leader',
+                            'accent' => 'border-emerald-200 bg-emerald-50/40',
+                            'badge' => 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+                            'steps' => [
+                                ['label' => 'Prepare', 'icon' => 'clipboard-list', 'tone' => 'bg-slate-100 text-slate-600 ring-slate-200'],
+                                ['label' => 'Submit to Reviewer', 'icon' => 'mail-plus', 'tone' => 'bg-blue-50 text-blue-600 ring-blue-100'],
+                                ['label' => 'Leadership Review', 'icon' => 'users-round', 'tone' => 'bg-amber-50 text-amber-600 ring-amber-100'],
+                                ['label' => 'Complete', 'icon' => 'badge-check', 'tone' => 'bg-emerald-50 text-emerald-600 ring-emerald-100'],
+                            ],
+                        ],
                     ] as $path)
-                        <div>
-                            <div class="mb-3 text-sm font-semibold text-slate-950">{{ $path[0] }}</div>
+                        <div class="rounded-xl border p-4 {{ $path['accent'] }}">
+                            <div class="mb-3 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 {{ $path['badge'] }}">
+                                <i data-lucide="route" class="size-4"></i>
+                                {{ $path['label'] }}
+                            </div>
                             <div class="flex items-start gap-3 overflow-x-auto">
-                                @foreach($path as $step)
-                                    @continue($loop->first)
+                                @foreach($path['steps'] as $step)
                                     <div class="min-w-24 text-center">
-                                        <span class="mx-auto grid size-10 place-items-center rounded-full bg-violet-50 text-violet-600 ring-1 ring-violet-100"><i data-lucide="{{ $loop->last ? 'check-circle-2' : 'send' }}" class="size-5"></i></span>
-                                        <div class="mt-2 text-xs font-semibold text-slate-700">{{ $step }}</div>
+                                        <span class="mx-auto grid size-10 place-items-center rounded-full ring-1 {{ $step['tone'] }}">
+                                            <i data-lucide="{{ $step['icon'] }}" class="size-5"></i>
+                                        </span>
+                                        <div class="mt-2 text-xs font-semibold text-slate-700">{{ $step['label'] }}</div>
                                     </div>
                                     @if(! $loop->last)<i data-lucide="arrow-right" class="mt-3 size-4 shrink-0 text-slate-400"></i>@endif
                                 @endforeach
@@ -516,11 +580,11 @@
                                     <span class="{{ $hintClass }}">Used in the report list and review queue. Example: East Campus Weekly Report - Jul 20-26.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Period Start
-                                    <input name="period_start" type="date" value="{{ old('period_start', now()->startOfWeek()->toDateString()) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <input name="period_start" type="date" x-model="periodStart" @change="clearUnavailableAttendanceSelections()" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                                     <span class="{{ $hintClass }}">First day covered by this report.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Period End
-                                    <input name="period_end" type="date" value="{{ old('period_end', now()->endOfWeek()->toDateString()) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <input name="period_end" type="date" x-model="periodEnd" @change="clearUnavailableAttendanceSelections()" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                                     <span class="{{ $hintClass }}">Last day covered. Weekly reports usually end on {{ Str::headline($reportSettings['weekly_due_day']) }}.</span>
                                 </label>
                             </div>
@@ -541,17 +605,29 @@
                                     <span class="{{ $hintClass }}">Controls urgency and due timing. Use Urgent for time-sensitive leadership decisions.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Campus
-                                    <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All Campuses</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected((string) old('campus_id') === (string) $campus->id)>{{ $campus->name }}</option>@endforeach</select>
+                                    <select name="campus_id" x-model="campusId" @change="clearUnavailableAttendanceSelections()" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All Campuses</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}">{{ $campus->name }}</option>@endforeach</select>
                                     <span class="{{ $hintClass }}">Select the branch this report belongs to, or leave as All Campuses for church-wide reports.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Ministry
-                                    <select name="ministry_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">General Leadership</option>@foreach($ministries as $ministry)<option value="{{ $ministry->id }}" @selected((string) old('ministry_id') === (string) $ministry->id)>{{ $ministry->name }}</option>@endforeach</select>
+                                    <select name="ministry_id" x-model="ministryId" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">General Leadership</option>@foreach($ministries as $ministry)<option value="{{ $ministry->id }}">{{ $ministry->name }}</option>@endforeach</select>
                                     <span class="{{ $hintClass }}">Select a ministry when the update is specific to a team. Example: Worship, Youth, Outreach.</span>
                                 </label>
-                                <label class="space-y-1 text-xs font-semibold text-slate-500 md:col-span-2">Reviewer
-                                    <select name="assigned_to" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Assign later</option>@foreach($reporters as $reporter)<option value="{{ $reporter->id }}" @selected((string) old('assigned_to', $reportSettings['default_reviewer_id']) === (string) $reporter->id)>{{ $reporter->name }} - {{ $reporter->title }}</option>@endforeach</select>
-                                    <span class="{{ $hintClass }}">The person responsible for reviewing and approving, returning, or rejecting the report.</span>
-                                </label>
+                                <x-searchable-select
+                                    name="assigned_to"
+                                    label="Reviewer"
+                                    empty-label="Assign later"
+                                    placeholder="Search reviewer by name, title, or email"
+                                    :selected="$reportSettings['default_reviewer_id']"
+                                    :options="$reporters->map(fn ($reporter) => [
+                                        'value' => $reporter->id,
+                                        'label' => $reporter->name,
+                                        'meta' => trim(($reporter->title ?: 'Reviewer').' - '.($reporter->email ?: 'No email')),
+                                        'avatar' => $reporter->avatar_src,
+                                        'initials' => Str::of($reporter->name)->explode(' ')->filter()->map(fn ($part) => Str::substr($part, 0, 1))->take(2)->join(''),
+                                    ])->values()"
+                                    class="text-xs font-semibold text-slate-500 md:col-span-2"
+                                    hint="The person responsible for reviewing and approving, returning, or rejecting the report."
+                                />
                             </div>
                         </div>
 
@@ -561,24 +637,81 @@
                                 <p class="mt-1 text-sm text-slate-500">Summarize what happened, what changed, and what leaders should know.</p>
                             </div>
                             <label class="space-y-1 text-xs font-semibold text-slate-500">Report Summary
-                                <textarea name="summary" rows="10" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Summarize attendance movement, ministry wins, pastoral care matters, volunteer coverage, and decisions needed.">{{ old('summary') }}</textarea>
-                                <span class="{{ $hintClass }}">Main narrative for leaders. Example: Attendance increased by 12%, two new care cases opened, and volunteer coverage needs support.</span>
+                                <textarea name="summary" rows="10" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Summarize attendance movement, ministry wins, care matters, volunteer coverage, and decisions needed.">{{ old('summary') }}</textarea>
+                                <span class="{{ $hintClass }}">Main narrative for pastors and leaders. Example: Attendance increased by 12%, two new care or follow-up cases opened, and volunteer coverage needs support.</span>
                             </label>
                         </div>
 
                         <div x-show="createStep === 4" class="space-y-5">
                             <div>
                                 <h3 class="text-lg font-semibold text-slate-950">Attendance & Care Numbers</h3>
-                                <p class="mt-1 text-sm text-slate-500">Capture the measurable health indicators used in leadership review.</p>
+                                <p class="mt-1 text-sm text-slate-500">Use attendance already recorded for past event sessions in this report window, or enter a manual score when no attendance is available.</p>
                             </div>
+
+                            <section class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-semibold text-slate-950">Use Recorded Attendance</h4>
+                                        <p class="mt-1 text-xs leading-5 text-slate-500">Filtered by Period Start, Period End, and Campus. Only past event sessions with attendance are selectable.</p>
+                                    </div>
+                                    <div class="rounded-lg bg-white px-3 py-2 text-right ring-1 ring-slate-200">
+                                        <div class="text-xs font-semibold text-slate-500">Calculated score</div>
+                                        <div class="text-xl font-semibold text-slate-950"><span x-text="selectedAttendanceSessionIds.length ? calculatedAttendanceScore() : manualAttendanceScore"></span>%</div>
+                                    </div>
+                                </div>
+
+                                <div x-show="filteredAttendanceSources().length > 0" class="mt-4 grid gap-2">
+                                    <template x-for="source in filteredAttendanceSources()" :key="source.id">
+                                        <label class="grid cursor-pointer gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm hover:border-violet-200 hover:bg-violet-50/40 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+                                            <input type="checkbox" name="attendance_session_ids[]" :value="source.id" x-model="selectedAttendanceSessionIds" class="rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+                                            <span class="min-w-0">
+                                                <span class="block font-semibold text-slate-950" x-text="source.title"></span>
+                                                <span class="mt-1 block text-xs text-slate-500">
+                                                    <span x-text="source.date_label"></span>
+                                                    <span> - </span>
+                                                    <span x-text="source.campus"></span>
+                                                    <template x-if="source.event"><span> - <span x-text="source.event"></span></span></template>
+                                                </span>
+                                            </span>
+                                            <span class="grid gap-1 text-xs text-slate-500 sm:text-right">
+                                                <span><strong class="text-slate-900" x-text="source.present"></strong> present</span>
+                                                <span><strong class="text-slate-900" x-text="source.expected || 'No target'"></strong><span x-show="source.expected"> expected</span></span>
+                                            </span>
+                                        </label>
+                                    </template>
+                                </div>
+
+                                <div x-show="filteredAttendanceSources().length === 0" class="mt-4 rounded-lg border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
+                                    <div class="flex gap-2">
+                                        <i data-lucide="clipboard-check" class="mt-0.5 size-4 shrink-0 text-slate-400"></i>
+                                        <span>No recorded attendance is available for the selected period and scope. Enter the attendance score manually below.</span>
+                                    </div>
+                                </div>
+
+                                <div x-show="selectedAttendanceSessionIds.length > 0" class="mt-4 grid gap-3 rounded-lg bg-white p-3 text-sm sm:grid-cols-3">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Selected Sessions</div>
+                                        <div class="mt-1 font-semibold text-slate-950" x-text="selectedAttendanceSessionIds.length"></div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Present</div>
+                                        <div class="mt-1 font-semibold text-slate-950" x-text="selectedAttendanceTotal()"></div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Expected</div>
+                                        <div class="mt-1 font-semibold text-slate-950" x-text="selectedAttendanceExpected() || 'No target'"></div>
+                                    </div>
+                                </div>
+                            </section>
+
                             <div class="grid gap-4 md:grid-cols-2">
-                                <label class="space-y-1 text-xs font-semibold text-slate-500">Attendance Score
-                                    <input name="attendance_score" type="number" min="0" max="100" value="{{ old('attendance_score', 90) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                                    <span class="{{ $hintClass }}">0-100 health score for attendance trend. Example: 85 means attendance is mostly healthy.</span>
+                                <label class="space-y-1 text-xs font-semibold text-slate-500">Manual Attendance Score
+                                    <input name="attendance_score" type="number" min="0" max="100" x-model.number="manualAttendanceScore" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <span class="{{ $hintClass }}">Used when no recorded attendance session is selected. Select recorded attendance above to calculate the score automatically.</span>
                                 </label>
                                 <label class="space-y-1 text-xs font-semibold text-slate-500">Care Follow-ups
                                     <input name="care_followups" type="number" min="0" value="{{ old('care_followups', 12) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                                    <span class="{{ $hintClass }}">Number of pastoral care follow-ups opened or handled in this period. Example: 12.</span>
+                                    <span class="{{ $hintClass }}">Number of care, member, ministry, or leadership follow-ups opened or handled in this period. Example: 12.</span>
                                 </label>
                             </div>
                         </div>
@@ -607,7 +740,7 @@
                         <div x-show="createStep === 6" class="space-y-5">
                             <div>
                                 <h3 class="text-lg font-semibold text-slate-950">Challenges & Support</h3>
-                                <p class="mt-1 text-sm text-slate-500">Capture blockers, risks, pastoral concerns, and leadership help needed.</p>
+                                <p class="mt-1 text-sm text-slate-500">Capture blockers, risks, care concerns, ministry issues, and leadership help needed.</p>
                             </div>
                             <label class="space-y-1 text-xs font-semibold text-slate-500">Issues Requiring Support
                                 <textarea name="issues" rows="8" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="List the issues that need escalation, support, budget, people, or decisions.">{{ old('issues') }}</textarea>
@@ -637,7 +770,7 @@
                             </div>
                             <label class="space-y-1 text-xs font-semibold text-slate-500">Action Items
                                 <textarea name="action_items" rows="5" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="One action item per line">{{ old('action_items') }}</textarea>
-                                <span class="{{ $hintClass }}">Specific follow-up tasks leaders can track. Example: Call first-time visitor families; confirm youth volunteer roster.</span>
+                                <span class="{{ $hintClass }}">Specific follow-up tasks pastors or leaders can track. Example: Call first-time visitor families; confirm youth volunteer roster.</span>
                             </label>
                             <div class="grid gap-3 md:grid-cols-2">
                                 <div class="rounded-lg bg-violet-50 p-4 text-sm text-violet-800"><i data-lucide="shield-check" class="mb-2 size-5"></i>Submitted reports enter the leadership review queue immediately.</div>

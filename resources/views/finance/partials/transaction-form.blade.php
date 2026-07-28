@@ -18,24 +18,32 @@
 </div>
 
 <div class="grid gap-4 sm:grid-cols-2">
-    <label class="space-y-1 text-sm font-medium text-slate-700">
-        Campus
-        <select name="campus_id" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-            <option value="">Select campus</option>
-            @foreach($campuses as $campus)
-                <option value="{{ $campus->id }}" @selected((string) old('campus_id', $transaction?->campus_id) === (string) $campus->id)>{{ $campus->name }}</option>
-            @endforeach
-        </select>
-    </label>
-    <label class="space-y-1 text-sm font-medium text-slate-700">
-        Ministry / Department
-        <select name="ministry_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-            <option value="">No ministry</option>
-            @foreach($ministries as $ministry)
-                <option value="{{ $ministry->id }}" @selected((string) old('ministry_id', $transaction?->ministry_id) === (string) $ministry->id)>{{ $ministry->name }}{{ $ministry->campus ? ' - '.$ministry->campus->name : '' }}</option>
-            @endforeach
-        </select>
-    </label>
+    <x-searchable-select
+        name="campus_id"
+        label="Campus"
+        :required="true"
+        placeholder="Search campus"
+        :selected="$transaction?->campus_id"
+        :options="$campuses->map(fn ($campus) => [
+            'value' => $campus->id,
+            'label' => $campus->name,
+            'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+            'initials' => Str::substr($campus->name, 0, 2),
+        ])->values()"
+    />
+    <x-searchable-select
+        name="ministry_id"
+        label="Ministry / Department"
+        empty-label="No ministry"
+        placeholder="Search ministries or departments"
+        :selected="$transaction?->ministry_id"
+        :options="$ministries->map(fn ($ministry) => [
+            'value' => $ministry->id,
+            'label' => $ministry->name,
+            'meta' => $ministry->campus?->name ?? 'No campus',
+            'initials' => Str::substr($ministry->name, 0, 2),
+        ])->values()"
+    />
 </div>
 
 <div class="grid gap-4 sm:grid-cols-2">
@@ -78,15 +86,19 @@
         Occurred At
         <input name="occurred_at" type="datetime-local" value="{{ old('occurred_at', $transaction?->occurred_at?->format('Y-m-d\\TH:i') ?? now()->format('Y-m-d\\TH:i')) }}" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
     </label>
-    <label class="space-y-1 text-sm font-medium text-slate-700">
-        Fund
-        <select name="fund_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-            <option value="">No fund</option>
-            @foreach($funds as $fund)
-                <option value="{{ $fund->id }}" @selected((string) old('fund_id', $transaction?->fund_id) === (string) $fund->id)>{{ $fund->name }}</option>
-            @endforeach
-        </select>
-    </label>
+    <x-searchable-select
+        name="fund_id"
+        label="Fund"
+        empty-label="No fund"
+        placeholder="Search funds"
+        :selected="$transaction?->fund_id"
+        :options="$funds->map(fn ($fund) => [
+            'value' => $fund->id,
+            'label' => $fund->name,
+            'meta' => $fund->is_active ? 'Active fund' : 'Inactive fund',
+            'initials' => Str::substr($fund->name, 0, 2),
+        ])->values()"
+    />
 </div>
 
 <div class="grid gap-4 sm:grid-cols-2">

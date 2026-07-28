@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Models\Concerns\UsesOpaqueRouteKeys;
-
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,9 +15,10 @@ use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
-    use UsesOpaqueRouteKeys;
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    use UsesOpaqueRouteKeys;
 
     /**
      * The attributes that are mass assignable.

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\UsesOpaqueRouteKeys;
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,9 +12,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class Church extends Model
 {
-    use UsesOpaqueRouteKeys;
     use HasFactory;
     use SoftDeletes;
+    use UsesOpaqueRouteKeys;
 
     protected $fillable = ['name', 'slug', 'timezone', 'currency', 'email', 'phone', 'address', 'settings'];
 

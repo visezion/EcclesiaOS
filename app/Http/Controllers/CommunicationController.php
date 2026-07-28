@@ -22,6 +22,7 @@ use App\Services\ActivityLogger;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -385,7 +386,7 @@ final class CommunicationController extends Controller
             $calendarMonth = filled($request->query('month'))
                 ? Carbon::createFromFormat('Y-m', (string) $request->query('month'))->startOfMonth()
                 : now()->startOfMonth();
-        } catch (\Throwable) {
+        } catch (Throwable) {
             $calendarMonth = now()->startOfMonth();
         }
 
@@ -1404,7 +1405,7 @@ final class CommunicationController extends Controller
         return rtrim(trim((string) $siteUrl), '/');
     }
 
-    private function zenderHttpClient(): \Illuminate\Http\Client\PendingRequest
+    private function zenderHttpClient(): PendingRequest
     {
         $curlOptions = [];
         foreach ([
@@ -1754,12 +1755,14 @@ final class CommunicationController extends Controller
                 $response = $request->get($siteUrl.$endpoint['path'], $payload);
             } catch (Throwable $exception) {
                 $lastError = $this->zenderConnectionError($exception);
+
                 continue;
             }
 
             $json = $response->json();
             if (! $response->successful() || ! is_array($json) || ! $this->zenderResponseAccepted($json)) {
                 $lastError = 'HTTP '.$response->status().' from '.$endpoint['path'];
+
                 continue;
             }
 

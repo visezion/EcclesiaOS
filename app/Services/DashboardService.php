@@ -25,6 +25,7 @@ use App\Models\User;
 use App\Models\Volunteer;
 use App\Support\ModuleRegistry;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +35,7 @@ use Illuminate\Support\Number;
 final class DashboardService
 {
     private ?User $actor = null;
+
     private ?Church $church = null;
 
     public function forUser(?User $user): self
@@ -414,7 +416,7 @@ final class DashboardService
     }
 
     /**
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @param  class-string<Model>  $model
      */
     private function query(string $model): Builder
     {

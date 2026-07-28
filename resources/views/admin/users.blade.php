@@ -476,29 +476,48 @@
                                     <option value="suspended" @selected(old('status', $user->status) === 'suspended')>Suspended</option>
                                 </select>
                             </label>
-                            <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Role
-                                <select name="roles[]" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900">
-                                    @foreach($roles as $role)
-                                        <option value="{{ $role->id }}" @selected($user->roles->contains($role))>{{ $role->name }}</option>
-                                    @endforeach
-                                </select>
-                            </label>
-                            <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Church
-                                <select name="church_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900">
-                                    <option value="">Global</option>
-                                    @foreach($churches as $church)
-                                        <option value="{{ $church->id }}" @selected((string) old('church_id', $user->church_id) === (string) $church->id)>{{ $church->name }}</option>
-                                    @endforeach
-                                </select>
-                            </label>
-                            <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Campus
-                                <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900">
-                                    <option value="">All Campuses</option>
-                                    @foreach($campuses as $campus)
-                                        <option value="{{ $campus->id }}" @selected((string) old('campus_id', $user->campus_id) === (string) $campus->id)>{{ $campus->name }}</option>
-                                    @endforeach
-                                </select>
-                            </label>
+                            <x-searchable-select
+                                name="roles[]"
+                                label="Role"
+                                :required="true"
+                                placeholder="Search roles"
+                                :selected="$user->roles->first()?->id"
+                                :options="$roles->map(fn ($role) => [
+                                    'value' => $role->id,
+                                    'label' => $role->name,
+                                    'meta' => 'Permission role',
+                                    'initials' => Str::substr($role->name, 0, 2),
+                                ])->values()"
+                                class="text-xs font-bold uppercase text-slate-500"
+                            />
+                            <x-searchable-select
+                                name="church_id"
+                                label="Church"
+                                empty-label="Global"
+                                placeholder="Search churches"
+                                :selected="$user->church_id"
+                                :options="$churches->map(fn ($church) => [
+                                    'value' => $church->id,
+                                    'label' => $church->name,
+                                    'meta' => 'Church workspace',
+                                    'initials' => Str::substr($church->name, 0, 2),
+                                ])->values()"
+                                class="text-xs font-bold uppercase text-slate-500"
+                            />
+                            <x-searchable-select
+                                name="campus_id"
+                                label="Campus"
+                                empty-label="All Campuses"
+                                placeholder="Search campuses"
+                                :selected="$user->campus_id"
+                                :options="$campuses->map(fn ($campus) => [
+                                    'value' => $campus->id,
+                                    'label' => $campus->name,
+                                    'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+                                    'initials' => Str::substr($campus->name, 0, 2),
+                                ])->values()"
+                                class="text-xs font-bold uppercase text-slate-500"
+                            />
                             <label class="space-y-1 text-xs font-bold uppercase text-slate-500">New Password
                                 <input name="password" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" placeholder="Leave blank to keep current">
                             </label>
@@ -634,15 +653,48 @@
                         <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Title
                             <input name="title" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" placeholder="Ministry role">
                         </label>
-                        <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Role
-                            <select name="roles[]" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900">@foreach($roles as $role)<option value="{{ $role->id }}">{{ $role->name }}</option>@endforeach</select>
-                        </label>
-                        <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Church
-                            <select name="church_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900">@foreach($churches as $church)<option value="{{ $church->id }}">{{ $church->name }}</option>@endforeach</select>
-                        </label>
-                        <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Campus
-                            <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900">@foreach($campuses as $campus)<option value="{{ $campus->id }}">{{ $campus->name }}</option>@endforeach</select>
-                        </label>
+                        <x-searchable-select
+                            name="roles[]"
+                            label="Role"
+                            :required="true"
+                            placeholder="Search roles"
+                            :selected="$roles->first()?->id"
+                            :options="$roles->map(fn ($role) => [
+                                'value' => $role->id,
+                                'label' => $role->name,
+                                'meta' => 'Permission role',
+                                'initials' => Str::substr($role->name, 0, 2),
+                            ])->values()"
+                            class="text-xs font-bold uppercase text-slate-500"
+                        />
+                        <x-searchable-select
+                            name="church_id"
+                            label="Church"
+                            :required="true"
+                            placeholder="Search churches"
+                            :selected="$churches->first()?->id"
+                            :options="$churches->map(fn ($church) => [
+                                'value' => $church->id,
+                                'label' => $church->name,
+                                'meta' => 'Church workspace',
+                                'initials' => Str::substr($church->name, 0, 2),
+                            ])->values()"
+                            class="text-xs font-bold uppercase text-slate-500"
+                        />
+                        <x-searchable-select
+                            name="campus_id"
+                            label="Campus"
+                            :required="true"
+                            placeholder="Search campuses"
+                            :selected="$campuses->first()?->id"
+                            :options="$campuses->map(fn ($campus) => [
+                                'value' => $campus->id,
+                                'label' => $campus->name,
+                                'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+                                'initials' => Str::substr($campus->name, 0, 2),
+                            ])->values()"
+                            class="text-xs font-bold uppercase text-slate-500"
+                        />
                         <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Temporary Password
                             <input name="password" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" placeholder="Temporary password" required>
                         </label>

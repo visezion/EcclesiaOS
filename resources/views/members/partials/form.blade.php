@@ -169,42 +169,67 @@
         </div>
     </div>
 
-    <label class="space-y-1 text-sm font-medium text-slate-600">Church
-        <select name="church_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-violet-400 focus:ring-4 focus:ring-violet-100">
-            @foreach ($churches as $church)
-                <option value="{{ $church->id }}" @selected((string) $value('churchId', $churches->first()?->id) === (string) $church->id)>{{ $church->name }}</option>
-            @endforeach
-        </select>
-    </label>
+    <x-searchable-select
+        name="church_id"
+        label="Church"
+        :required="true"
+        placeholder="Search church"
+        :selected="$value('churchId', $churches->first()?->id)"
+        :options="$churches->map(fn ($church) => [
+            'value' => $church->id,
+            'label' => $church->name,
+            'meta' => trim(($church->email ?: 'No email').' - '.($church->timezone ?? 'UTC')),
+            'initials' => Str::substr($church->name, 0, 2),
+        ])->values()"
+        class="text-slate-600"
+    />
 
     <div class="grid gap-3 sm:grid-cols-2">
-        <label class="space-y-1 text-sm font-medium text-slate-600">Campus
-            <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-violet-400 focus:ring-4 focus:ring-violet-100">
-                <option value="">Unassigned</option>
-                @foreach ($campuses as $campus)
-                    <option value="{{ $campus->id }}" @selected((string) $value('campusId') === (string) $campus->id)>{{ $campus->name }}</option>
-                @endforeach
-            </select>
-        </label>
-        <label class="space-y-1 text-sm font-medium text-slate-600">Ministry
-            <select name="ministry_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-violet-400 focus:ring-4 focus:ring-violet-100">
-                <option value="">No ministry</option>
-                @foreach ($ministries as $ministry)
-                    <option value="{{ $ministry->id }}" @selected((string) $value('ministryId') === (string) $ministry->id)>{{ $ministry->name }}</option>
-                @endforeach
-            </select>
-        </label>
+        <x-searchable-select
+            name="campus_id"
+            label="Campus"
+            empty-label="Unassigned"
+            placeholder="Search campus"
+            :selected="$value('campusId')"
+            :options="$campuses->map(fn ($campus) => [
+                'value' => $campus->id,
+                'label' => $campus->name,
+                'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+                'initials' => Str::substr($campus->name, 0, 2),
+            ])->values()"
+            class="text-slate-600"
+        />
+        <x-searchable-select
+            name="ministry_id"
+            label="Ministry"
+            empty-label="No ministry"
+            placeholder="Search ministries"
+            :selected="$value('ministryId')"
+            :options="$ministries->map(fn ($ministry) => [
+                'value' => $ministry->id,
+                'label' => $ministry->name,
+                'meta' => $ministry->campus?->name ?? 'No campus',
+                'initials' => Str::substr($ministry->name, 0, 2),
+            ])->values()"
+            class="text-slate-600"
+        />
     </div>
 
     <div class="grid gap-3 sm:grid-cols-2">
-        <label class="space-y-1 text-sm font-medium text-slate-600">Household
-            <select name="family_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-violet-400 focus:ring-4 focus:ring-violet-100">
-                <option value="">No household</option>
-                @foreach ($families as $family)
-                    <option value="{{ $family->id }}" @selected((string) $value('familyId') === (string) $family->id)>{{ $family->name }}</option>
-                @endforeach
-            </select>
-        </label>
+        <x-searchable-select
+            name="family_id"
+            label="Household"
+            empty-label="No household"
+            placeholder="Search households"
+            :selected="$value('familyId')"
+            :options="$families->map(fn ($family) => [
+                'value' => $family->id,
+                'label' => $family->name,
+                'meta' => $family->campus?->name ?? 'Household',
+                'initials' => Str::substr($family->name, 0, 2),
+            ])->values()"
+            class="text-slate-600"
+        />
         <label class="space-y-1 text-sm font-medium text-slate-600">New Household
             <input name="family_name" value="{{ old('family_name') }}" placeholder="Optional household name" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-violet-400 focus:ring-4 focus:ring-violet-100">
         </label>

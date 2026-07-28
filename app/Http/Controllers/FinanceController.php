@@ -25,11 +25,17 @@ final class FinanceController extends Controller
     use ScopesOperationalRecords;
 
     private const ACCESS_PERMISSIONS = ['manage finance', 'view finance', 'record finance entries', 'view ministry finance', 'record ministry contributions'];
+
     private const METHODS = ['cash', 'card', 'bank', 'check', 'mobile', 'online'];
+
     private const GIVING_FREQUENCIES = ['one_time', 'weekly', 'monthly', 'quarterly', 'annual', 'custom'];
+
     private const GIVING_SOURCES = ['member', 'ministry', 'department', 'anonymous'];
+
     private const TRANSACTION_TYPES = ['income', 'expense'];
+
     private const TRANSACTION_STATUSES = ['posted', 'pending', 'void'];
+
     private const TRANSACTION_CATEGORIES = ['general', 'tithe', 'offering', 'missions', 'outreach', 'events', 'utilities', 'salary', 'maintenance', 'rent', 'supplies', 'transport', 'media', 'benevolence', 'other'];
 
     public function index(Request $request): View
@@ -674,7 +680,7 @@ final class FinanceController extends Controller
             if ($user?->campus_id !== null) {
                 $query->where(fn (Builder $campusQuery) => $campusQuery
                     ->whereNull('donations.campus_id')
-                ->orWhere('donations.campus_id', $user->campus_id));
+                    ->orWhere('donations.campus_id', $user->campus_id));
             }
         }
 

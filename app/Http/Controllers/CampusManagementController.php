@@ -70,11 +70,11 @@ final class CampusManagementController extends Controller
             $church = filled($validated['church_id'] ?? null)
                 ? Church::query()->findOrFail($validated['church_id'])
                 : Church::query()->create([
-                'name' => $validated['church_name'],
-                'slug' => $this->uniqueSlug(Church::class, $validated['church_name']),
-                'timezone' => config('church.timezone'),
-                'currency' => config('church.currency'),
-            ]);
+                    'name' => $validated['church_name'],
+                    'slug' => $this->uniqueSlug(Church::class, $validated['church_name']),
+                    'timezone' => config('church.timezone'),
+                    'currency' => config('church.currency'),
+                ]);
         } else {
             $church = Church::query()->findOrFail($request->user()->church_id);
         }
@@ -129,9 +129,9 @@ final class CampusManagementController extends Controller
                 $church = Church::query()->firstOrCreate(
                     ['slug' => Str::slug((string) $churchName)],
                     [
-                    'name' => (string) $churchName,
-                    'timezone' => config('church.timezone'),
-                    'currency' => config('church.currency'),
+                        'name' => (string) $churchName,
+                        'timezone' => config('church.timezone'),
+                        'currency' => config('church.currency'),
                     ],
                 );
             } else {

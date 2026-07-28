@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\UserNotificationPreference;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -67,9 +68,9 @@ final class CommunicationDemoSeeder extends Seeder
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, Campus>
+     * @return Collection<int, Campus>
      */
-    private function campuses(Church $church): \Illuminate\Support\Collection
+    private function campuses(Church $church): Collection
     {
         $campuses = Campus::query()->where('church_id', $church->id)->orderBy('id')->get();
         if ($campuses->isNotEmpty()) {
@@ -95,9 +96,9 @@ final class CommunicationDemoSeeder extends Seeder
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, User>
+     * @return Collection<int, User>
      */
-    private function users(Church $church, \Illuminate\Support\Collection $campuses): \Illuminate\Support\Collection
+    private function users(Church $church, Collection $campuses): Collection
     {
         $users = User::query()->where('church_id', $church->id)->orderBy('id')->get();
         if ($users->isNotEmpty()) {
@@ -121,9 +122,9 @@ final class CommunicationDemoSeeder extends Seeder
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, Member>
+     * @return Collection<int, Member>
      */
-    private function members(Church $church, \Illuminate\Support\Collection $campuses): \Illuminate\Support\Collection
+    private function members(Church $church, Collection $campuses): Collection
     {
         $members = Member::query()->where('church_id', $church->id)->orderBy('id')->get();
         if ($members->count() >= 20) {
@@ -198,9 +199,9 @@ final class CommunicationDemoSeeder extends Seeder
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, CommunicationTemplate>
+     * @return Collection<int, CommunicationTemplate>
      */
-    private function templates(Church $church, \Illuminate\Support\Collection $campuses, \Illuminate\Support\Collection $users): \Illuminate\Support\Collection
+    private function templates(Church $church, Collection $campuses, Collection $users): Collection
     {
         $rows = [
             ['Event Session Created - Email', 'events', 'EventSessionCreated', 'New Event Session Created: {{eventTitle}}', ['email', 'in_app', 'push'], 'active', 'approved', 126],
@@ -257,7 +258,7 @@ final class CommunicationDemoSeeder extends Seeder
         };
     }
 
-    private function preferences(Church $church, \Illuminate\Support\Collection $members): void
+    private function preferences(Church $church, Collection $members): void
     {
         foreach ($members as $index => $member) {
             $channels = match ($index % 5) {
@@ -287,10 +288,10 @@ final class CommunicationDemoSeeder extends Seeder
 
     private function campaignsAndDeliveries(
         Church $church,
-        \Illuminate\Support\Collection $campuses,
-        \Illuminate\Support\Collection $users,
-        \Illuminate\Support\Collection $members,
-        \Illuminate\Support\Collection $templates,
+        Collection $campuses,
+        Collection $users,
+        Collection $members,
+        Collection $templates,
     ): void {
         $campaignRows = [
             ['Sunday Service Reminder', 'All Members', 'scheduled', 'scheduled', now()->addDays(1)->setTime(8, 0), ['email', 'sms', 'push']],
@@ -419,7 +420,7 @@ final class CommunicationDemoSeeder extends Seeder
         ])->saveQuietly();
     }
 
-    private function backgroundDeliveryHistory(Church $church, \Illuminate\Support\Collection $members, \Illuminate\Support\Collection $templates): void
+    private function backgroundDeliveryHistory(Church $church, Collection $members, Collection $templates): void
     {
         foreach (range(1, 220) as $index) {
             $member = $members[($index - 1) % $members->count()];

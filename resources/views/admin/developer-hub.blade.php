@@ -71,6 +71,7 @@
                         ['id' => 'module-process', 'label' => 'Add A Module', 'icon' => 'layout-grid'],
                         ['id' => 'data-security', 'label' => 'Data & Security', 'icon' => 'shield-check'],
                         ['id' => 'quality', 'label' => 'Testing & Release', 'icon' => 'check-circle-2'],
+                        ['id' => 'production-updates', 'label' => 'Production Updates', 'icon' => 'upload'],
                         ['id' => 'contributing', 'label' => 'Contribution Rules', 'icon' => 'git-branch'],
                     ] as $link)
                         <a href="#{{ $link['id'] }}" class="flex items-center gap-3 rounded-lg px-3 py-2 font-medium text-slate-600 hover:bg-violet-50 hover:text-violet-700">
@@ -201,6 +202,30 @@
                                 @endforeach
                             </tbody>
                         </table>
+                    </div>
+                </section>
+
+                <section id="production-updates" class="dashboard-card">
+                    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-950">Safe Production Update Path</h2>
+                            <p class="mt-1 text-sm text-slate-500">Use this path when shipping new features or updating live modules.</p>
+                        </div>
+                        <span class="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                            <i data-lucide="shield-check" class="size-4"></i>
+                            Production gate
+                        </span>
+                    </div>
+                    <div class="space-y-3">
+                        @foreach ($releaseSteps as $step)
+                            <div class="grid gap-3 rounded-lg border border-slate-200 p-3 text-sm sm:grid-cols-[40px_1fr]">
+                                <span class="grid size-9 place-items-center rounded-full bg-slate-900 text-sm font-bold text-white">{{ $loop->iteration }}</span>
+                                <div class="self-center text-slate-700">{{ $step }}</div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="mt-4 rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                        Recommended production command order: <span class="font-mono text-xs font-semibold text-slate-900">composer install --no-dev --optimize-autoloader</span>, <span class="font-mono text-xs font-semibold text-slate-900">npm ci && npm run build</span>, <span class="font-mono text-xs font-semibold text-slate-900">php artisan migrate --force</span>, <span class="font-mono text-xs font-semibold text-slate-900">php artisan config:cache</span>, <span class="font-mono text-xs font-semibold text-slate-900">php artisan route:cache</span>, <span class="font-mono text-xs font-semibold text-slate-900">php artisan view:cache</span>.
                     </div>
                 </section>
 

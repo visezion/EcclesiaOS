@@ -1,14 +1,16 @@
-<label class="space-y-1 text-sm font-medium text-slate-700">
-    Counselling Case
-    <select name="care_task_id" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-        <option value="">Select case</option>
-        @foreach($caseOptions as $caseOption)
-            <option value="{{ $caseOption->opaqueId() }}" @selected(old('care_task_id', $booking?->case?->opaqueId()) === $caseOption->opaqueId())>
-                {{ $caseOption->member?->first_name }} {{ $caseOption->member?->last_name }} · {{ $caseOption->type }} · {{ Str::headline($caseOption->status) }}
-            </option>
-        @endforeach
-    </select>
-</label>
+<x-searchable-select
+    name="care_task_id"
+    label="Counselling Case"
+    :required="true"
+    placeholder="Search cases by member, type, or status"
+    :selected="$booking?->case?->opaqueId()"
+    :options="$caseOptions->map(fn ($caseOption) => [
+        'value' => $caseOption->opaqueId(),
+        'label' => trim(($caseOption->member?->first_name ?? '').' '.($caseOption->member?->last_name ?? '')),
+        'meta' => trim(($caseOption->type ?? 'Case').' - '.Str::headline($caseOption->status)),
+        'initials' => Str::substr($caseOption->member?->first_name ?? 'C', 0, 1).Str::substr($caseOption->member?->last_name ?? 'A', 0, 1),
+    ])->values()"
+/>
 
 <div class="grid gap-4 sm:grid-cols-2">
     <label class="space-y-1 text-sm font-medium text-slate-700">
@@ -40,25 +42,34 @@
     </label>
 </div>
 
-<label class="space-y-1 text-sm font-medium text-slate-700">
-    Counselor
-    <select name="counselor_user_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-        <option value="">Use case assignee</option>
-        @foreach($users as $user)
-            <option value="{{ $user->opaqueId() }}" @selected(old('counselor_user_id', $booking?->counselor?->opaqueId()) === $user->opaqueId())>{{ $user->name }}</option>
-        @endforeach
-    </select>
-</label>
+<x-searchable-select
+    name="counselor_user_id"
+    label="Counselor"
+    empty-label="Use case assignee"
+    placeholder="Search counselors by name, title, or email"
+    :selected="$booking?->counselor?->opaqueId()"
+    :options="$users->map(fn ($user) => [
+        'value' => $user->opaqueId(),
+        'label' => $user->name,
+        'meta' => trim(($user->title ?: 'Team Member').' - '.($user->email ?: 'No email')),
+        'avatar' => $user->avatar_src,
+        'initials' => Str::of($user->name)->explode(' ')->filter()->map(fn ($part) => Str::substr($part, 0, 1))->take(2)->join(''),
+    ])->values()"
+/>
 
-<label class="space-y-1 text-sm font-medium text-slate-700">
-    Campus
-    <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-        <option value="">Use case/member campus</option>
-        @foreach($campuses as $campus)
-            <option value="{{ $campus->opaqueId() }}" @selected(old('campus_id', $booking?->campus?->opaqueId()) === $campus->opaqueId())>{{ $campus->name }}</option>
-        @endforeach
-    </select>
-</label>
+<x-searchable-select
+    name="campus_id"
+    label="Campus"
+    empty-label="Use case/member campus"
+    placeholder="Search campus"
+    :selected="$booking?->campus?->opaqueId()"
+    :options="$campuses->map(fn ($campus) => [
+        'value' => $campus->opaqueId(),
+        'label' => $campus->name,
+        'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+        'initials' => Str::substr($campus->name, 0, 2),
+    ])->values()"
+/>
 
 <label class="space-y-1 text-sm font-medium text-slate-700">
     Location

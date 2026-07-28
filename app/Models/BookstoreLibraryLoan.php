@@ -7,12 +7,13 @@ namespace App\Models;
 use App\Models\Concerns\UsesOpaqueRouteKeys;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class BookstoreLibraryLoan extends Model
 {
-    use UsesOpaqueRouteKeys;
     use SoftDeletes;
+    use UsesOpaqueRouteKeys;
 
     protected $fillable = [
         'church_id',
@@ -23,6 +24,7 @@ final class BookstoreLibraryLoan extends Model
         'loan_number',
         'loan_type',
         'status',
+        'approval_status',
         'checked_out_at',
         'due_at',
         'returned_at',
@@ -64,5 +66,10 @@ final class BookstoreLibraryLoan extends Model
     public function handledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'handled_by_user_id');
+    }
+
+    public function approval(): MorphOne
+    {
+        return $this->morphOne(Approval::class, 'approvable');
     }
 }

@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Approval;
+use App\Models\BookstoreLibraryLoan;
+use App\Models\BookstoreProduct;
 use App\Models\CommunicationDelivery;
 use App\Models\EventRecurrenceRule;
 use App\Models\ProgramSectionAssignment;
@@ -18,6 +20,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -268,6 +271,15 @@ final class WorkflowController extends Controller
 
         data_set($payload, '_workflow.history', $history);
 
+        $resource = $approval->approvable;
+        if ($resource instanceof BookstoreLibraryLoan) {
+            $this->approveLibraryLoan($request, $approval, $resource, $payload);
+
+            $activityLogger->log('Workflow & Approvals', 'approval_approved', 'Approval '.$approval->opaqueId().' was approved.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
+
+            return back()->with('status', 'Approval approved and library loan activated.');
+        }
+
         $approval->update([
             'status' => 'approved',
             'approved_by' => $request->user()?->id,
@@ -276,7 +288,6 @@ final class WorkflowController extends Controller
             'payload' => $payload,
         ]);
 
-        $resource = $approval->approvable;
         if ($resource instanceof EventRecurrenceRule) {
             $resource->update(['status' => 'active']);
             $resource->sessions()->where('status', 'draft')->update(['status' => 'scheduled']);
@@ -314,6 +325,14 @@ final class WorkflowController extends Controller
         }
         if ($resource instanceof ProgramSectionAssignment) {
             $resource->update(['status' => 'rejected']);
+        }
+        if ($resource instanceof BookstoreLibraryLoan) {
+            $resource->update([
+                'status' => 'cancelled',
+                'approval_status' => 'rejected',
+                'returned_at' => now(),
+            ]);
+            $this->notifyLibraryLoan($resource, 'Library request rejected', 'The '.$resource->loan_type.' request for '.$resource->product?->name.' was rejected.');
         }
 
         $activityLogger->log('Workflow & Approvals', 'approval_rejected', 'Approval '.$approval->opaqueId().' was rejected.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
@@ -362,6 +381,83 @@ final class WorkflowController extends Controller
             'body_excerpt' => 'You are assigned to '.$assignment->section->title.' as '.$assignment->role_title.'. '.Str::limit((string) $assignment->responsibility_notes, 140),
             'event_type' => 'ProgramSectionAssigned',
             'status' => 'queued',
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function approveLibraryLoan(Request $request, Approval $approval, BookstoreLibraryLoan $loan, array $payload): void
+    {
+        DB::transaction(function () use ($request, $approval, $loan, $payload): void {
+            $loan = BookstoreLibraryLoan::query()->lockForUpdate()->findOrFail($loan->id);
+            abort_if($loan->approval_status !== 'pending' || $loan->status !== 'pending_approval', 422, 'This library request is no longer waiting for approval.');
+
+            $product = BookstoreProduct::query()->lockForUpdate()->findOrFail($loan->bookstore_product_id);
+            abort_if(in_array($loan->loan_type, ['borrow', 'rent'], true) && $product->stock_quantity < 1, 422, 'No physical copies are available for this library action.');
+
+            if (in_array($loan->loan_type, ['borrow', 'rent'], true)) {
+                $product->decrement('stock_quantity');
+                if ($product->fresh()->stock_quantity <= 0) {
+                    $product->update(['status' => 'out_of_stock']);
+                }
+            }
+
+            $approval->update([
+                'status' => 'approved',
+                'approved_by' => $request->user()?->id,
+                'approved_at' => now(),
+                'notes' => $request->input('notes', $approval->notes),
+                'payload' => $payload,
+            ]);
+
+            $loan->update([
+                'status' => 'active',
+                'approval_status' => 'approved',
+                'checked_out_at' => now(),
+            ]);
+        });
+
+        $loan = $loan->fresh();
+        $loan?->loadMissing('product');
+
+        if ($loan) {
+            $this->notifyLibraryLoan($loan, 'Library request approved', 'The '.$loan->loan_type.' request for '.$loan->product?->name.' has been approved and activated.');
+        }
+    }
+
+    private function notifyLibraryLoan(BookstoreLibraryLoan $loan, string $subject, string $message): void
+    {
+        $loan->loadMissing(['handledBy', 'member', 'product']);
+
+        if ($loan->handledBy) {
+            foreach (['in_app', 'email'] as $channel) {
+                $this->queueLibraryMessage($loan->church_id, $channel, $loan->handledBy->name, $loan->handledBy->email, $subject, $message, 'LibraryLoanNotification');
+            }
+        }
+
+        if ($loan->member) {
+            $name = trim(($loan->member->first_name ?? '').' '.($loan->member->last_name ?? '')) ?: 'Member';
+            foreach (['in_app', 'email'] as $channel) {
+                $this->queueLibraryMessage($loan->church_id, $channel, $name, $loan->member->email, $subject, $message, 'LibraryLoanMemberNotification', $loan->member_id);
+            }
+        }
+    }
+
+    private function queueLibraryMessage(int $churchId, string $channel, string $recipientName, ?string $recipientContact, string $subject, string $message, string $eventType, ?int $memberId = null): void
+    {
+        CommunicationDelivery::query()->create([
+            'church_id' => $churchId,
+            'member_id' => $memberId,
+            'channel' => $channel,
+            'provider' => 'ecclesiaos',
+            'recipient_name' => $recipientName,
+            'recipient_contact' => $recipientContact,
+            'subject' => $subject,
+            'body_excerpt' => Str::limit($message, 240),
+            'event_type' => $eventType,
+            'status' => 'queued',
+            'sent_at' => now(),
         ]);
     }
 

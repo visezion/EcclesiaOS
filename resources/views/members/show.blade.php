@@ -567,15 +567,19 @@
                         <option>Hospital Visit</option>
                     </select>
                 </div>
-                <div>
-                    <label class="text-sm text-slate-600">Assigned To</label>
-                    <select name="assigned_user_id" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                        <option value="">Unassigned</option>
-                        @foreach($users as $user)
-                            <option value="{{ $user->opaqueId() }}">{{ $user->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                <x-searchable-select
+                    name="assigned_user_id"
+                    label="Assigned To"
+                    empty-label="Unassigned"
+                    placeholder="Search pastors or leaders"
+                    :options="$users->map(fn ($user) => [
+                        'value' => $user->opaqueId(),
+                        'label' => $user->name,
+                        'meta' => trim(($user->title ?: 'Team Member').' - '.($user->email ?: 'No email')),
+                        'avatar' => $user->avatar_src,
+                        'initials' => Str::of($user->name)->explode(' ')->filter()->map(fn ($part) => Str::substr($part, 0, 1))->take(2)->join(''),
+                    ])->values()"
+                />
                 <div class="grid gap-3 sm:grid-cols-2">
                     <div>
                         <label class="text-sm text-slate-600">Priority</label>
@@ -618,14 +622,19 @@
             </div>
             <form method="POST" action="{{ route('members.assign-ministry', $member) }}" class="space-y-4">
                 @csrf
-                <div>
-                    <label class="text-sm text-slate-600">Ministry</label>
-                    <select name="ministry_id" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                        @foreach($ministries as $ministry)
-                            <option value="{{ $ministry->id }}" @selected($primaryVolunteer?->ministry_id === $ministry->id)>{{ $ministry->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                <x-searchable-select
+                    name="ministry_id"
+                    label="Ministry"
+                    :required="true"
+                    placeholder="Search ministries"
+                    :selected="$primaryVolunteer?->ministry_id"
+                    :options="$ministries->map(fn ($ministry) => [
+                        'value' => $ministry->id,
+                        'label' => $ministry->name,
+                        'meta' => trim(($ministry->campus?->name ?? 'All campuses').' - '.($ministry->leader?->name ?? 'No leader')),
+                        'initials' => Str::substr($ministry->name, 0, 2),
+                    ])->values()"
+                />
                 <button class="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white hover:bg-violet-700">Assign Ministry</button>
             </form>
         </aside>

@@ -21,8 +21,11 @@ final class ChildrenYouthController extends Controller
     use ScopesOperationalRecords;
 
     private const AGE_GROUPS = ['nursery', 'preschool', 'elementary', 'middle_school', 'high_school', 'young_adult'];
+
     private const CONSENT_STATUSES = ['pending', 'approved', 'expired', 'declined'];
+
     private const CHECK_IN_STATUSES = ['not_checked_in', 'checked_in', 'checked_out'];
+
     private const STATUSES = ['active', 'inactive', 'archived'];
 
     public function index(Request $request): View

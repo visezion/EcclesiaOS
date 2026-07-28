@@ -15,4 +15,34 @@ export default defineConfig({
             ignored: ['**/storage/framework/views/**'],
         },
     },
+    build: {
+        chunkSizeWarningLimit: 600,
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (! id.includes('node_modules')) {
+                        return undefined;
+                    }
+
+                    if (id.includes('livekit-client')) {
+                        return 'vendor-livekit';
+                    }
+
+                    if (id.includes('chart.js')) {
+                        return 'vendor-charts';
+                    }
+
+                    if (id.includes('lucide')) {
+                        return 'vendor-icons';
+                    }
+
+                    if (id.includes('alpinejs')) {
+                        return 'vendor-alpine';
+                    }
+
+                    return 'vendor';
+                },
+            },
+        },
+    },
 });

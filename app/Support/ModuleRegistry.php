@@ -132,6 +132,7 @@ final class ModuleRegistry
                 'users.',
                 'roles.',
                 'modules.',
+                'auth-settings.',
                 'developer-hub.',
                 'audit-logs.',
                 'profile.',

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ScopesOperationalRecords;
+use App\Models\Campus;
 use App\Models\CareTask;
 use App\Models\CounsellingBooking;
 use App\Models\Member;
@@ -25,9 +26,13 @@ final class CounsellingController extends Controller
     use ScopesOperationalRecords;
 
     private const TYPES = ['Counseling', 'Family Care'];
+
     private const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+
     private const STATUSES = ['pending', 'assigned', 'in-progress', 'on-hold', 'resolved'];
+
     private const BOOKING_STATUSES = ['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show'];
+
     private const LOCATION_TYPES = ['in_person', 'phone', 'video'];
 
     public function index(Request $request): View
@@ -239,7 +244,7 @@ final class CounsellingController extends Controller
         }
 
         $validated['campus_id'] = filled($validated['campus_id'] ?? null)
-            ? OpaqueId::decode($validated['campus_id'], \App\Models\Campus::class)
+            ? OpaqueId::decode($validated['campus_id'], Campus::class)
             : null;
         if (filled($request->input('campus_id')) && ! $validated['campus_id']) {
             throw ValidationException::withMessages(['campus_id' => 'Select a valid campus.']);
@@ -304,7 +309,7 @@ final class CounsellingController extends Controller
         $validated['church_id'] = $case->church_id;
         $validated['member_id'] = $case->member_id;
         $validated['campus_id'] = filled($validated['campus_id'] ?? null)
-            ? OpaqueId::decode($validated['campus_id'], \App\Models\Campus::class)
+            ? OpaqueId::decode($validated['campus_id'], Campus::class)
             : ($case->campus_id ?? $case->member?->campus_id);
         $validated['counselor_user_id'] = filled($validated['counselor_user_id'] ?? null)
             ? OpaqueId::decode($validated['counselor_user_id'], User::class)

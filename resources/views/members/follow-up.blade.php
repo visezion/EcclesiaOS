@@ -99,10 +99,33 @@
             <div class="mb-5 flex items-start justify-between"><div><h2 class="text-lg font-semibold text-slate-950">New Care Task</h2><p class="mt-1 text-sm text-slate-500">Create a real follow-up task.</p></div><button @click="taskOpen = false" class="grid size-9 place-items-center rounded-lg border border-slate-200"><i data-lucide="x" class="size-4"></i></button></div>
             <form method="POST" action="{{ route('care-tasks.store') }}" class="space-y-4">
                 @csrf
-                <select name="member_id" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Select member</option>@foreach($members as $member)<option value="{{ $member->opaqueId() }}">{{ $member->first_name }} {{ $member->last_name }} · {{ $member->campus?->name }}</option>@endforeach</select>
+                <x-searchable-select
+                    name="member_id"
+                    label="Member"
+                    :required="true"
+                    placeholder="Search members by name, email, or campus"
+                    :options="$members->map(fn ($member) => [
+                        'value' => $member->opaqueId(),
+                        'label' => trim($member->first_name.' '.$member->last_name),
+                        'meta' => trim(($member->email ?: 'No email').' - '.($member->campus?->name ?? 'No campus')),
+                        'initials' => Str::substr($member->first_name, 0, 1).Str::substr($member->last_name, 0, 1),
+                    ])->values()"
+                />
                 <select name="type" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">@foreach($types as $type)<option>{{ $type }}</option>@endforeach</select>
                 <div class="grid gap-3 sm:grid-cols-2"><select name="priority" required class="rounded-lg border border-slate-200 px-3 py-2 text-sm">@foreach($priorities as $priority)<option value="{{ $priority }}">{{ Str::headline($priority) }}</option>@endforeach</select><select name="status" required class="rounded-lg border border-slate-200 px-3 py-2 text-sm">@foreach($statuses as $status)<option value="{{ $status }}">{{ Str::headline($status) }}</option>@endforeach</select></div>
-                <select name="assigned_user_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Assign pastor / leader</option>@foreach($users as $user)<option value="{{ $user->opaqueId() }}">{{ $user->name }}</option>@endforeach</select>
+                <x-searchable-select
+                    name="assigned_user_id"
+                    label="Assigned To"
+                    empty-label="Assign later"
+                    placeholder="Search pastors or leaders"
+                    :options="$users->map(fn ($user) => [
+                        'value' => $user->opaqueId(),
+                        'label' => $user->name,
+                        'meta' => trim(($user->title ?: 'Team Member').' - '.($user->email ?: 'No email')),
+                        'avatar' => $user->avatar_src,
+                        'initials' => Str::of($user->name)->explode(' ')->filter()->map(fn ($part) => Str::substr($part, 0, 1))->take(2)->join(''),
+                    ])->values()"
+                />
                 <input name="next_action" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Next action">
                 <input name="due_at" type="datetime-local" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                 <textarea name="notes" rows="5" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Care notes"></textarea>

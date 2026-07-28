@@ -9,47 +9,63 @@
     </label>
 </div>
 
-<label class="space-y-1 text-sm font-medium text-slate-700">
-    Member
-    <select name="member_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-        <option value="">Anonymous giver</option>
-        @foreach($members as $member)
-            <option value="{{ $member->id }}" @selected((string) old('member_id', $donation?->member_id) === (string) $member->id)>{{ $member->first_name }} {{ $member->last_name }}{{ $member->campus ? ' - '.$member->campus->name : '' }}</option>
-        @endforeach
-    </select>
-</label>
+<x-searchable-select
+    name="member_id"
+    label="Member"
+    empty-label="Anonymous giver"
+    placeholder="Search givers by name, email, or campus"
+    :selected="$donation?->member_id"
+    :options="$members->map(fn ($member) => [
+        'value' => $member->id,
+        'label' => trim($member->first_name.' '.$member->last_name),
+        'meta' => trim(($member->email ?: 'No email').' - '.($member->campus?->name ?? 'No campus')),
+        'initials' => Str::substr($member->first_name, 0, 1).Str::substr($member->last_name, 0, 1),
+    ])->values()"
+/>
 
 <div class="grid gap-4 sm:grid-cols-2">
-    <label class="space-y-1 text-sm font-medium text-slate-700">
-        Fund
-        <select name="fund_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-            <option value="">Unassigned</option>
-            @foreach($funds as $fund)
-                <option value="{{ $fund->id }}" @selected((string) old('fund_id', $donation?->fund_id) === (string) $fund->id)>{{ $fund->name }}{{ $fund->is_active ? '' : ' - inactive' }}</option>
-            @endforeach
-        </select>
-    </label>
-    <label class="space-y-1 text-sm font-medium text-slate-700">
-        Campus
-        <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-            <option value="">Unassigned</option>
-            @foreach($campuses as $campus)
-                <option value="{{ $campus->id }}" @selected((string) old('campus_id', $donation?->campus_id) === (string) $campus->id)>{{ $campus->name }}</option>
-            @endforeach
-        </select>
-    </label>
+    <x-searchable-select
+        name="fund_id"
+        label="Fund"
+        empty-label="Unassigned"
+        placeholder="Search funds"
+        :selected="$donation?->fund_id"
+        :options="$funds->map(fn ($fund) => [
+            'value' => $fund->id,
+            'label' => $fund->name,
+            'meta' => $fund->is_active ? 'Active fund' : 'Inactive fund',
+            'initials' => Str::substr($fund->name, 0, 2),
+        ])->values()"
+    />
+    <x-searchable-select
+        name="campus_id"
+        label="Campus"
+        empty-label="Unassigned"
+        placeholder="Search campus"
+        :selected="$donation?->campus_id"
+        :options="$campuses->map(fn ($campus) => [
+            'value' => $campus->id,
+            'label' => $campus->name,
+            'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+            'initials' => Str::substr($campus->name, 0, 2),
+        ])->values()"
+    />
 </div>
 
 <div class="grid gap-4 sm:grid-cols-2">
-    <label class="space-y-1 text-sm font-medium text-slate-700">
-        Ministry / Department
-        <select name="ministry_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-            <option value="">No ministry</option>
-            @foreach($ministries as $ministry)
-                <option value="{{ $ministry->id }}" @selected((string) old('ministry_id', $donation?->ministry_id) === (string) $ministry->id)>{{ $ministry->name }}{{ $ministry->campus ? ' - '.$ministry->campus->name : '' }}</option>
-            @endforeach
-        </select>
-    </label>
+    <x-searchable-select
+        name="ministry_id"
+        label="Ministry / Department"
+        empty-label="No ministry"
+        placeholder="Search ministries or departments"
+        :selected="$donation?->ministry_id"
+        :options="$ministries->map(fn ($ministry) => [
+            'value' => $ministry->id,
+            'label' => $ministry->name,
+            'meta' => $ministry->campus?->name ?? 'No campus',
+            'initials' => Str::substr($ministry->name, 0, 2),
+        ])->values()"
+    />
     <label class="space-y-1 text-sm font-medium text-slate-700">
         Giving Frequency
         <select name="giving_frequency" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">

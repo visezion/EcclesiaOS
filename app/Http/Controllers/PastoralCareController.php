@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\Campus;
 use App\Models\CareTask;
-use App\Models\Church;
 use App\Models\Member;
 use App\Models\PrayerRequest;
 use App\Models\User;
@@ -15,14 +14,16 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class PastoralCareController extends Controller
 {
     private const TYPES = ['Counseling', 'Visitation', 'Prayer Request', 'Membership', 'Family Care', 'Hospital Visit'];
+
     private const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+
     private const STATUSES = ['pending', 'assigned', 'in-progress', 'on-hold', 'resolved'];
 
     public function index(Request $request): View
@@ -316,10 +317,10 @@ final class PastoralCareController extends Controller
             ->limit(5)
             ->get()
             ->map(fn (Campus $campus): array => [
-            'name' => $campus->name,
-            'count' => $campus->care_tasks_count,
-            'percent' => round(($campus->care_tasks_count / $total) * 100, 1),
-        ])->all();
+                'name' => $campus->name,
+                'count' => $campus->care_tasks_count,
+                'percent' => round(($campus->care_tasks_count / $total) * 100, 1),
+            ])->all();
     }
 
     private function scopePrayerRequests(Builder $query, Request $request): Builder

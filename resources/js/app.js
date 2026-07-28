@@ -1,6 +1,5 @@
 import './bootstrap';
 import Alpine from 'alpinejs';
-import { Room, RoomEvent, Track } from 'livekit-client';
 import {
     ArrowLeft,
     ArrowRight,
@@ -8,6 +7,7 @@ import {
     Archive,
     Activity,
     Baby,
+    Ban,
     BadgeDollarSign,
     Badge,
     BadgeCheck,
@@ -16,6 +16,7 @@ import {
     BellRing,
     BarChart3,
     Blocks,
+    Boxes,
     Bold,
     Bot,
     BookOpen,
@@ -28,6 +29,7 @@ import {
     CalendarClock,
     CalendarDays,
     CalendarPlus,
+    CalendarX,
     ChartColumn,
     ChartNoAxesColumn,
     ChartNoAxesCombined,
@@ -61,11 +63,14 @@ import {
     Ellipsis,
     ExternalLink,
     Eye,
+    EyeOff,
     FileChartColumn,
     FileSearch,
     FileText,
+    FileWarning,
     Fingerprint,
     Filter,
+    FolderPlus,
     Gauge,
     GitBranch,
     GraduationCap,
@@ -76,12 +81,15 @@ import {
     HandHeart,
     Handshake,
     HardDrive,
+    Headphones,
     Heart,
     HeartHandshake,
+    HeartPulse,
     History,
     Home,
     Image,
     Inbox,
+    Info,
     Italic,
     Landmark,
     LayoutDashboard,
@@ -90,10 +98,15 @@ import {
     Leaf,
     Library,
     Link,
+    List,
     ListChecks,
     ListFilter,
+    ListOrdered,
+    ListPlus,
+    LoaderCircle,
     LogIn,
     LogOut,
+    LockKeyhole,
     Mail,
     MailPlus,
     MailX,
@@ -121,6 +134,7 @@ import {
     Network,
     PackageCheck,
     PackagePlus,
+    PanelTop,
     Palette,
     Paperclip,
     Pencil,
@@ -132,14 +146,18 @@ import {
     Play,
     PlugZap,
     PowerOff,
+    QrCode,
     Receipt,
+    ReceiptText,
     Radio,
     RadioTower,
+    Repeat2,
     RefreshCw,
     Route,
     RotateCcw,
     RotateCw,
     Save,
+    Scale,
     Search,
     Send,
     Settings,
@@ -149,6 +167,8 @@ import {
     ScanSearch,
     ScreenShare,
     Share2,
+    ShoppingCart,
+    Siren,
     SlidersHorizontal,
     ShieldAlert,
     ShieldCheck,
@@ -156,16 +176,19 @@ import {
     Smartphone,
     Sparkles,
     Star,
+    Store,
     Settings2,
     Square,
     Tags,
     Target,
     TextCursorInput,
     Timer,
+    ToggleRight,
     TrendingUp,
     TriangleAlert,
     Trash2,
     Underline,
+    UnlockKeyhole,
     User,
     UserCheck,
     UserPlus,
@@ -173,6 +196,7 @@ import {
     UserRound,
     UserRoundCheck,
     UserRoundCog,
+    UserX,
     Users,
     UsersRound,
     Upload,
@@ -203,6 +227,25 @@ import {
     Tooltip,
     ArcElement,
 } from 'chart.js';
+
+let Room = null;
+let RoomEvent = null;
+let Track = null;
+let liveKitModulePromise = null;
+
+async function ensureLiveKitModule() {
+    if (! liveKitModulePromise) {
+        liveKitModulePromise = import('livekit-client').then((module) => {
+            Room = module.Room;
+            RoomEvent = module.RoomEvent;
+            Track = module.Track;
+
+            return module;
+        });
+    }
+
+    return liveKitModulePromise;
+}
 
 Chart.register(
     ArcElement,
@@ -332,6 +375,101 @@ document.addEventListener('alpine:init', () => {
 
             const [step] = this.steps.splice(index, 1);
             this.steps.splice(target, 0, step);
+        },
+    }));
+
+    Alpine.data('leadershipReportWizard', (options = {}) => ({
+        createOpen: Boolean(options.create_open),
+        createStep: 1,
+        createTotal: 8,
+        periodStart: options.period_start || '',
+        periodEnd: options.period_end || '',
+        campusId: String(options.campus_id || ''),
+        ministryId: String(options.ministry_id || ''),
+        manualAttendanceScore: Number(options.attendance_score ?? 90),
+        selectedAttendanceSessionIds: (options.selected_attendance_session_ids || []).map(id => String(id)),
+        attendanceSources: Array.isArray(options.attendance_sources) ? options.attendance_sources : [],
+
+        nextStep() {
+            this.createStep = Math.min(this.createTotal, this.createStep + 1);
+        },
+
+        prevStep() {
+            this.createStep = Math.max(1, this.createStep - 1);
+        },
+
+        filteredAttendanceSources() {
+            return this.attendanceSources.filter(source => {
+                const date = source.date || '';
+                const campusId = String(source.campus_id || '');
+
+                return (! this.periodStart || date >= this.periodStart)
+                    && (! this.periodEnd || date <= this.periodEnd)
+                    && (! this.campusId || campusId === this.campusId);
+            });
+        },
+
+        selectedAttendanceSources() {
+            return this.attendanceSources.filter(source => this.selectedAttendanceSessionIds.includes(String(source.id)));
+        },
+
+        selectedAttendanceTotal() {
+            return this.selectedAttendanceSources().reduce((sum, source) => sum + (Number(source.present) || 0), 0);
+        },
+
+        selectedAttendanceExpected() {
+            return this.selectedAttendanceSources().reduce((sum, source) => sum + (Number(source.expected) || 0), 0);
+        },
+
+        calculatedAttendanceScore() {
+            const total = this.selectedAttendanceTotal();
+            const expected = this.selectedAttendanceExpected();
+
+            return expected > 0 ? Math.min(100, Math.round((total / expected) * 100)) : Math.min(100, total);
+        },
+
+        clearUnavailableAttendanceSelections() {
+            const visibleIds = this.filteredAttendanceSources().map(source => String(source.id));
+            this.selectedAttendanceSessionIds = this.selectedAttendanceSessionIds.filter(id => visibleIds.includes(id));
+        },
+    }));
+
+    Alpine.data('searchableSelect', (options = {}) => ({
+        open: false,
+        selected: String(options.selected || ''),
+        query: '',
+        placeholder: options.placeholder || 'Search...',
+        emptyLabel: options.emptyLabel || 'None',
+        required: Boolean(options.required),
+        options: Array.isArray(options.options) ? options.options : [],
+
+        init() {
+            const current = this.options.find(option => String(option.value) === this.selected);
+            this.query = current?.label || '';
+        },
+
+        filteredOptions() {
+            const search = this.query.trim().toLowerCase();
+
+            if (! search || this.selected) {
+                return this.options.slice(0, 20);
+            }
+
+            return this.options
+                .filter(option => (option.search || '').includes(search))
+                .slice(0, 20);
+        },
+
+        choose(option) {
+            this.selected = String(option.value || '');
+            this.query = option.label || '';
+            this.open = false;
+        },
+
+        clear() {
+            this.selected = '';
+            this.query = '';
+            this.open = false;
         },
     }));
 
@@ -524,6 +662,7 @@ document.addEventListener('alpine:init', () => {
 
             async connectStudioRoom() {
                 try {
+                    await ensureLiveKitModule();
                     studioRoom = new Room({ adaptiveStream: true, dynacast: true });
                     studioRoom
                         .on(RoomEvent.ParticipantConnected, () => this.syncLiveParticipants())
@@ -950,6 +1089,7 @@ document.addEventListener('alpine:init', () => {
             this.liveKitStatus = 'Connecting to LiveKit...';
 
             try {
+                await ensureLiveKitModule();
                 liveKitRoom = new Room({ adaptiveStream: true, dynacast: true });
                 liveKitRoom
                     .on(RoomEvent.ParticipantConnected, () => {
@@ -1927,6 +2067,7 @@ const icons = {
     Archive,
     Activity,
     Baby,
+    Ban,
     BadgeDollarSign,
     Badge,
     BadgeCheck,
@@ -1935,6 +2076,7 @@ const icons = {
     BellRing,
     BarChart3,
     Blocks,
+    Boxes,
     Bold,
     Bot,
     BookOpen,
@@ -1947,6 +2089,7 @@ const icons = {
     CalendarClock,
     CalendarDays,
     CalendarPlus,
+    CalendarX,
     ChartColumn,
     ChartNoAxesColumn,
     ChartNoAxesCombined,
@@ -1980,11 +2123,14 @@ const icons = {
     Ellipsis,
     ExternalLink,
     Eye,
+    EyeOff,
     FileChartColumn,
     FileSearch,
     FileText,
+    FileWarning,
     Filter,
     Fingerprint,
+    FolderPlus,
     Gauge,
     GitBranch,
     GraduationCap,
@@ -1995,12 +2141,15 @@ const icons = {
     HandHeart,
     Handshake,
     HardDrive,
+    Headphones,
     Heart,
     HeartHandshake,
+    HeartPulse,
     History,
     Home,
     Image,
     Inbox,
+    Info,
     Italic,
     Landmark,
     LayoutDashboard,
@@ -2009,10 +2158,15 @@ const icons = {
     Leaf,
     Library,
     Link,
+    List,
     ListChecks,
     ListFilter,
+    ListOrdered,
+    ListPlus,
+    LoaderCircle,
     LogIn,
     LogOut,
+    LockKeyhole,
     Mail,
     MailPlus,
     MailX,
@@ -2040,6 +2194,7 @@ const icons = {
     Network,
     PackageCheck,
     PackagePlus,
+    PanelTop,
     Palette,
     Paperclip,
     Pencil,
@@ -2051,14 +2206,18 @@ const icons = {
     PlugZap,
     Podcast,
     PowerOff,
+    QrCode,
     Receipt,
+    ReceiptText,
     Radio,
     RadioTower,
+    Repeat2,
     RefreshCw,
     Route,
     RotateCcw,
     RotateCw,
     Save,
+    Scale,
     Search,
     Send,
     Settings,
@@ -2068,6 +2227,8 @@ const icons = {
     ScanSearch,
     ScreenShare,
     Share2,
+    ShoppingCart,
+    Siren,
     SlidersHorizontal,
     ShieldAlert,
     ShieldCheck,
@@ -2075,16 +2236,19 @@ const icons = {
     Smartphone,
     Sparkles,
     Star,
+    Store,
     Settings2,
     Square,
     Tags,
     Target,
     TextCursorInput,
     Timer,
+    ToggleRight,
     TrendingUp,
     TriangleAlert,
     Trash2,
     Underline,
+    UnlockKeyhole,
     User,
     UserCheck,
     UserPlus,
@@ -2092,6 +2256,7 @@ const icons = {
     UserRound,
     UserRoundCheck,
     UserRoundCog,
+    UserX,
     Users,
     UsersRound,
     Upload,

@@ -93,6 +93,7 @@ return [
             ['label' => 'Meeting Integrations', 'route' => 'meeting-integrations.index', 'icon' => 'radio-tower', 'permission' => 'manage settings'],
             ['label' => 'Communication Integrations', 'route' => 'communications.integrations', 'icon' => 'webhook', 'permission' => 'manage settings'],
             ['label' => 'Module Management', 'route' => 'modules.index', 'icon' => 'layout-grid', 'permission' => 'manage settings'],
+            ['label' => 'Authentication', 'route' => 'auth-settings.index', 'icon' => 'lock-keyhole', 'permission' => 'manage settings'],
             ['label' => 'Developer Hub', 'route' => 'developer-hub.index', 'icon' => 'book-open', 'permission' => 'manage settings'],
             ['label' => 'Audit Logs', 'route' => 'audit-logs.index', 'icon' => 'clipboard-list', 'permission' => 'view audit log'],
         ],

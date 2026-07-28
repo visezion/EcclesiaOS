@@ -26,6 +26,7 @@
         $healthScore = $numericValues->count() > 0 ? round($numericValues->avg()) : 0;
         $supportingLinks = collect($metrics->get('supporting_links', []))->filter();
         $canEditReport = in_array($report->status, ['draft', 'returned'], true);
+        $canDeleteReport = $report->status === 'draft' && (int) $report->submitted_by === (int) auth()->id();
         $actionItemsText = implode("\n", $report->action_items ?? []);
         $supportingLinksText = $supportingLinks->implode("\n");
         $fieldClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900';
@@ -57,10 +58,22 @@
             <div class="h-1.5 {{ $meta['bar'] }}"></div>
             <div class="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <div class="min-w-0">
-                    <a href="{{ route('leadership-reports.index', ['report' => $report->opaqueId()]) }}" class="inline-flex items-center gap-2 text-sm font-semibold text-violet-700">
-                        <i data-lucide="arrow-left" class="size-4"></i>
-                        Back to reports
-                    </a>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <a href="{{ route('leadership-reports.index', ['report' => $report->opaqueId()]) }}" class="inline-flex items-center gap-2 text-sm font-semibold text-violet-700">
+                            <i data-lucide="arrow-left" class="size-4"></i>
+                            Back to reports
+                        </a>
+                        @if($canDeleteReport)
+                            <form method="POST" action="{{ route('leadership-reports.destroy', $report) }}" onsubmit="return confirm('Delete this draft report?')">
+                                @csrf
+                                @method('DELETE')
+                                <button class="inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">
+                                    <i data-lucide="trash-2" class="size-4"></i>
+                                    Delete Draft
+                                </button>
+                            </form>
+                        @endif
+                    </div>
                     <div class="mt-4 flex flex-wrap items-center gap-2">
                         <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 {{ $meta['class'] }}"><i data-lucide="{{ $meta['icon'] }}" class="size-4"></i>{{ $meta['label'] }}</span>
                         <span class="rounded-full px-3 py-1.5 text-xs font-semibold {{ $priorityClass }}">{{ Str::headline($report->priority) }} Priority</span>
@@ -163,15 +176,49 @@
                             <label class="space-y-1 text-xs font-semibold text-slate-500">Priority
                                 <select name="priority" class="{{ $fieldClass }}">@foreach(['normal', 'high', 'urgent', 'low'] as $priority)<option value="{{ $priority }}" @selected(old('priority', $report->priority) === $priority)>{{ Str::headline($priority) }}</option>@endforeach</select>
                             </label>
-                            <label class="space-y-1 text-xs font-semibold text-slate-500">Campus
-                                <select name="campus_id" class="{{ $fieldClass }}"><option value="">All Campuses</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected((string) old('campus_id', $report->campus_id) === (string) $campus->id)>{{ $campus->name }}</option>@endforeach</select>
-                            </label>
-                            <label class="space-y-1 text-xs font-semibold text-slate-500">Ministry
-                                <select name="ministry_id" class="{{ $fieldClass }}"><option value="">General Leadership</option>@foreach($ministries as $ministry)<option value="{{ $ministry->id }}" @selected((string) old('ministry_id', $report->ministry_id) === (string) $ministry->id)>{{ $ministry->name }}</option>@endforeach</select>
-                            </label>
-                            <label class="space-y-1 text-xs font-semibold text-slate-500 md:col-span-2">Reviewer
-                                <select name="assigned_to" class="{{ $fieldClass }}"><option value="">Assign later</option>@foreach($reporters as $reporter)<option value="{{ $reporter->id }}" @selected((string) old('assigned_to', $report->assigned_to) === (string) $reporter->id)>{{ $reporter->name }} - {{ $reporter->title }}</option>@endforeach</select>
-                            </label>
+                            <x-searchable-select
+                                name="campus_id"
+                                label="Campus"
+                                empty-label="All Campuses"
+                                placeholder="Search campuses"
+                                :selected="$report->campus_id"
+                                :options="$campuses->map(fn ($campus) => [
+                                    'value' => $campus->id,
+                                    'label' => $campus->name,
+                                    'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+                                    'initials' => Str::substr($campus->name, 0, 2),
+                                ])->values()"
+                                class="text-xs font-semibold text-slate-500"
+                            />
+                            <x-searchable-select
+                                name="ministry_id"
+                                label="Ministry"
+                                empty-label="General Leadership"
+                                placeholder="Search ministries"
+                                :selected="$report->ministry_id"
+                                :options="$ministries->map(fn ($ministry) => [
+                                    'value' => $ministry->id,
+                                    'label' => $ministry->name,
+                                    'meta' => trim(($ministry->campus?->name ?? 'All campuses').' - '.($ministry->leader?->first_name ? trim($ministry->leader->first_name.' '.$ministry->leader->last_name) : 'No leader')),
+                                    'initials' => Str::substr($ministry->name, 0, 2),
+                                ])->values()"
+                                class="text-xs font-semibold text-slate-500"
+                            />
+                            <x-searchable-select
+                                name="assigned_to"
+                                label="Reviewer"
+                                empty-label="Assign later"
+                                placeholder="Search reviewer by name, title, or email"
+                                :selected="$report->assigned_to"
+                                :options="$reporters->map(fn ($reporter) => [
+                                    'value' => $reporter->id,
+                                    'label' => $reporter->name,
+                                    'meta' => trim(($reporter->title ?: 'Reviewer').' - '.($reporter->email ?: 'No email')),
+                                    'avatar' => $reporter->avatar_src,
+                                    'initials' => Str::of($reporter->name)->explode(' ')->filter()->map(fn ($part) => Str::substr($part, 0, 1))->take(2)->join(''),
+                                ])->values()"
+                                class="text-xs font-semibold text-slate-500 md:col-span-2"
+                            />
                         </section>
 
                         <section class="grid gap-4">
@@ -272,6 +319,43 @@
             @endforeach
         </section>
 
+        @if($metrics->get('attendance_source') === 'recorded')
+            <section class="dashboard-card">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h2 class="text-base font-semibold text-slate-950">Recorded Attendance Source</h2>
+                        <p class="mt-1 text-sm text-slate-500">Attendance score was calculated from selected event attendance sessions in this report period.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm sm:min-w-[260px]">
+                        <div class="rounded-lg bg-slate-50 p-3">
+                            <div class="text-xs font-semibold uppercase text-slate-400">Present</div>
+                            <div class="mt-1 font-semibold text-slate-950">{{ number_format((int) $metrics->get('attendance_total')) }}</div>
+                        </div>
+                        <div class="rounded-lg bg-slate-50 p-3">
+                            <div class="text-xs font-semibold uppercase text-slate-400">Expected</div>
+                            <div class="mt-1 font-semibold text-slate-950">{{ ((int) $metrics->get('attendance_expected')) > 0 ? number_format((int) $metrics->get('attendance_expected')) : 'No target' }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 grid gap-2">
+                    @foreach(collect($metrics->get('attendance_sessions', [])) as $source)
+                        <div class="grid gap-2 rounded-lg border border-slate-200 p-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
+                            <div>
+                                <div class="font-semibold text-slate-950">{{ $source['title'] ?? 'Attendance Session' }}</div>
+                                <div class="mt-1 text-xs text-slate-500">{{ filled($source['date'] ?? null) ? \Illuminate\Support\Carbon::parse($source['date'])->format('M d, Y') : 'Date not recorded' }}</div>
+                            </div>
+                            <div class="text-xs text-slate-500 sm:text-right">
+                                <span class="font-semibold text-slate-900">{{ number_format((int) ($source['present'] ?? 0)) }}</span> present
+                                @if((int) ($source['expected'] ?? 0) > 0)
+                                    of <span class="font-semibold text-slate-900">{{ number_format((int) $source['expected']) }}</span> expected
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
         <section class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
             <div class="space-y-5">
                 <article class="dashboard-card p-0">
@@ -344,7 +428,7 @@
             </div>
 
             <aside class="space-y-4 xl:sticky xl:top-20 xl:self-start">
-                @if(in_array($report->status, ['submitted', 'under_review'], true))
+                @if($canReviewLeadershipReports && in_array($report->status, ['submitted', 'under_review'], true))
                     <article class="dashboard-card">
                         <h2 class="mb-4 text-base font-semibold text-slate-950">Review Decision</h2>
                         <form method="POST" action="{{ route('leadership-reports.review', $report) }}" class="space-y-3">

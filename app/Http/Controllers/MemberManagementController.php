@@ -5,13 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\AttendanceRecord;
 use App\Models\Campus;
-use App\Models\CareTask;
 use App\Models\Church;
 use App\Models\Donation;
 use App\Models\Family;
 use App\Models\Member;
 use App\Models\Ministry;
-use App\Models\PrayerRequest;
 use App\Models\User;
 use App\Models\Volunteer;
 use App\Services\ActivityLogger;
@@ -23,8 +21,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class MemberManagementController extends Controller
@@ -311,6 +309,7 @@ final class MemberManagementController extends Controller
         while (($row = fgetcsv($handle)) !== false) {
             if ($header === null) {
                 $header = collect($row)->map(fn (?string $value): string => str((string) $value)->snake()->toString())->all();
+
                 continue;
             }
 

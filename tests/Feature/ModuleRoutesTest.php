@@ -467,7 +467,60 @@ class ModuleRoutesTest extends TestCase
             ->assertSee(route('leadership-reports.store'), false)
             ->assertSee(route('leadership-reports.summary'), false)
             ->assertSee(route('leadership-reports.export'), false)
+            ->assertSee('Use Recorded Attendance')
             ->assertSee('Reports Trend');
+
+        $event = Event::query()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'title' => 'Leadership Attendance Source Service',
+            'starts_at' => now()->startOfWeek()->setTime(10, 0),
+            'ends_at' => now()->startOfWeek()->setTime(11, 30),
+            'venue' => 'Main Hall',
+            'category' => 'Service',
+            'status' => 'completed',
+        ]);
+        $eventSession = EventSession::query()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'event_id' => $event->id,
+            'title' => 'Leadership Attendance Source Service',
+            'session_date' => now()->startOfWeek()->toDateString(),
+            'starts_at' => '10:00',
+            'ends_at' => '11:30',
+            'timezone' => config('app.timezone'),
+            'meeting_type' => 'physical',
+            'venue' => 'Main Hall',
+            'capacity' => 120,
+            'status' => 'completed',
+        ]);
+        $attendanceSession = AttendanceSession::query()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'event_session_id' => $eventSession->id,
+            'title' => 'Leadership Attendance Source Service',
+            'opens_at' => now()->startOfWeek()->setTime(9, 30),
+            'closes_at' => now()->startOfWeek()->setTime(12, 0),
+            'methods' => ['manual'],
+            'expected_attendance' => 10,
+            'status' => 'closed',
+        ]);
+        Member::factory()
+            ->count(8)
+            ->create(['church_id' => $admin->church_id, 'campus_id' => $admin->campus_id])
+            ->each(function (Member $member) use ($admin, $event, $attendanceSession): void {
+                AttendanceRecord::query()->create([
+                    'church_id' => $admin->church_id,
+                    'campus_id' => $admin->campus_id,
+                    'event_id' => $event->id,
+                    'attendance_session_id' => $attendanceSession->id,
+                    'member_id' => $member->id,
+                    'service_date' => now()->startOfWeek()->toDateString(),
+                    'status' => 'present',
+                    'final_method' => 'manual',
+                    'checked_in_at' => now()->startOfWeek()->setTime(10, 5),
+                ]);
+            });
 
         $this->actingAs($admin)
             ->post(route('leadership-reports.store'), [
@@ -480,6 +533,7 @@ class ModuleRoutesTest extends TestCase
                 'period_end' => now()->endOfWeek()->toDateString(),
                 'priority' => 'high',
                 'summary' => 'Leadership summary for the current week with attendance, discipleship, care, and volunteer coverage metrics.',
+                'attendance_session_ids' => [$attendanceSession->id],
                 'attendance_score' => 91,
                 'discipleship_score' => 87,
                 'care_followups' => 11,
@@ -491,13 +545,17 @@ class ModuleRoutesTest extends TestCase
 
         $report = LeadershipReport::query()->where('title', 'Senior Pastor Weekly Leadership Report')->firstOrFail();
         $this->assertSame('submitted', $report->status);
-        $this->assertSame(91, $report->metrics['attendance_score']);
+        $this->assertSame(80, $report->metrics['attendance_score']);
+        $this->assertSame('recorded', $report->metrics['attendance_source']);
+        $this->assertSame(8, $report->metrics['attendance_total']);
+        $this->assertSame(10, $report->metrics['attendance_expected']);
         $this->assertCount(2, $report->action_items);
 
         $this->actingAs($admin)
             ->get(route('leadership-reports.show', $report))
             ->assertOk()
             ->assertSee('Report Detail')
+            ->assertSee('Recorded Attendance Source')
             ->assertSee('Leadership summary for the current week')
             ->assertSee(route('leadership-reports.review', $report), false);
 
@@ -525,20 +583,37 @@ class ModuleRoutesTest extends TestCase
         }
 
         $this->actingAs($admin)
+            ->get(route('leadership-reports.index', ['tab' => 'settings']))
+            ->assertOk()
+            ->assertSee('Search reviewer by name, title, or email')
+            ->assertSee('Escalation Window');
+
+        $this->actingAs($admin)
             ->post(route('leadership-reports.reminders'))
             ->assertRedirect()
             ->assertSessionHas('status');
 
+        $churchSettingsBefore = $admin->church()->firstOrFail()->settings ?? [];
+
         $this->actingAs($admin)
             ->put(route('leadership-reports.settings.update'), [
                 'default_reviewer_id' => $admin->id,
-                'weekly_due_day' => 'friday',
+                'weekly_due_day' => 'tuesday',
                 'auto_reminders' => '1',
                 'require_action_items' => '1',
-                'escalation_hours' => 72,
+                'escalation_hours' => 48,
             ])
             ->assertRedirect()
             ->assertSessionHas('status', 'Leadership report settings saved.');
+
+        $admin->refresh();
+        $this->assertSame($admin->id, data_get($admin->account_settings, 'leadership_reports.default_reviewer_id'));
+        $this->assertSame('tuesday', data_get($admin->account_settings, 'leadership_reports.weekly_due_day'));
+        $this->assertSame(48, data_get($admin->account_settings, 'leadership_reports.escalation_hours'));
+        $this->assertTrue(data_get($admin->account_settings, 'leadership_reports.auto_reminders'));
+        $this->assertTrue(data_get($admin->account_settings, 'leadership_reports.require_action_items'));
+        $this->assertSame($churchSettingsBefore, $admin->church()->firstOrFail()->refresh()->settings ?? []);
+        $this->assertNull(data_get(User::query()->where('email', 'sarah.johnson@klgc.org')->firstOrFail()->account_settings, 'leadership_reports.weekly_due_day'));
 
         $this->actingAs($admin)
             ->post(route('leadership-reports.store'), [
@@ -569,7 +644,48 @@ class ModuleRoutesTest extends TestCase
             ->get(route('leadership-reports.show', $draft))
             ->assertOk()
             ->assertSee('Edit Draft')
-            ->assertSee(route('leadership-reports.update', $draft), false);
+            ->assertSee(route('leadership-reports.update', $draft), false)
+            ->assertSee(route('leadership-reports.destroy', $draft), false);
+
+        $deletableDraft = LeadershipReport::query()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'submitted_by' => $admin->id,
+            'assigned_to' => $admin->id,
+            'title' => 'Deletable Draft Leadership Report',
+            'report_type' => 'weekly',
+            'period_start' => now()->startOfWeek()->toDateString(),
+            'period_end' => now()->endOfWeek()->toDateString(),
+            'status' => 'draft',
+            'priority' => 'normal',
+            'summary' => 'Draft report that should be removable by its owner only.',
+            'metrics' => ['attendance_score' => 80],
+            'action_items' => ['Confirm draft delete flow'],
+            'due_at' => now()->addDays(3),
+        ]);
+        $otherAdministrator = User::query()
+            ->where('email', 'sarah.johnson@klgc.org')
+            ->firstOrFail();
+
+        $this->actingAs($otherAdministrator)
+            ->delete(route('leadership-reports.destroy', $deletableDraft))
+            ->assertForbidden();
+
+        $this->assertNotSoftDeleted('leadership_reports', ['id' => $deletableDraft->id]);
+
+        $this->actingAs($admin)
+            ->get(route('leadership-reports.index', ['tab' => 'my', 'report' => $deletableDraft->opaqueId()]))
+            ->assertOk()
+            ->assertSee('Delete Draft')
+            ->assertSee(route('leadership-reports.destroy', $deletableDraft), false);
+
+        $this->actingAs($admin)
+            ->delete(route('leadership-reports.destroy', $deletableDraft))
+            ->assertRedirect(route('leadership-reports.index', ['tab' => 'my']))
+            ->assertSessionHas('status', 'Draft report deleted.');
+
+        $this->assertSoftDeleted('leadership_reports', ['id' => $deletableDraft->id]);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'leadership_report_deleted']);
 
         $this->actingAs($admin)
             ->put(route('leadership-reports.update', $draft), [
@@ -589,7 +705,7 @@ class ModuleRoutesTest extends TestCase
                 'service_notes' => 'Updated service notes.',
                 'issues' => 'Updated support needs.',
                 'plans' => 'Updated plans.',
-                'supporting_links' => "https://example.test/report-pack",
+                'supporting_links' => 'https://example.test/report-pack',
                 'action_items' => "Confirm reviewer\nSend final packet",
                 'submit' => '1',
             ])
@@ -604,9 +720,90 @@ class ModuleRoutesTest extends TestCase
         $this->assertNotNull($draft->submitted_at);
 
         $this->actingAs($admin)
+            ->delete(route('leadership-reports.destroy', $draft))
+            ->assertForbidden();
+
+        $this->assertNotSoftDeleted('leadership_reports', ['id' => $draft->id]);
+
+        $this->actingAs($admin)
             ->get(route('leadership-reports.export'))
             ->assertOk()
             ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+    }
+
+    public function test_leadership_report_escalation_settings_require_review_permission(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $viewPermission = Permission::query()->where('name', 'view leadership reports')->firstOrFail();
+        $viewOnlyRole = Role::query()->create([
+            'name' => 'Leadership Report View Only',
+            'slug' => 'leadership-report-view-only',
+            'description' => 'Can create and view leadership reports without review escalation control.',
+        ]);
+        $viewOnlyRole->permissions()->attach($viewPermission);
+
+        $viewOnlyUser = User::factory()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'name' => 'Leadership View Only User',
+            'email' => 'leadership.view.only@example.test',
+            'account_settings' => [
+                'leadership_reports' => [
+                    'default_reviewer_id' => null,
+                    'weekly_due_day' => 'friday',
+                    'auto_reminders' => true,
+                    'require_action_items' => true,
+                    'escalation_hours' => 96,
+                ],
+            ],
+        ]);
+        $viewOnlyUser->roles()->attach($viewOnlyRole);
+
+        $submittedReport = LeadershipReport::query()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'submitted_by' => $admin->id,
+            'assigned_to' => $viewOnlyUser->id,
+            'title' => 'Submitted Report For View Only User',
+            'report_type' => 'weekly',
+            'period_start' => now()->startOfWeek()->toDateString(),
+            'period_end' => now()->endOfWeek()->toDateString(),
+            'status' => 'submitted',
+            'priority' => 'normal',
+            'summary' => 'Submitted report visible to a user who cannot review.',
+            'metrics' => ['attendance_score' => 80],
+            'action_items' => ['Read only'],
+            'submitted_at' => now(),
+            'due_at' => now()->addDays(3),
+        ]);
+
+        $this->actingAs($viewOnlyUser)
+            ->get(route('leadership-reports.index', ['tab' => 'settings']))
+            ->assertOk()
+            ->assertSee('Search reviewer by name, title, or email')
+            ->assertDontSee('Escalation Window');
+
+        $this->actingAs($viewOnlyUser)
+            ->put(route('leadership-reports.settings.update'), [
+                'default_reviewer_id' => $admin->id,
+                'weekly_due_day' => 'monday',
+                'auto_reminders' => '1',
+                'require_action_items' => '1',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Leadership report settings saved.');
+
+        $viewOnlyUser->refresh();
+        $this->assertSame('monday', data_get($viewOnlyUser->account_settings, 'leadership_reports.weekly_due_day'));
+        $this->assertSame(96, data_get($viewOnlyUser->account_settings, 'leadership_reports.escalation_hours'));
+
+        $this->actingAs($viewOnlyUser)
+            ->put(route('leadership-reports.review', $submittedReport), [
+                'decision' => 'approved',
+                'review_notes' => 'Should not be allowed.',
+            ])
+            ->assertForbidden();
     }
 
     public function test_campus_leader_reports_are_limited_to_assigned_campus_ministries(): void
@@ -630,7 +827,14 @@ class ModuleRoutesTest extends TestCase
             ->get(route('leadership-reports.index'))
             ->assertOk()
             ->assertSee($ownCampus->name)
+            ->assertDontSee('All Leadership Reports', false)
             ->assertDontSee('Other Campus Outreach Report Team');
+
+        $this->actingAs($leader)
+            ->get(route('leadership-reports.index', ['tab' => 'all']))
+            ->assertOk()
+            ->assertDontSee('All Leadership Reports', false)
+            ->assertSee('Recent Reports', false);
 
         $this->actingAs($leader)
             ->post(route('leadership-reports.store'), [
@@ -670,6 +874,55 @@ class ModuleRoutesTest extends TestCase
                 'submit' => '1',
             ])
             ->assertForbidden();
+    }
+
+    public function test_church_administrator_can_create_leadership_reports_for_any_campus(): void
+    {
+        $this->seed();
+        $administrator = User::query()->where('email', 'sarah.johnson@klgc.org')->firstOrFail();
+        $targetCampus = Campus::query()
+            ->where('church_id', $administrator->church_id)
+            ->whereKeyNot($administrator->campus_id)
+            ->firstOrFail();
+        $targetMinistry = Ministry::query()->create([
+            'church_id' => $administrator->church_id,
+            'campus_id' => $targetCampus->id,
+            'name' => 'Administrator Cross Campus Report Ministry',
+            'description' => 'Confirms full campus leadership report scope.',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($administrator)
+            ->get(route('leadership-reports.index'))
+            ->assertOk()
+            ->assertSee('All Leadership Reports', false)
+            ->assertSee($targetCampus->name, false)
+            ->assertSee($targetMinistry->name, false);
+
+        $this->actingAs($administrator)
+            ->post(route('leadership-reports.store'), [
+                'title' => 'Administrator Cross Campus Leadership Report',
+                'report_type' => 'campus',
+                'campus_id' => $targetCampus->id,
+                'ministry_id' => $targetMinistry->id,
+                'assigned_to' => $administrator->id,
+                'period_start' => now()->startOfWeek()->toDateString(),
+                'period_end' => now()->endOfWeek()->toDateString(),
+                'priority' => 'normal',
+                'summary' => 'Administrator can submit a leadership report for any campus when granted full campus privileges.',
+                'attendance_score' => 75,
+                'discipleship_score' => 80,
+                'care_followups' => 3,
+                'volunteer_coverage' => 70,
+                'submit' => '1',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('leadership_reports', [
+            'title' => 'Administrator Cross Campus Leadership Report',
+            'campus_id' => $targetCampus->id,
+            'ministry_id' => $targetMinistry->id,
+        ]);
     }
 
     public function test_meeting_integrations_can_be_saved_and_tested(): void

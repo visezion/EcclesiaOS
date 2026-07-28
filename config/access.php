@@ -28,6 +28,7 @@ return [
         'manage youth',
         'manage counselling',
         'view leadership reports',
+        'review leadership reports',
         'manage feedback',
         'manage staff',
         'view reports',
@@ -37,9 +38,9 @@ return [
 
     'roles' => [
         'Super Administrator' => ['*'],
-        'Church Administrator' => ['view dashboard', 'manage users', 'manage roles', 'manage permissions', 'view audit log', 'manage members', 'manage attendance', 'manage events', 'manage studio', 'manage communications', 'manage ministries', 'manage campuses', 'manage staff', 'view reports', 'manage settings'],
-        'Senior Pastor' => ['view dashboard', 'manage members', 'manage attendance', 'manage prayer', 'manage communications', 'manage ministries', 'manage campuses', 'view finance', 'view leadership reports', 'manage feedback', 'view reports'],
-        'Branch Pastor' => ['view dashboard', 'manage members', 'manage attendance', 'manage prayer', 'manage communications', 'manage ministries', 'view finance', 'view leadership reports', 'manage feedback'],
+        'Church Administrator' => ['view dashboard', 'manage users', 'manage roles', 'manage permissions', 'view audit log', 'manage members', 'manage attendance', 'manage events', 'manage studio', 'manage communications', 'manage ministries', 'manage campuses', 'manage staff', 'view leadership reports', 'review leadership reports', 'view reports', 'manage settings'],
+        'Senior Pastor' => ['view dashboard', 'manage members', 'manage attendance', 'manage prayer', 'manage communications', 'manage ministries', 'manage campuses', 'view finance', 'view leadership reports', 'review leadership reports', 'manage feedback', 'view reports'],
+        'Branch Pastor' => ['view dashboard', 'manage members', 'manage attendance', 'manage prayer', 'manage communications', 'manage ministries', 'view finance', 'view leadership reports', 'review leadership reports', 'manage feedback'],
         'Finance Officer' => ['view dashboard', 'manage finance', 'view finance', 'record finance entries', 'view reports'],
         'Membership Officer' => ['view dashboard', 'manage members', 'manage attendance', 'manage communications'],
         'Asset Manager' => ['view dashboard', 'manage assets', 'manage facilities', 'view reports'],

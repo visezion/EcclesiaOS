@@ -431,7 +431,18 @@
                     <button type="button" x-on:click="addOpen = false" class="text-slate-400"><i data-lucide="x" class="size-5"></i></button>
                 </div>
                 <div class="grid gap-3 md:grid-cols-2">
-                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Existing Church</span><select name="church_id" class="w-full rounded-lg border border-slate-200 px-3 py-2"><option value="">Create new church</option>@foreach($churches as $church)<option value="{{ $church->id }}">{{ $church->name }}</option>@endforeach</select></label>
+                    <x-searchable-select
+                        name="church_id"
+                        label="Existing Church"
+                        empty-label="Create new church"
+                        placeholder="Search churches"
+                        :options="$churches->map(fn ($church) => [
+                            'value' => $church->id,
+                            'label' => $church->name,
+                            'meta' => 'Church workspace',
+                            'initials' => Str::substr($church->name, 0, 2),
+                        ])->values()"
+                    />
                     <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">New Church Name</span><input name="church_name" class="w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="Only needed for new church"></label>
                     <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">{{ $terminology['campus_singular'] }} Name</span><input name="name" required class="w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="Main {{ $terminology['campus_singular'] }}"></label>
                     <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Type</span><select name="type" required class="w-full rounded-lg border border-slate-200 px-3 py-2"><option>Main Campus</option><option>Regional Campus</option><option>City Campus</option><option>Online Campus</option><option>Ministry Campus</option></select></label>
