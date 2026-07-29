@@ -19,6 +19,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -227,10 +228,10 @@ final class CommunicationController extends Controller
     {
         $this->authorizeCommunications($request);
         $rows = $this->templatesQuery($request)->with('owner')->latest('updated_at')->limit(5000)->get();
-        $csv = "\"Template Name\",Category,\"Trigger Event\",Channels,Language,Status,\"Approval State\",Owner,\"Last Updated\",Usage\n";
+        $csv = Csv::row(['Template Name', 'Category', 'Trigger Event', 'Channels', 'Language', 'Status', 'Approval State', 'Owner', 'Last Updated', 'Usage']);
 
         foreach ($rows as $row) {
-            $csv .= collect([
+            $csv .= Csv::row([
                 $row->name,
                 $row->category,
                 $row->trigger_event,
@@ -241,7 +242,7 @@ final class CommunicationController extends Controller
                 $row->owner?->name ?? 'System',
                 $row->updated_at?->format('Y-m-d H:i:s'),
                 $row->usage_count,
-            ])->map(fn ($value): string => '"'.str_replace('"', '""', (string) $value).'"')->join(',')."\n";
+            ]);
         }
 
         return response($csv, 200, [
@@ -611,10 +612,10 @@ final class CommunicationController extends Controller
     {
         $this->authorizeCommunications($request);
         $rows = $this->filteredDeliveries($request)->latest()->limit(5000)->get();
-        $csv = "\"Timestamp\",Channel,Provider,Recipient,Subject,Status,\"Retry Status\",Attempt,\"Response Code\",Error\n";
+        $csv = Csv::row(['Timestamp', 'Channel', 'Provider', 'Recipient', 'Subject', 'Status', 'Retry Status', 'Attempt', 'Response Code', 'Error']);
 
         foreach ($rows as $row) {
-            $csv .= collect([
+            $csv .= Csv::row([
                 $row->created_at?->format('Y-m-d H:i:s'),
                 $row->channel,
                 $row->provider,
@@ -625,7 +626,7 @@ final class CommunicationController extends Controller
                 $row->attempt,
                 $row->response_code,
                 $row->error,
-            ])->map(fn ($value): string => '"'.str_replace('"', '""', (string) $value).'"')->join(',')."\n";
+            ]);
         }
 
         return response($csv, 200, [
@@ -691,7 +692,7 @@ final class CommunicationController extends Controller
         $this->syncMemberPreferences($request);
 
         $rows = $this->preferencesQuery($request)->with(['member.campus', 'user.roles', 'user.campus'])->latest('updated_at')->get();
-        $csv = "Member,Email,Campus,Role,Channels,Categories,Category Channels,Digest Mode,Quiet Hours,Language,Critical Alerts,Status,Last Updated\n";
+        $csv = Csv::row(['Member', 'Email', 'Campus', 'Role', 'Channels', 'Categories', 'Category Channels', 'Digest Mode', 'Quiet Hours', 'Language', 'Critical Alerts', 'Status', 'Last Updated']);
 
         foreach ($rows as $preference) {
             $person = $preference->member ?: $preference->user;
@@ -715,7 +716,7 @@ final class CommunicationController extends Controller
                 $preference->opted_out_at ? 'Opted Out' : 'Active',
                 $preference->updated_at?->format('Y-m-d H:i:s'),
             ];
-            $csv .= collect($values)->map(fn ($value): string => '"'.str_replace('"', '""', (string) $value).'"')->join(',')."\n";
+            $csv .= Csv::row($values);
         }
 
         return response($csv, 200, [

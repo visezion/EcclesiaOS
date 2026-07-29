@@ -10,6 +10,7 @@ use App\Models\LeadershipReport;
 use App\Models\Ministry;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -279,9 +280,9 @@ final class LeadershipReportController extends Controller
 
         return Response::streamDownload(function () use ($rows): void {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Title', 'Type', 'Campus', 'Ministry', 'From', 'To', 'Period', 'Priority', 'Status', 'Submitted', 'Reviewed']);
+            Csv::write($handle, ['Title', 'Type', 'Campus', 'Ministry', 'From', 'To', 'Period', 'Priority', 'Status', 'Submitted', 'Reviewed']);
             foreach ($rows as $report) {
-                fputcsv($handle, [
+                Csv::write($handle, [
                     $report->title,
                     $report->report_type,
                     $report->campus?->name,

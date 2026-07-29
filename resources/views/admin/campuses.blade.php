@@ -280,9 +280,9 @@
                             <canvas
                                 class="relative size-full"
                                 data-chart="doughnut"
-                                data-labels='@js($roleRows->pluck('label'))'
-                                data-values='@js($roleRows->pluck('value'))'
-                                data-colors='@js($roleRows->pluck('hex'))'
+                                data-labels='@json($roleRows->pluck('label'))'
+                                data-values='@json($roleRows->pluck('value'))'
+                                data-colors='@json($roleRows->pluck('hex'))'
                             ></canvas>
                         </div>
                         <div class="space-y-2">

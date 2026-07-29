@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+    @php($branding = \App\Support\Branding::current())
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>@yield('code') - {{ config('app.name') }}</title>
+        <title>@yield('code') - {{ $branding->systemName() }}</title>
         <style>
             * { box-sizing: border-box; }
             body { margin: 0; min-height: 100vh; background: #f6f8fc; color: #0f172a; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }

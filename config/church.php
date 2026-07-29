@@ -10,4 +10,6 @@ return [
     'currency' => env('CHURCH_CURRENCY', 'USD'),
     'contact_email' => env('CHURCH_CONTACT_EMAIL', 'hello@example.org'),
     'contact_phone' => env('CHURCH_CONTACT_PHONE', '+1 555 0100'),
+    'download_url' => env('APP_DOWNLOAD_URL', 'https://github.com/visezion/EcclesiaOS/archive/refs/heads/main.zip'),
+    'documentation_url' => env('APP_DOCUMENTATION_URL', 'https://github.com/visezion/EcclesiaOS/blob/main/docs/DEVELOPER_HUB.md'),
 ];

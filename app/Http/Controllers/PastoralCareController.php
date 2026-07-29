@@ -9,6 +9,7 @@ use App\Models\Member;
 use App\Models\PrayerRequest;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -116,9 +117,9 @@ final class PastoralCareController extends Controller
             if ($handle === false) {
                 return;
             }
-            fputcsv($handle, ['Member', 'Care Type', 'Priority', 'Assigned To', 'Campus', 'Next Action', 'Status', 'Due Date', 'Notes']);
+            Csv::write($handle, ['Member', 'Care Type', 'Priority', 'Assigned To', 'Campus', 'Next Action', 'Status', 'Due Date', 'Notes']);
             $this->scopeTasks(CareTask::query(), $request)->with(['member', 'campus', 'assignedUser'])->lazy(100)->each(function (CareTask $task) use ($handle): void {
-                fputcsv($handle, [
+                Csv::write($handle, [
                     $task->member ? $task->member->first_name.' '.$task->member->last_name : '',
                     $task->type,
                     $task->priority,

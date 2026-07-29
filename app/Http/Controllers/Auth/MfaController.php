@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 final class MfaController extends Controller
 {
@@ -40,7 +41,18 @@ final class MfaController extends Controller
         }
 
         $settings = $user->account_settings ?? [];
-        $secret = Crypt::decryptString((string) data_get($settings, 'security.mfa_secret_encrypted'));
+
+        try {
+            $secret = Crypt::decryptString((string) data_get($settings, 'security.mfa_secret_encrypted'));
+        } catch (Throwable) {
+            $request->session()->forget(['login.mfa_user_id', 'login.remember']);
+            $activityLogger->log('Authentication', 'failed_login', 'MFA configuration could not be decrypted.', $user, ['resource' => 'MFA', 'status' => 'failed'], $request);
+
+            return redirect()->route('login')->withErrors([
+                'email' => 'Multi-factor authentication could not be verified. Contact an administrator.',
+            ]);
+        }
+
         $code = trim((string) $request->input('code'));
         $validTotp = $totpService->verify($secret, $code);
         $validRecovery = false;
@@ -74,7 +86,8 @@ final class MfaController extends Controller
     private function consumeRecoveryCode(array $settings, string $code): array
     {
         $submitted = str($code)->upper()->replace(' ', '')->toString();
-        $hashes = data_get($settings, 'security.mfa_recovery_code_hashes', []);
+        $configuredHashes = data_get($settings, 'security.mfa_recovery_code_hashes', []);
+        $hashes = is_array($configuredHashes) ? $configuredHashes : [];
 
         foreach ($hashes as $index => $hash) {
             if (Hash::check($submitted, $hash)) {

@@ -1,5 +1,5 @@
 @props([
-    'title' => config('app.name'),
+    'title' => \App\Support\Branding::current()->systemName(),
     'breadcrumbs' => [],
     'chromeless' => false,
     'hideTopbar' => false,
@@ -7,8 +7,8 @@
 ])
 
 @php
-    $brandingChurch = \App\Models\Church::query()->first();
-    $settings = $brandingChurch?->settings ?? [];
+    $branding = \App\Support\Branding::current();
+    $settings = $branding->settings;
     $fontStacks = [
         'Inter' => 'Inter, ui-sans-serif, system-ui, sans-serif',
         'Roboto' => 'Roboto, ui-sans-serif, system-ui, sans-serif',
@@ -46,7 +46,14 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-        <title>{{ $title }} - {{ config('app.name') }}</title>
+        <title>{{ $title }} - {{ $branding->systemName() }}</title>
+        @if ($branding->logo())
+            <link rel="icon" href="{{ $branding->logo() }}">
+            <link rel="apple-touch-icon" href="{{ $branding->logo() }}">
+        @endif
+        @if ($branding->assetPath(data_get($settings, 'favicon')))
+            <link rel="shortcut icon" href="{{ $branding->assetPath(data_get($settings, 'favicon')) }}">
+        @endif
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800,900|lato:400,700|nunito-sans:400,500,600,700|roboto:400,500,700&display=swap" rel="stylesheet" />
         @vite(['resources/css/app.css', 'resources/js/app.js'])

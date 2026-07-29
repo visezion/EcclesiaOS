@@ -1,4 +1,3 @@
-import './bootstrap';
 import Alpine from 'alpinejs';
 import {
     ArrowLeft,
@@ -212,26 +211,38 @@ import {
     Lock,
     createIcons,
 } from 'lucide';
-import {
-    BarController,
-    BarElement,
-    CategoryScale,
-    Chart,
-    DoughnutController,
-    Filler,
-    Legend,
-    LinearScale,
-    LineController,
-    LineElement,
-    PointElement,
-    Tooltip,
-    ArcElement,
-} from 'chart.js';
-
 let Room = null;
 let RoomEvent = null;
 let Track = null;
 let liveKitModulePromise = null;
+let Chart = null;
+let chartModulePromise = null;
+
+async function ensureChartModule() {
+    if (! chartModulePromise) {
+        chartModulePromise = import('chart.js').then((module) => {
+            Chart = module.Chart;
+            Chart.register(
+                module.ArcElement,
+                module.BarController,
+                module.BarElement,
+                module.CategoryScale,
+                module.DoughnutController,
+                module.Filler,
+                module.Legend,
+                module.LinearScale,
+                module.LineController,
+                module.LineElement,
+                module.PointElement,
+                module.Tooltip,
+            );
+
+            return Chart;
+        });
+    }
+
+    return chartModulePromise;
+}
 
 async function ensureLiveKitModule() {
     if (! liveKitModulePromise) {
@@ -246,21 +257,6 @@ async function ensureLiveKitModule() {
 
     return liveKitModulePromise;
 }
-
-Chart.register(
-    ArcElement,
-    BarController,
-    BarElement,
-    CategoryScale,
-    DoughnutController,
-    Filler,
-    Legend,
-    LinearScale,
-    LineController,
-    LineElement,
-    PointElement,
-    Tooltip,
-);
 
 window.Alpine = Alpine;
 
@@ -2286,14 +2282,6 @@ function parseJson(value, fallback = []) {
     try {
         return JSON.parse(value || '[]');
     } catch {
-        if (typeof value === 'string' && value.trim().startsWith('JSON.parse(')) {
-            try {
-                return Function(`"use strict"; return (${value});`)();
-            } catch {
-                return fallback;
-            }
-        }
-
         return fallback;
     }
 }
@@ -2451,11 +2439,22 @@ function callbackThousands(value) {
     return value >= 1000 ? `${value / 1000}K` : value;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     createIcons({ icons });
-    document.querySelectorAll('[data-chart="attendance"]').forEach(initAttendanceChart);
-    document.querySelectorAll('[data-chart="multi-line"]').forEach(initMultiLineChart);
-    document.querySelectorAll('[data-chart="giving"]').forEach(initGivingChart);
-    document.querySelectorAll('[data-chart="doughnut"]').forEach(initDoughnutChart);
-    document.querySelectorAll('[data-chart="sparkline"]').forEach(initSparkline);
+
+    const chartElements = document.querySelectorAll('[data-chart]');
+    if (chartElements.length === 0) {
+        return;
+    }
+
+    try {
+        await ensureChartModule();
+        document.querySelectorAll('[data-chart="attendance"]').forEach(initAttendanceChart);
+        document.querySelectorAll('[data-chart="multi-line"]').forEach(initMultiLineChart);
+        document.querySelectorAll('[data-chart="giving"]').forEach(initGivingChart);
+        document.querySelectorAll('[data-chart="doughnut"]').forEach(initDoughnutChart);
+        document.querySelectorAll('[data-chart="sparkline"]').forEach(initSparkline);
+    } catch (error) {
+        console.error('Charts could not be loaded.', error);
+    }
 });

@@ -11,6 +11,7 @@ use App\Models\Fund;
 use App\Models\Member;
 use App\Models\Ministry;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -252,10 +253,10 @@ final class FinanceController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['Reference', 'Date', 'Member', 'Fund', 'Campus', 'Ministry', 'Method', 'Source', 'Frequency', 'Amount', 'Currency', 'Notes']);
+            Csv::write($handle, ['Reference', 'Date', 'Member', 'Fund', 'Campus', 'Ministry', 'Method', 'Source', 'Frequency', 'Amount', 'Currency', 'Notes']);
             $query = $this->donationVisibilityQuery($request)->with(['member', 'fund', 'campus', 'ministry'])->latest('received_at');
             $this->applyFilters($query, $request);
-            $query->lazy(100)->each(fn (Donation $donation) => fputcsv($handle, [
+            $query->lazy(100)->each(fn (Donation $donation) => Csv::write($handle, [
                 $donation->reference,
                 $donation->received_at?->format('Y-m-d H:i'),
                 $donation->member ? $donation->member->first_name.' '.$donation->member->last_name : '',

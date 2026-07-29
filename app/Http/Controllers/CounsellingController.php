@@ -11,6 +11,7 @@ use App\Models\CounsellingBooking;
 use App\Models\Member;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -205,10 +206,10 @@ final class CounsellingController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['Member', 'Type', 'Priority', 'Status', 'Assigned To', 'Campus', 'Next Action', 'Due At', 'Resolved At', 'Notes']);
+            Csv::write($handle, ['Member', 'Type', 'Priority', 'Status', 'Assigned To', 'Campus', 'Next Action', 'Due At', 'Resolved At', 'Notes']);
             $query = $this->caseQuery($request)->with(['member', 'campus', 'assignedUser'])->latest('due_at');
             $this->applyFilters($query, $request);
-            $query->lazy(100)->each(fn (CareTask $case) => fputcsv($handle, [
+            $query->lazy(100)->each(fn (CareTask $case) => Csv::write($handle, [
                 $case->member ? $case->member->first_name.' '.$case->member->last_name : '',
                 $case->type,
                 $case->priority,

@@ -1,5 +1,6 @@
 <x-app-layout title="User Profile" :breadcrumbs="[]">
     @php
+        $branding = \App\Support\Branding::current();
         $role = $user->roles->first();
         $permissions = $user->roles->flatMap->permissions->unique('id')->values();
         $permissionLabels = $permissions->take(6)->map(fn ($permission) => str($permission->name)->headline());
@@ -338,7 +339,7 @@
         </div>
 
         <footer class="flex flex-col gap-2 py-2 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-            <span>&copy; {{ now()->year }} {{ config('app.name') }}. All rights reserved.</span>
+            <span>&copy; {{ now()->year }} {{ $branding->systemName() }}. All rights reserved.</span>
             <span class="flex gap-8"><span>Version 2.4.0</span><span>Privacy Policy</span><span>Terms of Service</span></span>
         </footer>
 

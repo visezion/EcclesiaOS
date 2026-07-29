@@ -289,7 +289,7 @@
                                 <div class="mt-1 text-xs font-medium text-emerald-600"><i data-lucide="arrow-up" class="inline size-3"></i> Excellent</div>
                             </div>
                         </div>
-                        <canvas class="audit-sparkline mt-3" data-chart="sparkline" data-values='@js($trends['security'])' data-color="#10b981"></canvas>
+                        <canvas class="audit-sparkline mt-3" data-chart="sparkline" data-values='@json($trends['security'])' data-color="#10b981"></canvas>
                     </section>
                     <section class="dashboard-card audit-metric-card">
                         <div class="flex items-start gap-3">
@@ -300,7 +300,7 @@
                                 <div class="mt-1 text-xs font-medium text-rose-600"><i data-lucide="arrow-up" class="inline size-3"></i> Requires review</div>
                             </div>
                         </div>
-                        <canvas class="audit-sparkline mt-3" data-chart="sparkline" data-values='@js($trends['failed'])' data-color="#f43f5e"></canvas>
+                        <canvas class="audit-sparkline mt-3" data-chart="sparkline" data-values='@json($trends['failed'])' data-color="#f43f5e"></canvas>
                     </section>
                     <section class="dashboard-card audit-metric-card">
                         <div class="flex items-start gap-3">
@@ -311,7 +311,7 @@
                                 <div class="mt-1 text-xs font-medium text-orange-600">High risk events</div>
                             </div>
                         </div>
-                        <canvas class="audit-sparkline mt-3" data-chart="sparkline" data-values='@js($trends['suspicious'])' data-color="#f97316"></canvas>
+                        <canvas class="audit-sparkline mt-3" data-chart="sparkline" data-values='@json($trends['suspicious'])' data-color="#f97316"></canvas>
                     </section>
                     <section class="dashboard-card audit-metric-card">
                         <div class="flex items-start gap-3">
@@ -322,7 +322,7 @@
                                 <div class="mt-1 text-xs font-medium text-emerald-600"><i data-lucide="arrow-up" class="inline size-3"></i> Enabled users</div>
                             </div>
                         </div>
-                        <canvas class="audit-sparkline mt-3" data-chart="sparkline" data-values='@js($trends['mfa'])' data-color="#6d4aff"></canvas>
+                        <canvas class="audit-sparkline mt-3" data-chart="sparkline" data-values='@json($trends['mfa'])' data-color="#6d4aff"></canvas>
                     </section>
                 </div>
 

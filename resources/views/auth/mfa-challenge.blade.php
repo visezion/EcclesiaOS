@@ -1,10 +1,15 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+    @php($branding = \App\Support\Branding::current())
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-        <title>MFA Verification - {{ config('app.name') }}</title>
+        <title>MFA Verification - {{ $branding->systemName() }}</title>
+        @if ($branding->logo())
+            <link rel="icon" href="{{ $branding->logo() }}">
+            <link rel="apple-touch-icon" href="{{ $branding->logo() }}">
+        @endif
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-sidebar font-sans text-slate-900 antialiased">

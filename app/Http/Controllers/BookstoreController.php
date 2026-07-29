@@ -14,6 +14,7 @@ use App\Models\CommunicationDelivery;
 use App\Models\User;
 use App\Models\Workflow;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -459,8 +460,8 @@ final class BookstoreController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['SKU', 'Product', 'Category', 'Campus', 'Price', 'Stock', 'Reorder Level', 'Status']);
-            $this->scopeChurchCampus(BookstoreProduct::query(), $request)->with('campus')->orderBy('name')->lazy(100)->each(fn (BookstoreProduct $product) => fputcsv($handle, [
+            Csv::write($handle, ['SKU', 'Product', 'Category', 'Campus', 'Price', 'Stock', 'Reorder Level', 'Status']);
+            $this->scopeChurchCampus(BookstoreProduct::query(), $request)->with('campus')->orderBy('name')->lazy(100)->each(fn (BookstoreProduct $product) => Csv::write($handle, [
                 $product->sku,
                 $product->name,
                 $product->category,
@@ -484,11 +485,11 @@ final class BookstoreController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['Order Number', 'Date', 'Member', 'Campus', 'Items', 'Status', 'Total', 'Currency']);
+            Csv::write($handle, ['Order Number', 'Date', 'Member', 'Campus', 'Items', 'Status', 'Total', 'Currency']);
             $query = $this->scopeChurchCampus(BookstoreOrder::query(), $request)->with(['member', 'campus', 'items'])->latest('ordered_at');
             $this->applyOrderFilters($query, $request);
 
-            $query->lazy(100)->each(fn (BookstoreOrder $order) => fputcsv($handle, [
+            $query->lazy(100)->each(fn (BookstoreOrder $order) => Csv::write($handle, [
                 $order->order_number,
                 $order->ordered_at?->format('Y-m-d H:i'),
                 $order->member ? $order->member->first_name.' '.$order->member->last_name : 'Walk-in',
@@ -512,11 +513,11 @@ final class BookstoreController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['Loan Number', 'Type', 'Status', 'Approval', 'Product', 'Member', 'Campus', 'Checked Out', 'Due', 'Returned', 'Rental Amount', 'Currency']);
+            Csv::write($handle, ['Loan Number', 'Type', 'Status', 'Approval', 'Product', 'Member', 'Campus', 'Checked Out', 'Due', 'Returned', 'Rental Amount', 'Currency']);
             $query = $this->scopeChurchCampus(BookstoreLibraryLoan::query(), $request)->with(['product', 'member', 'campus'])->latest('checked_out_at');
             $this->applyLibraryLoanFilters($query, $request);
 
-            $query->lazy(100)->each(fn (BookstoreLibraryLoan $loan) => fputcsv($handle, [
+            $query->lazy(100)->each(fn (BookstoreLibraryLoan $loan) => Csv::write($handle, [
                 $loan->loan_number,
                 $loan->loan_type,
                 $loan->status,

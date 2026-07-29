@@ -1,4 +1,5 @@
 @php
+    $branding = \App\Support\Branding::current();
     $user = auth()->user();
     $canAccessNavigationItem = fn (array $item): bool => $user?->isSuperAdministrator()
         || (! empty($item['permissions_any']) && $user?->hasAnyPermission($item['permissions_any']))
@@ -20,13 +21,7 @@
             return $currentRoute === $candidate || str_starts_with($currentRoute, $candidate.'.');
         });
     };
-    $brandingChurch = \App\Models\Church::query()->first();
-    $sidebarBackgroundPath = data_get($brandingChurch?->settings, 'sidebar_background') ?: config('church.sidebar_background');
-    $sidebarBackgroundUrl = \Illuminate\Support\Str::startsWith((string) $sidebarBackgroundPath, ['http://', 'https://', '/'])
-        ? $sidebarBackgroundPath
-        : (\Illuminate\Support\Str::startsWith((string) $sidebarBackgroundPath, 'branding/')
-            ? asset('storage/'.$sidebarBackgroundPath)
-            : asset($sidebarBackgroundPath));
+    $sidebarBackgroundUrl = $branding->sidebarBackground();
 @endphp
 
 <aside
@@ -34,12 +29,16 @@
     class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col overflow-y-auto bg-sidebar text-white shadow-lg transition-transform duration-200 lg:translate-x-0"
 >
     <div class="flex items-center gap-3 px-5 py-5">
-        <div class="grid size-12 place-items-center rounded-xl bg-gradient-to-br from-violet-400 to-purple-700 shadow-lg">
-            <i data-lucide="cross" class="size-8"></i>
+        <div class="grid size-12 place-items-center overflow-hidden rounded-xl bg-transparent">
+            @if ($branding->logo())
+                <img src="{{ $branding->logo() }}" alt="{{ $branding->churchName() }} logo" class="size-full object-contain">
+            @else
+                <i data-lucide="cross" class="size-8"></i>
+            @endif
         </div>
         <div class="min-w-0">
-            <div class="text-lg font-semibold leading-tight">{{ config('app.name') }}</div>
-            <div class="text-xs leading-tight text-slate-300">{{ config('church.subtitle') }}</div>
+            <div class="text-lg font-semibold leading-tight">{{ $branding->systemName() }}</div>
+            <div class="text-xs leading-tight text-slate-300">{{ $branding->churchName() }}</div>
         </div>
     </div>
 

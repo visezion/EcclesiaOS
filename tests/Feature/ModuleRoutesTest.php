@@ -1043,7 +1043,7 @@ class ModuleRoutesTest extends TestCase
             ->assertSee('wss://meet.techallowed.cloud')
             ->assertSee('church-live-service');
 
-        $shortRoomUrl = route('meetings.rooms.short', [strtolower(base_convert((string) $session->getKey(), 10, 36)), 'livekit']);
+        $shortRoomUrl = route('meetings.rooms.short', [$this->shortRoomCode($session), 'livekit']);
 
         $this->assertStringContainsString(str_replace('/', '\\/', $shortRoomUrl), $response->getContent());
 
@@ -1283,7 +1283,16 @@ class ModuleRoutesTest extends TestCase
             ->assertSee('Log in instead')
             ->assertSee('Your name');
 
-        $shortRoomCode = strtolower(base_convert((string) $session->getKey(), 10, 36));
+        $shortRoomCode = $this->shortRoomCode($session);
+
+        $this->postJson(route('meetings.rooms.short.qna.store', [$shortRoomCode, 'livekit']), [
+            'body' => 'Unjoined guest question',
+        ])->assertForbidden();
+
+        $unjoinedOption = $poll->options()->firstOrFail();
+        $this->postJson(route('meetings.rooms.short.polls.vote', [$shortRoomCode, 'livekit', $poll]), [
+            'option' => $unjoinedOption->id,
+        ])->assertForbidden();
 
         $this->post(route('meetings.rooms.short.join', [$shortRoomCode, 'livekit']), [
             'guest_name' => 'Guest Visitor',
@@ -1533,5 +1542,13 @@ class ModuleRoutesTest extends TestCase
             ->get(route('meetings.rooms.show', [$session, 'zoom']))
             ->assertOk()
             ->assertSee('Built-in Zoom Room');
+    }
+
+    private function shortRoomCode(EventSession $eventSession): string
+    {
+        $encodedId = strtolower(base_convert((string) $eventSession->getKey(), 10, 36));
+        $signature = substr(hash_hmac('sha256', EventSession::class.':'.$eventSession->getKey(), (string) config('app.key')), 0, 16);
+
+        return $encodedId.'-'.$signature;
     }
 }

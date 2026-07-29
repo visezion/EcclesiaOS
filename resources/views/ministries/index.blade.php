@@ -208,7 +208,7 @@
                             <div class="absolute inset-0 rounded-full p-[15px]" style="background: {{ $donutGradient($statusRows, $statusTotal) }}">
                                 <div class="size-full rounded-full bg-white"></div>
                             </div>
-                            <canvas class="relative size-full" data-chart="doughnut" data-labels='@js($statusRows->pluck('label'))' data-values='@js($statusRows->pluck('value'))' data-colors='@js($statusRows->pluck('hex'))'></canvas>
+                            <canvas class="relative size-full" data-chart="doughnut" data-labels='@json($statusRows->pluck('label'))' data-values='@json($statusRows->pluck('value'))' data-colors='@json($statusRows->pluck('hex'))'></canvas>
                         </div>
                         <div class="space-y-2">
                             @foreach($statusRows as $row)

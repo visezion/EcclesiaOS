@@ -14,8 +14,7 @@
         $eventDescription = $session->event->description ?? 'Join this live church meeting with secure access, attendance verification, chat, questions, polls, screen share, and participant controls.';
         $eventDate = $session->session_date->format('M d, Y');
         $eventTime = $sessionStartsAt.($sessionEndsAt ? ' - '.$sessionEndsAt : '');
-        $shortRoomCode = Str::lower(base_convert((string) $session->getKey(), 10, 36));
-        $roomUrl = route('meetings.rooms.short', [$shortRoomCode, $provider]);
+        $roomUrl = $shortRoomUrl;
         $shareTitle = $session->title ?: $session->event->title;
         $shareText = $shareTitle.' - '.$eventDate.' '.$eventTime;
         $whatsappShareUrl = 'https://wa.me/?text='.rawurlencode($shareText.' '.$roomUrl);

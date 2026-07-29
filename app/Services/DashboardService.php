@@ -27,6 +27,7 @@ use App\Support\ModuleRegistry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -48,6 +49,19 @@ final class DashboardService
 
     public function getDashboardData(): array
     {
+        if (! $this->actor) {
+            return $this->buildDashboardData();
+        }
+
+        return Cache::remember(
+            $this->dashboardCacheKey(),
+            now()->addSeconds(30),
+            fn (): array => $this->buildDashboardData(),
+        );
+    }
+
+    private function buildDashboardData(): array
+    {
         return [
             'summaryMetrics' => $this->getSummaryMetrics(),
             'attendanceTrend' => $this->getAttendanceTrend(),
@@ -64,6 +78,29 @@ final class DashboardService
             'quickActions' => $this->getQuickActions(),
             'dashboardSections' => $this->getDashboardSections(),
         ];
+    }
+
+    private function dashboardCacheKey(): string
+    {
+        $actor = $this->actor;
+        $actor?->loadMissing('roles.permissions');
+        $church = $this->church();
+        $permissions = $actor?->roles
+            ->flatMap(fn ($role) => $role->permissions->pluck('id'))
+            ->unique()
+            ->sort()
+            ->implode(',') ?? '';
+
+        $fingerprint = implode('|', [
+            (string) $actor?->id,
+            (string) $actor?->church_id,
+            (string) $actor?->campus_id,
+            (string) $actor?->updated_at?->getTimestamp(),
+            (string) $church?->updated_at?->getTimestamp(),
+            $permissions,
+        ]);
+
+        return 'dashboard:v2:'.hash('sha256', $fingerprint);
     }
 
     public function getSummaryMetrics(): array

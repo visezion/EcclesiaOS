@@ -6,8 +6,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
-use App\Models\Church;
 use App\Services\ActivityLogger;
+use App\Support\Branding;
 use App\Support\SocialAuthProviderRegistry;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -18,7 +18,7 @@ final class AuthenticatedSessionController extends Controller
 {
     public function create(): View
     {
-        $settings = Church::query()->first()?->settings ?? [];
+        $settings = Branding::current()->settings;
 
         return view('auth.login', [
             'socialProviders' => SocialAuthProviderRegistry::loginProviders($settings),

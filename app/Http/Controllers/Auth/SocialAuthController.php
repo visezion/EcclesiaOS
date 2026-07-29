@@ -151,7 +151,7 @@ final class SocialAuthController extends Controller
             $payload['code_verifier'] = $request->session()->pull("social_auth.{$provider}.code_verifier");
         }
 
-        $requestBuilder = Http::asForm()->acceptJson();
+        $requestBuilder = Http::asForm()->acceptJson()->connectTimeout(5)->timeout(10);
         if ($provider === 'x' && filled($settings['client_secret'] ?? null)) {
             $requestBuilder = $requestBuilder->withBasicAuth((string) $settings['client_id'], (string) $settings['client_secret']);
         }
@@ -173,7 +173,7 @@ final class SocialAuthController extends Controller
             return null;
         }
 
-        $response = Http::withToken($accessToken)->acceptJson()->get((string) $definition['user_url']);
+        $response = Http::withToken($accessToken)->acceptJson()->connectTimeout(5)->timeout(10)->get((string) $definition['user_url']);
         if (! $response->successful()) {
             return null;
         }
@@ -181,7 +181,7 @@ final class SocialAuthController extends Controller
         $raw = $response->json();
 
         if ($provider === 'github' && blank($raw['email'] ?? null) && filled($definition['emails_url'] ?? null)) {
-            $emails = Http::withToken($accessToken)->acceptJson()->get((string) $definition['emails_url']);
+            $emails = Http::withToken($accessToken)->acceptJson()->connectTimeout(5)->timeout(10)->get((string) $definition['emails_url']);
             if ($emails->successful()) {
                 $primary = collect($emails->json())->first(fn (array $email): bool => ($email['primary'] ?? false) === true && ($email['verified'] ?? false) === true);
                 $raw['email'] = $primary['email'] ?? null;

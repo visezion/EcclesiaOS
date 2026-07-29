@@ -1,5 +1,6 @@
 <x-app-layout title="Authentication" :breadcrumbs="$breadcrumbs">
     @php
+        $branding = \App\Support\Branding::current();
         $loginReady = $providers->where('enabled', true)->where('configured', true)->count();
         $attentionNeeded = $providers->filter(fn (array $provider): bool => $provider['enabled'] && ! $provider['configured'])->count();
         $readyProviders = $providers->filter(fn (array $provider): bool => $provider['enabled'] && $provider['configured'])->values();
@@ -64,7 +65,7 @@
                                 @forelse ($readyProviders as $provider)
                                     <span class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
                                         @if(filled($provider['logo'] ?? null))
-                                            <img src="{{ asset($provider['logo']) }}" alt="" class="size-4">
+                                            <img src="{{ $branding->assetPath($provider['logo']) }}" alt="" class="size-4">
                                         @else
                                             <i data-lucide="{{ $provider['icon'] }}" class="size-4" style="color: {{ $provider['color'] }}"></i>
                                         @endif
@@ -164,7 +165,7 @@
                             <div class="flex min-w-0 items-center gap-3">
                                 <span class="grid size-12 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white shadow-sm">
                                     @if(filled($provider['logo'] ?? null))
-                                        <img src="{{ asset($provider['logo']) }}" alt="" class="size-6">
+                                        <img src="{{ $branding->assetPath($provider['logo']) }}" alt="" class="size-6">
                                     @else
                                         <i data-lucide="{{ $provider['icon'] }}" class="size-5" style="color: {{ $provider['color'] }}"></i>
                                     @endif

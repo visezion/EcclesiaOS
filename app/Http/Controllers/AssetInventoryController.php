@@ -12,6 +12,7 @@ use App\Models\Campus;
 use App\Models\Member;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -215,10 +216,10 @@ final class AssetInventoryController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['Name', 'Serial Number', 'Category', 'Campus', 'Status', 'Condition', 'Purchased At', 'Purchase Amount']);
+            Csv::write($handle, ['Name', 'Serial Number', 'Category', 'Campus', 'Status', 'Condition', 'Purchased At', 'Purchase Amount']);
             $query = $this->scopeChurchCampus(Asset::query(), $request)->with(['campus', 'category'])->latest();
             $this->applyFilters($query, $request);
-            $query->lazy(100)->each(fn (Asset $asset) => fputcsv($handle, [
+            $query->lazy(100)->each(fn (Asset $asset) => Csv::write($handle, [
                 $asset->name,
                 $asset->serial_number,
                 $asset->category?->name,

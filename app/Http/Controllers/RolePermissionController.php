@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -123,7 +124,7 @@ final class RolePermissionController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['Role', 'Type', 'Users Assigned', 'Permission']);
+            Csv::write($handle, ['Role', 'Type', 'Users Assigned', 'Permission']);
 
             Role::query()
                 ->with(['permissions' => fn ($query) => $query->orderBy('name')])
@@ -134,12 +135,12 @@ final class RolePermissionController extends Controller
                     $type = $role->name === 'Super Administrator' ? 'System' : 'Custom';
 
                     if ($role->permissions->isEmpty()) {
-                        fputcsv($handle, [$role->name, $type, $role->users_count, 'No permissions']);
+                        Csv::write($handle, [$role->name, $type, $role->users_count, 'No permissions']);
 
                         return;
                     }
 
-                    $role->permissions->each(fn ($permission) => fputcsv($handle, [
+                    $role->permissions->each(fn ($permission) => Csv::write($handle, [
                         $role->name,
                         $type,
                         $role->users_count,

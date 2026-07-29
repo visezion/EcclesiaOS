@@ -4,35 +4,35 @@ namespace App\Support;
 
 use App\Models\Church;
 use Illuminate\Support\Str;
+use Throwable;
 
 final class Branding
 {
     public function __construct(
-        public readonly Church $church,
+        public readonly ?Church $church,
         public readonly array $settings,
-    ) {
-    }
+    ) {}
 
     public static function current(): self
     {
-        $church = Church::query()->first();
+        $request = app()->bound('request') ? request() : null;
+        $cacheKey = self::class.'.current';
 
-        if (! $church) {
-            $church = Church::query()->firstOrCreate(
-                ['slug' => 'kingdom-life-global-church'],
-                [
-                    'name' => config('church.name'),
-                    'timezone' => config('church.timezone'),
-                    'currency' => config('church.currency'),
-                    'email' => config('church.contact_email'),
-                    'phone' => config('church.contact_phone'),
-                    'address' => config('church.address'),
-                    'settings' => [],
-                ],
-            );
+        if ($request?->attributes->has($cacheKey)) {
+            return $request->attributes->get($cacheKey);
         }
 
-        return new self($church, $church->settings ?? []);
+        try {
+            $church = Church::query()->first();
+            $branding = new self($church, is_array($church?->settings) ? $church->settings : []);
+        } catch (Throwable) {
+            // Error and maintenance pages must still render when the database is unavailable.
+            $branding = new self(null, []);
+        }
+
+        $request?->attributes->set($cacheKey, $branding);
+
+        return $branding;
     }
 
     public function systemName(): string
@@ -42,7 +42,7 @@ final class Branding
 
     public function churchName(): string
     {
-        return (string) (data_get($this->settings, 'church_name') ?: $this->church->name ?: config('church.name', config('app.name', 'EcclesiaOS')));
+        return (string) (data_get($this->settings, 'church_name') ?: $this->church?->name ?: config('church.name', config('app.name', 'EcclesiaOS')));
     }
 
     public function subtitle(): string

@@ -13,6 +13,7 @@ use App\Models\Ministry;
 use App\Models\User;
 use App\Models\Volunteer;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -358,7 +359,7 @@ final class MemberManagementController extends Controller
                 return;
             }
 
-            fputcsv($handle, [
+            Csv::write($handle, [
                 'Member ID',
                 'Full Name',
                 'Email',
@@ -383,7 +384,7 @@ final class MemberManagementController extends Controller
             ]);
             $this->scopeMembers(Member::query(), $request)->with(['campus', 'family', 'memberProfile', 'volunteers.ministry'])->orderBy('last_name')->lazy(100)->each(function (Member $member) use ($handle): void {
                 $row = $this->memberRow($member);
-                fputcsv($handle, [
+                Csv::write($handle, [
                     $row['code'],
                     $row['name'],
                     $row['email'],

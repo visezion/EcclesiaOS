@@ -7,6 +7,7 @@ use App\Models\Campus;
 use App\Models\Church;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Csv;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -59,7 +60,7 @@ final class UserDirectoryController extends Controller
                 return;
             }
 
-            fputcsv($handle, [
+            Csv::write($handle, [
                 'Name',
                 'Email',
                 'Phone',
@@ -80,7 +81,7 @@ final class UserDirectoryController extends Controller
                     $campus = $user->relationLoaded('campus') ? $user->getRelation('campus') : null;
                     $lastLogin = $user->getAttribute('last_login_at');
 
-                    fputcsv($handle, [
+                    Csv::write($handle, [
                         $user->name,
                         $user->email,
                         $user->phone,

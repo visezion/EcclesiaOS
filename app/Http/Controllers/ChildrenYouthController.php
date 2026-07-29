@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\ScopesOperationalRecords;
 use App\Models\ChildrenYouthRecord;
 use App\Models\Member;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -154,10 +155,10 @@ final class ChildrenYouthController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['Name', 'Age Group', 'Campus', 'Guardian', 'Guardian Phone', 'Consent', 'Check-in', 'Pickup Code', 'Status']);
+            Csv::write($handle, ['Name', 'Age Group', 'Campus', 'Guardian', 'Guardian Phone', 'Consent', 'Check-in', 'Pickup Code', 'Status']);
             $query = $this->scopeChurchCampus(ChildrenYouthRecord::query(), $request)->with(['campus', 'guardian'])->latest();
             $this->applyFilters($query, $request);
-            $query->lazy(100)->each(fn (ChildrenYouthRecord $record) => fputcsv($handle, [
+            $query->lazy(100)->each(fn (ChildrenYouthRecord $record) => Csv::write($handle, [
                 $record->first_name.' '.$record->last_name,
                 $record->age_group,
                 $record->campus?->name,

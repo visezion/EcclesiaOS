@@ -39,29 +39,32 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('webhooks/meeting-attendance/{provider}', [EventFlowController::class, 'onlineAttendanceWebhook'])
     ->name('meeting-attendance.webhook')
+    ->middleware('throttle:120,1')
     ->withoutMiddleware([VerifyCsrfToken::class]);
 
-Route::get('m/{code}/{provider}', [EventFlowController::class, 'shortRoom'])->whereAlphaNumeric('code')->name('meetings.rooms.short');
-Route::post('m/{code}/{provider}/join', [EventFlowController::class, 'joinShortRoom'])->whereAlphaNumeric('code')->name('meetings.rooms.short.join');
-Route::get('m/{code}/{provider}/state', [EventFlowController::class, 'publicStudioState'])->whereAlphaNumeric('code')->middleware('module.enabled')->name('meetings.rooms.short.state');
-Route::post('m/{code}/{provider}/qna', [EventFlowController::class, 'storePublicQuestion'])->whereAlphaNumeric('code')->middleware('module.enabled')->name('meetings.rooms.short.qna.store');
-Route::post('m/{code}/{provider}/polls/{poll}/vote', [EventFlowController::class, 'storePublicPollVote'])->whereAlphaNumeric('code')->middleware('module.enabled')->name('meetings.rooms.short.polls.vote');
+Route::get('m/{code}/{provider}', [EventFlowController::class, 'shortRoom'])->where('code', '[A-Za-z0-9-]+')->middleware('throttle:60,1')->name('meetings.rooms.short');
+Route::post('m/{code}/{provider}/join', [EventFlowController::class, 'joinShortRoom'])->where('code', '[A-Za-z0-9-]+')->middleware('throttle:10,1')->name('meetings.rooms.short.join');
+Route::get('m/{code}/{provider}/state', [EventFlowController::class, 'publicStudioState'])->where('code', '[A-Za-z0-9-]+')->middleware(['module.enabled', 'throttle:120,1'])->name('meetings.rooms.short.state');
+Route::post('m/{code}/{provider}/qna', [EventFlowController::class, 'storePublicQuestion'])->where('code', '[A-Za-z0-9-]+')->middleware(['module.enabled', 'throttle:20,1'])->name('meetings.rooms.short.qna.store');
+Route::post('m/{code}/{provider}/polls/{poll}/vote', [EventFlowController::class, 'storePublicPollVote'])->where('code', '[A-Za-z0-9-]+')->middleware(['module.enabled', 'throttle:60,1'])->name('meetings.rooms.short.polls.vote');
+
+Route::view('/', 'landing')->name('home');
+Route::view('features', 'features')->name('features');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
-    Route::get('auth/{provider}/redirect', [SocialAuthController::class, 'redirect'])->name('social.redirect');
-    Route::get('auth/{provider}/callback', [SocialAuthController::class, 'callback'])->name('social.callback');
+    Route::get('auth/{provider}/redirect', [SocialAuthController::class, 'redirect'])->middleware('throttle:20,1')->name('social.redirect');
+    Route::get('auth/{provider}/callback', [SocialAuthController::class, 'callback'])->middleware('throttle:20,1')->name('social.callback');
     Route::get('login/mfa', [MfaController::class, 'challenge'])->name('login.mfa');
-    Route::post('login/mfa', [MfaController::class, 'verify'])->name('login.mfa.verify');
+    Route::post('login/mfa', [MfaController::class, 'verify'])->middleware('throttle:6,1')->name('login.mfa.verify');
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
-    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->middleware('throttle:6,1')->name('password.email');
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
-    Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.store');
+    Route::post('reset-password', [NewPasswordController::class, 'store'])->middleware('throttle:6,1')->name('password.store');
 });
 
 Route::middleware(['auth', 'module.enabled'])->group(function (): void {
-    Route::get('/', fn () => redirect()->route('dashboard'))->name('home');
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('search', SearchController::class)->name('search');
     Route::get('programs', [EventFlowController::class, 'programs'])->name('programs.index');

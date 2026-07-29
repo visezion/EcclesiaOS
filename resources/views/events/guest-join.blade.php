@@ -1,5 +1,6 @@
 <x-app-layout title="Join {{ $session->title }}" :chromeless="true">
     @php
+        $branding = \App\Support\Branding::current();
         $sessionStartsAt = \Illuminate\Support\Str::of($session->starts_at)->substr(0, 5);
         $sessionEndsAt = filled($session->ends_at) ? \Illuminate\Support\Str::of($session->ends_at)->substr(0, 5) : null;
         $eventDate = $session->session_date->format('M d, Y');
@@ -16,7 +17,7 @@
                             <i data-lucide="{{ $meta['icon'] }}" class="size-7"></i>
                         </div>
                         <div>
-                            <div class="text-lg font-semibold">{{ config('app.name') }}</div>
+                            <div class="text-lg font-semibold">{{ $branding->systemName() }}</div>
                             <div class="text-sm text-white/55">Guest meeting access</div>
                         </div>
                     </div>

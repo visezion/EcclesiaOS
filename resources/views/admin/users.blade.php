@@ -262,9 +262,9 @@
                             <canvas
                                 class="relative size-full"
                                 data-chart="doughnut"
-                                data-labels='@js($statusDistribution->pluck('label'))'
-                                data-values='@js($statusDistribution->pluck('value'))'
-                                data-colors='@js($statusDistribution->pluck('hex'))'
+                                data-labels='@json($statusDistribution->pluck('label'))'
+                                data-values='@json($statusDistribution->pluck('value'))'
+                                data-colors='@json($statusDistribution->pluck('hex'))'
                             ></canvas>
                             <div class="pointer-events-none absolute inset-0 grid place-items-center text-center">
                                 <div>
@@ -305,9 +305,9 @@
                             <canvas
                                 class="relative size-full"
                                 data-chart="doughnut"
-                                data-labels='@js($roleChartRows->pluck('label'))'
-                                data-values='@js($roleChartRows->pluck('value'))'
-                                data-colors='@js($roleChartRows->pluck('hex'))'
+                                data-labels='@json($roleChartRows->pluck('label'))'
+                                data-values='@json($roleChartRows->pluck('value'))'
+                                data-colors='@json($roleChartRows->pluck('hex'))'
                             ></canvas>
                             <div class="pointer-events-none absolute inset-0 grid place-items-center text-center">
                                 <div>
@@ -348,9 +348,9 @@
                             <canvas
                                 class="relative size-full"
                                 data-chart="doughnut"
-                                data-labels='@js($campusChartRows->pluck('label'))'
-                                data-values='@js($campusChartRows->pluck('value'))'
-                                data-colors='@js($campusChartRows->pluck('hex'))'
+                                data-labels='@json($campusChartRows->pluck('label'))'
+                                data-values='@json($campusChartRows->pluck('value'))'
+                                data-colors='@json($campusChartRows->pluck('hex'))'
                             ></canvas>
                             <div class="pointer-events-none absolute inset-0 grid place-items-center text-center">
                                 <div>

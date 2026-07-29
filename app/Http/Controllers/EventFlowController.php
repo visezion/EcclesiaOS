@@ -585,7 +585,7 @@ final class EventFlowController extends Controller
                 'session' => $eventSession,
                 'provider' => $provider,
                 'meta' => $this->providerMeta()[$provider],
-                'joinUrl' => route('meetings.rooms.short.join', [Str::lower(base_convert((string) $eventSession->getKey(), 10, 36)), $provider]),
+                'joinUrl' => route('meetings.rooms.short.join', [$this->shortRoomCode($eventSession), $provider]),
                 'loginUrl' => route('meetings.rooms.show', [$eventSession, $provider]),
             ]);
         }
@@ -612,7 +612,7 @@ final class EventFlowController extends Controller
             'identity' => 'guest-'.$eventSession->getKey().'-'.$provider.'-'.Str::lower((string) Str::random(10)),
         ]);
 
-        return redirect()->route('meetings.rooms.short', [Str::lower(base_convert((string) $eventSession->getKey(), 10, 36)), $provider]);
+        return redirect()->route('meetings.rooms.short', [$this->shortRoomCode($eventSession), $provider]);
     }
 
     private function renderRoom(Request $request, EventSession $eventSession, string $provider, ActivityLogger $activityLogger, bool $guestAccess = false, array $guest = []): View
@@ -669,7 +669,7 @@ final class EventFlowController extends Controller
 
         $agendaSections = $this->agendaSectionsForSession($eventSession);
         $canManageRoomInteractions = ! $guestAccess && $this->canManageStudioBackroom($request);
-        $shortRoomCode = Str::lower(base_convert((string) $eventSession->getKey(), 10, 36));
+        $shortRoomCode = $this->shortRoomCode($eventSession);
 
         return view('events.room', [
             'session' => $eventSession,
@@ -685,6 +685,8 @@ final class EventFlowController extends Controller
             'guestParticipant' => $guestAccess ? $guest : null,
             'studioStatePayload' => $this->studioStatePayload($eventSession, $provider),
             'studioStateUrl' => route('meetings.rooms.short.state', [$shortRoomCode, $provider]),
+            'shortRoomCode' => $shortRoomCode,
+            'shortRoomUrl' => route('meetings.rooms.short', [$shortRoomCode, $provider]),
             'breadcrumbs' => $this->breadcrumbs([
                 ['Meetings', route('meetings.index')],
                 [$eventSession->title, route('event-sessions.meeting', $eventSession)],
@@ -695,7 +697,22 @@ final class EventFlowController extends Controller
 
     private function eventSessionFromShortCode(string $code): EventSession
     {
-        return EventSession::query()->findOrFail((int) base_convert(Str::lower($code), 36, 10));
+        abort_unless(preg_match('/^([0-9a-z]+)-([0-9a-f]{16})$/i', $code, $matches) === 1, 404);
+
+        $eventSessionId = (int) base_convert(Str::lower($matches[1]), 36, 10);
+        $expectedSignature = substr(hash_hmac('sha256', EventSession::class.':'.$eventSessionId, (string) config('app.key')), 0, 16);
+
+        abort_unless($eventSessionId > 0 && hash_equals($expectedSignature, Str::lower($matches[2])), 404);
+
+        return EventSession::query()->findOrFail($eventSessionId);
+    }
+
+    private function shortRoomCode(EventSession $eventSession): string
+    {
+        $encodedId = Str::lower(base_convert((string) $eventSession->getKey(), 10, 36));
+        $signature = substr(hash_hmac('sha256', EventSession::class.':'.$eventSession->getKey(), (string) config('app.key')), 0, 16);
+
+        return $encodedId.'-'.$signature;
     }
 
     private function guestRoomSessionKey(EventSession $eventSession, string $provider): string
@@ -751,7 +768,7 @@ final class EventFlowController extends Controller
             'studioLiveKitPayload' => $provider === 'livekit' && $integration?->enabled ? $this->liveKitStudioPayload($integration, $eventSession, $request) : null,
             'lowerThirdBackgroundPresets' => $this->lowerThirdBackgroundPresets(),
             'roomUrl' => route('meetings.rooms.show', [$eventSession, $provider]),
-            'shortRoomUrl' => route('meetings.rooms.short', [Str::lower(base_convert((string) $eventSession->getKey(), 10, 36)), $provider]),
+            'shortRoomUrl' => route('meetings.rooms.short', [$this->shortRoomCode($eventSession), $provider]),
         ]);
     }
 
@@ -1081,6 +1098,7 @@ final class EventFlowController extends Controller
 
         $validated = $request->validate(['body' => ['required', 'string', 'max:500']]);
         $guest = $request->session()->get($this->guestRoomSessionKey($eventSession, $provider), []);
+        abort_unless($request->user() || filled($guest['identity'] ?? null), 403);
         $author = $request->user()?->name ?: ($guest['name'] ?? 'Guest');
 
         MeetingQnaItem::query()->create([
@@ -1108,7 +1126,8 @@ final class EventFlowController extends Controller
             ->whereKey($validated['option'])
             ->firstOrFail();
         $guest = $request->session()->get($this->guestRoomSessionKey($eventSession, $provider), []);
-        $guestIdentity = $request->user() ? null : ($guest['identity'] ?? $request->session()->getId());
+        abort_unless($request->user() || filled($guest['identity'] ?? null), 403);
+        $guestIdentity = $request->user() ? null : $guest['identity'];
 
         DB::transaction(function () use ($poll, $option, $request, $guestIdentity): void {
             $vote = MeetingPollVote::query()->updateOrCreate(
@@ -1240,7 +1259,7 @@ final class EventFlowController extends Controller
     {
         $eventSession->loadMissing(['event.program', 'campus']);
         [$state, $scenes] = $this->ensureStudioSetup($eventSession, $provider);
-        $shortRoomCode = Str::lower(base_convert((string) $eventSession->getKey(), 10, 36));
+        $shortRoomCode = $this->shortRoomCode($eventSession);
         $poll = MeetingPoll::query()
             ->with('options')
             ->where('event_session_id', $eventSession->id)
@@ -2456,7 +2475,7 @@ final class EventFlowController extends Controller
     {
         try {
             $secret = Crypt::decryptString((string) $settings['api_secret_encrypted']);
-            $legacySecret = @unserialize($secret);
+            $legacySecret = @unserialize($secret, ['allowed_classes' => false]);
 
             return is_string($legacySecret) ? $legacySecret : $secret;
         } catch (\Throwable) {

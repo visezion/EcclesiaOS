@@ -8,6 +8,7 @@ use App\Models\Church;
 use App\Models\Family;
 use App\Models\Member;
 use App\Services\ActivityLogger;
+use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -98,9 +99,9 @@ final class FamilyManagementController extends Controller
             if ($handle === false) {
                 return;
             }
-            fputcsv($handle, ['Household ID', 'Family Name', 'Head of Household', 'Members', 'Campus', 'Phone', 'Email', 'Address']);
+            Csv::write($handle, ['Household ID', 'Family Name', 'Head of Household', 'Members', 'Campus', 'Phone', 'Email', 'Address']);
             $this->scopeFamilies(Family::query(), $request)->with(['campus', 'primaryContact'])->withCount('members')->lazy(100)->each(function (Family $family) use ($handle): void {
-                fputcsv($handle, [
+                Csv::write($handle, [
                     'HH-'.str_pad((string) $family->id, 5, '0', STR_PAD_LEFT),
                     $family->name,
                     $family->primaryContact ? $family->primaryContact->first_name.' '.$family->primaryContact->last_name : '',

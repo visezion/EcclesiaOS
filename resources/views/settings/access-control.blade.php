@@ -1,6 +1,7 @@
 <x-app-layout title="Access Control" :breadcrumbs="$breadcrumbs">
     @php
-        $sidebarBackgroundPath = data_get($brandingChurch?->settings, 'sidebar_background') ?: config('church.sidebar_background');
+        $branding = \App\Support\Branding::current();
+        $sidebarBackgroundPath = $branding->sidebarBackground();
         $sidebarBackgroundUrl = \Illuminate\Support\Str::startsWith((string) $sidebarBackgroundPath, ['http://', 'https://', '/'])
             ? $sidebarBackgroundPath
             : (\Illuminate\Support\Str::startsWith((string) $sidebarBackgroundPath, 'branding/')

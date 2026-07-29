@@ -7,6 +7,7 @@ use App\Models\Campus;
 use App\Models\Church;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -58,14 +59,14 @@ final class AuditLogController extends Controller
                 return;
             }
 
-            fputcsv($handle, ['Time', 'User', 'Email', 'Role', 'Church', 'Campus', 'Action', 'Resource', 'Details', 'IP Address', 'Risk Level', 'Status']);
+            Csv::write($handle, ['Time', 'User', 'Email', 'Role', 'Church', 'Campus', 'Action', 'Resource', 'Details', 'IP Address', 'Risk Level', 'Status']);
 
             $this->filteredQuery($filters, $request)
                 ->with(['user.roles', 'church', 'campus'])
                 ->latest()
                 ->lazy(100)
                 ->each(function (ActivityLog $log) use ($handle): void {
-                    fputcsv($handle, [
+                    Csv::write($handle, [
                         $log->created_at->toDateTimeString(),
                         $log->user?->name ?? 'Unknown User',
                         $log->user?->email ?? 'system',
