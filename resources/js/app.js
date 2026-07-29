@@ -2466,7 +2466,3 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Charts could not be loaded.', error);
     }
 });
-
-document.addEventListener('alpine:initialized', () => {
-    safeCreateIcons();
-});
