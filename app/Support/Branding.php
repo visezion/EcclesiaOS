@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Church;
+use Illuminate\Support\Str;
 
 final class Branding
 {
@@ -65,8 +66,8 @@ final class Branding
             return null;
         }
 
-        return str_starts_with($path, ['http://', 'https://', '/'])
+        return Str::startsWith($path, ['http://', 'https://', '/'])
             ? $path
-            : (str_starts_with($path, 'branding/') ? asset('storage/'.$path) : asset($path));
+            : (Str::startsWith($path, 'branding/') ? asset('storage/'.$path) : asset($path));
     }
 }
