@@ -2,23 +2,22 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('bookstore_products', function (Blueprint $table): void {
-            $table->string('author')->nullable()->after('category');
-            $table->string('isbn')->nullable()->index()->after('author');
-            $table->string('format')->default('hardcopy')->index()->after('isbn');
-            $table->string('publisher')->nullable()->after('format');
-            $table->string('digital_url')->nullable()->after('publisher');
-            $table->boolean('is_library_item')->default(false)->index()->after('digital_url');
-            $table->boolean('borrowable')->default(false)->index()->after('is_library_item');
-            $table->boolean('rentable')->default(false)->index()->after('borrowable');
-            $table->decimal('rental_price', 12, 2)->nullable()->after('rentable');
-        });
+        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS author varchar(255) NULL AFTER category");
+        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS isbn varchar(255) NULL AFTER author");
+        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS format varchar(255) NOT NULL DEFAULT 'hardcopy' AFTER isbn");
+        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS publisher varchar(255) NULL AFTER format");
+        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS digital_url varchar(255) NULL AFTER publisher");
+        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS is_library_item tinyint(1) NOT NULL DEFAULT 0 AFTER digital_url");
+        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS borrowable tinyint(1) NOT NULL DEFAULT 0 AFTER is_library_item");
+        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS rentable tinyint(1) NOT NULL DEFAULT 0 AFTER borrowable");
+        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS rental_price decimal(12,2) NULL AFTER rentable");
 
         Schema::create('bookstore_library_loans', function (Blueprint $table): void {
             $table->id();

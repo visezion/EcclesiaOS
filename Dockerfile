@@ -98,6 +98,7 @@ RUN mkdir -p \
     && rm -rf public/storage \
     && ln -s ../storage/app/public public/storage \
     && if [ -n "$APP_VERSION" ]; then printf '%s\n' "$APP_VERSION" > VERSION; fi \
+    && rm -f bootstrap/cache/*.php \
     && chown -R www-data:www-data bootstrap/cache storage \
     && php artisan package:discover --ansi
 
