@@ -35,10 +35,55 @@ KingdomHub is a lightweight Laravel church management system foundation with an 
 
 ## Installation
 
-For the recommended Docker deployment, see
-[`docs/DOCKER.md`](docs/DOCKER.md). It provides one-command setup for Windows
-and Linux with Nginx, PHP-FPM, MySQL, Redis, queue workers, scheduled tasks,
-health checks, persistent data, backups, and versioned updates.
+The recommended deployment path is Docker. For the full production-oriented
+setup, including Nginx, PHP-FPM, MySQL, Redis, queue workers, scheduled tasks,
+health checks, backups, and update scripts, see
+[`docs/DOCKER.md`](docs/DOCKER.md).
+
+### Docker Deployment
+
+Windows PowerShell:
+
+```powershell
+.\docker\setup.ps1
+```
+
+Linux or WSL:
+
+```bash
+sh docker/setup.sh
+```
+
+The setup script will:
+
+1. Create `.env.docker` from `.env.docker.example`.
+2. Generate a real `APP_KEY`.
+3. Generate database credentials.
+4. Build or pull the application images.
+5. Start the full stack.
+6. Bootstrap the first administrator if needed.
+
+After setup, open the site at the `APP_URL` configured in `.env.docker`.
+
+### Updating an Existing Docker Deployment
+
+Windows PowerShell:
+
+```powershell
+.\docker\update.ps1 -Version 1.0.0
+```
+
+Linux or WSL:
+
+```bash
+sh docker/update.sh 1.0.0
+```
+
+Replace `1.0.0` with the GitHub release tag you want to deploy.
+
+### Local Development
+
+If you want to run the project without Docker, use the normal Laravel flow:
 
 ```bash
 composer install
@@ -153,6 +198,8 @@ Replace arrays in `DashboardService` with database-backed queries or read models
 - Run `php artisan config:cache`, `route:cache`, and `view:cache`.
 - Use HTTPS, secure cookies, backups, log rotation, and least-privilege database credentials.
 - Change or remove development credentials.
+- Prefer the Docker setup scripts over manual container commands for repeatable deployments.
+- Use `docker/update.sh` or `docker/update.ps1` to move an existing deployment to a tagged release.
 
 ## Security Notes
 
