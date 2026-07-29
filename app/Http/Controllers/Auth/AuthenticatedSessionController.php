@@ -10,14 +10,14 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Support\Branding;
 use App\Support\SocialAuthProviderRegistry;
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Contracts\View\View;
 
 final class AuthenticatedSessionController extends Controller
 {
-    public function create(): View
+    public function create(): View|RedirectResponse
     {
         if (! User::query()->whereHas('roles', fn ($query) => $query->where('name', 'Super Administrator'))->exists()) {
             return redirect()->route('install');
