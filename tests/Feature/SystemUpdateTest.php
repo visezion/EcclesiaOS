@@ -196,6 +196,21 @@ final class SystemUpdateTest extends TestCase
         $this->assertSame('1.0.0', data_get($update->metadata, 'manifest.minimum_version'));
     }
 
+    public function test_package_assets_are_detected_even_when_the_filename_is_not_lowercase_zip(): void
+    {
+        $this->fakeRelease(packageName: 'EcclesiaOS-v2.1.0.ZIP');
+
+        $this->actingAs($this->admin)
+            ->post(route('system-updates.check'))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Version 2.1.0 is available.');
+
+        $update = SystemUpdate::query()->sole();
+
+        $this->assertSame('detected', $update->status);
+        $this->assertSame('EcclesiaOS-v2.1.0.ZIP', $update->asset_name);
+    }
+
     public function test_digest_mismatched_releases_are_rejected(): void
     {
         $this->fakeRelease(apiDigest: str_repeat('b', 64));
@@ -239,7 +254,12 @@ final class SystemUpdateTest extends TestCase
         $this->assertNull($update->fresh()->rolled_back_at);
     }
 
-    private function fakeRelease(bool $immutable = true, ?string $apiDigest = null, bool $withManifest = true): void
+    private function fakeRelease(
+        bool $immutable = true,
+        ?string $apiDigest = null,
+        bool $withManifest = true,
+        string $packageName = 'ecclesiaos-v2.1.0.zip',
+    ): void
     {
         $digest = str_repeat('a', 64);
         $artifactUrl = 'https://api.github.test/repos/example/ecclesiaos/releases/assets/100';
@@ -257,9 +277,9 @@ final class SystemUpdateTest extends TestCase
                 'immutable' => $immutable,
                 'assets' => [
                     [
-                        'name' => 'ecclesiaos-v2.1.0.zip',
+                        'name' => $packageName,
                         'url' => $artifactUrl,
-                        'browser_download_url' => 'https://github.test/download/ecclesiaos-v2.1.0.zip',
+                        'browser_download_url' => 'https://github.test/download/'.$packageName,
                         'size' => 2048,
                         'digest' => 'sha256:'.($apiDigest ?? $digest),
                     ],
@@ -276,7 +296,7 @@ final class SystemUpdateTest extends TestCase
                     'minimum_version' => '1.0.0',
                     'minimum_php' => '8.2.0',
                     'channel' => 'stable',
-                    'artifact' => 'ecclesiaos-v2.1.0.zip',
+                    'artifact' => $packageName,
                     'sha256' => $digest,
                     'commit' => str_repeat('c', 40),
                     'has_migrations' => true,

@@ -134,7 +134,22 @@ final class GitHubReleaseService
         }
 
         if (! is_array($manifestAsset)) {
-            $artifact = $assets->first(fn (mixed $asset): bool => is_array($asset) && str_ends_with((string) ($asset['name'] ?? ''), '.zip'));
+            $artifact = $assets->first(
+                fn (mixed $asset): bool => is_array($asset)
+                    && (string) ($asset['name'] ?? '') !== $manifestName
+                    && is_string($asset['name'] ?? null)
+                    && str_ends_with(strtolower((string) $asset['name']), '.zip')
+            );
+
+            if (! is_array($artifact)) {
+                $artifact = $assets->first(
+                    fn (mixed $asset): bool => is_array($asset)
+                        && (string) ($asset['name'] ?? '') !== $manifestName
+                        && is_string($asset['digest'] ?? null)
+                        && trim((string) $asset['digest']) !== ''
+                );
+            }
+
             if (! is_array($artifact)) {
                 throw new RuntimeException("The release is missing an update package.");
             }
