@@ -91,6 +91,13 @@ git push origin v2.1.0
 
 The GitHub workflow runs dependency audits, formatting checks, tests, and the frontend build. It then creates `ecclesiaos-v2.1.0.zip`, generates `update-manifest.json` with its SHA-256 digest, creates build-provenance attestations, and publishes both as GitHub Release assets.
 
+Do not publish a production release unless the release contains:
+
+- `ecclesiaos-vX.Y.Z.zip`
+- `update-manifest.json`
+
+The updater refuses any release missing the manifest asset.
+
 Enable **Release immutability** in the GitHub repository settings before publishing production releases. The application rejects mutable releases by default.
 
 ## Data Safety Rules

@@ -114,6 +114,14 @@ jobs:
 
           echo "artifact=release-assets/$ARTIFACT" >> "$GITHUB_OUTPUT"
 
+      - name: Verify release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s release-assets/update-manifest.json
+          test -s "${{ steps.package.outputs.artifact }}"
+          jq -e '.version and .artifact and .sha256 and .minimum_version and .minimum_php' release-assets/update-manifest.json >/dev/null
+
       - name: Attest application package
         uses: actions/attest-build-provenance@v2
         with:
