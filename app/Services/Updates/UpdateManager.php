@@ -60,6 +60,7 @@ final class UpdateManager
                 'published_at' => $release['published_at'],
                 'immutable' => $release['immutable'],
                 'manifest' => $release['manifest'],
+                'installable' => $release['installable'],
             ]),
         ]);
         $update->status = $isNew ? 'detected' : $currentStatus;

@@ -1,15 +1,16 @@
 <x-app-layout title="System Updates" :breadcrumbs="$breadcrumbs">
-    @php
-        $statusTones = [
-            'detected' => 'bg-blue-50 text-blue-700',
+@php
+    $statusTones = [
+        'detected' => 'bg-blue-50 text-blue-700',
             'pending' => 'bg-amber-50 text-amber-700',
             'installing' => 'bg-violet-50 text-violet-700',
             'completed' => 'bg-emerald-50 text-emerald-700',
             'failed' => 'bg-rose-50 text-rose-700',
             'rolled_back' => 'bg-orange-50 text-orange-700',
-            'skipped' => 'bg-slate-100 text-slate-600',
-        ];
-    @endphp
+        'skipped' => 'bg-slate-100 text-slate-600',
+    ];
+    $installable = (bool) data_get($availableUpdate?->metadata, 'installable', false);
+@endphp
 
     <div class="space-y-6">
         @if (session('status'))
@@ -77,7 +78,7 @@
                             @endforeach
                         </div>
 
-                        @if ($diagnostics['ready'] && $availableUpdate->status !== 'pending')
+                        @if ($diagnostics['ready'] && $availableUpdate->status !== 'pending' && $installable)
                             <form method="POST" action="{{ route('system-updates.approve', $availableUpdate) }}" class="mt-6 space-y-4">
                                 @csrf
                                 <label class="block">
@@ -90,9 +91,11 @@
                                 </label>
                                 <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-3 text-sm font-bold text-white hover:bg-violet-700">
                                     <i data-lucide="shield-check" class="size-4"></i>
-                                    Approve Update
+                                    Update Now
                                 </button>
                             </form>
+                        @elseif ($diagnostics['ready'] && $availableUpdate->status !== 'pending' && ! $installable)
+                            <div class="mt-6 rounded-lg bg-amber-50 p-4 text-sm font-semibold text-amber-800">A new version was detected, but this GitHub release does not include an installable package yet.</div>
                         @elseif ($availableUpdate->status === 'pending')
                             <div class="mt-6 rounded-lg bg-amber-50 p-4 text-sm font-semibold text-amber-800">Approved and waiting for the background updater.</div>
                         @else

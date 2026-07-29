@@ -136,7 +136,9 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "$GITHUB_REF_NAME" \
-            release-assets/* \
             --verify-tag \
             --title "EcclesiaOS $GITHUB_REF_NAME" \
             --generate-notes
+          gh release upload "$GITHUB_REF_NAME" \
+            release-assets/* \
+            --clobber
