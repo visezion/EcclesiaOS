@@ -97,8 +97,8 @@ return new class extends Migration
                 $table->timestamps();
                 $table->softDeletes();
 
-                $table->index(['church_id', 'campus_id', 'status']);
-                $table->index(['bookstore_product_id', 'member_id', 'loan_type']);
+                $table->index(['church_id', 'campus_id', 'status'], 'bookstore_library_loans_church_campus_status_idx');
+                $table->index(['bookstore_product_id', 'member_id', 'loan_type'], 'bookstore_library_loans_product_member_type_idx');
             });
         }
     }

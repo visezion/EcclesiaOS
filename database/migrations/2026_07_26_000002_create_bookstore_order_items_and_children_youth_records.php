@@ -19,7 +19,7 @@ return new class extends Migration
                 $table->decimal('line_total', 12, 2);
                 $table->timestamps();
 
-                $table->index(['bookstore_order_id', 'bookstore_product_id']);
+                $table->index(['bookstore_order_id', 'bookstore_product_id'], 'bookstore_order_item_order_product_idx');
             });
         }
 
@@ -44,7 +44,7 @@ return new class extends Migration
                 $table->timestamps();
                 $table->softDeletes();
 
-                $table->index(['church_id', 'campus_id', 'age_group']);
+                $table->index(['church_id', 'campus_id', 'age_group'], 'children_youth_church_campus_age_idx');
             });
         }
     }
