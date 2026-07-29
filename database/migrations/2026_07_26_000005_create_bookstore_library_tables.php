@@ -2,22 +2,80 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS author varchar(255) NULL AFTER category");
-        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS isbn varchar(255) NULL AFTER author");
-        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS format varchar(255) NOT NULL DEFAULT 'hardcopy' AFTER isbn");
-        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS publisher varchar(255) NULL AFTER format");
-        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS digital_url varchar(255) NULL AFTER publisher");
-        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS is_library_item tinyint(1) NOT NULL DEFAULT 0 AFTER digital_url");
-        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS borrowable tinyint(1) NOT NULL DEFAULT 0 AFTER is_library_item");
-        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS rentable tinyint(1) NOT NULL DEFAULT 0 AFTER borrowable");
-        DB::statement("ALTER TABLE bookstore_products ADD COLUMN IF NOT EXISTS rental_price decimal(12,2) NULL AFTER rentable");
+        if (! Schema::hasColumn('bookstore_products', 'author')) {
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->string('author')->nullable()->after('category');
+            });
+        }
+
+        if (! Schema::hasColumn('bookstore_products', 'isbn')) {
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->string('isbn')->nullable()->after('author');
+            });
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->index('isbn');
+            });
+        }
+
+        if (! Schema::hasColumn('bookstore_products', 'format')) {
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->string('format')->default('hardcopy')->after('isbn');
+            });
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->index('format');
+            });
+        }
+
+        if (! Schema::hasColumn('bookstore_products', 'publisher')) {
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->string('publisher')->nullable()->after('format');
+            });
+        }
+
+        if (! Schema::hasColumn('bookstore_products', 'digital_url')) {
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->string('digital_url')->nullable()->after('publisher');
+            });
+        }
+
+        if (! Schema::hasColumn('bookstore_products', 'is_library_item')) {
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->boolean('is_library_item')->default(false)->after('digital_url');
+            });
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->index('is_library_item');
+            });
+        }
+
+        if (! Schema::hasColumn('bookstore_products', 'borrowable')) {
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->boolean('borrowable')->default(false)->after('is_library_item');
+            });
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->index('borrowable');
+            });
+        }
+
+        if (! Schema::hasColumn('bookstore_products', 'rentable')) {
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->boolean('rentable')->default(false)->after('borrowable');
+            });
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->index('rentable');
+            });
+        }
+
+        if (! Schema::hasColumn('bookstore_products', 'rental_price')) {
+            Schema::table('bookstore_products', function (Blueprint $table): void {
+                $table->decimal('rental_price', 12, 2)->nullable()->after('rentable');
+            });
+        }
 
         Schema::create('bookstore_library_loans', function (Blueprint $table): void {
             $table->id();
