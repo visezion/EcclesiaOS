@@ -77,28 +77,30 @@ return new class extends Migration
             });
         }
 
-        Schema::create('bookstore_library_loans', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('church_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('campus_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('bookstore_product_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('member_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('handled_by_user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('loan_number')->unique();
-            $table->string('loan_type')->index();
-            $table->string('status')->default('active')->index();
-            $table->dateTime('checked_out_at')->index();
-            $table->dateTime('due_at')->nullable()->index();
-            $table->dateTime('returned_at')->nullable()->index();
-            $table->decimal('rental_amount', 12, 2)->nullable();
-            $table->string('currency', 3)->default('USD');
-            $table->text('notes')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
+        if (! Schema::hasTable('bookstore_library_loans')) {
+            Schema::create('bookstore_library_loans', function (Blueprint $table): void {
+                $table->id();
+                $table->foreignId('church_id')->constrained()->cascadeOnDelete();
+                $table->foreignId('campus_id')->nullable()->constrained()->nullOnDelete();
+                $table->foreignId('bookstore_product_id')->constrained()->cascadeOnDelete();
+                $table->foreignId('member_id')->constrained()->cascadeOnDelete();
+                $table->foreignId('handled_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+                $table->string('loan_number')->unique();
+                $table->string('loan_type')->index();
+                $table->string('status')->default('active')->index();
+                $table->dateTime('checked_out_at')->index();
+                $table->dateTime('due_at')->nullable()->index();
+                $table->dateTime('returned_at')->nullable()->index();
+                $table->decimal('rental_amount', 12, 2)->nullable();
+                $table->string('currency', 3)->default('USD');
+                $table->text('notes')->nullable();
+                $table->timestamps();
+                $table->softDeletes();
 
-            $table->index(['church_id', 'campus_id', 'status']);
-            $table->index(['bookstore_product_id', 'member_id', 'loan_type']);
-        });
+                $table->index(['church_id', 'campus_id', 'status']);
+                $table->index(['bookstore_product_id', 'member_id', 'loan_type']);
+            });
+        }
     }
 
     public function down(): void
