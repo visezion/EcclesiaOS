@@ -63,6 +63,17 @@ The setup script will:
 5. Start the full stack.
 6. Bootstrap the first administrator if needed.
 
+For unattended first deploys, set these values in `.env.docker` before running
+the setup script:
+
+- `BOOTSTRAP_ADMIN_NAME`
+- `BOOTSTRAP_ADMIN_EMAIL`
+- `BOOTSTRAP_ADMIN_PASSWORD`
+
+If all three are present, the script creates the initial Super Administrator
+without prompting. Otherwise, it falls back to the interactive prompts when run
+from a terminal.
+
 After setup, open the site at the `APP_URL` configured in `.env.docker`.
 
 ### Updating an Existing Docker Deployment

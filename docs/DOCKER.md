@@ -47,14 +47,18 @@ The setup script:
 5. Starts MySQL and Redis.
 6. Runs database migrations.
 7. Starts PHP-FPM, Nginx, the queue worker, and the scheduler.
-8. Prompts for the first Super Administrator without loading demo data.
-9. Prints Laravel runtime information as a final smoke test.
+8. Bootstraps the first Super Administrator from `.env.docker` if
+   `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`, and
+   `BOOTSTRAP_ADMIN_PASSWORD` are present.
+9. Otherwise prompts for the first Super Administrator in an interactive shell.
+10. Prints Laravel runtime information as a final smoke test.
 
 The default site URL is `http://localhost:8080`.
 
-For unattended provisioning, use `-SkipAdmin` on Windows. On Linux, the setup
-script automatically skips the prompt when standard input is not interactive.
-Create the administrator afterward with:
+For unattended provisioning, set the three `BOOTSTRAP_ADMIN_*` values in
+`.env.docker` before running the setup script. If you prefer to skip admin
+creation entirely, use `-SkipAdmin` on Windows and create the administrator
+later with:
 
 ```bash
 docker compose --env-file .env.docker exec app php artisan app:bootstrap-admin

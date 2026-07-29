@@ -64,6 +64,21 @@ function Set-EnvironmentValue([string] $Name, [string] $Value) {
     )
 }
 
+function Get-EnvironmentValue([string] $Name) {
+    if (-not (Test-Path $environmentPath)) {
+        return $null
+    }
+
+    $content = [IO.File]::ReadAllText($environmentPath)
+    $pattern = '(?m)^' + [Regex]::Escape($Name) + '=(.*)$'
+    $match = [Regex]::Match($content, $pattern)
+    if (-not $match.Success) {
+        return $null
+    }
+
+    return $match.Groups[1].Value.Trim().Trim('"')
+}
+
 if (-not (Test-Path $environmentPath)) {
     Copy-Item -LiteralPath $examplePath -Destination $environmentPath
     Set-EnvironmentValue 'APP_KEY' ('base64:' + (New-RandomBase64 32))
@@ -93,25 +108,41 @@ if (-not $SkipAdmin) {
     $administratorExists = $LASTEXITCODE -eq 0
 
     if (-not $administratorExists) {
-        $administratorName = Read-Host 'First administrator name [Church Administrator]'
-        if ([string]::IsNullOrWhiteSpace($administratorName)) {
-            $administratorName = 'Church Administrator'
-        }
+        $administratorName = Get-EnvironmentValue 'BOOTSTRAP_ADMIN_NAME'
+        $administratorEmail = Get-EnvironmentValue 'BOOTSTRAP_ADMIN_EMAIL'
+        $administratorPassword = Get-EnvironmentValue 'BOOTSTRAP_ADMIN_PASSWORD'
 
-        $administratorEmail = Read-Host 'First administrator email'
-        $securePassword = Read-Host 'First administrator password (12+ characters, mixed case and number)' -AsSecureString
-        $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-        try {
-            $administratorPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+        if ($administratorName -and $administratorEmail -and $administratorPassword) {
             Invoke-Docker compose --env-file $environmentPath exec -T `
                 -e "BOOTSTRAP_ADMIN_NAME=$administratorName" `
                 -e "BOOTSTRAP_ADMIN_EMAIL=$administratorEmail" `
                 -e "BOOTSTRAP_ADMIN_PASSWORD=$administratorPassword" `
                 app php artisan app:bootstrap-admin --no-interaction
         }
-        finally {
-            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
-            $administratorPassword = $null
+        elseif ([Environment]::UserInteractive) {
+            $administratorName = Read-Host 'First administrator name [Church Administrator]'
+            if ([string]::IsNullOrWhiteSpace($administratorName)) {
+                $administratorName = 'Church Administrator'
+            }
+
+            $administratorEmail = Read-Host 'First administrator email'
+            $securePassword = Read-Host 'First administrator password (12+ characters, mixed case and number)' -AsSecureString
+            $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+            try {
+                $administratorPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+                Invoke-Docker compose --env-file $environmentPath exec -T `
+                    -e "BOOTSTRAP_ADMIN_NAME=$administratorName" `
+                    -e "BOOTSTRAP_ADMIN_EMAIL=$administratorEmail" `
+                    -e "BOOTSTRAP_ADMIN_PASSWORD=$administratorPassword" `
+                    app php artisan app:bootstrap-admin --no-interaction
+            }
+            finally {
+                [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+                $administratorPassword = $null
+            }
+        }
+        else {
+            Write-Host 'No administrator exists. Set BOOTSTRAP_ADMIN_NAME, BOOTSTRAP_ADMIN_EMAIL, and BOOTSTRAP_ADMIN_PASSWORD in .env.docker, then rerun the setup script.'
         }
     }
 }

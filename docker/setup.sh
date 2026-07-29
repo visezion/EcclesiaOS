@@ -36,6 +36,15 @@ if [ ! -f "$environment_path" ]; then
     echo "Created .env.docker with generated application and database secrets."
 fi
 
+get_env_value() {
+    key="$1"
+    grep -E "^${key}=" "$environment_path" | tail -n 1 | cut -d= -f2- | sed 's/^"//; s/"$//'
+}
+
+bootstrap_admin_name="$(get_env_value BOOTSTRAP_ADMIN_NAME || true)"
+bootstrap_admin_email="$(get_env_value BOOTSTRAP_ADMIN_EMAIL || true)"
+bootstrap_admin_password="$(get_env_value BOOTSTRAP_ADMIN_PASSWORD || true)"
+
 docker compose --env-file "$environment_path" config --quiet
 
 if [ "${1:-}" = "--registry" ]; then
@@ -49,7 +58,13 @@ docker compose --env-file "$environment_path" exec -T app php artisan about
 
 if ! docker compose --env-file "$environment_path" exec -T app \
     php artisan app:bootstrap-admin --check --no-interaction >/dev/null 2>&1; then
-    if [ -t 0 ]; then
+    if [ -n "${bootstrap_admin_name:-}" ] && [ -n "${bootstrap_admin_email:-}" ] && [ -n "${bootstrap_admin_password:-}" ]; then
+        docker compose --env-file "$environment_path" exec -T \
+            -e "BOOTSTRAP_ADMIN_NAME=$bootstrap_admin_name" \
+            -e "BOOTSTRAP_ADMIN_EMAIL=$bootstrap_admin_email" \
+            -e "BOOTSTRAP_ADMIN_PASSWORD=$bootstrap_admin_password" \
+            app php artisan app:bootstrap-admin --no-interaction
+    elif [ -t 0 ]; then
         printf 'First administrator name [Church Administrator]: '
         IFS= read -r administrator_name
         administrator_name="${administrator_name:-Church Administrator}"
@@ -72,7 +87,7 @@ if ! docker compose --env-file "$environment_path" exec -T app \
             app php artisan app:bootstrap-admin --no-interaction
         unset administrator_password
     else
-        echo "No administrator exists. Run 'php artisan app:bootstrap-admin' in the app container."
+        echo "No administrator exists. Set BOOTSTRAP_ADMIN_NAME, BOOTSTRAP_ADMIN_EMAIL, and BOOTSTRAP_ADMIN_PASSWORD in .env.docker, then rerun the setup script."
     fi
 fi
 
