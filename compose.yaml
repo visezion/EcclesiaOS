@@ -23,7 +23,7 @@ x-app-runtime: &app-runtime
     LOG_CHANNEL: stderr
     LOG_LEVEL: ${LOG_LEVEL:-warning}
     FILESYSTEM_DISK: public
-    UPDATER_INSTALL_ENABLED: "false"
+    UPDATER_INSTALL_ENABLED: "true"
     UPDATER_MANAGED_ROOT: /var/www/html/.managed
     UPDATER_RELEASES_PATH: /var/www/html/.managed/releases
     UPDATER_SHARED_PATH: /var/www/html/.managed/shared
@@ -67,7 +67,7 @@ services:
       LOG_CHANNEL: stderr
       LOG_LEVEL: ${LOG_LEVEL:-warning}
       FILESYSTEM_DISK: public
-      UPDATER_INSTALL_ENABLED: "false"
+      UPDATER_INSTALL_ENABLED: "true"
       UPDATER_MANAGED_ROOT: /var/www/html/.managed
       UPDATER_RELEASES_PATH: /var/www/html/.managed/releases
       UPDATER_SHARED_PATH: /var/www/html/.managed/shared
