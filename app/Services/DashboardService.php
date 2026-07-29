@@ -107,11 +107,11 @@ final class DashboardService
     {
         $currency = $this->currency();
         $memberCount = $this->query(Member::class)->count();
-        $attendanceAverage = (int) round($this->query(AttendanceRecord::class)
+        $attendanceAverage = (int) round((float) ($this->query(AttendanceRecord::class)
             ->select('service_date', DB::raw('count(*) as total'))
             ->groupBy('service_date')
             ->pluck('total')
-            ->avg());
+            ->avg() ?? 0));
         $givingTotal = $this->query(Donation::class)->whereMonth('received_at', now()->month)->sum('amount');
         $volunteers = $this->query(Volunteer::class)->where('status', 'active')->count();
         $events = $this->query(Event::class)->where('starts_at', '>=', now())->count();
