@@ -115,6 +115,12 @@ if [ "${RUN_OPTIMIZATIONS:-true}" = "true" ]; then
 fi
 
 if [ "$(id -u)" = "0" ]; then
+    case "$1" in
+        php-fpm|php-fpm*)
+            exec "$@"
+            ;;
+    esac
+
     exec gosu www-data "$@"
 fi
 
