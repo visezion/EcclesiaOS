@@ -135,7 +135,7 @@ jobs:
             ${{ steps.package.outputs.artifact }}
             release-assets/update-manifest.json
 
-      - name: Publish GitHub Release
+      - name: Create draft GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -143,13 +143,14 @@ jobs:
           set -euo pipefail
           gh release create "$GITHUB_REF_NAME" \
             --verify-tag \
+            --draft \
             --title "EcclesiaOS $GITHUB_REF_NAME" \
             --generate-notes
           gh release upload "$GITHUB_REF_NAME" \
             release-assets/* \
             --clobber
 
-      - name: Verify published GitHub Release assets
+      - name: Verify draft GitHub Release assets
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -161,4 +162,32 @@ jobs:
             | map(.name)
             | any(. == "update-manifest.json")
             and any(test("^ecclesiaos-v.*\\.zip$"))
+          ' >/dev/null
+
+      - name: Publish verified GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit "$GITHUB_REF_NAME" \
+            --draft=false \
+            --latest
+
+      - name: Verify published GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_JSON="$(gh release view "$GITHUB_REF_NAME" --json assets,isDraft,isPrerelease)"
+          printf '%s\n' "$RELEASE_JSON" | jq -e '
+            (.isDraft | not)
+            and (.isPrerelease | not)
+            and (
+              .assets
+              | map(.name)
+              | any(. == "update-manifest.json")
+              and any(test("^ecclesiaos-v.*\\.zip$"))
+            )
           ' >/dev/null
