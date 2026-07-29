@@ -75,7 +75,7 @@
 
                         <div class="mt-16 max-w-lg">
                             <p class="text-sm font-semibold uppercase tracking-[0.28em] text-white/60">Secure church management</p>
-                            <h1 class="mt-4 text-5xl font-black leading-[1.05]">A simple login for your team.</h1>
+                            <h1 class="mt-4 text-5xl font-black leading-[1.05] text-white">A simple login for your team.</h1>
                             <p class="mt-5 max-w-md text-base leading-7 text-white/75">Sign in to manage members, communications, services, reports, and church operations from one place.</p>
                         </div>
                     </div>

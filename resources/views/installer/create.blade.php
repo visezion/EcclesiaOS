@@ -40,7 +40,7 @@
                     </div>
 
                     <div class="mt-16 max-w-xl">
-                        <h1 class="text-5xl font-black leading-[1.05] tracking-tight">Finish setup in one branded step.</h1>
+                        <h1 class="text-5xl font-black leading-[1.05] tracking-tight text-white">Finish setup in one branded step.</h1>
                         <p class="mt-6 text-lg leading-8 text-white/76">Enter your church details, create the first Super Administrator, and the system will prepare the initial workspace for login.</p>
                     </div>
 
