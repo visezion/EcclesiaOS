@@ -21,6 +21,8 @@ on:
       - ".env.docker.example"
       - ".github/workflows/docker.yml"
   push:
+    branches:
+      - "main"
     tags:
       - "v*.*.*"
   workflow_dispatch:
@@ -57,8 +59,39 @@ jobs:
       - name: Validate Compose configuration
         run: docker compose --env-file .env.docker config --quiet
 
-      - name: Build and start the complete stack
-        run: docker compose --env-file .env.docker up -d --build
+      - name: Build application images
+        run: docker compose --env-file .env.docker build app web
+
+      - name: Start infrastructure and application
+        run: |
+          docker compose --env-file .env.docker up -d db redis
+          docker compose --env-file .env.docker up -d app
+
+      - name: Wait for the application container
+        shell: bash
+        run: |
+          for attempt in $(seq 1 60); do
+            app_container="$(docker compose --env-file .env.docker ps -q app)"
+            app_status="$(docker inspect --format '{{.State.Status}}' "$app_container")"
+            health_status="$(docker inspect --format '{{.State.Health.Status}}' "$app_container")"
+
+            if [[ "$app_status" != "running" ]]; then
+              docker compose --env-file .env.docker logs --no-color app
+              exit 1
+            fi
+
+            if [[ "$health_status" == "healthy" ]]; then
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          docker compose --env-file .env.docker logs --no-color app
+          exit 1
+
+      - name: Start remaining services
+        run: docker compose --env-file .env.docker up -d web queue scheduler
 
       - name: Wait for the application health endpoint
         shell: bash
