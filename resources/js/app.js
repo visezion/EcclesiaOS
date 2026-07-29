@@ -2439,8 +2439,16 @@ function callbackThousands(value) {
     return value >= 1000 ? `${value / 1000}K` : value;
 }
 
+function safeCreateIcons() {
+    try {
+        createIcons({ icons });
+    } catch (error) {
+        console.error('Lucide icons could not be initialized.', error);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
-    createIcons({ icons });
+    safeCreateIcons();
 
     const chartElements = document.querySelectorAll('[data-chart]');
     if (chartElements.length === 0) {
@@ -2457,4 +2465,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         console.error('Charts could not be loaded.', error);
     }
+});
+
+document.addEventListener('alpine:initialized', () => {
+    safeCreateIcons();
 });
