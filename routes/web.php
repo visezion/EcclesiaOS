@@ -21,6 +21,7 @@ use App\Http\Controllers\EventFlowController;
 use App\Http\Controllers\FamilyManagementController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\LeadershipReportController;
+use App\Http\Controllers\InstallerController;
 use App\Http\Controllers\MemberManagementController;
 use App\Http\Controllers\MinistryController;
 use App\Http\Controllers\ModuleController;
@@ -51,6 +52,11 @@ Route::post('m/{code}/{provider}/polls/{poll}/vote', [EventFlowController::class
 
 Route::view('/', 'landing')->name('home');
 Route::view('features', 'features')->name('features');
+
+Route::middleware('guest')->group(function (): void {
+    Route::get('install', [InstallerController::class, 'create'])->name('install');
+    Route::post('install', [InstallerController::class, 'store'])->name('install.store');
+});
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');

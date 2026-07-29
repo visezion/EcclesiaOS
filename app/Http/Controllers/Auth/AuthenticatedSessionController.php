@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Support\Branding;
 use App\Support\SocialAuthProviderRegistry;
@@ -18,6 +19,10 @@ final class AuthenticatedSessionController extends Controller
 {
     public function create(): View
     {
+        if (! User::query()->whereHas('roles', fn ($query) => $query->where('name', 'Super Administrator'))->exists()) {
+            return redirect()->route('install');
+        }
+
         $settings = Branding::current()->settings;
 
         return view('auth.login', [

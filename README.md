@@ -74,6 +74,9 @@ If all three are present, the script creates the initial Super Administrator
 without prompting. Otherwise, it falls back to the interactive prompts when run
 from a terminal.
 
+Fresh Docker installs also expose a branded first-run installer at `/install`
+so the church profile and first administrator can be entered in the browser.
+
 After setup, open the site at the `APP_URL` configured in `.env.docker`.
 
 ### Updating an Existing Docker Deployment
