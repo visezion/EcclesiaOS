@@ -148,3 +148,17 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" \
             release-assets/* \
             --clobber
+
+      - name: Verify published GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_JSON="$(gh release view "$GITHUB_REF_NAME" --json assets)"
+          printf '%s\n' "$RELEASE_JSON" | jq -e '
+            .assets
+            | map(.name)
+            | any(. == "update-manifest.json")
+            and any(test("^ecclesiaos-v.*\\.zip$"))
+          ' >/dev/null
