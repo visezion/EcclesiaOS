@@ -52,6 +52,13 @@ bootstrap_managed_layout() {
         rm -f "$current_link"
         ln -s "$release_path" "$current_link"
     fi
+
+    if [ "$(id -u)" = "0" ]; then
+        chown -R www-data:www-data \
+            "$managed_root" \
+            bootstrap/cache \
+            storage/app
+    fi
 }
 
 bootstrap_managed_layout
