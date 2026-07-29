@@ -56,7 +56,7 @@ final class GitHubReleaseService
 
         try {
             $response = $this->client()
-                ->withHeaders(['Accept' => 'application/octet-stream'])
+                ->replaceHeaders(['Accept' => 'application/octet-stream'])
                 ->withOptions([
                     'allow_redirects' => [
                         'max' => 3,
@@ -250,7 +250,15 @@ final class GitHubReleaseService
         }
 
         $response = $this->client()
-            ->withHeaders(['Accept' => 'application/octet-stream'])
+            ->replaceHeaders(['Accept' => 'application/octet-stream'])
+            ->withOptions([
+                'allow_redirects' => [
+                    'max' => 3,
+                    'strict' => true,
+                    'referer' => false,
+                    'protocols' => ['https'],
+                ],
+            ])
             ->get($assetUrl)
             ->throw();
 

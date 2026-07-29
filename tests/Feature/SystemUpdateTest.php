@@ -9,6 +9,7 @@ use App\Models\SystemUpdate;
 use App\Models\User;
 use App\Services\Updates\UpdateManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -79,6 +80,8 @@ final class SystemUpdateTest extends TestCase
         $this->assertSame('sha256:'.str_repeat('a', 64), $update->asset_digest);
         $this->assertTrue((bool) data_get($update->metadata, 'immutable'));
         $this->assertDatabaseCount('notifications', 1);
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.test/repos/example/ecclesiaos/releases/assets/200'
+            && $request->header('Accept') === ['application/octet-stream']);
 
         $this->actingAs($this->admin)
             ->get(route('system-updates.index'))
