@@ -64,6 +64,8 @@ class AuthenticationTest extends TestCase
 
     public function test_security_headers_and_sensitive_route_throttles_are_enabled(): void
     {
+        $this->seed();
+
         $this->get(route('login'))
             ->assertOk()
             ->assertHeader('X-Content-Type-Options', 'nosniff')
@@ -130,7 +132,7 @@ class AuthenticationTest extends TestCase
 
         $this->get(route('login'))
             ->assertOk()
-            ->assertDontSee('or continue with', false)
+            ->assertDontSee('Or continue with', false)
             ->assertDontSee('Google', false);
 
         data_set($settings, 'social_auth.providers.google', [
@@ -152,7 +154,7 @@ class AuthenticationTest extends TestCase
 
         $this->get(route('login'))
             ->assertOk()
-            ->assertSee('or continue with', false)
+            ->assertSee('Or continue with', false)
             ->assertSee('Google', false)
             ->assertSee(route('social.redirect', 'google'), false)
             ->assertDontSee('Facebook', false)

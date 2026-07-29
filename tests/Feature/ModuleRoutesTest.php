@@ -158,7 +158,10 @@ class ModuleRoutesTest extends TestCase
             'status' => 'success',
         ]);
 
-        $this->withHeader('X-Meeting-Webhook-Secret', 'seeded-secret')
+        $this->withHeaders([
+            'X-Meeting-Webhook-Secret' => 'seeded-secret',
+            'X-Meeting-Webhook-Timestamp' => (string) now()->timestamp,
+        ])
             ->postJson(route('meeting-attendance.webhook', 'zoom'), [
                 'attendance_session' => $attendanceSession->opaqueId(),
                 'email' => $member->email,

@@ -276,8 +276,7 @@ final class SystemUpdateTest extends TestCase
         bool $withManifest = true,
         bool $withPackage = true,
         string $packageName = 'ecclesiaos-v2.1.0.zip',
-    ): void
-    {
+    ): void {
         $digest = str_repeat('a', 64);
         $artifactUrl = 'https://api.github.test/repos/example/ecclesiaos/releases/assets/100';
         $manifestUrl = 'https://api.github.test/repos/example/ecclesiaos/releases/assets/200';
@@ -307,7 +306,7 @@ final class SystemUpdateTest extends TestCase
                         'size' => 512,
                     ]] : []),
                 ],
-            ]), 
+            ]),
             ...($withManifest ? [
                 $manifestUrl => Http::response([
                     'version' => '2.1.0',

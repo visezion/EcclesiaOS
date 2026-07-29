@@ -6,12 +6,41 @@
     $logoUrl = $branding->logo();
     $faviconUrl = $branding->assetPath(data_get($branding->settings, 'favicon'));
     $settings = $branding->settings;
+    $sidebarBackgroundUrl = $branding->sidebarBackground();
+    $fontStacks = [
+        'Inter' => 'Inter, ui-sans-serif, system-ui, sans-serif',
+        'Roboto' => 'Roboto, ui-sans-serif, system-ui, sans-serif',
+        'Lato' => 'Lato, ui-sans-serif, system-ui, sans-serif',
+        'Nunito Sans' => '"Nunito Sans", ui-sans-serif, system-ui, sans-serif',
+        'System UI' => 'ui-sans-serif, system-ui, sans-serif',
+    ];
+    $fontSizes = [
+        'compact' => '0.8125rem',
+        'default' => '0.875rem',
+        'comfortable' => '0.9375rem',
+    ];
+    $requestedThemeMode = $settings['theme_mode'] ?? 'light';
+    $themeMode = in_array($requestedThemeMode, ['light', 'dark', 'system'], true) ? $requestedThemeMode : 'light';
+    $cssVariables = [
+        '--brand-primary' => $settings['primary_color'] ?? '#1D4ED8',
+        '--brand-secondary' => $settings['secondary_color'] ?? '#7C3AED',
+        '--page-bg' => $settings['page_background'] ?? '#F5F7FB',
+        '--card-radius' => ((int) ($settings['card_radius'] ?? 8)).'px',
+        '--font-app' => $fontStacks[$settings['font_family'] ?? 'Inter'] ?? $fontStacks['Inter'],
+        '--app-font-size' => $fontSizes[$settings['font_scale'] ?? 'default'] ?? $fontSizes['default'],
+        '--sidebar-start' => $settings['sidebar_start_color'] ?? '#061633',
+        '--sidebar-mid' => $settings['sidebar_middle_color'] ?? '#082851',
+        '--sidebar-end' => $settings['sidebar_end_color'] ?? '#061633',
+        '--sidebar-text' => $settings['sidebar_text_color'] ?? '#E2E8F0',
+        '--sidebar-profile-bg' => $settings['sidebar_profile_color'] ?? '#020617',
+    ];
+    $cssStyle = collect($cssVariables)->map(fn ($value, $key): string => $key.': '.e($value))->implode('; ');
     $socialProviders = collect($socialProviders ?? []);
     $microsoftProvider = $socialProviders->firstWhere('key', 'microsoft');
     $secondaryProviders = $socialProviders->reject(fn (array $provider): bool => ($provider['key'] ?? null) === 'microsoft')->values();
 @endphp
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="{{ $themeMode }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -28,17 +57,13 @@
         <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700,800&display=swap" rel="stylesheet" />
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         <style>
-            :root {
-                --brand-primary: {{ $settings['primary_color'] ?? '#1D4ED8' }};
-                --brand-secondary: {{ $settings['secondary_color'] ?? '#7C3AED' }};
-                --page-bg: {{ $settings['page_background'] ?? '#F5F7FB' }};
-            }
             body {
                 background:
                     radial-gradient(circle at top left, color-mix(in srgb, var(--brand-primary) 14%, transparent), transparent 26%),
                     radial-gradient(circle at bottom right, color-mix(in srgb, var(--brand-secondary) 12%, transparent), transparent 32%),
                     var(--page-bg);
-                font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+                font-family: var(--font-app);
+                font-size: var(--app-font-size);
             }
             .login-card {
                 box-shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
@@ -53,10 +78,15 @@
             }
         </style>
     </head>
-    <body class="min-h-screen text-slate-900 antialiased">
+    <body class="min-h-screen text-slate-900 antialiased" style="{{ $cssStyle }}">
         <main class="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
             <div class="grid w-full overflow-hidden rounded-[28px] border border-slate-200 bg-white/90 backdrop-blur xl:grid-cols-[1.1fr_0.9fr]">
-                <section class="relative hidden overflow-hidden bg-slate-950 p-10 text-white xl:flex xl:flex-col xl:justify-between">
+                <section
+                    class="relative hidden overflow-hidden bg-slate-950 p-10 text-white xl:flex xl:flex-col xl:justify-between"
+                    @if ($sidebarBackgroundUrl)
+                        style="background-image: url('{{ $sidebarBackgroundUrl }}'); background-position: center; background-size: cover;"
+                    @endif
+                >
                     <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,.24),transparent_26%),linear-gradient(145deg,#0f172a_0%,#13233f_48%,#06101f_100%)]"></div>
                     <div class="relative z-10">
                         <div class="flex items-center gap-4">
