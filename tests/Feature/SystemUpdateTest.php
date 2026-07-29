@@ -211,6 +211,22 @@ final class SystemUpdateTest extends TestCase
         $this->assertSame('EcclesiaOS-v2.1.0.ZIP', $update->asset_name);
     }
 
+    public function test_releases_without_a_package_still_create_an_update_notification(): void
+    {
+        $this->fakeRelease(withPackage: false, withManifest: false);
+
+        $this->actingAs($this->admin)
+            ->post(route('system-updates.check'))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Version 2.1.0 is available.');
+
+        $update = SystemUpdate::query()->sole();
+
+        $this->assertSame('detected', $update->status);
+        $this->assertNull($update->asset_name);
+        $this->assertFalse((bool) data_get($update->metadata, 'installable'));
+    }
+
     public function test_digest_mismatched_releases_are_rejected(): void
     {
         $this->fakeRelease(apiDigest: str_repeat('b', 64));
@@ -258,6 +274,7 @@ final class SystemUpdateTest extends TestCase
         bool $immutable = true,
         ?string $apiDigest = null,
         bool $withManifest = true,
+        bool $withPackage = true,
         string $packageName = 'ecclesiaos-v2.1.0.zip',
     ): void
     {
@@ -275,14 +292,15 @@ final class SystemUpdateTest extends TestCase
                 'draft' => false,
                 'prerelease' => false,
                 'immutable' => $immutable,
+                'zipball_url' => 'https://api.github.test/repos/example/ecclesiaos/zipball/v2.1.0',
                 'assets' => [
-                    [
+                    ...($withPackage ? [[
                         'name' => $packageName,
                         'url' => $artifactUrl,
                         'browser_download_url' => 'https://github.test/download/'.$packageName,
                         'size' => 2048,
                         'digest' => 'sha256:'.($apiDigest ?? $digest),
-                    ],
+                    ]] : []),
                     ...($withManifest ? [[
                         'name' => 'update-manifest.json',
                         'url' => $manifestUrl,

@@ -133,6 +133,7 @@ final class GitHubReleaseService
             throw new RuntimeException('The release manifest version does not match the Git tag.');
         }
 
+        $installable = true;
         if (! is_array($manifestAsset)) {
             $artifact = $assets->first(
                 fn (mixed $asset): bool => is_array($asset)
@@ -142,29 +143,22 @@ final class GitHubReleaseService
             );
 
             if (! is_array($artifact)) {
-                $artifact = $assets->first(
-                    fn (mixed $asset): bool => is_array($asset)
-                        && (string) ($asset['name'] ?? '') !== $manifestName
-                        && is_string($asset['digest'] ?? null)
-                        && trim((string) $asset['digest']) !== ''
-                );
+                $installable = false;
             }
 
-            if (! is_array($artifact)) {
-                throw new RuntimeException("The release is missing an update package.");
-            }
-
-            $manifest['artifact'] = (string) $artifact['name'];
-            $manifest['sha256'] = (string) ($artifact['digest'] ?? '');
-            if (str_starts_with(strtolower($manifest['sha256']), 'sha256:')) {
-                $manifest['sha256'] = substr($manifest['sha256'], 7);
-            }
-            if ($manifest['sha256'] === '' && isset($artifact['browser_download_url'])) {
-                throw new RuntimeException('The release asset digest is unavailable.');
+            if (is_array($artifact)) {
+                $manifest['artifact'] = (string) $artifact['name'];
+                $manifest['sha256'] = (string) ($artifact['digest'] ?? '');
+                if (str_starts_with(strtolower($manifest['sha256']), 'sha256:')) {
+                    $manifest['sha256'] = substr($manifest['sha256'], 7);
+                }
+                if ($manifest['sha256'] === '' && isset($artifact['browser_download_url'])) {
+                    throw new RuntimeException('The release asset digest is unavailable.');
+                }
             }
         }
 
-        foreach (['version', 'artifact', 'sha256', 'minimum_version', 'minimum_php'] as $field) {
+        foreach (['version', 'minimum_version', 'minimum_php'] as $field) {
             if (! isset($manifest[$field]) || ! is_string($manifest[$field]) || trim($manifest[$field]) === '') {
                 throw new RuntimeException("The release manifest is missing {$field}.");
             }
@@ -180,33 +174,43 @@ final class GitHubReleaseService
             throw new RuntimeException('The release minimum version cannot be newer than the release itself.');
         }
 
-        $artifactName = basename((string) $manifest['artifact']);
-        if ($artifactName === '' || strlen($artifactName) > 255 || $artifactName !== (string) $manifest['artifact']) {
-            throw new RuntimeException('The release manifest contains an invalid artifact name.');
-        }
+        $artifactName = null;
+        $manifestDigest = '';
+        $size = null;
+        if ($installable) {
+            $manifest['artifact'] = (string) $manifest['artifact'];
+            if ($manifest['artifact'] === '') {
+                throw new RuntimeException('The release manifest contains an invalid artifact name.');
+            }
 
-        $artifact = $artifact ?? $assets->firstWhere('name', $artifactName);
-        if (! is_array($artifact)) {
-            throw new RuntimeException("The release is missing {$artifactName}.");
-        }
+            $artifactName = basename((string) $manifest['artifact']);
+            if ($artifactName === '' || strlen($artifactName) > 255 || $artifactName !== (string) $manifest['artifact']) {
+                throw new RuntimeException('The release manifest contains an invalid artifact name.');
+            }
 
-        $manifestDigest = strtolower((string) ($manifest['sha256'] ?? ''));
-        $apiDigest = strtolower((string) ($artifact['digest'] ?? ''));
-        if (str_starts_with($apiDigest, 'sha256:')) {
-            $apiDigest = substr($apiDigest, 7);
-        }
+            $artifact = $artifact ?? $assets->firstWhere('name', $artifactName);
+            if (! is_array($artifact)) {
+                throw new RuntimeException("The release is missing {$artifactName}.");
+            }
 
-        if (preg_match('/^[a-f0-9]{64}$/', $manifestDigest) !== 1) {
-            throw new RuntimeException('The release manifest is missing a valid SHA-256 digest.');
-        }
+            $manifestDigest = strtolower((string) ($manifest['sha256'] ?? ''));
+            $apiDigest = strtolower((string) ($artifact['digest'] ?? ''));
+            if (str_starts_with($apiDigest, 'sha256:')) {
+                $apiDigest = substr($apiDigest, 7);
+            }
 
-        if ($apiDigest !== '' && ! hash_equals($manifestDigest, $apiDigest)) {
-            throw new RuntimeException('The release manifest digest does not match GitHub.');
-        }
+            if (preg_match('/^[a-f0-9]{64}$/', $manifestDigest) !== 1) {
+                throw new RuntimeException('The release manifest is missing a valid SHA-256 digest.');
+            }
 
-        $size = (int) ($artifact['size'] ?? 0);
-        if ($size <= 0 || $size > (int) config('updater.max_download_bytes')) {
-            throw new RuntimeException('The release artifact exceeds the configured size limit.');
+            if ($apiDigest !== '' && ! hash_equals($manifestDigest, $apiDigest)) {
+                throw new RuntimeException('The release manifest digest does not match GitHub.');
+            }
+
+            $size = (int) ($artifact['size'] ?? 0);
+            if ($size <= 0 || $size > (int) config('updater.max_download_bytes')) {
+                throw new RuntimeException('The release artifact exceeds the configured size limit.');
+            }
         }
 
         $repository = (string) config('updater.repository');
@@ -224,11 +228,12 @@ final class GitHubReleaseService
             'published_at' => $release['published_at'] ?? null,
             'immutable' => (bool) ($release['immutable'] ?? false),
             'asset_name' => $artifactName,
-            'asset_api_url' => (string) ($artifact['url'] ?? ''),
-            'asset_download_url' => (string) ($artifact['browser_download_url'] ?? ''),
-            'asset_digest' => 'sha256:'.$manifestDigest,
+            'asset_api_url' => $installable ? (string) ($artifact['url'] ?? '') : null,
+            'asset_download_url' => $installable ? (string) ($artifact['browser_download_url'] ?? '') : (string) ($release['zipball_url'] ?? ''),
+            'asset_digest' => $installable ? 'sha256:'.$manifestDigest : null,
             'asset_size' => $size,
             'manifest' => $manifest,
+            'installable' => $installable,
         ];
     }
 

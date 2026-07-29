@@ -125,6 +125,10 @@ final class UpdateManager
             throw new RuntimeException("Version {$update->version} requires PHP {$minimumPhp} or newer.");
         }
 
+        if (! $update->asset_name || ! $update->asset_download_url) {
+            throw new RuntimeException("Version {$update->version} was detected, but the release does not include a packaged update.");
+        }
+
         $update->forceFill([
             'status' => 'pending',
             'approved_by' => $user->id,
