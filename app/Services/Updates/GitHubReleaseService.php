@@ -94,11 +94,13 @@ final class GitHubReleaseService
      */
     private function normalizeRelease(array $release): array
     {
+        $channel = (string) config('updater.channel', 'stable');
+
         if (($release['draft'] ?? false) === true) {
             throw new RuntimeException('Draft releases cannot be installed.');
         }
 
-        if ((string) config('updater.channel', 'stable') === 'stable' && ($release['prerelease'] ?? false) === true) {
+        if ($channel === 'stable' && ($release['prerelease'] ?? false) === true) {
             throw new RuntimeException('Pre-release updates are disabled on the stable channel.');
         }
 
@@ -115,13 +117,36 @@ final class GitHubReleaseService
         $assets = collect(is_array($release['assets'] ?? null) ? $release['assets'] : []);
         $manifestName = (string) config('updater.manifest_asset');
         $manifestAsset = $assets->firstWhere('name', $manifestName);
-        if (! is_array($manifestAsset)) {
-            throw new RuntimeException("The release is missing {$manifestName}.");
-        }
+        $artifact = null;
+        $manifest = is_array($manifestAsset)
+            ? $this->downloadManifest($manifestAsset)
+            : [
+                'version' => $version,
+                'minimum_version' => (string) config('updater.current_version', $version),
+                'minimum_php' => '8.2.0',
+                'channel' => $channel,
+                'artifact' => '',
+                'sha256' => '',
+            ];
 
-        $manifest = $this->downloadManifest($manifestAsset);
         if ((string) ($manifest['version'] ?? '') !== $version) {
             throw new RuntimeException('The release manifest version does not match the Git tag.');
+        }
+
+        if (! is_array($manifestAsset)) {
+            $artifact = $assets->first(fn (mixed $asset): bool => is_array($asset) && str_ends_with((string) ($asset['name'] ?? ''), '.zip'));
+            if (! is_array($artifact)) {
+                throw new RuntimeException("The release is missing an update package.");
+            }
+
+            $manifest['artifact'] = (string) $artifact['name'];
+            $manifest['sha256'] = (string) ($artifact['digest'] ?? '');
+            if (str_starts_with(strtolower($manifest['sha256']), 'sha256:')) {
+                $manifest['sha256'] = substr($manifest['sha256'], 7);
+            }
+            if ($manifest['sha256'] === '' && isset($artifact['browser_download_url'])) {
+                throw new RuntimeException('The release asset digest is unavailable.');
+            }
         }
 
         foreach (['version', 'artifact', 'sha256', 'minimum_version', 'minimum_php'] as $field) {
@@ -145,7 +170,7 @@ final class GitHubReleaseService
             throw new RuntimeException('The release manifest contains an invalid artifact name.');
         }
 
-        $artifact = $assets->firstWhere('name', $artifactName);
+        $artifact = $artifact ?? $assets->firstWhere('name', $artifactName);
         if (! is_array($artifact)) {
             throw new RuntimeException("The release is missing {$artifactName}.");
         }

@@ -180,6 +180,22 @@ final class SystemUpdateTest extends TestCase
         $this->assertDatabaseCount('system_updates', 0);
     }
 
+    public function test_legacy_releases_without_a_manifest_can_still_be_detected(): void
+    {
+        $this->fakeRelease(withManifest: false);
+
+        $this->actingAs($this->admin)
+            ->post(route('system-updates.check'))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Version 2.1.0 is available.');
+
+        $update = SystemUpdate::query()->sole();
+
+        $this->assertSame('detected', $update->status);
+        $this->assertSame('ecclesiaos-v2.1.0.zip', $update->asset_name);
+        $this->assertSame('1.0.0', data_get($update->metadata, 'manifest.minimum_version'));
+    }
+
     public function test_digest_mismatched_releases_are_rejected(): void
     {
         $this->fakeRelease(apiDigest: str_repeat('b', 64));
@@ -223,7 +239,7 @@ final class SystemUpdateTest extends TestCase
         $this->assertNull($update->fresh()->rolled_back_at);
     }
 
-    private function fakeRelease(bool $immutable = true, ?string $apiDigest = null): void
+    private function fakeRelease(bool $immutable = true, ?string $apiDigest = null, bool $withManifest = true): void
     {
         $digest = str_repeat('a', 64);
         $artifactUrl = 'https://api.github.test/repos/example/ecclesiaos/releases/assets/100';
@@ -247,24 +263,26 @@ final class SystemUpdateTest extends TestCase
                         'size' => 2048,
                         'digest' => 'sha256:'.($apiDigest ?? $digest),
                     ],
-                    [
+                    ...($withManifest ? [[
                         'name' => 'update-manifest.json',
                         'url' => $manifestUrl,
                         'size' => 512,
-                    ],
+                    ]] : []),
                 ],
-            ]),
-            $manifestUrl => Http::response([
-                'version' => '2.1.0',
-                'minimum_version' => '1.0.0',
-                'minimum_php' => '8.2.0',
-                'channel' => 'stable',
-                'artifact' => 'ecclesiaos-v2.1.0.zip',
-                'sha256' => $digest,
-                'commit' => str_repeat('c', 40),
-                'has_migrations' => true,
-                'requires_backup' => true,
-            ]),
+            ]), 
+            ...($withManifest ? [
+                $manifestUrl => Http::response([
+                    'version' => '2.1.0',
+                    'minimum_version' => '1.0.0',
+                    'minimum_php' => '8.2.0',
+                    'channel' => 'stable',
+                    'artifact' => 'ecclesiaos-v2.1.0.zip',
+                    'sha256' => $digest,
+                    'commit' => str_repeat('c', 40),
+                    'has_migrations' => true,
+                    'requires_backup' => true,
+                ]),
+            ] : []),
         ]);
     }
 
