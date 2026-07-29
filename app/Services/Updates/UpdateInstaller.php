@@ -11,7 +11,6 @@ use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 use Throwable;
-use ZipArchive;
 
 final class UpdateInstaller
 {
@@ -19,6 +18,7 @@ final class UpdateInstaller
         private readonly GitHubReleaseService $github,
         private readonly UpdateEnvironment $environment,
         private readonly UpdateBackupService $backups,
+        private readonly SafeReleaseArchive $archive,
     ) {
     }
 
@@ -110,11 +110,12 @@ final class UpdateInstaller
             'started_at' => now(),
             'error' => null,
         ])->save();
+        Cache::put('system-updates.available', $update->fresh(), now()->addMinute());
 
         try {
             $this->github->download($update, $archivePath);
             $this->verifyDigest($archivePath, (string) $update->asset_digest);
-            $this->extractPackage($archivePath, $temporaryPath);
+            $this->archive->extract($archivePath, $temporaryPath);
             $this->validatePackage($temporaryPath, $update->version);
             $this->linkSharedData($temporaryPath, $sharedPath);
 
@@ -172,6 +173,7 @@ final class UpdateInstaller
                 'failed_at' => now(),
                 'error' => mb_substr($exception->getMessage(), 0, 4000),
             ])->save();
+            Cache::forget('system-updates.available');
 
             if (is_dir($temporaryPath) && $this->isWithin($temporaryPath, $releasesPath)) {
                 File::deleteDirectory($temporaryPath);
@@ -199,61 +201,6 @@ final class UpdateInstaller
         if ($actual === false || preg_match('/^[a-f0-9]{64}$/', $expected) !== 1 || ! hash_equals($expected, $actual)) {
             File::delete($archivePath);
             throw new RuntimeException('The update package failed SHA-256 verification.');
-        }
-    }
-
-    private function extractPackage(string $archivePath, string $destination): void
-    {
-        File::ensureDirectoryExists($destination, 0755, true);
-        $zip = new ZipArchive;
-        if ($zip->open($archivePath) !== true) {
-            throw new RuntimeException('The update package is not a valid ZIP archive.');
-        }
-
-        $expandedBytes = 0;
-        try {
-            for ($index = 0; $index < $zip->numFiles; $index++) {
-                $stat = $zip->statIndex($index);
-                $name = str_replace('\\', '/', (string) ($stat['name'] ?? ''));
-                $parts = explode('/', trim($name, '/'));
-                if ($name === '' || str_starts_with($name, '/') || preg_match('/^[A-Za-z]:\//', $name) === 1 || in_array('..', $parts, true)) {
-                    throw new RuntimeException('The update archive contains an unsafe path.');
-                }
-
-                $first = $parts[0] ?? '';
-                if ($first === '.env' || $first === 'storage' || ($first === 'public' && ($parts[1] ?? '') === 'storage')) {
-                    throw new RuntimeException('The update archive contains protected church data paths.');
-                }
-
-                $zip->getExternalAttributesIndex($index, $operatingSystem, $attributes);
-                if (((int) $attributes >> 16 & 0170000) === 0120000) {
-                    throw new RuntimeException('Symbolic links are not allowed inside update packages.');
-                }
-
-                $expandedBytes += (int) ($stat['size'] ?? 0);
-                if ($expandedBytes > (int) config('updater.max_expanded_bytes')) {
-                    throw new RuntimeException('The expanded update package exceeds the configured limit.');
-                }
-
-                $target = $destination.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $name);
-                if (str_ends_with($name, '/')) {
-                    File::ensureDirectoryExists($target, 0755, true);
-                    continue;
-                }
-
-                File::ensureDirectoryExists(dirname($target), 0755, true);
-                $input = $zip->getStream((string) ($stat['name'] ?? ''));
-                $output = fopen($target, 'wb');
-                if ($input === false || $output === false) {
-                    throw new RuntimeException("The update file {$name} could not be extracted.");
-                }
-
-                stream_copy_to_stream($input, $output);
-                fclose($input);
-                fclose($output);
-            }
-        } finally {
-            $zip->close();
         }
     }
 
