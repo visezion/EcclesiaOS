@@ -135,17 +135,31 @@ jobs:
             ${{ steps.package.outputs.artifact }}
             release-assets/update-manifest.json
 
-      - name: Create draft GitHub Release
+      - name: Create or reuse draft GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          gh release create "$GITHUB_REF_NAME" \
-            --verify-tag \
-            --draft \
-            --title "EcclesiaOS $GITHUB_REF_NAME" \
-            --generate-notes
+          RELEASES_JSON="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
+          RELEASE_STATE="$(printf '%s\n' "$RELEASES_JSON" | jq -r \
+            --arg tag "$GITHUB_REF_NAME" \
+            '[.[] | select(.tag_name == $tag)][0].draft // empty')"
+
+          if [[ -n "$RELEASE_STATE" ]]; then
+            if [[ "$RELEASE_STATE" != "true" ]]; then
+              echo "::error::A published release already exists for $GITHUB_REF_NAME."
+              exit 1
+            fi
+            echo "Reusing the existing draft release for $GITHUB_REF_NAME."
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --verify-tag \
+              --draft \
+              --title "EcclesiaOS $GITHUB_REF_NAME" \
+              --generate-notes
+          fi
+
           gh release upload "$GITHUB_REF_NAME" \
             release-assets/* \
             --clobber

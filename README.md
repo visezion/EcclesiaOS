@@ -84,16 +84,63 @@ After setup, open the site at the `APP_URL` configured in `.env.docker`.
 Windows PowerShell:
 
 ```powershell
-.\docker\update.ps1 -Version 1.0.0
+.\docker\update.ps1 -Version 1.0.6
 ```
 
 Linux or WSL:
 
 ```bash
-sh docker/update.sh 1.0.0
+sh docker/update.sh 1.0.6
 ```
 
-Replace `1.0.0` with the GitHub release tag you want to deploy.
+Replace `1.0.6` with the GitHub release version you want to deploy.
+
+### Publishing Application Releases
+
+Application releases are published automatically by
+`.github/workflows/release.yml` when a semantic-version tag is pushed:
+
+```bash
+git switch main
+git pull --ff-only
+git tag v1.0.6
+git push origin v1.0.6
+```
+
+Use the next unused semantic version. Do not manually create the GitHub
+release before pushing the tag.
+
+The release workflow:
+
+1. Runs the PHP and JavaScript checks.
+2. Builds the production application and frontend assets.
+3. Creates an installable `ecclesiaos-vX.Y.Z.zip` package.
+4. Generates `update-manifest.json` with the package checksum.
+5. Creates a draft GitHub release.
+6. Uploads and verifies both required assets.
+7. Publishes the release only after verification succeeds.
+
+Every installable release must contain:
+
+- `ecclesiaos-vX.Y.Z.zip`
+- `update-manifest.json`
+
+Published releases are immutable. Their assets cannot be replaced, and a tag
+that has belonged to an immutable release cannot be reused, even after the
+release is deleted. If a release fails before publication, fix the workflow and
+rerun it for the same draft. If an immutable release was published incorrectly,
+publish the fix under the next unused version.
+
+This repository previously published immutable tags beginning with `v1.0.0`.
+The next clean release must therefore use an unused version such as `v1.0.6`.
+Starting again with the exact tag `v1.0.0` requires a different GitHub
+repository.
+
+The application checks GitHub automatically and notifies administrators when a
+newer installable release is available. The Update Now button is shown only
+when the ZIP package, manifest, checksum, and managed production layout all
+pass validation. See [`docs/UPDATES.md`](docs/UPDATES.md) for the updater
+architecture and server requirements.
 
 ### Local Development
 
