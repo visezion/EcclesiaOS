@@ -8,8 +8,8 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('app:update-check')
-    ->everySixHours()
+Schedule::command('app:update-check --force')
+    ->everyFifteenMinutes()
     ->withoutOverlapping()
     ->onOneServer()
     ->when(fn (): bool => (bool) config('updater.enabled'));
