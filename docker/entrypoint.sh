@@ -17,6 +17,45 @@ mkdir -p \
     storage/framework/views \
     storage/logs
 
+bootstrap_managed_layout() {
+    if [ "${APP_CONTAINERIZED:-false}" != "true" ]; then
+        return
+    fi
+
+    managed_root="${UPDATER_MANAGED_ROOT:-/var/www/html/.managed}"
+    releases_path="${UPDATER_RELEASES_PATH:-$managed_root/releases}"
+    shared_path="${UPDATER_SHARED_PATH:-$managed_root/shared}"
+    current_link="${UPDATER_CURRENT_LINK:-$managed_root/current}"
+    version_file="/var/www/html/VERSION"
+    release_version="$(tr -d '\r\n' < "$version_file" 2>/dev/null || true)"
+    release_name="v${release_version:-1.0.0}"
+    release_path="$releases_path/$release_name"
+
+    mkdir -p \
+        "$managed_root" \
+        "$releases_path" \
+        "$shared_path" \
+        "$shared_path/storage/app/public" \
+        "$shared_path/updates" \
+        "$shared_path/backups" \
+        "$release_path"
+
+    if [ ! -f "$shared_path/.env" ] && [ -f /var/www/html/.env ]; then
+        cp /var/www/html/.env "$shared_path/.env"
+    fi
+
+    if [ ! -d "$shared_path/storage" ]; then
+        mkdir -p "$shared_path/storage/app/public"
+    fi
+
+    if [ ! -L "$current_link" ]; then
+        rm -f "$current_link"
+        ln -s "$release_path" "$current_link"
+    fi
+}
+
+bootstrap_managed_layout
+
 if [ "$(id -u)" = "0" ]; then
     chown -R www-data:www-data bootstrap/cache
 

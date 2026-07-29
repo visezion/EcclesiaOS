@@ -24,6 +24,10 @@ x-app-runtime: &app-runtime
     LOG_LEVEL: ${LOG_LEVEL:-warning}
     FILESYSTEM_DISK: public
     UPDATER_INSTALL_ENABLED: "false"
+    UPDATER_MANAGED_ROOT: /var/www/html/.managed
+    UPDATER_RELEASES_PATH: /var/www/html/.managed/releases
+    UPDATER_SHARED_PATH: /var/www/html/.managed/shared
+    UPDATER_CURRENT_LINK: /var/www/html/.managed/current
     WAIT_FOR_DATABASE: "true"
     WAIT_FOR_REDIS: "true"
     RUN_OPTIMIZATIONS: "true"
@@ -62,6 +66,10 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-warning}
       FILESYSTEM_DISK: public
       UPDATER_INSTALL_ENABLED: "false"
+      UPDATER_MANAGED_ROOT: /var/www/html/.managed
+      UPDATER_RELEASES_PATH: /var/www/html/.managed/releases
+      UPDATER_SHARED_PATH: /var/www/html/.managed/shared
+      UPDATER_CURRENT_LINK: /var/www/html/.managed/current
       WAIT_FOR_DATABASE: "true"
       WAIT_FOR_REDIS: "true"
       RUN_MIGRATIONS: "true"
