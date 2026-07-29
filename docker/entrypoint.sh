@@ -18,7 +18,13 @@ mkdir -p \
     storage/logs
 
 if [ "$(id -u)" = "0" ]; then
-    chown -R www-data:www-data bootstrap/cache storage
+    chown -R www-data:www-data bootstrap/cache
+
+    if [ ! -f storage/app/.docker-permissions-ready ]; then
+        chown -R www-data:www-data storage/app
+        touch storage/app/.docker-permissions-ready
+        chown www-data:www-data storage/app/.docker-permissions-ready
+    fi
 fi
 
 run_as_app() {
@@ -113,4 +119,3 @@ if [ "$(id -u)" = "0" ]; then
 fi
 
 exec "$@"
-

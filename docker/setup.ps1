@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch] $UseRegistry
+    [switch] $UseRegistry,
+    [switch] $SkipAdmin
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +13,18 @@ Set-Location $projectRoot
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw 'Docker Desktop or Docker Engine with Compose v2 is required.'
+}
+
+function Invoke-Docker {
+    param(
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]] $Arguments
+    )
+
+    & docker @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker command failed: docker $($Arguments -join ' ')"
+    }
 }
 
 function New-RandomBase64([int] $Length) {
@@ -63,16 +76,44 @@ if (-not (Test-Path $environmentPath)) {
     Write-Host 'Created .env.docker with generated application and database secrets.'
 }
 
-docker compose --env-file $environmentPath config --quiet
+Invoke-Docker compose --env-file $environmentPath config --quiet
 
 if ($UseRegistry) {
-    docker compose --env-file $environmentPath pull
-    docker compose --env-file $environmentPath up -d --no-build --remove-orphans
+    Invoke-Docker compose --env-file $environmentPath pull
+    Invoke-Docker compose --env-file $environmentPath up -d --no-build --remove-orphans
 }
 else {
-    docker compose --env-file $environmentPath up -d --build --remove-orphans
+    Invoke-Docker compose --env-file $environmentPath up -d --build --remove-orphans
 }
 
-docker compose --env-file $environmentPath exec -T app php artisan about
-Write-Host 'EcclesiaOS is running at the APP_URL configured in .env.docker.'
+Invoke-Docker compose --env-file $environmentPath exec -T app php artisan about
 
+if (-not $SkipAdmin) {
+    & docker compose --env-file $environmentPath exec -T app php artisan app:bootstrap-admin --check --no-interaction *> $null
+    $administratorExists = $LASTEXITCODE -eq 0
+
+    if (-not $administratorExists) {
+        $administratorName = Read-Host 'First administrator name [Church Administrator]'
+        if ([string]::IsNullOrWhiteSpace($administratorName)) {
+            $administratorName = 'Church Administrator'
+        }
+
+        $administratorEmail = Read-Host 'First administrator email'
+        $securePassword = Read-Host 'First administrator password (12+ characters, mixed case and number)' -AsSecureString
+        $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+        try {
+            $administratorPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+            Invoke-Docker compose --env-file $environmentPath exec -T `
+                -e "BOOTSTRAP_ADMIN_NAME=$administratorName" `
+                -e "BOOTSTRAP_ADMIN_EMAIL=$administratorEmail" `
+                -e "BOOTSTRAP_ADMIN_PASSWORD=$administratorPassword" `
+                app php artisan app:bootstrap-admin --no-interaction
+        }
+        finally {
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+            $administratorPassword = $null
+        }
+    }
+}
+
+Write-Host 'EcclesiaOS is running at the APP_URL configured in .env.docker.'

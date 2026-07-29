@@ -16,8 +16,7 @@ final class UpdateManager
     public function __construct(
         private readonly GitHubReleaseService $github,
         private readonly UpdateEnvironment $environment,
-    ) {
-    }
+    ) {}
 
     public function check(bool $force = false): ?SystemUpdate
     {

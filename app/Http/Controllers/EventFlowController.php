@@ -28,6 +28,7 @@ use App\Models\ProgramSectionAssignment;
 use App\Models\User;
 use App\Models\Workflow;
 use App\Services\ActivityLogger;
+use App\Services\Communications\ZenderWhatsAppNotifier;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -165,7 +166,7 @@ final class EventFlowController extends Controller
         ]);
     }
 
-    public function storeEvent(Request $request, Program $program, ActivityLogger $activityLogger): RedirectResponse
+    public function storeEvent(Request $request, Program $program, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
     {
         $this->authorizeProgram($request, $program);
 
@@ -188,6 +189,14 @@ final class EventFlowController extends Controller
 
         $this->createDefaultSession($event);
         $activityLogger->log('Events', 'event_created', $event->title.' was created.', $event, ['resource' => 'Program Event', 'risk' => 'low', 'status' => 'success'], $request);
+        $notifier->notify(
+            (int) $event->church_id,
+            "Event update: {$event->title} was created for {$program->name}.\n\nDate: ".$event->starts_at?->format('M d, Y H:i')."\nStatus: {$event->status}",
+            'EventCreated',
+            (int) $event->campus_id,
+            null,
+            "Event created: {$event->title}",
+        );
 
         return redirect()->route('event-sessions.index', [$program, $event])->with('status', 'Event created.');
     }
@@ -530,7 +539,7 @@ final class EventFlowController extends Controller
         ]);
     }
 
-    public function updateMeeting(Request $request, EventSession $eventSession, ActivityLogger $activityLogger): RedirectResponse
+    public function updateMeeting(Request $request, EventSession $eventSession, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
     {
         $this->authorizeSession($request, $eventSession);
 
@@ -548,6 +557,14 @@ final class EventFlowController extends Controller
         $this->syncAttendanceMethods($eventSession->fresh());
 
         $activityLogger->log('Meetings', 'meeting_updated', $eventSession->title.' meeting settings were updated.', $eventSession, ['resource' => 'Meeting', 'risk' => 'low', 'status' => 'success'], $request);
+        $notifier->notify(
+            (int) $eventSession->church_id,
+            "Meeting update: {$eventSession->title} was updated.\n\nEvent: {$eventSession->event?->title}\nDate: ".$eventSession->session_date?->format('M d, Y')."\nType: {$eventSession->meeting_type}",
+            'MeetingUpdated',
+            (int) $eventSession->campus_id,
+            null,
+            "Meeting updated: {$eventSession->title}",
+        );
 
         return back()->with('status', 'Meeting updated.');
     }

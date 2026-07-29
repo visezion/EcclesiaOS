@@ -46,5 +46,34 @@ else
 fi
 
 docker compose --env-file "$environment_path" exec -T app php artisan about
-echo "EcclesiaOS is running at the APP_URL configured in .env.docker."
 
+if ! docker compose --env-file "$environment_path" exec -T app \
+    php artisan app:bootstrap-admin --check --no-interaction >/dev/null 2>&1; then
+    if [ -t 0 ]; then
+        printf 'First administrator name [Church Administrator]: '
+        IFS= read -r administrator_name
+        administrator_name="${administrator_name:-Church Administrator}"
+
+        printf 'First administrator email: '
+        IFS= read -r administrator_email
+
+        printf 'First administrator password (12+ characters, mixed case and number): '
+        trap 'stty echo' 0 1 2 15
+        stty -echo
+        IFS= read -r administrator_password
+        stty echo
+        trap - 0 1 2 15
+        printf '\n'
+
+        docker compose --env-file "$environment_path" exec -T \
+            -e "BOOTSTRAP_ADMIN_NAME=$administrator_name" \
+            -e "BOOTSTRAP_ADMIN_EMAIL=$administrator_email" \
+            -e "BOOTSTRAP_ADMIN_PASSWORD=$administrator_password" \
+            app php artisan app:bootstrap-admin --no-interaction
+        unset administrator_password
+    else
+        echo "No administrator exists. Run 'php artisan app:bootstrap-admin' in the app container."
+    fi
+fi
+
+echo "EcclesiaOS is running at the APP_URL configured in .env.docker."

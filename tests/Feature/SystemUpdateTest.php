@@ -204,6 +204,25 @@ final class SystemUpdateTest extends TestCase
         $this->assertNull($update->fresh()->started_at);
     }
 
+    public function test_rollback_command_refuses_to_modify_an_unmanaged_host(): void
+    {
+        $update = $this->createDetectedUpdate(status: 'completed');
+        $update->forceFill([
+            'installed_at' => now(),
+            'metadata' => array_merge($update->metadata ?? [], [
+                'previous_release' => base_path(),
+                'new_release' => base_path(),
+            ]),
+        ])->save();
+
+        $this->artisan('app:update-rollback 2.1.0')
+            ->expectsOutputToContain('managed update environment is not ready for rollback')
+            ->assertFailed();
+
+        $this->assertSame('completed', $update->fresh()->status);
+        $this->assertNull($update->fresh()->rolled_back_at);
+    }
+
     private function fakeRelease(bool $immutable = true, ?string $apiDigest = null): void
     {
         $digest = str_repeat('a', 64);
@@ -215,7 +234,7 @@ final class SystemUpdateTest extends TestCase
                 'tag_name' => 'v2.1.0',
                 'name' => 'EcclesiaOS v2.1.0',
                 'body' => 'Safer upgrades and faster pages.',
-                'html_url' => 'https://github.test/example/ecclesiaos/releases/tag/v2.1.0',
+                'html_url' => 'https://github.com/example/ecclesiaos/releases/tag/v2.1.0',
                 'published_at' => '2026-07-29T08:00:00Z',
                 'draft' => false,
                 'prerelease' => false,
@@ -260,7 +279,7 @@ final class SystemUpdateTest extends TestCase
             'name' => "EcclesiaOS v{$version}",
             'status' => $status,
             'current_version' => '1.0.0',
-            'release_url' => "https://github.test/example/ecclesiaos/releases/tag/v{$version}",
+            'release_url' => "https://github.com/example/ecclesiaos/releases/tag/v{$version}",
             'asset_name' => "ecclesiaos-v{$version}.zip",
             'asset_api_url' => 'https://api.github.test/repos/example/ecclesiaos/releases/assets/100',
             'asset_download_url' => "https://github.test/download/ecclesiaos-v{$version}.zip",

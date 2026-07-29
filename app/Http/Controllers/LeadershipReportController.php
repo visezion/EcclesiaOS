@@ -10,6 +10,7 @@ use App\Models\LeadershipReport;
 use App\Models\Ministry;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Services\Communications\ZenderWhatsAppNotifier;
 use App\Support\Csv;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -87,7 +88,7 @@ final class LeadershipReportController extends Controller
         ]);
     }
 
-    public function store(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    public function store(Request $request, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
     {
         $this->authorizeReports($request);
 
@@ -98,11 +99,19 @@ final class LeadershipReportController extends Controller
         ]);
 
         $activityLogger->log('Leadership Reports', 'leadership_report_created', $report->title.' was created.', $report, ['resource' => 'Leadership Report', 'status' => $status], $request);
+        $notifier->notify(
+            (int) $report->church_id,
+            "Leadership report update: {$report->title} was created.\n\nType: {$report->report_type}\nStatus: {$report->status}\nPriority: {$report->priority}",
+            'LeadershipReportCreated',
+            (int) $report->campus_id,
+            $report->ministry_id !== null ? (int) $report->ministry_id : null,
+            "Leadership report created: {$report->title}",
+        );
 
         return redirect()->route('leadership-reports.index', ['report' => $report->opaqueId()])->with('status', 'Leadership report saved.');
     }
 
-    public function update(Request $request, LeadershipReport $leadershipReport, ActivityLogger $activityLogger): RedirectResponse
+    public function update(Request $request, LeadershipReport $leadershipReport, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
     {
         $this->authorizeReports($request);
 
@@ -122,6 +131,14 @@ final class LeadershipReportController extends Controller
         $report->update($payload);
 
         $activityLogger->log('Leadership Reports', 'leadership_report_updated', $report->title.' was updated.', $report, ['resource' => 'Leadership Report', 'status' => $status], $request);
+        $notifier->notify(
+            (int) $report->church_id,
+            "Leadership report update: {$report->title} was updated.\n\nType: {$report->report_type}\nStatus: {$report->status}\nPriority: {$report->priority}",
+            'LeadershipReportUpdated',
+            (int) $report->campus_id,
+            $report->ministry_id !== null ? (int) $report->ministry_id : null,
+            "Leadership report updated: {$report->title}",
+        );
 
         return redirect()->route('leadership-reports.show', $report)->with('status', $status === 'submitted' ? 'Leadership report submitted.' : 'Leadership report draft updated.');
     }
@@ -180,7 +197,7 @@ final class LeadershipReportController extends Controller
         ]);
     }
 
-    public function review(Request $request, LeadershipReport $leadershipReport, ActivityLogger $activityLogger): RedirectResponse
+    public function review(Request $request, LeadershipReport $leadershipReport, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
     {
         $this->authorizeReports($request);
         abort_unless($this->canReviewLeadershipReports($request), 403);
@@ -199,22 +216,38 @@ final class LeadershipReportController extends Controller
         ])->save();
 
         $activityLogger->log('Leadership Reports', 'leadership_report_reviewed', $leadershipReport->title.' was marked '.str_replace('_', ' ', $validated['decision']).'.', $leadershipReport, ['resource' => 'Leadership Report', 'status' => $validated['decision']], $request);
+        $notifier->notify(
+            (int) $leadershipReport->church_id,
+            "Leadership report review: {$leadershipReport->title} is now ".str_replace('_', ' ', $validated['decision']).".\n\nType: {$leadershipReport->report_type}\nReviewed by: ".$request->user()->name,
+            'LeadershipReportReviewed',
+            (int) $leadershipReport->campus_id,
+            $leadershipReport->ministry_id !== null ? (int) $leadershipReport->ministry_id : null,
+            "Leadership report reviewed: {$leadershipReport->title}",
+        );
 
         return redirect()->route('leadership-reports.index', ['report' => $leadershipReport->opaqueId()])->with('status', 'Report review updated.');
     }
 
-    public function generateSummary(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    public function generateSummary(Request $request, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
     {
         $this->authorizeReports($request);
         $stats = $this->stats($request);
         $summary = $stats['pending_review'].' reports need review, '.$stats['requires_action'].' require action, and average review time is '.$stats['average_review_time'].' days.';
 
         $activityLogger->log('Leadership Reports', 'leadership_summary_generated', 'Leadership report summary was generated.', null, ['resource' => 'Leadership Summary', 'status' => 'success'], $request);
+        $notifier->notify(
+            $this->churchId($request),
+            "Leadership report summary: {$summary}",
+            'LeadershipReportSummary',
+            $request->user()?->campus_id !== null ? (int) $request->user()->campus_id : null,
+            null,
+            'Leadership report summary',
+        );
 
         return back()->with('status', 'Summary generated: '.$summary);
     }
 
-    public function sendReminders(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    public function sendReminders(Request $request, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
     {
         $this->authorizeReports($request);
 
@@ -227,6 +260,14 @@ final class LeadershipReportController extends Controller
             'status' => 'queued',
             'pending_reports' => $pending,
         ], $request);
+        $notifier->notify(
+            $this->churchId($request),
+            number_format($pending).' leadership report reminders queued.',
+            'LeadershipReportReminders',
+            $request->user()?->campus_id !== null ? (int) $request->user()->campus_id : null,
+            null,
+            'Leadership report reminders',
+        );
 
         return back()->with('status', number_format($pending).' leadership report reminders queued.');
     }

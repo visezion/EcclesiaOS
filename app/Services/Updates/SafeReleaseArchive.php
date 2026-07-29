@@ -30,6 +30,7 @@ final class SafeReleaseArchive
                 $target = $destination.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $entry['name']);
                 if ($entry['directory']) {
                     File::ensureDirectoryExists($target, 0755, true);
+
                     continue;
                 }
 

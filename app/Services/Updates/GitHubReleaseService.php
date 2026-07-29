@@ -130,6 +130,16 @@ final class GitHubReleaseService
             }
         }
 
+        foreach (['minimum_version', 'minimum_php'] as $field) {
+            if (preg_match('/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/', $manifest[$field]) !== 1) {
+                throw new RuntimeException("The release manifest contains an invalid {$field}.");
+            }
+        }
+
+        if (version_compare($manifest['minimum_version'], $version, '>')) {
+            throw new RuntimeException('The release minimum version cannot be newer than the release itself.');
+        }
+
         $artifactName = basename((string) $manifest['artifact']);
         if ($artifactName === '' || strlen($artifactName) > 255 || $artifactName !== (string) $manifest['artifact']) {
             throw new RuntimeException('The release manifest contains an invalid artifact name.');
@@ -159,12 +169,18 @@ final class GitHubReleaseService
             throw new RuntimeException('The release artifact exceeds the configured size limit.');
         }
 
+        $repository = (string) config('updater.repository');
+        $releaseUrl = (string) ($release['html_url'] ?? '');
+        if (! str_starts_with($releaseUrl, "https://github.com/{$repository}/releases/")) {
+            throw new RuntimeException('The GitHub release page URL is not trusted.');
+        }
+
         return [
             'version' => $version,
             'tag' => $tag,
             'name' => mb_substr((string) ($release['name'] ?? $tag), 0, 255),
             'changelog' => mb_substr((string) ($release['body'] ?? ''), 0, 100_000),
-            'release_url' => (string) ($release['html_url'] ?? ''),
+            'release_url' => $releaseUrl,
             'published_at' => $release['published_at'] ?? null,
             'immutable' => (bool) ($release['immutable'] ?? false),
             'asset_name' => $artifactName,

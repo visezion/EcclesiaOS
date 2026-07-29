@@ -12,9 +12,7 @@ final class SystemUpdateAvailableNotification extends Notification
 {
     use Queueable;
 
-    public function __construct(private readonly SystemUpdate $update)
-    {
-    }
+    public function __construct(private readonly SystemUpdate $update) {}
 
     /**
      * @return array<int, string>

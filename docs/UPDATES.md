@@ -37,6 +37,7 @@ UPDATER_HEALTH_URL=https://church.example/up
 UPDATER_BACKUP_STORAGE=true
 UPDATER_BACKUP_RETENTION=5
 UPDATER_PHP_BINARY=/usr/bin/php
+UPDATER_RELOAD_COMMAND_JSON='["/usr/bin/sudo","-n","/usr/bin/systemctl","reload","php8.4-fpm"]'
 UPDATER_MYSQLDUMP_BINARY=/usr/bin/mysqldump
 UPDATER_PG_DUMP_BINARY=/usr/bin/pg_dump
 ```
@@ -48,6 +49,10 @@ GITHUB_UPDATE_TOKEN=github_pat_read_only_token
 ```
 
 The web-server and scheduler user must be able to write to `releases/` and `shared/`. The shared `.env` and backup directories must not be publicly accessible.
+
+If production uses SQLite, set `DB_DATABASE` to an absolute path inside `/var/www/ecclesiaos/shared`. The updater refuses to install when an SQLite database is inside a versioned release directory.
+
+The reload command is passed directly to the operating system without a shell. Configure a narrow `sudoers` rule that permits only the exact PHP-FPM reload command for the scheduler user. For Apache deployments, use the equivalent Apache reload command.
 
 ## First Deployment
 

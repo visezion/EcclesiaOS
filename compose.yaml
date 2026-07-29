@@ -31,9 +31,10 @@ x-app-runtime: &app-runtime
   restart: unless-stopped
   stop_grace_period: 30s
   volumes:
-    - app-storage:/var/www/html/storage
+    - app-storage:/var/www/html/storage/app
   networks:
     - backend
+    - egress
 
 services:
   app:
@@ -75,7 +76,7 @@ services:
         - CMD
         - php
         - -r
-        - 'exit(@fsockopen("127.0.0.1", 9000, $errno, $errstr, 2) ? 0 : 1);'
+        - 'exit(@fsockopen("127.0.0.1", 9000) ? 0 : 1);'
       interval: 15s
       timeout: 5s
       start_period: 120s
@@ -93,7 +94,7 @@ services:
     ports:
       - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8080}:80"
     volumes:
-      - app-storage:/var/www/html/storage:ro
+      - app-storage:/var/www/html/storage/app:ro
     depends_on:
       app:
         condition: service_healthy
@@ -182,6 +183,35 @@ services:
     networks:
       - backend
 
+  backup:
+    image: mysql:8.4
+    profiles:
+      - tools
+    env_file:
+      - .env.docker
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        mkdir -p /backups
+        mysqldump \
+          --host=db \
+          --user="$${MYSQL_USER}" \
+          --password="$${MYSQL_PASSWORD}" \
+          --single-transaction \
+          --routines \
+          --triggers \
+          "$${MYSQL_DATABASE}" \
+          > "/backups/ecclesiaos-$$(date -u +%Y%m%dT%H%M%SZ).sql"
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+
 volumes:
   app-storage:
   db-data:
@@ -191,4 +221,4 @@ networks:
   frontend:
   backend:
     internal: true
-
+  egress:

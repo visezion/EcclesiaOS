@@ -19,8 +19,7 @@ final class UpdateInstaller
         private readonly UpdateEnvironment $environment,
         private readonly UpdateBackupService $backups,
         private readonly SafeReleaseArchive $archive,
-    ) {
-    }
+    ) {}
 
     public function installPending(): ?SystemUpdate
     {
@@ -48,21 +47,55 @@ final class UpdateInstaller
     public function rollback(SystemUpdate $update): SystemUpdate
     {
         return Cache::lock('system-update-installation', 3600)->block(1, function () use ($update): SystemUpdate {
-            $previousRelease = (string) data_get($update->metadata, 'previous_release');
-            if ($update->status !== 'completed' || $previousRelease === '' || ! is_dir($previousRelease)) {
+            $diagnostics = $this->environment->diagnostics(requireInstallationEnabled: false);
+            if (! $diagnostics['ready']) {
+                throw new RuntimeException('The managed update environment is not ready for rollback.');
+            }
+
+            $previousRelease = realpath((string) data_get($update->metadata, 'previous_release'));
+            $releasesPath = realpath((string) config('updater.releases_path'));
+            if (
+                $update->status !== 'completed'
+                || $previousRelease === false
+                || $releasesPath === false
+                || ! $this->isWithin($previousRelease, $releasesPath)
+            ) {
                 throw new RuntimeException('No previous release is available for this update.');
             }
 
             $currentLink = (string) config('updater.current_link');
-            $this->runArtisan(base_path(), ['down', '--render=errors::503', '--retry=60']);
+            $currentRelease = $this->currentReleaseTarget($currentLink);
+            $expectedRelease = realpath((string) data_get($update->metadata, 'new_release'));
+            if ($expectedRelease === false || $currentRelease !== $expectedRelease) {
+                throw new RuntimeException('The installed release is no longer the active release.');
+            }
+
+            $this->runArtisan($currentRelease, ['down', '--render=errors::503', '--retry=60']);
+            $switched = false;
 
             try {
-                $this->switchCurrentLink($currentLink, $previousRelease);
                 $this->runArtisan($previousRelease, ['optimize']);
+                $this->switchCurrentLink($currentLink, $previousRelease);
+                $switched = true;
+                $this->reloadPhpRuntime();
                 $this->runArtisan($previousRelease, ['queue:restart']);
                 $this->runArtisan($previousRelease, ['up']);
+                $this->assertHealth();
             } catch (Throwable $exception) {
-                $this->runArtisan($previousRelease, ['up'], false);
+                if ($switched) {
+                    try {
+                        $this->switchCurrentLink($currentLink, $currentRelease);
+                        $this->reloadPhpRuntime();
+                        $this->runArtisan($currentRelease, ['optimize'], false);
+                        $this->runArtisan($currentRelease, ['queue:restart'], false);
+                    } catch (Throwable) {
+                        // Preserve the original rollback error below.
+                    }
+                }
+
+                $this->runArtisan($currentRelease, ['up'], false);
+                $update->forceFill(['error' => mb_substr($exception->getMessage(), 0, 4000)])->save();
+
                 throw $exception;
             }
 
@@ -139,6 +172,7 @@ final class UpdateInstaller
 
             $this->switchCurrentLink($currentLink, $releasePath);
             $switched = true;
+            $this->reloadPhpRuntime();
             $this->runArtisan($releasePath, ['queue:restart']);
             $this->runArtisan($releasePath, ['up']);
             $maintenance = false;
@@ -158,7 +192,9 @@ final class UpdateInstaller
             if ($switched) {
                 try {
                     $this->switchCurrentLink($currentLink, $oldRelease);
+                    $this->reloadPhpRuntime();
                     $this->runArtisan($oldRelease, ['optimize'], false);
+                    $this->runArtisan($oldRelease, ['queue:restart'], false);
                 } catch (Throwable) {
                     // Preserve the original installation error below.
                 }
@@ -297,9 +333,25 @@ final class UpdateInstaller
             throw new RuntimeException('The update health-check URL is not configured.');
         }
 
-        $response = Http::connectTimeout(5)->timeout(15)->get($url);
+        $response = Http::connectTimeout(5)->timeout(15)->retry(3, 1000)->get($url);
         if (! $response->successful()) {
             throw new RuntimeException("The updated application health check returned HTTP {$response->status()}.");
+        }
+    }
+
+    private function reloadPhpRuntime(): void
+    {
+        $command = config('updater.reload_command', []);
+        if (! is_array($command) || $command === []) {
+            throw new RuntimeException('The PHP runtime reload command is not configured.');
+        }
+
+        $process = new Process(array_values($command));
+        $process->setTimeout(60);
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            throw new RuntimeException(trim($process->getErrorOutput() ?: $process->getOutput()) ?: 'The PHP runtime could not be reloaded.');
         }
     }
 

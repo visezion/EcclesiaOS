@@ -35,6 +35,11 @@ KingdomHub is a lightweight Laravel church management system foundation with an 
 
 ## Installation
 
+For the recommended Docker deployment, see
+[`docs/DOCKER.md`](docs/DOCKER.md). It provides one-command setup for Windows
+and Linux with Nginx, PHP-FPM, MySQL, Redis, queue workers, scheduled tasks,
+health checks, persistent data, backups, and versioned updates.
+
 ```bash
 composer install
 npm install

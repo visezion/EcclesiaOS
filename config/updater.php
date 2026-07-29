@@ -2,6 +2,10 @@
 
 $versionFile = base_path('VERSION');
 $packagedVersion = is_file($versionFile) ? trim((string) file_get_contents($versionFile)) : '1.0.0';
+$reloadCommand = json_decode((string) env('UPDATER_RELOAD_COMMAND_JSON', '[]'), true);
+$reloadCommand = is_array($reloadCommand)
+    ? array_values(array_filter($reloadCommand, fn (mixed $argument): bool => is_string($argument) && $argument !== ''))
+    : [];
 
 return [
     'enabled' => env('UPDATER_ENABLED', true),
@@ -28,6 +32,7 @@ return [
     'backup_retention' => (int) env('UPDATER_BACKUP_RETENTION', 5),
     'health_url' => env('UPDATER_HEALTH_URL', rtrim((string) env('APP_URL', 'http://localhost'), '/').'/up'),
     'php_binary' => env('UPDATER_PHP_BINARY', PHP_BINARY),
+    'reload_command' => $reloadCommand,
     'mysqldump_path' => env('UPDATER_MYSQLDUMP_BINARY', 'mysqldump'),
     'pg_dump_path' => env('UPDATER_PG_DUMP_BINARY', 'pg_dump'),
 ];
