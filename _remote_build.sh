@@ -1,1 +1,0 @@
-cd /home/victoro/EcclesiaOS-local && echo 'fm:19_CH.5@ci' | sudo -S -p '' docker compose --env-file .env.docker build --progress plain app web

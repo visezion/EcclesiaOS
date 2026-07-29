@@ -37,6 +37,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -1857,9 +1858,22 @@ final class EventFlowController extends Controller
             ->firstOrFail();
         $settings = $integration->settings ?? [];
         $secret = (string) $request->header('X-Meeting-Webhook-Secret', '');
+        $timestamp = (int) $request->header('X-Meeting-Webhook-Timestamp', 0);
 
         abort_unless($integration->enabled && filled($settings['webhook_secret_hash'] ?? null) && hash_equals((string) $settings['webhook_secret_hash'], hash('sha256', $secret)), 403);
         abort_unless(in_array($provider, $attendanceSession->methods ?? [], true), 403);
+        abort_unless($timestamp > 0 && abs(now()->timestamp - $timestamp) <= 300, 403);
+
+        $replayKey = 'meeting-webhook:'.hash('sha256', implode('|', [
+            $provider,
+            (string) $attendanceSession->id,
+            (string) $payload['email'],
+            (string) ($payload['joined_at'] ?? ''),
+            (string) ($payload['duration_minutes'] ?? ''),
+            (string) ($payload['meeting_id'] ?? ''),
+            (string) $timestamp,
+        ]));
+        abort_unless(Cache::add($replayKey, true, now()->addMinutes(10)), 409);
 
         $member = Member::query()
             ->where('church_id', $attendanceSession->church_id)
