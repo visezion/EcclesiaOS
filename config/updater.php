@@ -10,7 +10,7 @@ $reloadCommand = is_array($reloadCommand)
 return [
     'enabled' => env('UPDATER_ENABLED', true),
     // Containers are immutable; Docker deployments update by replacing images.
-    'install_enabled' => env('UPDATER_INSTALL_ENABLED', false) && ! env('APP_CONTAINERIZED', false),
+    'install_enabled' => env('UPDATER_INSTALL_ENABLED', env('APP_CONTAINERIZED', false)),
     // This file changes with every package while the production .env remains shared.
     'current_version' => $packagedVersion,
     'repository' => env('UPDATE_REPOSITORY', 'visezion/EcclesiaOS'),

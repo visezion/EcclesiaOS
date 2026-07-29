@@ -37,6 +37,8 @@ final class UpdateEnvironment
             && ! $this->isWithin($resolvedReleases, $resolvedShared)
             && ! $this->isWithin($resolvedShared, $resolvedReleases);
 
+        $containerized = (bool) env('APP_CONTAINERIZED', false);
+
         $checks = [
             $this->check('Installation enabled', ! $requireInstallationEnabled || (bool) config('updater.install_enabled'), 'Set UPDATER_INSTALL_ENABLED=true after configuring the managed layout.'),
             $this->check('Production operating system', PHP_OS_FAMILY !== 'Windows', 'Atomic release switching requires a Linux or Unix production host.'),
@@ -45,7 +47,15 @@ final class UpdateEnvironment
             $this->check('Releases directory', $releasesPath !== '' && is_dir($releasesPath) && is_writable($releasesPath), 'Configure a writable UPDATER_RELEASES_PATH.'),
             $this->check('Shared directory', $sharedPath !== '' && is_dir($sharedPath) && is_writable($sharedPath), 'Configure a writable UPDATER_SHARED_PATH.'),
             $this->check('Isolated managed paths', $pathsAreDistinct, 'The releases and shared directories must be separate and must not contain one another.'),
-            $this->check('Shared environment', $sharedPath !== '' && is_file($sharedPath.DIRECTORY_SEPARATOR.'.env'), 'Move the production .env file into the shared directory.'),
+            $this->check(
+                'Shared environment',
+                $sharedPath !== ''
+                    && (
+                        is_file($sharedPath.DIRECTORY_SEPARATOR.'.env')
+                        || ($containerized && is_dir($sharedPath) && is_writable($sharedPath))
+                    ),
+                'Move the production .env file into the shared directory, or provide it via the container runtime.'
+            ),
             $this->check('Shared storage', $sharedPath !== '' && is_dir($sharedPath.DIRECTORY_SEPARATOR.'storage'), 'Move Laravel storage into the shared directory.'),
             $this->check('Public upload storage', $sharedPath !== '' && is_dir($sharedPath.DIRECTORY_SEPARATOR.'storage'.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'public'), 'Create shared/storage/app/public for church uploads.'),
             $this->check('Persistent database', $databaseIsShared, 'A production SQLite database must be stored inside the shared directory.'),
