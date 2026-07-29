@@ -28,6 +28,7 @@ x-app-runtime: &app-runtime
     UPDATER_RELEASES_PATH: /var/www/html/.managed/releases
     UPDATER_SHARED_PATH: /var/www/html/.managed/shared
     UPDATER_CURRENT_LINK: /var/www/html/.managed/current
+    UPDATER_RELOAD_COMMAND_JSON: '["/bin/true"]'
     WAIT_FOR_DATABASE: "true"
     WAIT_FOR_REDIS: "true"
     RUN_OPTIMIZATIONS: "true"
@@ -36,6 +37,7 @@ x-app-runtime: &app-runtime
   stop_grace_period: 30s
   volumes:
     - app-storage:/var/www/html/storage/app
+    - app-managed:/var/www/html/.managed
   networks:
     - backend
     - egress
@@ -70,6 +72,7 @@ services:
       UPDATER_RELEASES_PATH: /var/www/html/.managed/releases
       UPDATER_SHARED_PATH: /var/www/html/.managed/shared
       UPDATER_CURRENT_LINK: /var/www/html/.managed/current
+      UPDATER_RELOAD_COMMAND_JSON: '["/bin/true"]'
       WAIT_FOR_DATABASE: "true"
       WAIT_FOR_REDIS: "true"
       RUN_MIGRATIONS: "true"
@@ -222,6 +225,7 @@ services:
 
 volumes:
   app-storage:
+  app-managed:
   db-data:
   redis-data:
 
