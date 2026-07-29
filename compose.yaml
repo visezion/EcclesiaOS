@@ -1,0 +1,194 @@
+name: ecclesiaos
+
+x-app-image: &app-image
+  image: ghcr.io/visezion/ecclesiaos-app:${ECCLESIAOS_VERSION:-latest}
+
+x-app-runtime: &app-runtime
+  <<: *app-image
+  env_file:
+    - .env.docker
+  environment:
+    APP_CONTAINERIZED: "true"
+    APP_ENV: production
+    APP_DEBUG: "false"
+    DB_CONNECTION: mysql
+    DB_HOST: db
+    DB_PORT: "3306"
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    SESSION_DRIVER: redis
+    SESSION_CONNECTION: default
+    CACHE_STORE: redis
+    QUEUE_CONNECTION: redis
+    LOG_CHANNEL: stderr
+    LOG_LEVEL: ${LOG_LEVEL:-warning}
+    FILESYSTEM_DISK: public
+    UPDATER_INSTALL_ENABLED: "false"
+    WAIT_FOR_DATABASE: "true"
+    WAIT_FOR_REDIS: "true"
+    RUN_OPTIMIZATIONS: "true"
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 30s
+  volumes:
+    - app-storage:/var/www/html/storage
+  networks:
+    - backend
+
+services:
+  app:
+    <<: *app-runtime
+    build:
+      context: .
+      target: app
+      args:
+        APP_VERSION: ${ECCLESIAOS_VERSION:-1.0.0}
+        VCS_REF: ${VCS_REF:-local}
+    environment:
+      APP_CONTAINERIZED: "true"
+      APP_ENV: production
+      APP_DEBUG: "false"
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: "3306"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SESSION_DRIVER: redis
+      SESSION_CONNECTION: default
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: ${LOG_LEVEL:-warning}
+      FILESYSTEM_DISK: public
+      UPDATER_INSTALL_ENABLED: "false"
+      WAIT_FOR_DATABASE: "true"
+      WAIT_FOR_REDIS: "true"
+      RUN_MIGRATIONS: "true"
+      RUN_OPTIMIZATIONS: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - php
+        - -r
+        - 'exit(@fsockopen("127.0.0.1", 9000, $errno, $errstr, 2) ? 0 : 1);'
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 5
+
+  web:
+    image: ghcr.io/visezion/ecclesiaos-web:${ECCLESIAOS_VERSION:-latest}
+    build:
+      context: .
+      target: web
+      args:
+        APP_VERSION: ${ECCLESIAOS_VERSION:-1.0.0}
+        VCS_REF: ${VCS_REF:-local}
+    restart: unless-stopped
+    ports:
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8080}:80"
+    volumes:
+      - app-storage:/var/www/html/storage:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - frontend
+      - backend
+
+  queue:
+    <<: *app-runtime
+    command:
+      - php
+      - artisan
+      - queue:work
+      - redis
+      - --sleep=3
+      - --tries=3
+      - --backoff=5
+      - --timeout=85
+      - --max-time=3600
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'php artisan queue:monitor redis:default --max=1000 >/dev/null 2>&1'
+      interval: 60s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  scheduler:
+    <<: *app-runtime
+    command:
+      - php
+      - artisan
+      - schedule:work
+      - --verbose
+      - --no-interaction
+    depends_on:
+      app:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'mysqladmin ping -h 127.0.0.1 -uroot -p"$${MYSQL_ROOT_PASSWORD}" --silent'
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 10
+    networks:
+      - backend
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --save
+      - "60"
+      - "1000"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    networks:
+      - backend
+
+volumes:
+  app-storage:
+  db-data:
+  redis-data:
+
+networks:
+  frontend:
+  backend:
+    internal: true
+

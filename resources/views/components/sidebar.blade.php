@@ -1,9 +1,10 @@
 @php
     $branding = \App\Support\Branding::current();
     $user = auth()->user();
-    $canAccessNavigationItem = fn (array $item): bool => $user?->isSuperAdministrator()
-        || (! empty($item['permissions_any']) && $user?->hasAnyPermission($item['permissions_any']))
-        || (empty($item['permissions_any']) && (empty($item['permission']) || $user?->hasPermission($item['permission'])));
+    $canAccessNavigationItem = fn (array $item): bool => (! ($item['super_admin'] ?? false) || $user?->isSuperAdministrator())
+        && ($user?->isSuperAdministrator()
+            || (! empty($item['permissions_any']) && $user?->hasAnyPermission($item['permissions_any']))
+            || (empty($item['permissions_any']) && (empty($item['permission']) || $user?->hasPermission($item['permission']))));
     $items = collect(\App\Support\ModuleRegistry::visibleNavigation())
         ->filter(fn (array $item): bool => $canAccessNavigationItem($item) || collect($item['children'] ?? [])->contains($canAccessNavigationItem))
         ->all();

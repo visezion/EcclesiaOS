@@ -31,6 +31,7 @@ use App\Http\Controllers\RoleDirectoryController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SystemSettingsController;
+use App\Http\Controllers\SystemUpdateController;
 use App\Http\Controllers\UserDirectoryController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\WorkflowController;
@@ -260,6 +261,10 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('administration/authentication', [AuthenticationSettingsController::class, 'index'])->name('auth-settings.index');
     Route::put('administration/authentication', [AuthenticationSettingsController::class, 'update'])->name('auth-settings.update');
     Route::get('administration/developer-hub', DeveloperHubController::class)->name('developer-hub.index');
+    Route::get('administration/system-updates', [SystemUpdateController::class, 'index'])->name('system-updates.index');
+    Route::post('administration/system-updates/check', [SystemUpdateController::class, 'check'])->middleware('throttle:6,1')->name('system-updates.check');
+    Route::post('administration/system-updates/{systemUpdate}/approve', [SystemUpdateController::class, 'approve'])->middleware('throttle:3,1')->name('system-updates.approve');
+    Route::post('administration/system-updates/{systemUpdate}/skip', [SystemUpdateController::class, 'skip'])->middleware('throttle:6,1')->name('system-updates.skip');
     Route::get('administration/audit-logs', AuditLogController::class)->name('audit-logs.index');
     Route::get('administration/audit-logs/export', [AuditLogController::class, 'export'])->name('audit-logs.export');
     Route::get('workflows', [WorkflowController::class, 'index'])->name('workflows.index');
@@ -284,7 +289,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
             continue;
         }
 

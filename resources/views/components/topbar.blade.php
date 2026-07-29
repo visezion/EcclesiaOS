@@ -19,6 +19,9 @@
     $helpUrl = $canAccess('developer-hub.index', 'manage settings')
         ? route('developer-hub.index')
         : route('account.settings');
+    $availableSystemUpdate = $user?->isSuperAdministrator()
+        ? app(\App\Services\Updates\UpdateManager::class)->available()
+        : null;
 @endphp
 
 <header class="app-topbar sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -45,6 +48,12 @@
             <button type="button" x-on:click="mobileSearchOpen = ! mobileSearchOpen" class="grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500 lg:hidden" aria-label="Open search">
                 <i data-lucide="search" class="size-5"></i>
             </button>
+            @if ($availableSystemUpdate)
+                <a href="{{ route('system-updates.index') }}" class="relative grid size-10 place-items-center rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 focus-visible:ring-2 focus-visible:ring-amber-500" aria-label="Version {{ $availableSystemUpdate->version }} update available" title="Update v{{ $availableSystemUpdate->version }} available">
+                    <i data-lucide="refresh-cw" class="size-5"></i>
+                    <span class="absolute right-1 top-1 size-2 rounded-full bg-amber-500"></span>
+                </a>
+            @endif
             <a href="{{ $notificationUrl }}" class="relative grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500" aria-label="Notifications">
                 <i data-lucide="bell" class="size-5"></i>
                 @if($unreadCount > 0)

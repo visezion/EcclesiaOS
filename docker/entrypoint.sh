@@ -1,0 +1,116 @@
+#!/usr/bin/env sh
+set -eu
+
+cd /var/www/html
+
+if [ -z "${APP_KEY:-}" ]; then
+    echo "APP_KEY is required. Run docker/setup.sh or docker/setup.ps1 first." >&2
+    exit 1
+fi
+
+mkdir -p \
+    bootstrap/cache \
+    storage/app/private \
+    storage/app/public \
+    storage/framework/cache/data \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/logs
+
+if [ "$(id -u)" = "0" ]; then
+    chown -R www-data:www-data bootstrap/cache storage
+fi
+
+run_as_app() {
+    if [ "$(id -u)" = "0" ]; then
+        gosu www-data "$@"
+    else
+        "$@"
+    fi
+}
+
+wait_for_database() {
+    attempts=0
+    max_attempts="${STARTUP_MAX_ATTEMPTS:-60}"
+
+    until php -r '
+        $driver = getenv("DB_CONNECTION") ?: "mysql";
+
+        if ($driver === "sqlite") {
+            exit(0);
+        }
+
+        $host = getenv("DB_HOST") ?: "db";
+        $port = getenv("DB_PORT") ?: ($driver === "pgsql" ? "5432" : "3306");
+        $database = getenv("DB_DATABASE") ?: "ecclesiaos";
+        $username = getenv("DB_USERNAME") ?: "ecclesiaos";
+        $password = getenv("DB_PASSWORD") ?: "";
+        $dsn = sprintf("%s:host=%s;port=%s;dbname=%s", $driver, $host, $port, $database);
+
+        try {
+            new PDO($dsn, $username, $password, [PDO::ATTR_TIMEOUT => 3]);
+        } catch (Throwable) {
+            exit(1);
+        }
+    ' >/dev/null 2>&1; do
+        attempts=$((attempts + 1))
+        if [ "$attempts" -ge "$max_attempts" ]; then
+            echo "Database did not become ready after ${max_attempts} attempts." >&2
+            exit 1
+        fi
+
+        echo "Waiting for the database (${attempts}/${max_attempts})..."
+        sleep 2
+    done
+}
+
+wait_for_redis() {
+    attempts=0
+    max_attempts="${STARTUP_MAX_ATTEMPTS:-60}"
+
+    until php -r '
+        try {
+            $redis = new Redis();
+            $redis->connect(getenv("REDIS_HOST") ?: "redis", (int) (getenv("REDIS_PORT") ?: 6379), 3);
+            $password = getenv("REDIS_PASSWORD");
+            if ($password !== false && $password !== "" && $password !== "null") {
+                $redis->auth($password);
+            }
+            $redis->ping();
+        } catch (Throwable) {
+            exit(1);
+        }
+    ' >/dev/null 2>&1; do
+        attempts=$((attempts + 1))
+        if [ "$attempts" -ge "$max_attempts" ]; then
+            echo "Redis did not become ready after ${max_attempts} attempts." >&2
+            exit 1
+        fi
+
+        echo "Waiting for Redis (${attempts}/${max_attempts})..."
+        sleep 2
+    done
+}
+
+if [ "${WAIT_FOR_DATABASE:-true}" = "true" ]; then
+    wait_for_database
+fi
+
+if [ "${WAIT_FOR_REDIS:-true}" = "true" ]; then
+    wait_for_redis
+fi
+
+if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
+    run_as_app php artisan migrate --force --isolated
+fi
+
+if [ "${RUN_OPTIMIZATIONS:-true}" = "true" ]; then
+    run_as_app php artisan optimize
+fi
+
+if [ "$(id -u)" = "0" ]; then
+    exec gosu www-data "$@"
+fi
+
+exec "$@"
+

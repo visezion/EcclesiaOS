@@ -94,6 +94,7 @@ return [
             ['label' => 'Communication Integrations', 'route' => 'communications.integrations', 'icon' => 'webhook', 'permission' => 'manage settings'],
             ['label' => 'Module Management', 'route' => 'modules.index', 'icon' => 'layout-grid', 'permission' => 'manage settings'],
             ['label' => 'Authentication', 'route' => 'auth-settings.index', 'icon' => 'lock-keyhole', 'permission' => 'manage settings'],
+            ['label' => 'System Updates', 'route' => 'system-updates.index', 'icon' => 'refresh-cw', 'permission' => 'manage settings', 'super_admin' => true],
             ['label' => 'Developer Hub', 'route' => 'developer-hub.index', 'icon' => 'book-open', 'permission' => 'manage settings'],
             ['label' => 'Audit Logs', 'route' => 'audit-logs.index', 'icon' => 'clipboard-list', 'permission' => 'view audit log'],
         ],

@@ -1,8 +1,12 @@
 # Changelog
 
-This project follows semantic versioning.
+EcclesiaOS uses GitHub Releases as the authoritative changelog for deployed application versions.
 
-## 0.1.0 - 2026-07-21
+## 1.0.0
 
-- Initial Laravel 12 application scaffold.
-- Added KingdomHub dashboard, layout, navigation, auth baseline, roles, permissions, migrations, seeders, tests, and documentation.
+- Added the initial versioned release baseline.
+- Added secure GitHub release discovery and update notifications.
+- Added Super Administrator approval and update history.
+- Added verified release installation, backups, maintenance mode, health checks, and code rollback support.
+
+Release maintainers must update `VERSION` before creating a matching `vX.Y.Z` Git tag. The GitHub release workflow generates the public release notes from merged pull requests.

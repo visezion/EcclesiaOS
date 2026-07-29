@@ -1,0 +1,366 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Updates;
+
+use App\Models\SystemUpdate;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+use Symfony\Component\Process\Process;
+use Throwable;
+use ZipArchive;
+
+final class UpdateInstaller
+{
+    public function __construct(
+        private readonly GitHubReleaseService $github,
+        private readonly UpdateEnvironment $environment,
+        private readonly UpdateBackupService $backups,
+    ) {
+    }
+
+    public function installPending(): ?SystemUpdate
+    {
+        $update = SystemUpdate::query()->where('status', 'pending')->oldest('approved_at')->first();
+
+        return $update ? $this->install($update) : null;
+    }
+
+    public function install(SystemUpdate $update): SystemUpdate
+    {
+        return Cache::lock('system-update-installation', 3600)->block(1, function () use ($update): SystemUpdate {
+            $diagnostics = $this->environment->diagnostics();
+            if (! $diagnostics['ready']) {
+                throw new RuntimeException('The managed update environment is not ready.');
+            }
+
+            if (! in_array($update->status, ['pending', 'failed'], true) || ! $update->isAvailable()) {
+                throw new RuntimeException('This update is not approved for installation.');
+            }
+
+            return $this->performInstallation($update);
+        });
+    }
+
+    public function rollback(SystemUpdate $update): SystemUpdate
+    {
+        return Cache::lock('system-update-installation', 3600)->block(1, function () use ($update): SystemUpdate {
+            $previousRelease = (string) data_get($update->metadata, 'previous_release');
+            if ($update->status !== 'completed' || $previousRelease === '' || ! is_dir($previousRelease)) {
+                throw new RuntimeException('No previous release is available for this update.');
+            }
+
+            $currentLink = (string) config('updater.current_link');
+            $this->runArtisan(base_path(), ['down', '--render=errors::503', '--retry=60']);
+
+            try {
+                $this->switchCurrentLink($currentLink, $previousRelease);
+                $this->runArtisan($previousRelease, ['optimize']);
+                $this->runArtisan($previousRelease, ['queue:restart']);
+                $this->runArtisan($previousRelease, ['up']);
+            } catch (Throwable $exception) {
+                $this->runArtisan($previousRelease, ['up'], false);
+                throw $exception;
+            }
+
+            $update->forceFill([
+                'status' => 'rolled_back',
+                'rolled_back_at' => now(),
+                'error' => null,
+            ])->save();
+            Cache::forget('system-updates.available');
+
+            return $update;
+        });
+    }
+
+    private function performInstallation(SystemUpdate $update): SystemUpdate
+    {
+        $releasesPath = realpath((string) config('updater.releases_path'));
+        $sharedPath = realpath((string) config('updater.shared_path'));
+        $currentLink = (string) config('updater.current_link');
+        if ($releasesPath === false || $sharedPath === false) {
+            throw new RuntimeException('Managed update paths could not be resolved.');
+        }
+
+        $releaseName = 'v'.$update->version;
+        if (preg_match('/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/', $releaseName) !== 1) {
+            throw new RuntimeException('The target release version is invalid.');
+        }
+
+        $releasePath = $releasesPath.DIRECTORY_SEPARATOR.$releaseName;
+        $temporaryPath = $releasesPath.DIRECTORY_SEPARATOR.'.'.$releaseName.'-'.bin2hex(random_bytes(5));
+        if (file_exists($releasePath) || file_exists($temporaryPath)) {
+            throw new RuntimeException('The target release directory already exists.');
+        }
+
+        $updatesPath = $sharedPath.DIRECTORY_SEPARATOR.'updates';
+        File::ensureDirectoryExists($updatesPath, 0700, true);
+        $archivePath = $updatesPath.DIRECTORY_SEPARATOR.$update->asset_name;
+        $oldRelease = $this->currentReleaseTarget($currentLink);
+        $switched = false;
+        $maintenance = false;
+        $finalized = false;
+
+        $update->forceFill([
+            'status' => 'installing',
+            'started_at' => now(),
+            'error' => null,
+        ])->save();
+
+        try {
+            $this->github->download($update, $archivePath);
+            $this->verifyDigest($archivePath, (string) $update->asset_digest);
+            $this->extractPackage($archivePath, $temporaryPath);
+            $this->validatePackage($temporaryPath, $update->version);
+            $this->linkSharedData($temporaryPath, $sharedPath);
+
+            $backup = $this->backups->create($update->version);
+            $metadata = array_merge($update->metadata ?? [], [
+                'backup' => $backup,
+                'previous_release' => $oldRelease,
+                'new_release' => $releasePath,
+            ]);
+            $update->forceFill(['metadata' => $metadata])->save();
+
+            if (! rename($temporaryPath, $releasePath)) {
+                throw new RuntimeException('The prepared release could not be finalized.');
+            }
+            $finalized = true;
+
+            $this->runArtisan($oldRelease, ['down', '--render=errors::503', '--retry=60']);
+            $maintenance = true;
+            $this->runArtisan($releasePath, ['migrate', '--force', '--isolated']);
+            $this->runArtisan($releasePath, ['optimize']);
+
+            $this->switchCurrentLink($currentLink, $releasePath);
+            $switched = true;
+            $this->runArtisan($releasePath, ['queue:restart']);
+            $this->runArtisan($releasePath, ['up']);
+            $maintenance = false;
+            $this->assertHealth();
+
+            $update->forceFill([
+                'status' => 'completed',
+                'installed_at' => now(),
+                'failed_at' => null,
+                'error' => null,
+            ])->save();
+            Cache::forget('system-updates.available');
+            File::delete($archivePath);
+
+            return $update;
+        } catch (Throwable $exception) {
+            if ($switched) {
+                try {
+                    $this->switchCurrentLink($currentLink, $oldRelease);
+                    $this->runArtisan($oldRelease, ['optimize'], false);
+                } catch (Throwable) {
+                    // Preserve the original installation error below.
+                }
+            }
+
+            if ($maintenance) {
+                $this->runArtisan($oldRelease, ['up'], false);
+            }
+
+            $update->forceFill([
+                'status' => 'failed',
+                'failed_at' => now(),
+                'error' => mb_substr($exception->getMessage(), 0, 4000),
+            ])->save();
+
+            if (is_dir($temporaryPath) && $this->isWithin($temporaryPath, $releasesPath)) {
+                File::deleteDirectory($temporaryPath);
+            }
+            $activeRelease = is_link($currentLink) ? realpath($currentLink) : false;
+            if (
+                $finalized
+                && is_dir($releasePath)
+                && $this->isWithin($releasePath, $releasesPath)
+                && $activeRelease !== realpath($releasePath)
+            ) {
+                File::deleteDirectory($releasePath);
+            }
+            File::delete($archivePath);
+
+            throw $exception;
+        }
+    }
+
+    private function verifyDigest(string $archivePath, string $expected): void
+    {
+        $expected = str_starts_with($expected, 'sha256:') ? substr($expected, 7) : $expected;
+        $actual = hash_file('sha256', $archivePath);
+
+        if ($actual === false || preg_match('/^[a-f0-9]{64}$/', $expected) !== 1 || ! hash_equals($expected, $actual)) {
+            File::delete($archivePath);
+            throw new RuntimeException('The update package failed SHA-256 verification.');
+        }
+    }
+
+    private function extractPackage(string $archivePath, string $destination): void
+    {
+        File::ensureDirectoryExists($destination, 0755, true);
+        $zip = new ZipArchive;
+        if ($zip->open($archivePath) !== true) {
+            throw new RuntimeException('The update package is not a valid ZIP archive.');
+        }
+
+        $expandedBytes = 0;
+        try {
+            for ($index = 0; $index < $zip->numFiles; $index++) {
+                $stat = $zip->statIndex($index);
+                $name = str_replace('\\', '/', (string) ($stat['name'] ?? ''));
+                $parts = explode('/', trim($name, '/'));
+                if ($name === '' || str_starts_with($name, '/') || preg_match('/^[A-Za-z]:\//', $name) === 1 || in_array('..', $parts, true)) {
+                    throw new RuntimeException('The update archive contains an unsafe path.');
+                }
+
+                $first = $parts[0] ?? '';
+                if ($first === '.env' || $first === 'storage' || ($first === 'public' && ($parts[1] ?? '') === 'storage')) {
+                    throw new RuntimeException('The update archive contains protected church data paths.');
+                }
+
+                $zip->getExternalAttributesIndex($index, $operatingSystem, $attributes);
+                if (((int) $attributes >> 16 & 0170000) === 0120000) {
+                    throw new RuntimeException('Symbolic links are not allowed inside update packages.');
+                }
+
+                $expandedBytes += (int) ($stat['size'] ?? 0);
+                if ($expandedBytes > (int) config('updater.max_expanded_bytes')) {
+                    throw new RuntimeException('The expanded update package exceeds the configured limit.');
+                }
+
+                $target = $destination.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $name);
+                if (str_ends_with($name, '/')) {
+                    File::ensureDirectoryExists($target, 0755, true);
+                    continue;
+                }
+
+                File::ensureDirectoryExists(dirname($target), 0755, true);
+                $input = $zip->getStream((string) ($stat['name'] ?? ''));
+                $output = fopen($target, 'wb');
+                if ($input === false || $output === false) {
+                    throw new RuntimeException("The update file {$name} could not be extracted.");
+                }
+
+                stream_copy_to_stream($input, $output);
+                fclose($input);
+                fclose($output);
+            }
+        } finally {
+            $zip->close();
+        }
+    }
+
+    private function validatePackage(string $path, string $version): void
+    {
+        foreach (['artisan', 'vendor/autoload.php', 'public/index.php', 'public/build/manifest.json', 'VERSION'] as $required) {
+            if (! is_file($path.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $required))) {
+                throw new RuntimeException("The update package is missing {$required}.");
+            }
+        }
+
+        $packageVersion = trim((string) File::get($path.DIRECTORY_SEPARATOR.'VERSION'));
+        if (! hash_equals($version, $packageVersion)) {
+            throw new RuntimeException('The packaged application version does not match the approved release.');
+        }
+    }
+
+    private function linkSharedData(string $releasePath, string $sharedPath): void
+    {
+        $environment = $sharedPath.DIRECTORY_SEPARATOR.'.env';
+        $storage = $sharedPath.DIRECTORY_SEPARATOR.'storage';
+        if (! symlink($environment, $releasePath.DIRECTORY_SEPARATOR.'.env')) {
+            throw new RuntimeException('The shared environment link could not be created.');
+        }
+
+        if (! symlink($storage, $releasePath.DIRECTORY_SEPARATOR.'storage')) {
+            throw new RuntimeException('The shared storage link could not be created.');
+        }
+
+        $publicStorage = $releasePath.DIRECTORY_SEPARATOR.'public'.DIRECTORY_SEPARATOR.'storage';
+        if (file_exists($publicStorage) || is_link($publicStorage)) {
+            throw new RuntimeException('The update package unexpectedly contains public storage.');
+        }
+
+        if (! symlink($storage.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'public', $publicStorage)) {
+            throw new RuntimeException('The public storage link could not be created.');
+        }
+
+        File::ensureDirectoryExists($releasePath.DIRECTORY_SEPARATOR.'bootstrap'.DIRECTORY_SEPARATOR.'cache', 0775, true);
+    }
+
+    private function currentReleaseTarget(string $currentLink): string
+    {
+        $target = readlink($currentLink);
+        if ($target === false) {
+            throw new RuntimeException('The active release link could not be read.');
+        }
+
+        if (! str_starts_with($target, DIRECTORY_SEPARATOR)) {
+            $target = dirname($currentLink).DIRECTORY_SEPARATOR.$target;
+        }
+
+        $resolved = realpath($target);
+        $releases = realpath((string) config('updater.releases_path'));
+        if ($resolved === false || $releases === false || ! $this->isWithin($resolved, $releases)) {
+            throw new RuntimeException('The active release is outside the managed releases directory.');
+        }
+
+        return $resolved;
+    }
+
+    private function switchCurrentLink(string $currentLink, string $releasePath): void
+    {
+        $temporaryLink = $currentLink.'.next-'.bin2hex(random_bytes(4));
+        if (! symlink($releasePath, $temporaryLink)) {
+            throw new RuntimeException('The next release link could not be created.');
+        }
+
+        if (! rename($temporaryLink, $currentLink)) {
+            @unlink($temporaryLink);
+            throw new RuntimeException('The active release link could not be switched.');
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $arguments
+     */
+    private function runArtisan(string $releasePath, array $arguments, bool $throw = true): void
+    {
+        $command = [(string) config('updater.php_binary'), $releasePath.DIRECTORY_SEPARATOR.'artisan', ...$arguments, '--no-interaction'];
+        $process = new Process($command, $releasePath);
+        $process->setTimeout(900);
+        $process->run();
+
+        if ($throw && ! $process->isSuccessful()) {
+            throw new RuntimeException(trim($process->getErrorOutput() ?: $process->getOutput()) ?: 'An Artisan update command failed.');
+        }
+    }
+
+    private function assertHealth(): void
+    {
+        $url = (string) config('updater.health_url');
+        if ($url === '') {
+            throw new RuntimeException('The update health-check URL is not configured.');
+        }
+
+        $response = Http::connectTimeout(5)->timeout(15)->get($url);
+        if (! $response->successful()) {
+            throw new RuntimeException("The updated application health check returned HTTP {$response->status()}.");
+        }
+    }
+
+    private function isWithin(string $path, string $parent): bool
+    {
+        $normalizedPath = rtrim(str_replace('\\', '/', $path), '/').'/';
+        $normalizedParent = rtrim(str_replace('\\', '/', $parent), '/').'/';
+
+        return str_starts_with($normalizedPath, $normalizedParent);
+    }
+}
