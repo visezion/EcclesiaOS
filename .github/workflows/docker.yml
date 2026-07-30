@@ -75,8 +75,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/trivy-cache"
           TRIVY_IMAGE="aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f"
 
+          scan_status=0
           for service in app web; do
             image_id="$(docker compose --env-file .env.docker images -q "$service")"
+            report="$RUNNER_TEMP/trivy-$service.json"
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
@@ -84,9 +86,19 @@ jobs:
               --scanners vuln \
               --severity HIGH,CRITICAL \
               --ignore-unfixed \
-              --exit-code 1 \
-              "$image_id"
+              --exit-code 0 \
+              --format json \
+              "$image_id" > "$report"
+
+            findings="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' "$report")"
+            if [[ "$findings" -gt 0 ]]; then
+              while IFS=$'\t' read -r pkg severity installed fixed; do
+                echo "::error file=Dockerfile,line=1,title=Fixable $severity CVE::$service $pkg $severity $installed -> ${fixed:-no fixed version}"
+              done < <(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH" or .Severity == "CRITICAL") | [.PkgName, .Severity, .InstalledVersion, (.FixedVersion // "")] | @tsv' "$report")
+              scan_status=1
+            fi
           done
+          exit "$scan_status"
 
       - name: Start infrastructure and application
         run: |
