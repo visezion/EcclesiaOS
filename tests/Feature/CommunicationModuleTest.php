@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\UserNotificationPreference;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 final class CommunicationModuleTest extends TestCase
@@ -55,6 +56,35 @@ final class CommunicationModuleTest extends TestCase
             ->assertSee('Operational Insights', false)
             ->assertSee('Communication History Summary', false)
             ->assertSee('Scheduled Messages', false);
+    }
+
+    public function test_unread_database_notifications_appear_in_topbar_and_center(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $user->notifications()->create([
+            'id' => (string) Str::uuid(),
+            'type' => 'system_update',
+            'data' => [
+                'title' => 'System update available',
+                'message' => 'Version 1.2.3 is ready for review.',
+                'url' => route('system-updates.index'),
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('System update available', false)
+            ->assertSee('Version 1.2.3 is ready for review.', false)
+            ->assertSee('Open notifications', false);
+
+        $this->actingAs($user)
+            ->get(route('communications.notifications'))
+            ->assertOk()
+            ->assertSee('Account Notifications', false)
+            ->assertSee('System update available', false);
     }
 
     public function test_templates_campaigns_preferences_integrations_and_delivery_retry_are_functional(): void

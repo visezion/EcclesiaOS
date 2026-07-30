@@ -130,6 +130,7 @@ final class CommunicationController extends Controller
 
         return view('communications.notifications', $this->shared($request) + [
             'notifications' => $notifications,
+            'databaseNotifications' => $request->user()->notifications()->latest()->limit(20)->get(),
             'stats' => $this->notificationStats($request),
             'selected' => $selectedNotification ?? $notifications->first(),
             'priorityBreakdown' => $this->priorityBreakdown($request),
@@ -2028,7 +2029,8 @@ final class CommunicationController extends Controller
     private function notificationStats(Request $request): array
     {
         return [
-            'unread' => $this->deliveries($request)->whereNull('read_at')->where('channel', 'in_app')->count(),
+            'unread' => $this->deliveries($request)->whereNull('read_at')->where('channel', 'in_app')->count()
+                + $request->user()->unreadNotifications()->count(),
             'action_required' => $this->deliveries($request)->where('status', 'failed')->count(),
             'scheduled_today' => $this->campaigns($request)->whereDate('scheduled_at', today())->count(),
             'sent_today' => $this->deliveries($request)->whereDate('created_at', today())->count(),

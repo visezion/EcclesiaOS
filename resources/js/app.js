@@ -178,6 +178,7 @@ import {
     Store,
     Settings2,
     Square,
+    SquarePen,
     Tags,
     Target,
     TextCursorInput,
@@ -260,7 +261,102 @@ async function ensureLiveKitModule() {
 
 window.Alpine = Alpine;
 
+function messageAttachmentPicker(initial = {}) {
+    return {
+        attachments: [],
+        ...initial,
+
+        updateAttachments(input) {
+            this.releaseAttachmentUrls();
+            this.attachments = Array.from(input.files || []).map((file, index) => ({
+                index,
+                name: file.name,
+                size: this.formatFileSize(file.size),
+                extension: file.name.includes('.') ? file.name.split('.').pop().slice(0, 5).toUpperCase() : 'FILE',
+                image: file.type.startsWith('image/'),
+                previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+            }));
+        },
+
+        removeAttachment(input, removedIndex) {
+            const transfer = new DataTransfer();
+            Array.from(input.files || []).forEach((file, index) => {
+                if (index !== removedIndex) {
+                    transfer.items.add(file);
+                }
+            });
+            input.files = transfer.files;
+            this.updateAttachments(input);
+        },
+
+        releaseAttachmentUrls() {
+            this.attachments.forEach((attachment) => {
+                if (attachment.previewUrl) {
+                    URL.revokeObjectURL(attachment.previewUrl);
+                }
+            });
+        },
+
+        formatFileSize(bytes) {
+            if (bytes < 1024) {
+                return `${bytes} B`;
+            }
+            if (bytes < 1024 * 1024) {
+                return `${(bytes / 1024).toFixed(1)} KB`;
+            }
+
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        },
+    };
+}
+
 document.addEventListener('alpine:init', () => {
+    Alpine.data('messageAttachments', () => messageAttachmentPicker());
+    Alpine.data('messageReply', () => messageAttachmentPicker({
+        html: '',
+        plain: '',
+        sendOnEnter: false,
+
+        init() {
+            this.sendOnEnter = localStorage.getItem('messages.sendOnEnter') === 'true';
+        },
+
+        format(command, value = null) {
+            this.$refs.editor.focus();
+            document.execCommand(command, false, value);
+            this.syncMessage();
+        },
+
+        insertLink() {
+            const url = window.prompt('Enter an HTTPS link');
+            if (url && /^https?:\/\//i.test(url)) {
+                this.format('createLink', url);
+            }
+        },
+
+        syncMessage() {
+            this.html = this.$refs.editor.innerHTML;
+            this.plain = this.$refs.editor.innerText;
+        },
+
+        saveSendPreference() {
+            localStorage.setItem('messages.sendOnEnter', String(this.sendOnEnter));
+        },
+
+        handleEditorKeydown(event) {
+            if (event.key !== 'Enter' || event.shiftKey || ! this.sendOnEnter) {
+                return;
+            }
+
+            event.preventDefault();
+            this.syncMessage();
+
+            if (this.plain.trim() || this.attachments.length) {
+                this.$root.requestSubmit();
+            }
+        },
+    }));
+
     Alpine.data('userDirectory', () => ({
         selected: [],
         search: '',
@@ -2235,6 +2331,7 @@ const icons = {
     Store,
     Settings2,
     Square,
+    SquarePen,
     Tags,
     Target,
     TextCursorInput,

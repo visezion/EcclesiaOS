@@ -23,6 +23,7 @@ use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InstallerController;
 use App\Http\Controllers\LeadershipReportController;
 use App\Http\Controllers\MemberManagementController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MinistryController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\ModuleManagementController;
@@ -74,6 +75,25 @@ Route::middleware('guest')->group(function (): void {
 Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('search', SearchController::class)->name('search');
+    Route::get('messages', [MessageController::class, 'index'])->name('messages.index');
+    Route::get('messages/sent', [MessageController::class, 'sent'])->name('messages.sent');
+    Route::get('messages/create', [MessageController::class, 'create'])->name('messages.create');
+    Route::post('messages', [MessageController::class, 'store'])->name('messages.store');
+    Route::post('messages/read-all', [MessageController::class, 'markAllRead'])->name('messages.read-all');
+    Route::post('messages/drafts', [MessageController::class, 'saveDraft'])->name('messages.drafts.store');
+    Route::put('messages/drafts/{draft}', [MessageController::class, 'saveDraft'])->name('messages.drafts.update');
+    Route::delete('messages/drafts/{draft}', [MessageController::class, 'deleteDraft'])->name('messages.drafts.destroy');
+    Route::get('messages/attachments/{attachment}', [MessageController::class, 'downloadAttachment'])->name('messages.attachments.download');
+    Route::post('messages/items/{message}/forward', [MessageController::class, 'forward'])->name('messages.forward');
+    Route::get('messages/{thread}', [MessageController::class, 'show'])->name('messages.show');
+    Route::post('messages/{thread}/reply', [MessageController::class, 'reply'])->name('messages.reply');
+    Route::post('messages/{thread}/read', [MessageController::class, 'read'])->name('messages.read');
+    Route::post('messages/{thread}/state', [MessageController::class, 'state'])->name('messages.state');
+    Route::post('messages/{thread}/action', [MessageController::class, 'action'])->name('messages.action');
+    Route::post('messages/{thread}/participants', [MessageController::class, 'participants'])->name('messages.participants');
+    Route::get('messages/{thread}/export', [MessageController::class, 'export'])->name('messages.export');
+    Route::get('messages/{thread}/audit', [MessageController::class, 'audit'])->name('messages.audit');
+    Route::post('messages/{thread}/report', [MessageController::class, 'report'])->name('messages.report');
     Route::get('programs', [EventFlowController::class, 'programs'])->name('programs.index');
     Route::post('programs', [EventFlowController::class, 'storeProgram'])->name('programs.store');
     Route::put('programs/{program}', [EventFlowController::class, 'updateProgram'])->name('programs.update');
@@ -295,7 +315,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create'], true)) {
             continue;
         }
 

@@ -377,6 +377,7 @@ class AccessControlTest extends TestCase
             ->get(route('roles.index'))
             ->assertOk()
             ->assertSee('Roles & Permissions', false)
+            ->assertSeeInOrder(['Operations', 'Message Center Access', 'Send Messages', 'Administer Messages'], false)
             ->assertSee('Each switch maps to one real database permission used by authorization checks.');
 
         foreach (array_keys(config('access.roles')) as $roleName) {

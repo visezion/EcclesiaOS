@@ -14,6 +14,16 @@ Schedule::command('app:update-check --force')
     ->onOneServer()
     ->when(fn (): bool => (bool) config('updater.enabled'));
 
+Schedule::command('messages:dispatch-scheduled')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->onOneServer();
+
+Schedule::command('messages:enforce-retention')
+    ->dailyAt('02:30')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 if (config('updater.install_enabled')) {
     Schedule::command('app:update --pending')
         ->everyMinute()

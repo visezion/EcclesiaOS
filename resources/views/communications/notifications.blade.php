@@ -73,6 +73,33 @@
             @endforeach
         </section>
 
+        @if($databaseNotifications->isNotEmpty())
+            <section class="dashboard-card p-0">
+                <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                    <div>
+                        <h2 class="text-sm font-semibold text-slate-950">Account Notifications</h2>
+                        <p class="text-xs text-slate-500">System notifications delivered to your account.</p>
+                    </div>
+                    <span class="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">{{ $databaseNotifications->whereNull('read_at')->count() }} unread</span>
+                </div>
+                <div class="divide-y divide-slate-100">
+                    @foreach($databaseNotifications as $databaseNotification)
+                        @php
+                            $databaseData = is_array($databaseNotification->data) ? $databaseNotification->data : [];
+                        @endphp
+                        <a href="{{ $databaseData['url'] ?? route('communications.notifications') }}" class="flex items-start gap-3 px-4 py-3 hover:bg-violet-50 {{ $databaseNotification->read_at ? '' : 'bg-violet-50/40' }}">
+                            <span class="mt-1.5 size-2 shrink-0 rounded-full {{ $databaseNotification->read_at ? 'border border-slate-300' : 'bg-violet-600' }}"></span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block text-sm font-medium text-slate-800">{{ $databaseData['title'] ?? 'Notification' }}</span>
+                                <span class="mt-0.5 block text-xs text-slate-500">{{ $databaseData['message'] ?? 'You have a new notification.' }}</span>
+                            </span>
+                            <span class="shrink-0 text-xs text-slate-400">{{ $databaseNotification->created_at?->diffForHumans() }}</span>
+                        </a>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
         <section class="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_330px]">
             <main class="space-y-4">
                 <form method="GET" class="dashboard-card p-0">

@@ -8,6 +8,7 @@
     $items = collect(\App\Support\ModuleRegistry::visibleNavigation())
         ->filter(fn (array $item): bool => $canAccessNavigationItem($item) || collect($item['children'] ?? [])->contains($canAccessNavigationItem))
         ->all();
+    $sections = collect($items)->groupBy(fn (array $item): string => $item['section'] ?? 'Other');
     $currentRoute = request()->route()?->getName();
     $routeMatches = function (?string $route, array $activeRoutes = []) use ($currentRoute): bool {
         if ($currentRoute === null) {
@@ -44,7 +45,9 @@
     </div>
 
     <nav class="relative z-10 flex-1 space-y-1 px-3 pb-5">
-        @foreach ($items as $item)
+        @foreach ($sections as $sectionLabel => $sectionItems)
+            <div class="px-3 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 first:pt-1">{{ $sectionLabel }}</div>
+            @foreach ($sectionItems as $item)
             @php
                 $children = collect($item['children'] ?? [])->filter($canAccessNavigationItem);
                 $isActive = $routeMatches($item['route'] ?? null, $item['active_routes'] ?? []) || $children->contains(fn (array $child): bool => $routeMatches($child['route'] ?? null, $child['active_routes'] ?? []));
@@ -87,6 +90,7 @@
                     </a>
                 @endif
             </div>
+            @endforeach
         @endforeach
     </nav>
 
