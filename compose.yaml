@@ -28,7 +28,9 @@ x-app-runtime: &app-runtime
     UPDATER_RELEASES_PATH: /var/www/html/.managed/releases
     UPDATER_SHARED_PATH: /var/www/html/.managed/shared
     UPDATER_CURRENT_LINK: /var/www/html/.managed/current
+    UPDATER_HEALTH_URL: http://web/up
     UPDATER_RELOAD_COMMAND_JSON: '["/bin/true"]'
+    REDIS_QUEUE_RETRY_AFTER: "3600"
     WAIT_FOR_DATABASE: "true"
     WAIT_FOR_REDIS: "true"
     RUN_OPTIMIZATIONS: "true"
@@ -72,7 +74,9 @@ services:
       UPDATER_RELEASES_PATH: /var/www/html/.managed/releases
       UPDATER_SHARED_PATH: /var/www/html/.managed/shared
       UPDATER_CURRENT_LINK: /var/www/html/.managed/current
+      UPDATER_HEALTH_URL: http://web/up
       UPDATER_RELOAD_COMMAND_JSON: '["/bin/true"]'
+      REDIS_QUEUE_RETRY_AFTER: "3600"
       WAIT_FOR_DATABASE: "true"
       WAIT_FOR_REDIS: "true"
       RUN_MIGRATIONS: "true"
@@ -106,6 +110,7 @@ services:
       - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8080}:80"
     volumes:
       - app-storage:/var/www/html/storage/app:ro
+      - app-managed:/var/www/html/.managed:ro
     depends_on:
       app:
         condition: service_healthy
@@ -123,7 +128,7 @@ services:
       - --sleep=3
       - --tries=3
       - --backoff=5
-      - --timeout=85
+      - --timeout=1800
       - --max-time=3600
     depends_on:
       app:
@@ -140,11 +145,13 @@ services:
   scheduler:
     <<: *app-runtime
     command:
-      - php
-      - artisan
-      - schedule:work
-      - --verbose
-      - --no-interaction
+      - /bin/sh
+      - -ec
+      - |
+        while true; do
+          php /var/www/html/.managed/current/artisan schedule:run --verbose --no-interaction
+          sleep 60
+        done
     depends_on:
       app:
         condition: service_healthy

@@ -4,7 +4,13 @@
 
 EcclesiaOS updates are distributed as custom GitHub Release assets. The live application never runs `git pull` and never replaces the church database, `.env`, or uploaded files.
 
-The application checks GitHub every six hours. A Super Administrator can review the changelog in **Administration > System Updates**, confirm their password, and queue the update. The server scheduler performs the approved update outside the browser request.
+The application checks GitHub every 15 minutes. A Super Administrator can review the changelog in **Administration > System Updates**, confirm their password, and queue the update. The server scheduler starts an approved update within one minute, outside the browser request.
+
+Docker deployments bootstrap the managed layout automatically. The application,
+queue, scheduler, and Nginx containers mount the same managed release volume,
+and Nginx serves `.managed/current/public`. Database data and uploads remain in
+their existing persistent volumes. Do not remove the `app-managed`,
+`app-storage`, or database volumes during deployment.
 
 ## Required Production Layout
 
@@ -56,6 +62,10 @@ The reload command is passed directly to the operating system without a shell. C
 
 ## First Deployment
 
+For the supported Docker deployment, `docker/entrypoint.sh` performs these
+steps automatically. The manual procedure below is for non-containerized Linux
+hosts.
+
 1. Deploy the first package into `/var/www/ecclesiaos/releases/v1.0.0`.
 2. Move `.env` to `/var/www/ecclesiaos/shared/.env`.
 3. Move `storage` to `/var/www/ecclesiaos/shared/storage`.
@@ -73,7 +83,7 @@ Run Laravel's scheduler every minute:
 * * * * * cd /var/www/ecclesiaos/current && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-The scheduler checks GitHub every six hours and processes approved updates every minute. Installation remains disabled unless `UPDATER_INSTALL_ENABLED=true` and every safety diagnostic passes.
+The scheduler checks GitHub every 15 minutes and processes approved updates every minute. Installation remains disabled unless `UPDATER_INSTALL_ENABLED=true` and every safety diagnostic passes.
 
 ## Publishing a Release
 

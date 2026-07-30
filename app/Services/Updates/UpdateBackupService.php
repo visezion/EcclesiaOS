@@ -137,10 +137,14 @@ final class UpdateBackupService
         return $destination;
     }
 
-    private function backupEnvironment(string $sharedPath, string $backupPath): string
+    private function backupEnvironment(string $sharedPath, string $backupPath): ?string
     {
         $source = $sharedPath.DIRECTORY_SEPARATOR.'.env';
         $destination = $backupPath.DIRECTORY_SEPARATOR.'environment.env.backup';
+        if (! is_file($source) && (bool) env('APP_CONTAINERIZED', false)) {
+            return null;
+        }
+
         if (! is_file($source) || ! copy($source, $destination)) {
             throw new RuntimeException('The shared environment file could not be backed up.');
         }

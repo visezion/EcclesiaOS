@@ -46,6 +46,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         $PHPIZE_DEPS \
         curl \
+        default-mysql-client \
         gosu \
         libcurl4-openssl-dev \
         libfreetype6-dev \

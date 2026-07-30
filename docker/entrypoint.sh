@@ -40,15 +40,33 @@ bootstrap_managed_layout() {
         "$shared_path/backups" \
         "$release_path"
 
-    if [ ! -f "$shared_path/.env" ] && [ -f /var/www/html/.env ]; then
-        cp /var/www/html/.env "$shared_path/.env"
+    if [ ! -L "$shared_path/storage" ]; then
+        if [ -d "$shared_path/storage" ]; then
+            cp -a "$shared_path/storage/." /var/www/html/storage/
+            rm -rf "$shared_path/storage"
+        fi
+
+        ln -s /var/www/html/storage "$shared_path/storage"
     fi
 
-    if [ ! -d "$shared_path/storage" ]; then
-        mkdir -p "$shared_path/storage/app/public"
+    if [ ! -f "$release_path/artisan" ]; then
+        tar \
+            --exclude='./.managed' \
+            --exclude='./.env' \
+            --exclude='./storage' \
+            --exclude='./public/storage' \
+            -C /var/www/html \
+            -cf - . |
+            tar -C "$release_path" -xf -
+
+        rm -rf "$release_path/storage" "$release_path/public/storage"
+        ln -s "$shared_path/.env" "$release_path/.env"
+        ln -s "$shared_path/storage" "$release_path/storage"
+        ln -s "$shared_path/storage/app/public" "$release_path/public/storage"
     fi
 
-    if [ ! -L "$current_link" ]; then
+    current_target="$(readlink -f "$current_link" 2>/dev/null || true)"
+    if [ ! -f "$current_target/artisan" ]; then
         rm -f "$current_link"
         ln -s "$release_path" "$current_link"
     fi
@@ -59,6 +77,8 @@ bootstrap_managed_layout() {
             bootstrap/cache \
             storage/app
     fi
+
+    cd "$current_link"
 }
 
 bootstrap_managed_layout

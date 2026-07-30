@@ -26,6 +26,12 @@ final class UpdateEnvironment
             : null;
         $databaseIsShared = $sqlitePath === null
             || ($sqlitePath !== false && $resolvedShared !== false && $this->isWithin($sqlitePath, $resolvedShared));
+        $backupExecutable = match ($databaseConfig['driver'] ?? null) {
+            'mysql', 'mariadb' => (string) config('updater.mysqldump_path'),
+            'pgsql' => (string) config('updater.pg_dump_path'),
+            default => null,
+        };
+        $backupToolReady = $backupExecutable === null || $this->executableExists($backupExecutable);
         $reloadCommand = config('updater.reload_command', []);
         $reloadExecutable = is_array($reloadCommand) ? ($reloadCommand[0] ?? null) : null;
         $reloadIsSafe = is_string($reloadExecutable)
@@ -59,6 +65,7 @@ final class UpdateEnvironment
             $this->check('Shared storage', $sharedPath !== '' && is_dir($sharedPath.DIRECTORY_SEPARATOR.'storage'), 'Move Laravel storage into the shared directory.'),
             $this->check('Public upload storage', $sharedPath !== '' && is_dir($sharedPath.DIRECTORY_SEPARATOR.'storage'.DIRECTORY_SEPARATOR.'app'.DIRECTORY_SEPARATOR.'public'), 'Create shared/storage/app/public for church uploads.'),
             $this->check('Persistent database', $databaseIsShared, 'A production SQLite database must be stored inside the shared directory.'),
+            $this->check('Database backup tool', $backupToolReady, 'Install the database dump client required by the configured database driver.'),
             $this->check('PHP runtime reload', $reloadIsSafe, 'Configure UPDATER_RELOAD_COMMAND_JSON with an absolute executable path and shell-free arguments.'),
             $this->check('Current release link', $currentLink !== '' && is_link($currentLink), 'Configure UPDATER_CURRENT_LINK as a symbolic link to the active release.'),
             $this->check('Current link parent', $currentLink !== '' && is_dir(dirname($currentLink)) && is_writable(dirname($currentLink)), 'The directory containing UPDATER_CURRENT_LINK must be writable.'),
@@ -85,5 +92,24 @@ final class UpdateEnvironment
         $parent = rtrim(str_replace('\\', '/', $parent), '/').'/';
 
         return str_starts_with($path, $parent);
+    }
+
+    private function executableExists(string $executable): bool
+    {
+        if ($executable === '') {
+            return false;
+        }
+
+        if (str_contains($executable, DIRECTORY_SEPARATOR)) {
+            return is_executable($executable);
+        }
+
+        foreach (explode(PATH_SEPARATOR, (string) getenv('PATH')) as $directory) {
+            if ($directory !== '' && is_executable($directory.DIRECTORY_SEPARATOR.$executable)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

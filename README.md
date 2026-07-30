@@ -139,8 +139,12 @@ repository.
 The application checks GitHub automatically and notifies administrators when a
 newer installable release is available. The Update Now button is shown only
 when the ZIP package, manifest, checksum, and managed production layout all
-pass validation. See [`docs/UPDATES.md`](docs/UPDATES.md) for the updater
-architecture and server requirements.
+pass validation. Docker deployments create this managed layout automatically:
+the application, queue, scheduler, and Nginx all use the same atomic `current`
+release link, while the database and uploads remain in persistent volumes.
+After a Super Administrator approves an update, the scheduler begins
+installation within one minute. See [`docs/UPDATES.md`](docs/UPDATES.md) for
+the updater architecture and server requirements.
 
 ### Local Development
 
