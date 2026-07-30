@@ -84,16 +84,16 @@ After setup, open the site at the `APP_URL` configured in `.env.docker`.
 Windows PowerShell:
 
 ```powershell
-.\docker\update.ps1 -Version 1.0.8
+.\docker\update.ps1 -Version 1.0.9
 ```
 
 Linux or WSL:
 
 ```bash
-sh docker/update.sh 1.0.8
+sh docker/update.sh 1.0.9
 ```
 
-Replace `1.0.8` with the GitHub release version you want to deploy.
+Replace `1.0.9` with the GitHub release version you want to deploy.
 
 ### Publishing Application Releases
 
@@ -103,8 +103,8 @@ Application releases are published automatically by
 ```bash
 git switch main
 git pull --ff-only
-git tag v1.0.8
-git push origin v1.0.8
+git tag v1.0.9
+git push origin v1.0.9
 ```
 
 Use the next unused semantic version. Do not manually create the GitHub
@@ -131,10 +131,9 @@ release is deleted. If a release fails before publication, fix the workflow and
 rerun it for the same draft. If an immutable release was published incorrectly,
 publish the fix under the next unused version.
 
-This repository previously published immutable tags beginning with `v1.0.0`.
-The next clean release must therefore use an unused version such as `v1.0.8`.
-Starting again with the exact tag `v1.0.0` requires a different GitHub
-repository.
+This repository has immutable releases beginning with `v1.0.0`. Always use the
+next unused version; an immutable release tag cannot be reused. Starting again
+with the exact tag `v1.0.0` requires a different GitHub repository.
 
 The application checks GitHub automatically and notifies administrators when a
 newer installable release is available. The Update Now button is shown only
