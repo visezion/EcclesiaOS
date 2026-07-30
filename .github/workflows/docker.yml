@@ -120,6 +120,8 @@ jobs:
             app php artisan app:bootstrap-admin --no-interaction
           docker compose --env-file .env.docker exec -T app \
             php artisan app:bootstrap-admin --check --no-interaction
+          docker compose --env-file .env.docker exec -T app sh -ec \
+            'test "$(cat VERSION)" = "$(cat /var/www/html/.managed/current/VERSION)"'
           docker compose --env-file .env.docker ps
 
       - name: Print service logs after failure

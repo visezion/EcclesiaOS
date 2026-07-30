@@ -28,6 +28,9 @@ bootstrap_managed_layout() {
     current_link="${UPDATER_CURRENT_LINK:-$managed_root/current}"
     version_file="/var/www/html/VERSION"
     release_version="$(tr -d '\r\n' < "$version_file" 2>/dev/null || true)"
+    if ! printf '%s' "$release_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'; then
+        release_version="1.0.0"
+    fi
     release_name="v${release_version:-1.0.0}"
     release_path="$releases_path/$release_name"
 
@@ -66,9 +69,22 @@ bootstrap_managed_layout() {
     fi
 
     current_target="$(readlink -f "$current_link" 2>/dev/null || true)"
+    activate_release=false
     if [ ! -f "$current_target/artisan" ]; then
-        rm -f "$current_link"
-        ln -s "$release_path" "$current_link"
+        activate_release=true
+    elif [ -f "$current_target/VERSION" ]; then
+        current_version="$(tr -d '\r\n' < "$current_target/VERSION" 2>/dev/null || true)"
+        newest_version="$(printf '%s\n%s\n' "$current_version" "$release_version" | sort -V | tail -n 1)"
+        if [ "$current_version" != "$release_version" ] && [ "$newest_version" = "$release_version" ]; then
+            activate_release=true
+        fi
+    fi
+
+    if [ "$activate_release" = "true" ]; then
+        next_link="${current_link}.next"
+        rm -f "$next_link"
+        ln -s "$release_path" "$next_link"
+        mv -Tf "$next_link" "$current_link"
     fi
 
     if [ "$(id -u)" = "0" ]; then
