@@ -72,13 +72,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           mkdir -p "$RUNNER_TEMP/trivy-cache"
+
           TRIVY_IMAGE="aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f"
 
           scan_status=0
+
           for service in app web; do
-            image_id="$(docker compose --env-file .env.docker images -q "$service")"
+            image_name="$(
+              docker compose --env-file .env.docker config --format json |
+              jq -r --arg service "$service" '.services[$service].image'
+            )"
+
+            if [[ -z "$image_name" || "$image_name" == "null" ]]; then
+              echo "::error::Unable to resolve image name for service: $service"
+              exit 1
+            fi
+
+            echo "Scanning $service image: $image_name"
+
+            docker image inspect "$image_name" >/dev/null
+
             report="$RUNNER_TEMP/trivy-$service.json"
+
             docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
@@ -88,16 +105,47 @@ jobs:
               --ignore-unfixed \
               --exit-code 0 \
               --format json \
-              "$image_id" > "$report"
+              "$image_name" > "$report"
 
-            findings="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length' "$report")"
+            findings="$(
+              jq '
+                [
+                  .Results[]?.Vulnerabilities[]?
+                  | select(
+                      .Severity == "HIGH" or
+                      .Severity == "CRITICAL"
+                    )
+                ]
+                | length
+              ' "$report"
+            )"
+
+            echo "$service findings: $findings"
+
             if [[ "$findings" -gt 0 ]]; then
               while IFS=$'\t' read -r pkg severity installed fixed; do
-                echo "::error file=Dockerfile,line=1,title=Fixable $severity CVE::$service $pkg $severity $installed -> ${fixed:-no fixed version}"
-              done < <(jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH" or .Severity == "CRITICAL") | [.PkgName, .Severity, .InstalledVersion, (.FixedVersion // "")] | @tsv' "$report")
+                echo "::error file=Dockerfile,line=1,title=$severity vulnerability::$service: $pkg $installed -> ${fixed:-no fixed version}"
+              done < <(
+                jq -r '
+                  .Results[]?.Vulnerabilities[]?
+                  | select(
+                      .Severity == "HIGH" or
+                      .Severity == "CRITICAL"
+                    )
+                  | [
+                      .PkgName,
+                      .Severity,
+                      .InstalledVersion,
+                      (.FixedVersion // "")
+                    ]
+                  | @tsv
+                ' "$report"
+              )
+
               scan_status=1
             fi
           done
+
           exit "$scan_status"
 
       - name: Start infrastructure and application
