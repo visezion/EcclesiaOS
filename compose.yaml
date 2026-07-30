@@ -220,6 +220,7 @@ services:
           --single-transaction \
           --routines \
           --triggers \
+          --no-tablespaces \
           "$${MYSQL_DATABASE}" \
           > "/backups/ecclesiaos-$$(date -u +%Y%m%dT%H%M%SZ).sql"
     volumes:
