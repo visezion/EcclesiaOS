@@ -68,6 +68,26 @@ jobs:
       - name: Build application images
         run: docker compose --env-file .env.docker build app web
 
+      - name: Scan application images
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/trivy-cache"
+          TRIVY_IMAGE="aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f"
+
+          for service in app web; do
+            image_id="$(docker compose --env-file .env.docker images -q "$service")"
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
+              "$TRIVY_IMAGE" image \
+              --scanners vuln \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --exit-code 1 \
+              "$image_id"
+          done
+
       - name: Start infrastructure and application
         run: |
           docker compose --env-file .env.docker up -d db redis

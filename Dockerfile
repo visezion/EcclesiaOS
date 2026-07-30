@@ -43,6 +43,7 @@ ENV APP_CONTAINERIZED=true \
     COMPOSER_ALLOW_SUPERUSER=1
 
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         $PHPIZE_DEPS \
         curl \
@@ -76,6 +77,29 @@ RUN apt-get update \
         zip \
     && pecl install redis \
     && docker-php-ext-enable redis \
+    && apt-get install -y --no-install-recommends \
+        libcurl4 \
+        libfreetype6 \
+        libicu72 \
+        libjpeg62-turbo \
+        libonig5 \
+        libpng16-16 \
+        libpq5 \
+        libsqlite3-0 \
+        libxml2 \
+        libzip4 \
+    && apt-get purge -y --auto-remove \
+        $PHPIZE_DEPS \
+        libcurl4-openssl-dev \
+        libfreetype6-dev \
+        libicu-dev \
+        libjpeg62-turbo-dev \
+        libonig-dev \
+        libpng-dev \
+        libpq-dev \
+        libsqlite3-dev \
+        libxml2-dev \
+        libzip-dev \
     && mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
     && rm -rf /var/lib/apt/lists/* /tmp/pear
 
@@ -113,6 +137,8 @@ FROM nginx:1.28-alpine AS web
 LABEL org.opencontainers.image.title="EcclesiaOS Web" \
       org.opencontainers.image.description="Nginx edge for the EcclesiaOS application" \
       org.opencontainers.image.source="https://github.com/visezion/EcclesiaOS"
+
+RUN apk upgrade --no-cache
 
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=app /var/www/html/public /var/www/html/public
