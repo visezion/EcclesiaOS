@@ -18,6 +18,12 @@
 /public/hot
 /public/storage
 /storage/*.key
+/database/*.sqlite
+/database/*.sqlite-*
+/*.tar
+/*.tar.gz
+/*.tgz
+/*.zip
 /storage/pail
 /vendor
 /backups

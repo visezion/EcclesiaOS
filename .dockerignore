@@ -27,6 +27,10 @@ storage/pail
 
 database/*.sqlite
 database/*.sqlite-*
+*.tar
+*.tar.gz
+*.tgz
+*.zip
 
 tests
 docs
@@ -34,4 +38,3 @@ release-assets
 .phpunit.cache
 .phpunit.result.cache
 *.log
-

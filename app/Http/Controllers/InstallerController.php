@@ -13,6 +13,7 @@ use App\Support\Branding;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -60,69 +61,84 @@ final class InstallerController extends Controller
             'admin_password' => ['required', Password::min(12)->mixedCase()->numbers()],
         ])->validate();
 
-        DB::transaction(function () use ($data): void {
-            $church = Church::query()->updateOrCreate(
-                ['slug' => Str::slug($data['church_name'])],
-                [
-                    'name' => $data['church_name'],
-                    'timezone' => $data['church_timezone'],
-                    'currency' => strtoupper($data['church_currency']),
-                    'email' => $data['church_email'],
-                    'phone' => $data['church_phone'] ?? null,
-                    'address' => $data['church_address'] ?? null,
-                ],
-            );
+        $installationLock = Cache::lock('ecclesiaos:installer:bootstrap', 30);
+        if (! $installationLock->get()) {
+            return back()->withInput($request->except('admin_password'))->withErrors([
+                'admin_email' => 'Another installation is already in progress. Wait a moment and try again.',
+            ]);
+        }
 
-            $campus = Campus::query()->firstOrCreate(
-                ['church_id' => $church->id, 'slug' => 'headquarters'],
-                [
-                    'name' => 'Headquarters',
-                    'type' => 'Main Campus',
-                    'address' => $church->address,
-                    'status' => 'active',
-                ],
-            );
+        try {
+            if ($this->installationComplete()) {
+                return redirect()->route('login');
+            }
 
-            $permissions = collect(config('access.permissions'))
-                ->unique()
-                ->mapWithKeys(fn (string $permission): array => [
-                    $permission => Permission::query()->updateOrCreate(
-                        ['slug' => Str::slug($permission)],
-                        ['name' => $permission, 'description' => 'Allows user to '.$permission],
-                    ),
-                ]);
-
-            $roles = collect(config('access.roles'))->mapWithKeys(function (array $rolePermissions, string $roleName) use ($permissions): array {
-                $role = Role::query()->updateOrCreate(
-                    ['slug' => Str::slug($roleName)],
-                    ['name' => $roleName, 'description' => $roleName.' application role'],
+            DB::transaction(function () use ($data): void {
+                $church = Church::query()->updateOrCreate(
+                    ['slug' => Str::slug($data['church_name'])],
+                    [
+                        'name' => $data['church_name'],
+                        'timezone' => $data['church_timezone'],
+                        'currency' => strtoupper($data['church_currency']),
+                        'email' => $data['church_email'],
+                        'phone' => $data['church_phone'] ?? null,
+                        'address' => $data['church_address'] ?? null,
+                    ],
                 );
 
-                $role->permissions()->sync(
-                    $rolePermissions === ['*']
-                        ? $permissions->pluck('id')->all()
-                        : $permissions->only($rolePermissions)->pluck('id')->all(),
+                $campus = Campus::query()->firstOrCreate(
+                    ['church_id' => $church->id, 'slug' => 'headquarters'],
+                    [
+                        'name' => 'Headquarters',
+                        'type' => 'Main Campus',
+                        'address' => $church->address,
+                        'status' => 'active',
+                    ],
                 );
 
-                return [$roleName => $role];
+                $permissions = collect(config('access.permissions'))
+                    ->unique()
+                    ->mapWithKeys(fn (string $permission): array => [
+                        $permission => Permission::query()->updateOrCreate(
+                            ['slug' => Str::slug($permission)],
+                            ['name' => $permission, 'description' => 'Allows user to '.$permission],
+                        ),
+                    ]);
+
+                $roles = collect(config('access.roles'))->mapWithKeys(function (array $rolePermissions, string $roleName) use ($permissions): array {
+                    $role = Role::query()->updateOrCreate(
+                        ['slug' => Str::slug($roleName)],
+                        ['name' => $roleName, 'description' => $roleName.' application role'],
+                    );
+
+                    $role->permissions()->sync(
+                        $rolePermissions === ['*']
+                            ? $permissions->pluck('id')->all()
+                            : $permissions->only($rolePermissions)->pluck('id')->all(),
+                    );
+
+                    return [$roleName => $role];
+                });
+
+                $administrator = User::query()->updateOrCreate(
+                    ['email' => $data['admin_email']],
+                    [
+                        'church_id' => $church->id,
+                        'campus_id' => $campus->id,
+                        'name' => $data['admin_name'],
+                        'title' => 'Church Administrator',
+                        'status' => 'active',
+                        'password' => $data['admin_password'],
+                        'password_changed_at' => now(),
+                        'email_verified_at' => now(),
+                    ],
+                );
+
+                $administrator->roles()->syncWithoutDetaching([$roles['Super Administrator']->id]);
             });
-
-            $administrator = User::query()->updateOrCreate(
-                ['email' => $data['admin_email']],
-                [
-                    'church_id' => $church->id,
-                    'campus_id' => $campus->id,
-                    'name' => $data['admin_name'],
-                    'title' => 'Church Administrator',
-                    'status' => 'active',
-                    'password' => $data['admin_password'],
-                    'password_changed_at' => now(),
-                    'email_verified_at' => now(),
-                ],
-            );
-
-            $administrator->roles()->syncWithoutDetaching([$roles['Super Administrator']->id]);
-        });
+        } finally {
+            $installationLock->release();
+        }
 
         return redirect()->route('login')->with('status', 'Installation complete. Sign in with the administrator account you just created.');
     }

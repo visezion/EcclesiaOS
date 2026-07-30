@@ -187,6 +187,10 @@ Default development login:
 - Email: `admin@kingdomhub.test`
 - Password: `password`
 
+These credentials exist only after running the demo seeder in a non-production
+environment. Production seeding is blocked, and Docker deployments have no
+default administrator credentials.
+
 Initial roles:
 
 - Super Administrator

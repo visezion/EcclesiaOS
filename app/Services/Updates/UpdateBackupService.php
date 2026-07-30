@@ -141,7 +141,7 @@ final class UpdateBackupService
     {
         $source = $sharedPath.DIRECTORY_SEPARATOR.'.env';
         $destination = $backupPath.DIRECTORY_SEPARATOR.'environment.env.backup';
-        if (! is_file($source) && (bool) env('APP_CONTAINERIZED', false)) {
+        if (! is_file($source) && (bool) config('updater.containerized')) {
             return null;
         }
 

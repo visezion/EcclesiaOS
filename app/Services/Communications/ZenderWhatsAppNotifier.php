@@ -7,6 +7,7 @@ namespace App\Services\Communications;
 use App\Models\CommunicationDelivery;
 use App\Models\CommunicationProviderSetting;
 use App\Models\CommunicationWhatsAppGroup;
+use App\Support\SafeOutboundUrl;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
@@ -38,11 +39,18 @@ final class ZenderWhatsAppNotifier
             return ['sent' => 0, 'failed' => 0, 'skipped' => 1];
         }
 
-        $siteUrl = rtrim((string) ($setting->settings['endpoint_url'] ?? ''), '/');
+        $siteUrl = (string) ($setting->settings['endpoint_url'] ?? '');
         $accountId = (string) ($setting->settings['account_id'] ?? '');
         $apiKey = $this->apiKey($setting);
 
         if ($siteUrl === '' || $accountId === '' || $apiKey === null) {
+            return ['sent' => 0, 'failed' => 1, 'skipped' => 0];
+        }
+
+        try {
+            $siteUrl = SafeOutboundUrl::normalize($siteUrl);
+            $requestOptions = SafeOutboundUrl::requestOptions($siteUrl);
+        } catch (\InvalidArgumentException) {
             return ['sent' => 0, 'failed' => 1, 'skipped' => 0];
         }
 
@@ -60,6 +68,7 @@ final class ZenderWhatsAppNotifier
                 $response = Http::acceptJson()
                     ->timeout(25)
                     ->connectTimeout(10)
+                    ->withOptions($requestOptions)
                     ->withHeaders(['User-Agent' => 'EcclesiaOS Zender Notifier'])
                     ->asForm()
                     ->post($siteUrl.'/api/send/whatsapp', [

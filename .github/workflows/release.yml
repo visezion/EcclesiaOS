@@ -17,19 +17,19 @@ jobs:
 
     steps:
       - name: Check out tagged source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
           php-version: "8.4"
           extensions: ctype, curl, dom, fileinfo, filter, mbstring, openssl, pdo_sqlite, session, tokenizer, xml, zip
           coverage: none
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "22"
           cache: npm
@@ -61,11 +61,21 @@ jobs:
 
       - name: Verify application
         run: |
+          composer validate --strict
           composer audit --locked
           npm audit
           php artisan test
           ./vendor/bin/pint --test
           npm run build
+
+      - name: Reject sensitive repository artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)\.env$|(^|/)database/.*\.sqlite([.-].*)?$|\.(tar|tar\.gz|tgz|zip)$'; then
+            echo "::error::A sensitive environment, database, or archive file is tracked."
+            exit 1
+          fi
 
       - name: Install production PHP dependencies
         run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
@@ -89,6 +99,10 @@ jobs:
             --exclude='storage/' \
             --exclude='public/storage' \
             --exclude='database/*.sqlite*' \
+            --exclude='*.tar' \
+            --exclude='*.tar.gz' \
+            --exclude='*.tgz' \
+            --exclude='*.zip' \
             --exclude='release-assets/' \
             --exclude='.phpunit.result.cache'
 
@@ -129,7 +143,7 @@ jobs:
           jq -e '.version and .artifact and .sha256 and .minimum_version and .minimum_php' release-assets/update-manifest.json >/dev/null
 
       - name: Attest application package
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
         with:
           subject-path: |
             ${{ steps.package.outputs.artifact }}

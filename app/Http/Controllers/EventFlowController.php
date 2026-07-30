@@ -30,6 +30,7 @@ use App\Models\Workflow;
 use App\Services\ActivityLogger;
 use App\Services\Communications\ZenderWhatsAppNotifier;
 use App\Support\OpaqueId;
+use App\Support\SecretHash;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -1705,7 +1706,7 @@ final class EventFlowController extends Controller
             $existingSettings = $existing?->settings ?? [];
             $enabled = (bool) ($input['enabled'] ?? false);
             $webhookSecretHash = filled($input['webhook_secret'] ?? null)
-                ? hash('sha256', (string) $input['webhook_secret'])
+                ? SecretHash::make((string) $input['webhook_secret'])
                 : ($existingSettings['webhook_secret_hash'] ?? null);
 
             if ($provider === 'livekit') {
@@ -1860,7 +1861,13 @@ final class EventFlowController extends Controller
         $secret = (string) $request->header('X-Meeting-Webhook-Secret', '');
         $timestamp = (int) $request->header('X-Meeting-Webhook-Timestamp', 0);
 
-        abort_unless($integration->enabled && filled($settings['webhook_secret_hash'] ?? null) && hash_equals((string) $settings['webhook_secret_hash'], hash('sha256', $secret)), 403);
+        $storedSecretHash = (string) ($settings['webhook_secret_hash'] ?? '');
+        abort_unless($integration->enabled && $storedSecretHash !== '' && SecretHash::verify($secret, $storedSecretHash), 403);
+
+        if (SecretHash::needsRehash($storedSecretHash)) {
+            $settings['webhook_secret_hash'] = SecretHash::make($secret);
+            $integration->forceFill(['settings' => $settings])->save();
+        }
         abort_unless(in_array($provider, $attendanceSession->methods ?? [], true), 403);
         abort_unless($timestamp > 0 && abs(now()->timestamp - $timestamp) <= 300, 403);
 

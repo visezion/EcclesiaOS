@@ -43,7 +43,7 @@ final class UpdateEnvironment
             && ! $this->isWithin($resolvedReleases, $resolvedShared)
             && ! $this->isWithin($resolvedShared, $resolvedReleases);
 
-        $containerized = (bool) env('APP_CONTAINERIZED', false);
+        $containerized = (bool) config('updater.containerized');
 
         $checks = [
             $this->check('Installation enabled', ! $requireInstallationEnabled || (bool) config('updater.install_enabled'), 'Set UPDATER_INSTALL_ENABLED=true after configuring the managed layout.'),

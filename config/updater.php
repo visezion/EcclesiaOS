@@ -8,6 +8,7 @@ $reloadCommand = is_array($reloadCommand)
     : [];
 
 return [
+    'containerized' => env('APP_CONTAINERIZED', false),
     'enabled' => env('UPDATER_ENABLED', true),
     // Containers are immutable; Docker deployments update by replacing images.
     'install_enabled' => env('UPDATER_INSTALL_ENABLED', env('APP_CONTAINERIZED', false)),

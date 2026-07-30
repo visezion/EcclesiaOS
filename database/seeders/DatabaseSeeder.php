@@ -41,11 +41,16 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->environment('production')) {
+            throw new RuntimeException('Demo data seeding is disabled in production. Use the installer or app:bootstrap-admin.');
+        }
+
         $church = $this->seedChurch();
         $campuses = $this->seedCampuses($church);
         $roles = $this->seedAccessControl();

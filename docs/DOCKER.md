@@ -58,6 +58,9 @@ The default site URL is `http://localhost:8080`.
 Fresh deployments also expose a branded installer at `/install`. If no Super
 Administrator exists yet, the login screen redirects there automatically.
 
+The example environment leaves all three values blank. There is no default
+production administrator password.
+
 For unattended provisioning, set the three `BOOTSTRAP_ADMIN_*` values in
 `.env.docker` before running the setup script. If you prefer to skip admin
 creation entirely, use `-SkipAdmin` on Windows and create the administrator

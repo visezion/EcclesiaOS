@@ -88,7 +88,7 @@ final class SocialAuthController extends Controller
             $user = $socialAccount->user;
         }
 
-        if (! $user && filled($profile['email'] ?? null)) {
+        if (! $user && ($profile['email_verified'] ?? false) === true && filled($profile['email'] ?? null)) {
             $matchedUser = User::query()->whereRaw('LOWER(email) = ?', [Str::lower((string) $profile['email'])])->first();
             if ($matchedUser instanceof User) {
                 $user = $matchedUser;
@@ -180,11 +180,19 @@ final class SocialAuthController extends Controller
 
         $raw = $response->json();
 
-        if ($provider === 'github' && blank($raw['email'] ?? null) && filled($definition['emails_url'] ?? null)) {
+        $githubEmailVerified = false;
+        if ($provider === 'github' && filled($definition['emails_url'] ?? null)) {
             $emails = Http::withToken($accessToken)->acceptJson()->connectTimeout(5)->timeout(10)->get((string) $definition['emails_url']);
             if ($emails->successful()) {
-                $primary = collect($emails->json())->first(fn (array $email): bool => ($email['primary'] ?? false) === true && ($email['verified'] ?? false) === true);
-                $raw['email'] = $primary['email'] ?? null;
+                $verifiedEmails = collect($emails->json())
+                    ->filter(fn (mixed $email): bool => is_array($email) && ($email['verified'] ?? false) === true);
+                $verifiedEmail = $verifiedEmails->first(fn (array $email): bool => ($email['primary'] ?? false) === true)
+                    ?? $verifiedEmails->first();
+
+                if (is_array($verifiedEmail) && filled($verifiedEmail['email'] ?? null)) {
+                    $raw['email'] = $verifiedEmail['email'];
+                    $githubEmailVerified = true;
+                }
             }
         }
 
@@ -192,6 +200,7 @@ final class SocialAuthController extends Controller
             'google', 'linkedin', 'microsoft' => [
                 'id' => $raw['sub'] ?? null,
                 'email' => $raw['email'] ?? null,
+                'email_verified' => ($raw['email_verified'] ?? false) === true,
                 'name' => $raw['name'] ?? null,
                 'avatar_url' => $raw['picture'] ?? null,
                 'raw' => $raw,
@@ -199,6 +208,7 @@ final class SocialAuthController extends Controller
             'facebook' => [
                 'id' => $raw['id'] ?? null,
                 'email' => $raw['email'] ?? null,
+                'email_verified' => false,
                 'name' => $raw['name'] ?? null,
                 'avatar_url' => data_get($raw, 'picture.data.url'),
                 'raw' => $raw,
@@ -206,6 +216,7 @@ final class SocialAuthController extends Controller
             'github' => [
                 'id' => $raw['id'] ?? null,
                 'email' => $raw['email'] ?? null,
+                'email_verified' => $githubEmailVerified,
                 'name' => $raw['name'] ?? $raw['login'] ?? null,
                 'avatar_url' => $raw['avatar_url'] ?? null,
                 'raw' => $raw,
@@ -213,6 +224,7 @@ final class SocialAuthController extends Controller
             'x' => [
                 'id' => data_get($raw, 'data.id'),
                 'email' => null,
+                'email_verified' => false,
                 'name' => data_get($raw, 'data.name') ?? data_get($raw, 'data.username'),
                 'avatar_url' => data_get($raw, 'data.profile_image_url'),
                 'raw' => $raw,

@@ -449,7 +449,7 @@ final class DashboardService
 
     private function sparkline($query, string $column = 'created_at'): array
     {
-        return collect(range(6, 0))->map(fn (int $i): int => (clone $query)->whereDate($column, now()->subDays($i)->toDateString())->count() + 4)->all();
+        return collect(range(6, 0))->map(fn (int $i): int => (clone $query)->whereDate($column, now()->subDays($i)->toDateString())->count())->all();
     }
 
     /**

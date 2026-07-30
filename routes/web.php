@@ -55,7 +55,7 @@ Route::view('features', 'features')->name('features');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('install', [InstallerController::class, 'create'])->name('install');
-    Route::post('install', [InstallerController::class, 'store'])->name('install.store');
+    Route::post('install', [InstallerController::class, 'store'])->middleware('throttle:5,1')->name('install.store');
 });
 
 Route::middleware('guest')->group(function (): void {

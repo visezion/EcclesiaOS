@@ -59,6 +59,9 @@ Default development login:
 - Email: `admin@kingdomhub.test`
 - Password: `password`
 
+This account is demo data for local/testing environments only. The application
+refuses to run the demo seeder in production.
+
 ## 4. Architecture Design
 
 KingdomHub follows this request flow:

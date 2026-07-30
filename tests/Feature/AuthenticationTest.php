@@ -231,6 +231,7 @@ class AuthenticationTest extends TestCase
             'https://www.googleapis.com/oauth2/v3/userinfo' => Http::response([
                 'sub' => 'google-user-123',
                 'email' => 'admin@kingdomhub.test',
+                'email_verified' => true,
                 'name' => 'Pastor John',
                 'picture' => 'https://example.test/avatar.png',
             ], 200),
@@ -247,5 +248,41 @@ class AuthenticationTest extends TestCase
             'email' => 'admin@kingdomhub.test',
         ]);
         $this->assertNotNull(SocialAccount::query()->where('provider', 'google')->first()?->last_login_at);
+    }
+
+    public function test_unverified_social_email_cannot_link_an_existing_user(): void
+    {
+        $this->seed();
+        $church = Church::query()->firstOrFail();
+        $settings = $church->settings ?? [];
+        data_set($settings, 'social_auth.providers.google', [
+            'enabled' => true,
+            'client_id' => 'google-client-id',
+            'client_secret_encrypted' => Crypt::encryptString('google-secret'),
+        ]);
+        $church->forceFill(['settings' => $settings])->save();
+
+        $this->get(route('social.redirect', 'google'));
+        $state = session('social_auth.google.state');
+
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'token-value'], 200),
+            'https://www.googleapis.com/oauth2/v3/userinfo' => Http::response([
+                'sub' => 'unverified-google-user',
+                'email' => 'admin@kingdomhub.test',
+                'email_verified' => false,
+                'name' => 'Unverified User',
+            ], 200),
+        ]);
+
+        $this->get(route('social.callback', 'google').'?state='.$state.'&code=auth-code')
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+        $this->assertDatabaseMissing('social_accounts', [
+            'provider' => 'google',
+            'provider_user_id' => 'unverified-google-user',
+        ]);
     }
 }

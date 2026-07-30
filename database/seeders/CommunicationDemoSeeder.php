@@ -14,6 +14,7 @@ use App\Models\CommunicationTemplate;
 use App\Models\Member;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
+use App\Support\SecretHash;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -190,7 +191,7 @@ final class CommunicationDemoSeeder extends Seeder
                     ],
                     'rate_limit_per_minute' => $rateLimit,
                     'retry_policy' => $channel === 'in_app' ? 'linear' : 'exponential',
-                    'webhook_secret_hash' => hash('sha256', 'demo-'.$channel.'-webhook-secret'),
+                    'webhook_secret_hash' => SecretHash::make('demo-'.$channel.'-webhook-secret'),
                     'last_tested_at' => now()->subMinutes(8 + array_search($channel, self::CHANNELS, true)),
                     'last_test_status' => 'success',
                 ],

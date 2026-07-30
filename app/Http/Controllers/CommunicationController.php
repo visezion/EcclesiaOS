@@ -18,9 +18,12 @@ use App\Models\Ministry;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
+use App\Rules\PublicHttpsUrl;
 use App\Services\ActivityLogger;
 use App\Support\Csv;
 use App\Support\OpaqueId;
+use App\Support\SafeOutboundUrl;
+use App\Support\SecretHash;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Client\PendingRequest;
@@ -473,6 +476,9 @@ final class CommunicationController extends Controller
             ->where('enabled', true)
             ->get();
         abort_unless(count($whatsappGroupIds) === $whatsappGroups->count(), 403);
+        if (filled($validated['campus_id'] ?? null)) {
+            abort_unless($this->campuses($request)->contains('id', (int) $validated['campus_id']), 403);
+        }
 
         $channels = array_values(array_unique($validated['channels']));
         if ($whatsappGroups->isNotEmpty() && ! in_array('whatsapp', $channels, true)) {
@@ -922,7 +928,7 @@ final class CommunicationController extends Controller
             'providers.*.rate_limit_per_minute' => ['required', 'integer', 'min:1', 'max:100000'],
             'providers.*.retry_policy' => ['required', Rule::in(['linear', 'exponential', 'manual'])],
             'providers.*.webhook_secret' => ['nullable', 'string', 'max:255'],
-            'providers.*.endpoint_url' => ['nullable', 'url', 'max:255'],
+            'providers.*.endpoint_url' => ['nullable', 'max:255', new PublicHttpsUrl],
             'providers.*.api_key' => ['nullable', 'string', 'max:1000'],
             'providers.*.account_id' => ['nullable', 'string', 'max:180'],
             'providers.*.device_id' => ['nullable', 'string', 'max:180'],
@@ -936,7 +942,7 @@ final class CommunicationController extends Controller
             'providers.*.region' => ['nullable', 'string', 'max:120'],
             'zender' => ['nullable', 'array'],
             'zender.enabled' => ['nullable', 'boolean'],
-            'zender.site_url' => ['nullable', 'url', 'max:255'],
+            'zender.site_url' => ['nullable', 'max:255', new PublicHttpsUrl],
             'zender.api_key' => ['nullable', 'string', 'max:1000'],
             'zender.service' => ['nullable', Rule::in(['sms', 'whatsapp'])],
             'zender.whatsapp_account_id' => ['nullable', 'string', 'max:180'],
@@ -957,7 +963,7 @@ final class CommunicationController extends Controller
             }
             $existing = CommunicationProviderSetting::query()->where('church_id', $this->churchId($request))->where('channel', $channel)->first();
             $webhookSecretHash = filled($input['webhook_secret'] ?? null)
-                ? hash('sha256', (string) $input['webhook_secret'])
+                ? SecretHash::make((string) $input['webhook_secret'])
                 : $existing?->webhook_secret_hash;
             $settings = $existing?->settings ?? [];
             $settings = array_merge($settings, [
@@ -1122,7 +1128,12 @@ final class CommunicationController extends Controller
         if ($setting->enabled && $validationError === null && Str::contains(Str::lower($setting->provider), 'zender')) {
             $probeError = $this->testZenderProviderConnection($setting);
         }
-        $status = $setting->enabled && $validationError === null && $probeError === null ? 'success' : 'failed';
+        $driverSupported = $channel === 'in_app'
+            || (in_array($channel, ['sms', 'whatsapp'], true) && Str::contains(Str::lower($setting->provider), 'zender'));
+        if (! $driverSupported && $validationError === null) {
+            $validationError = 'No delivery driver is installed for '.$setting->provider.'.';
+        }
+        $status = $setting->enabled && $driverSupported && $validationError === null && $probeError === null ? 'success' : 'failed';
         $setting->update(['last_tested_at' => now(), 'last_test_status' => $status]);
 
         CommunicationDelivery::query()->create([
@@ -1137,7 +1148,7 @@ final class CommunicationController extends Controller
             'status' => $status === 'success' ? 'delivered' : 'failed',
             'retry_status' => $status === 'success' ? 'none' : 'queued',
             'attempt' => 1,
-            'latency_ms' => $status === 'success' ? random_int(80, 420) : null,
+            'latency_ms' => $status === 'success' ? 0 : null,
             'response_code' => $status === 'success' ? '200 OK' : 'Configuration check failed',
             'error' => $status === 'success' ? null : ($probeError ?? $validationError ?? 'Enable the channel before testing.'),
             'sent_at' => now(),
@@ -1151,7 +1162,7 @@ final class CommunicationController extends Controller
 
     private function validateTemplate(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
             'category' => ['required', Rule::in(self::CATEGORIES)],
             'trigger_event' => ['nullable', 'string', 'max:120'],
@@ -1164,6 +1175,12 @@ final class CommunicationController extends Controller
             'approval_state' => ['required', Rule::in(['approved', 'pending', 'rejected'])],
             'campus_id' => ['nullable', 'exists:campuses,id'],
         ]);
+
+        if (filled($validated['campus_id'] ?? null)) {
+            abort_unless($this->campuses($request)->contains('id', (int) $validated['campus_id']), 403);
+        }
+
+        return $validated;
     }
 
     private function sendCampaign(CommunicationCampaign $campaign): void
@@ -1244,8 +1261,8 @@ final class CommunicationController extends Controller
             'sent_count' => $sent,
             'delivered_count' => $delivered,
             'failed_count' => $failed,
-            'opened_count' => (int) floor($delivered * 0.48),
-            'clicked_count' => (int) floor($delivered * 0.12),
+            'opened_count' => 0,
+            'clicked_count' => 0,
         ]);
     }
 
@@ -1263,7 +1280,7 @@ final class CommunicationController extends Controller
     private function dispatchDeliveryOutcome(string $channel, ?CommunicationProviderSetting $setting, ?string $recipientContact, string $message): array
     {
         if ($channel === 'in_app') {
-            return $this->successfulDeliveryOutcome($channel, random_int(90, 900), '200 OK');
+            return $this->successfulDeliveryOutcome($channel, 0, 'Internal delivery');
         }
 
         if (! $setting?->enabled) {
@@ -1283,7 +1300,10 @@ final class CommunicationController extends Controller
             return $this->sendZenderMessage($channel, $setting, (string) $recipientContact, $message);
         }
 
-        return $this->successfulDeliveryOutcome($channel, random_int(90, 900), '200 OK');
+        return $this->failedDeliveryOutcome(
+            'Provider not implemented',
+            Str::headline($setting->provider).' is configured, but this application build does not include a delivery driver for it.',
+        );
     }
 
     /**
@@ -1303,7 +1323,7 @@ final class CommunicationController extends Controller
         $payload = $this->zenderPayload($channel, $settings, $apiKey, $recipientContact, $message);
 
         try {
-            $response = $this->zenderHttpClient()
+            $response = $this->zenderHttpClient($siteUrl)
                 ->asForm()
                 ->post($siteUrl.'/api/send/'.$channel, $payload);
         } catch (Throwable $exception) {
@@ -1341,7 +1361,7 @@ final class CommunicationController extends Controller
         }
 
         try {
-            $response = $this->zenderHttpClient()
+            $response = $this->zenderHttpClient($siteUrl)
                 ->get($siteUrl.'/api/get/credits', ['secret' => $apiKey]);
         } catch (Throwable $exception) {
             return $this->zenderConnectionError($exception);
@@ -1403,14 +1423,17 @@ final class CommunicationController extends Controller
             return null;
         }
 
-        return rtrim(trim((string) $siteUrl), '/');
+        try {
+            return SafeOutboundUrl::normalize((string) $siteUrl);
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
     }
 
-    private function zenderHttpClient(): PendingRequest
+    private function zenderHttpClient(string $siteUrl): PendingRequest
     {
         $curlOptions = [];
         foreach ([
-            'CURLOPT_IPRESOLVE' => 'CURL_IPRESOLVE_V4',
             'CURLOPT_HTTP_VERSION' => 'CURL_HTTP_VERSION_1_1',
             'CURLOPT_SSLVERSION' => 'CURL_SSLVERSION_TLSv1_2',
         ] as $option => $value) {
@@ -1425,7 +1448,10 @@ final class CommunicationController extends Controller
             ->withHeaders([
                 'User-Agent' => 'EcclesiaOS Zender Client',
             ])
-            ->withOptions($curlOptions === [] ? [] : ['curl' => $curlOptions]);
+            ->withOptions(array_replace_recursive(
+                SafeOutboundUrl::requestOptions($siteUrl),
+                $curlOptions === [] ? [] : ['curl' => $curlOptions],
+            ));
     }
 
     private function zenderConnectionError(Throwable $exception): string
@@ -1752,7 +1778,7 @@ final class CommunicationController extends Controller
 
         foreach ($endpoints as $endpoint) {
             try {
-                $request = $this->zenderHttpClient();
+                $request = $this->zenderHttpClient($siteUrl);
                 $response = $request->get($siteUrl.$endpoint['path'], $payload);
             } catch (Throwable $exception) {
                 $lastError = $this->zenderConnectionError($exception);
