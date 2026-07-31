@@ -23,7 +23,9 @@ final class BibleController extends Controller
             ->where(fn ($query) => $query->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))
             ->where('status', 'active')
             ->orderByDesc('is_default')->orderBy('name')->get();
-        $translation = $translations->firstWhere('abbreviation', strtoupper((string) $request->query('translation'))) ?? $translations->first();
+        $settings = data_get($request->user()->account_settings, 'bible', []);
+        $preferredTranslation = $request->query('translation') ?: data_get($settings, 'translation_id');
+        $translation = $translations->firstWhere('abbreviation', strtoupper((string) $preferredTranslation)) ?? $translations->firstWhere('id', (int) $preferredTranslation) ?? $translations->first();
         $book = (string) $request->query('book', 'John');
         $chapter = max(1, (int) $request->query('chapter', 3));
         $verses = $translation?->verses()->where('book_slug', Str::slug($book))->where('chapter', $chapter)->orderBy('verse')->get() ?? collect();
@@ -34,6 +36,7 @@ final class BibleController extends Controller
             'book' => $book,
             'chapter' => $chapter,
             'verses' => $verses,
+            'settings' => $settings,
             'breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => null]],
         ]);
     }
@@ -109,7 +112,10 @@ final class BibleController extends Controller
     public function updateSettings(Request $request): RedirectResponse
     {
         $this->authorizeBible($request);
-        $data = $request->validate(['translation_id' => ['nullable', 'exists:bible_translations,id'], 'font_size' => ['required', 'integer', 'min:12', 'max:28'], 'line_spacing' => ['required', 'in:compact,comfortable,spacious'], 'verse_of_day' => ['nullable', 'boolean'], 'reading_reminders' => ['nullable', 'boolean'], 'autoplay_audio' => ['nullable', 'boolean'], 'open_last_read' => ['nullable', 'boolean']]);
+        $data = $request->validate(['translation_id' => ['nullable', 'exists:bible_translations,id'], 'book_view' => ['required', 'in:single,two'], 'font_size' => ['required', 'integer', 'min:12', 'max:28'], 'line_spacing' => ['required', 'in:compact,comfortable,spacious'], 'dark_mode' => ['nullable', 'boolean'], 'verse_of_day' => ['nullable', 'boolean'], 'reading_reminders' => ['nullable', 'boolean'], 'reading_reminder_time' => ['required', 'date_format:H:i'], 'reading_plan_notifications' => ['nullable', 'boolean'], 'autoplay_audio' => ['nullable', 'boolean'], 'open_last_read' => ['nullable', 'boolean'], 'offline_sync' => ['required', 'in:wifi,any'], 'highlight_color' => ['required', 'in:yellow,green,purple,pink,blue'], 'private_notes' => ['nullable', 'boolean']]);
+        foreach (['dark_mode', 'verse_of_day', 'reading_reminders', 'reading_plan_notifications', 'autoplay_audio', 'open_last_read', 'private_notes'] as $toggle) {
+            $data[$toggle] = (bool) ($data[$toggle] ?? false);
+        }
         $account = $request->user()->account_settings ?? [];
         $account['bible'] = array_merge($account['bible'] ?? [], $data);
         $request->user()->forceFill(['account_settings' => $account])->save();

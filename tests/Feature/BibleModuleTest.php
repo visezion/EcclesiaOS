@@ -73,7 +73,36 @@ final class BibleModuleTest extends TestCase
         $this->actingAs($user)->get(route('bible.settings'))->assertOk()->assertSee('Bible Settings', false);
 
         $translation = BibleTranslation::create(['church_id' => $user->church_id, 'created_by' => $user->id, 'name' => 'Test Version', 'abbreviation' => 'TST', 'language' => 'English', 'status' => 'active']);
-        $this->actingAs($user)->post(route('bible.translations.import', $translation), ['file' => UploadedFile::fake()->createWithContent('verses.csv', "book,chapter,verse,text\nJohn,3,16,For God so loved the world." )])->assertRedirect();
+        $this->actingAs($user)->post(route('bible.translations.import', $translation), ['file' => UploadedFile::fake()->createWithContent('verses.csv', "book,chapter,verse,text\nJohn,3,16,For God so loved the world.")])->assertRedirect();
         $this->assertDatabaseHas('bible_verses', ['bible_translation_id' => $translation->id, 'verse' => 16]);
+    }
+
+    public function test_bible_settings_are_saved_and_applied_to_the_reader(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $this->actingAs($user)->get(route('bible.settings'))->assertOk();
+        $translation = BibleTranslation::query()->where('abbreviation', 'KJV')->firstOrFail();
+
+        $this->actingAs($user)->put(route('bible.settings.update'), [
+            'translation_id' => $translation->id,
+            'book_view' => 'two',
+            'font_size' => 20,
+            'line_spacing' => 'spacious',
+            'dark_mode' => 1,
+            'verse_of_day' => 0,
+            'reading_reminders' => 1,
+            'reading_reminder_time' => '18:00',
+            'reading_plan_notifications' => 0,
+            'autoplay_audio' => 1,
+            'open_last_read' => 0,
+            'offline_sync' => 'any',
+            'highlight_color' => 'purple',
+            'private_notes' => 1,
+        ])->assertRedirect();
+
+        $this->assertSame(20, data_get($user->fresh()->account_settings, 'bible.font_size'));
+        $this->assertSame('spacious', data_get($user->fresh()->account_settings, 'bible.line_spacing'));
+        $this->actingAs($user)->get(route('bible.index'))->assertOk()->assertSee('font-size: 20px', false)->assertSee('line-height: 2.25', false);
     }
 }
