@@ -66,7 +66,9 @@ jobs:
           docker compose --env-file .env.docker config --quiet
 
       - name: Build application images
-        run: docker compose --env-file .env.docker build --pull app web
+        run: |
+          docker compose --env-file .env.docker build --pull app
+          docker compose --env-file .env.docker build --pull --no-cache web
 
       - name: Scan application images
         shell: bash
@@ -277,5 +279,6 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
           pull: true
+          no-cache: ${{ matrix.target == 'web' }}
           provenance: true
           sbom: true
