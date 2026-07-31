@@ -53,10 +53,34 @@ final class BibleController extends Controller
         $this->authorizeBible($request);
         $this->ensureDefaultBible($request);
         $query = trim((string) $request->query('q', ''));
-        $verses = $query === '' ? collect() : BibleVerse::query()->with('translation')->where('text', 'like', '%'.$query.'%')->limit(25)->get();
+        $filters = ['content' => (string) $request->query('content', ''), 'translation_id' => (string) $request->query('translation_id', ''), 'testament' => (string) $request->query('testament', ''), 'book' => (string) $request->query('book', '')];
+        $translations = $this->visibleTranslations($request);
+        $verseQuery = BibleVerse::query()->with('translation')->when($query !== '', fn ($builder) => $builder->where('text', 'like', '%'.$query.'%'));
+        if ($filters['translation_id'] !== '') {
+            $verseQuery->where('bible_translation_id', $filters['translation_id']);
+        }
+        if ($filters['testament'] !== '') {
+            $verseQuery->where('testament', $filters['testament']);
+        }
+        if ($filters['book'] !== '') {
+            $verseQuery->where('book_slug', Str::slug($filters['book']));
+        }
+        $verses = $query === '' ? collect() : $verseQuery->limit(25)->get();
         $notes = $query === '' ? collect() : BibleNote::query()->where('user_id', $request->user()->id)->where(fn ($builder) => $builder->where('title', 'like', '%'.$query.'%')->orWhere('body', 'like', '%'.$query.'%'))->latest()->limit(10)->get();
+        if ($filters['content'] === 'verses') {
+            $notes = collect();
+        }
+        if ($filters['content'] === 'notes') {
+            $verses = collect();
+        }
+        $books = BibleVerse::query()->select('book')->distinct()->orderBy('book')->pluck('book');
+        $recentSearches = collect($request->session()->get('bible_recent_searches', []))->take(5);
+        if ($query !== '') {
+            $recentSearches = collect([$query])->merge($recentSearches->reject(fn ($recent): bool => $recent === $query))->take(5);
+            $request->session()->put('bible_recent_searches', $recentSearches->all());
+        }
 
-        return view('bible.search', ['query' => $query, 'verses' => $verses, 'notes' => $notes, 'breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Search', 'url' => null]]]);
+        return view('bible.search', compact('query', 'verses', 'notes', 'translations', 'books', 'filters', 'recentSearches') + ['breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Search', 'url' => null]]]);
     }
 
     public function compare(Request $request): View
