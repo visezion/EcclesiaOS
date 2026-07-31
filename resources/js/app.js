@@ -316,16 +316,28 @@ document.addEventListener('alpine:init', () => {
         notificationCount: Number(notificationCount) || 0,
         messageCount: Number(messageCount) || 0,
         timer: null,
+        focusHandler: null,
+        visibilityHandler: null,
 
         start() {
             this.refresh();
-            this.timer = window.setInterval(() => this.refresh(), 30000);
+            this.timer = window.setInterval(() => this.refresh(), 5000);
+            this.focusHandler = () => this.refresh();
+            this.visibilityHandler = () => this.refreshOnVisible();
+            window.addEventListener('focus', this.focusHandler);
+            document.addEventListener('visibilitychange', this.visibilityHandler);
         },
 
         stop() {
             if (this.timer) {
                 window.clearInterval(this.timer);
                 this.timer = null;
+            }
+            if (this.focusHandler) {
+                window.removeEventListener('focus', this.focusHandler);
+            }
+            if (this.visibilityHandler) {
+                document.removeEventListener('visibilitychange', this.visibilityHandler);
             }
         },
 
@@ -334,6 +346,7 @@ document.addEventListener('alpine:init', () => {
                 const response = await fetch(this.url, {
                     headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin',
+                    cache: 'no-store',
                 });
 
                 if (! response.ok) {
@@ -350,6 +363,12 @@ document.addEventListener('alpine:init', () => {
 
         displayCount(count) {
             return count > 99 ? '99+' : String(count);
+        },
+
+        refreshOnVisible() {
+            if (document.visibilityState === 'visible') {
+                this.refresh();
+            }
         },
     }));
 
