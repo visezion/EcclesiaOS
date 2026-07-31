@@ -1,0 +1,21 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
+final class BibleReadingPlan extends Model
+{
+    protected $fillable = ['church_id', 'name', 'description', 'category', 'duration_days', 'is_recommended'];
+
+    protected function casts(): array
+    {
+        return ['is_recommended' => 'boolean'];
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)->withPivot(['current_day', 'current_streak', 'started_at', 'completed_at'])->withTimestamps();
+    }
+}

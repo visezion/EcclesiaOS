@@ -12,6 +12,7 @@ use App\Http\Controllers\AuthenticationSettingsController;
 use App\Http\Controllers\BookstoreController;
 use App\Http\Controllers\BibleController;
 use App\Http\Controllers\BibleTranslationController;
+use App\Http\Controllers\BibleStudyController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CampusManagementController;
 use App\Http\Controllers\ChildrenYouthController;
@@ -83,7 +84,14 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('bible/admin/translations', [BibleTranslationController::class, 'store'])->name('bible.translations.store');
     Route::delete('bible/admin/translations/{translation}', [BibleTranslationController::class, 'destroy'])->name('bible.translations.destroy');
     Route::get('bible', [BibleController::class, 'index'])->name('bible.index');
-    Route::get('bible/{page}', [BibleController::class, 'placeholder'])->whereIn('page', ['plans', 'bookmarks', 'notes', 'highlights', 'search', 'compare', 'settings'])->name('bible.placeholder');
+    Route::get('bible/plans', [BibleStudyController::class, 'plans'])->name('bible.plans');
+    Route::get('bible/bookmarks', [BibleStudyController::class, 'bookmarks'])->name('bible.bookmarks');
+    Route::get('bible/notes', [BibleStudyController::class, 'notes'])->name('bible.notes');
+    Route::get('bible/highlights', [BibleStudyController::class, 'highlights'])->name('bible.highlights');
+    Route::post('bible/plans/{plan}/start', [BibleStudyController::class, 'startPlan'])->name('bible.plans.start');
+    Route::post('bible/bookmarks', [BibleStudyController::class, 'storeBookmark'])->name('bible.bookmarks.store');
+    Route::post('bible/notes', [BibleStudyController::class, 'storeNote'])->name('bible.notes.store');
+    Route::get('bible/{page}', [BibleController::class, 'placeholder'])->whereIn('page', ['search', 'compare', 'settings'])->name('bible.placeholder');
     Route::get('messages', [MessageController::class, 'index'])->name('messages.index');
     Route::get('messages/sent', [MessageController::class, 'sent'])->name('messages.sent');
     Route::get('messages/create', [MessageController::class, 'create'])->name('messages.create');
@@ -324,7 +332,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.placeholder', 'bible.translations.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.placeholder', 'bible.translations.index'], true)) {
             continue;
         }
 
