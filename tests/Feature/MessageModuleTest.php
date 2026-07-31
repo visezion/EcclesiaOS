@@ -59,6 +59,11 @@ final class MessageModuleTest extends TestCase
         $this->assertSame(1, $recipient->fresh()->unreadNotifications()->count());
 
         $this->actingAs($recipient)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('aria-label="Messages, 1 unread"', false);
+
+        $this->actingAs($recipient)
             ->get(route('messages.show', $thread))
             ->assertOk()
             ->assertSee('Sunday service planning', false)

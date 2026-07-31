@@ -8,6 +8,28 @@
         && ($user?->isSuperAdministrator() || $permission === null || $user?->hasPermission($permission));
     $unreadNotifications = $user?->unreadNotifications()->latest()->limit(8)->get() ?? collect();
     $unreadCount = $user?->unreadNotifications()->count() ?? 0;
+    $unreadMessagesCount = 0;
+    if ($user && $canAccess('messages.index')) {
+        $unreadMessagesCount = \App\Models\MessageThread::query()
+            ->where('church_id', $user->church_id)
+            ->whereHas('participants', function ($query) use ($user): void {
+                $query
+                    ->where('users.id', $user->id)
+                    ->where(function ($query): void {
+                        $query
+                            ->whereNull('message_thread_user.last_read_at')
+                            ->orWhereColumn('message_thread_user.last_read_at', '<', 'message_threads.last_message_at');
+                    });
+            })
+            ->when(! $user->isSuperAdministrator() && ! $user->hasPermission('view sensitive messages'), function ($query) use ($user): void {
+                $query->where(function ($query) use ($user): void {
+                    $query
+                        ->whereNotIn('permission_scope', ['leadership', 'restricted'])
+                        ->orWhere('created_by', $user->id);
+                });
+            })
+            ->count();
+    }
     $notificationUrl = $canAccess('communications.notifications', 'manage communications')
         ? route('communications.notifications')
         : route('account.settings').'#notifications';
@@ -94,7 +116,12 @@
                     <a href="{{ $notificationUrl }}" class="block border-t border-slate-100 px-3 py-2.5 text-center text-xs font-semibold text-violet-700 hover:bg-violet-50">View notification center</a>
                 </div>
             </x-dropdown>
-            <a href="{{ $messagesUrl }}" class="hidden size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500 sm:grid" aria-label="Messages"><i data-lucide="message-square" class="size-5"></i></a>
+            <a href="{{ $messagesUrl }}" class="relative hidden size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500 sm:grid" aria-label="Messages{{ $unreadMessagesCount > 0 ? ', '.$unreadMessagesCount.' unread' : '' }}" title="Messages{{ $unreadMessagesCount > 0 ? ' ('.$unreadMessagesCount.' unread)' : '' }}">
+                <i data-lucide="message-square" class="size-5"></i>
+                @if($unreadMessagesCount > 0)
+                    <span class="absolute right-1.5 top-1 rounded-full bg-violet-600 px-1.5 text-[10px] font-medium text-white">{{ $unreadMessagesCount > 99 ? '99+' : $unreadMessagesCount }}</span>
+                @endif
+            </a>
             <a href="{{ $calendarUrl }}" class="hidden size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500 sm:grid" aria-label="Calendar"><i data-lucide="calendar-days" class="size-5"></i></a>
             <a href="{{ $helpUrl }}" class="hidden size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500 md:grid" aria-label="Help"><i data-lucide="circle-help" class="size-5"></i></a>
             <div class="hidden h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 xl:flex">
