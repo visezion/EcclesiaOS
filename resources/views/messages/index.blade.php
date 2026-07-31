@@ -506,11 +506,18 @@
                                                         <p class="mb-2 text-[9px] font-extrabold uppercase tracking-wide text-slate-400">Attachments ({{ $message->attachments->count() }})</p>
                                                         <div class="grid gap-2 sm:grid-cols-2">
                                                         @foreach ($message->attachments as $attachment)
-                                                            <a href="{{ route('messages.attachments.download', $attachment) }}" class="group flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-2.5 text-left transition hover:border-violet-300 hover:shadow-sm">
-                                                                @if($attachment->is_image)<img src="{{ route('messages.attachments.download', ['attachment' => $attachment, 'preview' => 1]) }}" alt="" class="size-10 rounded-md object-cover ring-1 ring-slate-100">@else<span class="grid size-10 place-items-center rounded-md bg-rose-50 text-rose-600"><i data-lucide="file-text" class="size-4"></i></span>@endif
+                                                            @php
+                                                                $attachmentPreviewUrl = route('messages.attachments.download', ['attachment' => $attachment, 'preview' => 1]);
+                                                                $attachmentDownloadUrl = route('messages.attachments.download', $attachment);
+                                                            @endphp
+                                                            <div class="group flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-2.5 text-left transition hover:border-violet-300 hover:shadow-sm">
+                                                                <a href="{{ $attachmentPreviewUrl }}" target="_blank" rel="noopener" class="grid size-10 shrink-0 place-items-center rounded-md bg-slate-50 text-violet-600 ring-1 ring-slate-100" title="Open {{ $attachment->original_name }}">
+                                                                    @if($attachment->is_image)<img src="{{ $attachmentPreviewUrl }}" alt="{{ $attachment->original_name }}" class="size-10 rounded-md object-cover">@else<i data-lucide="file-text" class="size-4"></i>@endif
+                                                                </a>
                                                                 <span class="min-w-0 flex-1"><span class="block truncate text-[10px] font-bold text-slate-700">{{ $attachment->original_name }}</span><span class="text-[9px] text-slate-400">{{ strtoupper(pathinfo($attachment->original_name, PATHINFO_EXTENSION)) }} &middot; {{ number_format($attachment->size / 1024, 1) }} KB</span></span>
-                                                                <i data-lucide="download" class="size-3.5 shrink-0 text-slate-400 group-hover:text-violet-600"></i>
-                                                            </a>
+                                                                <a href="{{ $attachmentPreviewUrl }}" target="_blank" rel="noopener" class="grid size-7 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-violet-50 hover:text-violet-600" title="View {{ $attachment->original_name }}" aria-label="View {{ $attachment->original_name }}"><i data-lucide="eye" class="size-3.5"></i></a>
+                                                                <a href="{{ $attachmentDownloadUrl }}" class="grid size-7 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-violet-600" title="Download {{ $attachment->original_name }}" aria-label="Download {{ $attachment->original_name }}"><i data-lucide="download" class="size-3.5"></i></a>
+                                                            </div>
                                                         @endforeach
                                                         </div>
                                                     </div>

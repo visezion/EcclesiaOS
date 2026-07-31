@@ -394,10 +394,21 @@ final class MessageController extends Controller
         abort_unless($message, 404);
         $this->authorizeThread($request, $message->thread);
         abort_unless($attachment->church_id === $request->user()->church_id && Storage::disk($attachment->disk)->exists($attachment->path), 404);
-        if ($request->boolean('preview') && $attachment->is_image) {
+        $previewableMimeTypes = [
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
+
+        if ($request->boolean('preview') && in_array($attachment->mime_type, $previewableMimeTypes, true)) {
             return Storage::disk($attachment->disk)->response($attachment->path, $attachment->original_name, [
                 'Content-Type' => $attachment->mime_type,
                 'Content-Disposition' => 'inline',
+                'X-Content-Type-Options' => 'nosniff',
             ]);
         }
 
