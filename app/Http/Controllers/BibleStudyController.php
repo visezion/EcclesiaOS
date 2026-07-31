@@ -74,9 +74,27 @@ final class BibleStudyController extends Controller
     public function notes(Request $request): View
     {
         $this->authorizeBible($request);
-        $notes = BibleNote::query()->where('user_id', $request->user()->id)->with('translation')->latest('updated_at')->paginate(7);
+        $filters = ['q' => trim((string) $request->query('q', '')), 'book' => (string) $request->query('book', ''), 'tag' => (string) $request->query('tag', ''), 'note_type' => (string) $request->query('note_type', '')];
+        $query = BibleNote::query()->where('user_id', $request->user()->id)->with('translation');
+        if ($filters['q'] !== '') {
+            $query->where(fn ($builder) => $builder->where('reference', 'like', '%'.$filters['q'].'%')->orWhere('title', 'like', '%'.$filters['q'].'%')->orWhere('body', 'like', '%'.$filters['q'].'%'));
+        }
+        if ($filters['book'] !== '') {
+            $query->where('reference', 'like', $filters['book'].'%');
+        }
+        if ($filters['tag'] !== '') {
+            $query->whereJsonContains('tags', $filters['tag']);
+        }
+        if ($filters['note_type'] !== '') {
+            $query->where('note_type', $filters['note_type']);
+        }
+        $notes = $query->latest('updated_at')->paginate(7)->withQueryString();
+        $selectedNote = $notes->firstWhere('id', (int) $request->query('selected')) ?: $notes->first();
+        $translations = BibleTranslation::query()->where(fn ($builder) => $builder->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))->where('status', 'active')->orderBy('name')->get();
+        $books = BibleNote::query()->where('user_id', $request->user()->id)->selectRaw("substr(reference, 1, instr(reference, ' ') - 1) as book")->where('reference', 'like', '% %')->distinct()->pluck('book')->filter()->values();
+        $tags = BibleNote::query()->where('user_id', $request->user()->id)->pluck('tags')->flatten()->filter()->unique()->sort()->values();
 
-        return view('bible.notes', compact('notes') + ['breadcrumbs' => $this->crumbs('Notes')]);
+        return view('bible.notes', compact('notes', 'selectedNote', 'translations', 'books', 'tags', 'filters') + ['breadcrumbs' => $this->crumbs('Notes')]);
     }
 
     public function highlights(Request $request): View
@@ -120,6 +138,39 @@ final class BibleStudyController extends Controller
         $bookmark->delete();
 
         return back()->with('status', 'Bookmark removed.');
+    }
+
+    public function updateNote(Request $request, BibleNote $note): RedirectResponse
+    {
+        $this->authorizeBible($request);
+        abort_unless($note->user_id === $request->user()->id, 404);
+        $data = $request->validate(['reference' => ['required', 'string', 'max:120'], 'title' => ['required', 'string', 'max:180'], 'body' => ['required', 'string', 'max:20000'], 'note_type' => ['required', 'string', 'max:40']]);
+        $note->update($data);
+
+        return back()->with('status', 'Note saved.');
+    }
+
+    public function destroyNote(Request $request, BibleNote $note): RedirectResponse
+    {
+        $this->authorizeBible($request);
+        abort_unless($note->user_id === $request->user()->id, 404);
+        $note->delete();
+
+        return redirect()->route('bible.notes')->with('status', 'Note deleted.');
+    }
+
+    public function exportNotes(Request $request): StreamedResponse
+    {
+        $this->authorizeBible($request);
+        $notes = BibleNote::query()->where('user_id', $request->user()->id)->with('translation')->latest()->get();
+
+        return response()->streamDownload(function () use ($notes): void {
+            $handle = fopen('php://output', 'wb');
+            fputcsv($handle, ['Reference', 'Title', 'Body', 'Translation', 'Updated At']);
+            foreach ($notes as $note) {
+                fputcsv($handle, [$note->reference, $note->title, strip_tags($note->body), $note->translation?->abbreviation, $note->updated_at?->toIso8601String()]);
+            } fclose($handle);
+        }, 'bible-notes.csv', ['Content-Type' => 'text/csv']);
     }
 
     public function exportBookmarks(Request $request): StreamedResponse
