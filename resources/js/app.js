@@ -311,6 +311,48 @@ function messageAttachmentPicker(initial = {}) {
 }
 
 document.addEventListener('alpine:init', () => {
+    Alpine.data('topbarCounts', (url, notificationCount = 0, messageCount = 0) => ({
+        url,
+        notificationCount: Number(notificationCount) || 0,
+        messageCount: Number(messageCount) || 0,
+        timer: null,
+
+        start() {
+            this.refresh();
+            this.timer = window.setInterval(() => this.refresh(), 30000);
+        },
+
+        stop() {
+            if (this.timer) {
+                window.clearInterval(this.timer);
+                this.timer = null;
+            }
+        },
+
+        async refresh() {
+            try {
+                const response = await fetch(this.url, {
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+
+                if (! response.ok) {
+                    return;
+                }
+
+                const counts = await response.json();
+                this.notificationCount = Number(counts.notifications) || 0;
+                this.messageCount = Number(counts.messages) || 0;
+            } catch {
+                // Keep the last server-rendered count when polling is unavailable.
+            }
+        },
+
+        displayCount(count) {
+            return count > 99 ? '99+' : String(count);
+        },
+    }));
+
     Alpine.data('messageAttachments', () => messageAttachmentPicker());
     Alpine.data('messageReply', () => messageAttachmentPicker({
         html: '',

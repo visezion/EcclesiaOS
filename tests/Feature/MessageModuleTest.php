@@ -61,7 +61,8 @@ final class MessageModuleTest extends TestCase
         $this->actingAs($recipient)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('aria-label="Messages, 1 unread"', false);
+            ->assertSee('topbarCounts', false)
+            ->assertSee('x-init="start()"', false);
 
         $this->actingAs($recipient)
             ->get(route('messages.show', $thread))
@@ -122,6 +123,25 @@ final class MessageModuleTest extends TestCase
             ->where('is_internal_note', true)
             ->firstOrFail();
         $this->assertSame('Leadership-only follow-up note.', $internalNote->body);
+    }
+
+    public function test_topbar_counts_endpoint_returns_unread_messages_and_notifications(): void
+    {
+        $this->seed();
+        $sender = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $recipient = User::query()->where('email', 'sarah.johnson@klgc.org')->firstOrFail();
+
+        $this->actingAs($sender)
+            ->post(route('messages.store'), [
+                'recipients' => [$recipient->opaqueId()],
+                'subject' => 'Unread count',
+                'body' => 'Unread message.',
+            ])
+            ->assertRedirect();
+
+        $response = $this->actingAs($recipient)->getJson(route('topbar.counts'));
+
+        $response->assertOk()->assertJsonPath('messages', 1)->assertJsonPath('notifications', 1);
     }
 
     public function test_users_can_forward_messages_to_a_new_thread(): void

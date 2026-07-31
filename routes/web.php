@@ -34,6 +34,7 @@ use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\SystemUpdateController;
+use App\Http\Controllers\TopbarCountsController;
 use App\Http\Controllers\UserDirectoryController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\WorkflowController;
@@ -75,6 +76,7 @@ Route::middleware('guest')->group(function (): void {
 Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('search', SearchController::class)->name('search');
+    Route::get('topbar/counts', TopbarCountsController::class)->name('topbar.counts');
     Route::get('messages', [MessageController::class, 'index'])->name('messages.index');
     Route::get('messages/sent', [MessageController::class, 'sent'])->name('messages.sent');
     Route::get('messages/create', [MessageController::class, 'create'])->name('messages.create');
