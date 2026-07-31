@@ -18,9 +18,30 @@ final class BibleStudyController extends Controller
     {
         $this->authorizeBible($request);
         $this->seedPlans($request);
-        $plans = BibleReadingPlan::query()->with(['users' => fn ($q) => $q->whereKey($request->user()->id)])->orderByDesc('is_recommended')->orderBy('name')->get();
+        $filters = ['q' => trim((string) $request->query('q', '')), 'category' => (string) $request->query('category', ''), 'status' => (string) $request->query('status', ''), 'duration' => (string) $request->query('duration', '')];
+        $query = BibleReadingPlan::query()->with(['users' => fn ($q) => $q->whereKey($request->user()->id)]);
+        if ($filters['q'] !== '') {
+            $query->where(fn ($builder) => $builder->where('name', 'like', '%'.$filters['q'].'%')->orWhere('description', 'like', '%'.$filters['q'].'%'));
+        }
+        if ($filters['category'] !== '') {
+            $query->where('category', $filters['category']);
+        }
+        if ($filters['duration'] !== '') {
+            $query->where('duration_days', '<=', (int) $filters['duration']);
+        }
+        if ($filters['status'] === 'active') {
+            $query->whereHas('users', fn ($builder) => $builder->whereKey($request->user()->id)->whereNull('completed_at'));
+        }
+        if ($filters['status'] === 'completed') {
+            $query->whereHas('users', fn ($builder) => $builder->whereKey($request->user()->id)->whereNotNull('completed_at'));
+        }
+        $plans = $query->orderByDesc('is_recommended')->orderBy('name')->get();
+        $activePlans = $plans->filter(fn ($plan): bool => $plan->users->isNotEmpty())->values();
+        $recommendedPlans = $plans->where('is_recommended', true)->values();
+        $completedPlans = $activePlans->filter(fn ($plan): bool => filled($plan->users->first()?->pivot?->completed_at))->values();
+        $categories = BibleReadingPlan::query()->select('category')->selectRaw('count(*) as total')->groupBy('category')->orderBy('category')->get();
 
-        return view('bible.plans', compact('plans') + ['breadcrumbs' => $this->crumbs('Reading Plans')]);
+        return view('bible.plans', compact('plans', 'activePlans', 'recommendedPlans', 'completedPlans', 'categories', 'filters') + ['breadcrumbs' => $this->crumbs('Reading Plans')]);
     }
 
     public function bookmarks(Request $request): View
