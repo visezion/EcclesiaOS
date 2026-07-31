@@ -131,8 +131,8 @@
                                         <td>
                                             <div class="flex justify-end gap-1">
                                                 <a href="{{ $viewPayload['emailHref'] }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Email user"><i data-lucide="mail" class="size-4"></i></a>
-                                                <button type="button" @click='messaging = "{{ $user->opaqueId() }}"' class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Send message"><i data-lucide="message-square-text" class="size-4"></i></button>
-                                                <button type="button" @click='viewing = @js($viewPayload)' class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="View user"><i data-lucide="eye" class="size-4"></i></button>
+                                                <a href="{{ route('messages.create', ['recipient' => 'user:'.$user->opaqueId()]) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Send message"><i data-lucide="message-square-text" class="size-4"></i></a>
+                                                <a href="{{ route('users.show', $user) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="View user"><i data-lucide="eye" class="size-4"></i></a>
                                                 <button type="button" @click="editing = '{{ $user->opaqueId() }}'" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Edit user"><i data-lucide="pencil" class="size-4"></i></button>
                                                 <button type="button" @click="actioning = '{{ $user->opaqueId() }}'" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="More actions"><i data-lucide="more-vertical" class="size-4"></i></button>
                                             </div>
@@ -608,7 +608,7 @@
                     </div>
                     <div class="space-y-2 p-5">
                         <a href="{{ $viewPayload['emailHref'] }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="mail" class="size-4"></i>Send Email</a>
-                        <button type="button" @click="messaging = '{{ $user->opaqueId() }}'; actioning = null" class="flex w-full items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-left text-sm font-bold text-violet-700 hover:bg-violet-50"><i data-lucide="message-square-text" class="size-4"></i>Send Message</button>
+                        <a href="{{ route('messages.create', ['recipient' => 'user:'.$user->opaqueId()]) }}" class="flex w-full items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-left text-sm font-bold text-violet-700 hover:bg-violet-50"><i data-lucide="message-square-text" class="size-4"></i>Send Message</a>
                         <a href="{{ route('users.show', $user) }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="eye" class="size-4"></i>View Full Profile</a>
                         <a href="{{ route('users.show', ['user' => $user, 'edit' => 1]) }}" class="flex w-full items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"><i data-lucide="pencil" class="size-4"></i>Edit Full Profile</a>
                         <form method="POST" action="{{ route('users.impersonate', $user) }}">

@@ -64,7 +64,11 @@ final class MessageController extends Controller
     {
         $this->authorizeSending($request);
 
-        return $this->messageCenter($request, composeOpen: true);
+        return $this->messageCenter(
+            $request,
+            composeOpen: true,
+            composeRecipient: $this->composeRecipient($request),
+        );
     }
 
     public function store(
@@ -514,6 +518,7 @@ final class MessageController extends Controller
         ?MessageThread $selectedThread = null,
         string $initialFolder = 'inbox',
         bool $composeOpen = false,
+        ?string $composeRecipient = null,
     ): View {
         $threads = $this->threadsFor($request)
             ->with(['participants.roles', 'creator', 'messages.sender.roles', 'messages.attachments', 'latestMessage.sender', 'recipients'])
@@ -533,11 +538,32 @@ final class MessageController extends Controller
             'selectedThreadId' => $selectedThread?->id ?? $threads->first()?->id,
             'initialFolder' => $initialFolder,
             'composeOpen' => $composeOpen || $request->hasSession() && $request->session()->getOldInput() !== [],
+            'composeRecipient' => $composeRecipient,
             'canSendMessages' => $request->user()->isSuperAdministrator() || $request->user()->hasPermission('send messages'),
             'unreadCount' => $this->unreadCount($request),
             'stats' => $this->messageStats($request),
             'breadcrumbs' => $this->breadcrumbs('Message Center'),
         ]);
+    }
+
+    private function composeRecipient(Request $request): ?string
+    {
+        $recipient = (string) $request->query('recipient', '');
+        if (! str_starts_with($recipient, 'user:')) {
+            return null;
+        }
+
+        $userId = OpaqueId::decode(substr($recipient, 5), User::class);
+        if (! $userId) {
+            abort(404);
+        }
+
+        $user = $this->recipientQuery($request)->whereKey($userId)->first();
+        if (! $user) {
+            abort(404);
+        }
+
+        return 'user:'.$user->opaqueId();
     }
 
     private function messageStats(Request $request): array

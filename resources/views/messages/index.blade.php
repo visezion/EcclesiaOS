@@ -17,6 +17,7 @@
             starredThreads: @js($threads->filter(fn ($thread) => filled($thread->participants->firstWhere('id', auth()->id())?->pivot?->starred_at))->pluck('id')->map(fn ($id) => (string) $id)->values()),
             archivedThreads: @js($threads->filter(fn ($thread) => filled($thread->participants->firstWhere('id', auth()->id())?->pivot?->archived_at))->pluck('id')->map(fn ($id) => (string) $id)->values()),
             composeOpen: @js($composeOpen),
+            composeRecipient: @js($composeRecipient),
             mobileView: 'list',
             draftSubject: localStorage.getItem('messageDraftSubject') || '',
             draftBody: localStorage.getItem('messageDraftBody') || '',
@@ -679,7 +680,7 @@
                             </div>
                             <label class="block text-xs font-bold uppercase tracking-wide text-slate-500"><span x-text="'Recipients for ' + composeConversationType.replaceAll('_', ' ')"></span>
                                 <select id="message-recipients" name="recipients[]" multiple required class="mt-2 min-h-44 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                                    <optgroup label="Individual users" x-show="recipientTypeVisible('user')" x-bind:disabled="!recipientTypeVisible('user')">@foreach($users as $user)<option data-recipient-kind="user" value="user:{{ $user->opaqueId() }}">{{ $user->name }}{{ $user->title ? ' - '.$user->title : '' }}</option>@endforeach</optgroup>
+                                    <optgroup label="Individual users" x-show="recipientTypeVisible('user')" x-bind:disabled="!recipientTypeVisible('user')">@foreach($users as $user)<option data-recipient-kind="user" value="user:{{ $user->opaqueId() }}" @selected($composeRecipient === 'user:'.$user->opaqueId())>{{ $user->name }}{{ $user->title ? ' - '.$user->title : '' }}</option>@endforeach</optgroup>
                                     @if($roles->isNotEmpty())<optgroup label="Roles" x-show="recipientTypeVisible('role')" x-bind:disabled="!recipientTypeVisible('role')">@foreach($roles as $role)<option data-recipient-kind="role" value="role:{{ $role->opaqueId() }}">Role: {{ $role->name }}</option>@endforeach</optgroup>@endif
                                     @if($ministries->isNotEmpty())<optgroup label="Ministries" x-show="recipientTypeVisible('ministry')" x-bind:disabled="!recipientTypeVisible('ministry')">@foreach($ministries as $ministry)<option data-recipient-kind="ministry" value="ministry:{{ $ministry->opaqueId() }}">Ministry: {{ $ministry->name }}</option>@endforeach</optgroup>@endif
                                     @if($campuses->isNotEmpty())<optgroup label="Campuses" x-show="recipientTypeVisible('campus')" x-bind:disabled="!recipientTypeVisible('campus')">@foreach($campuses as $campus)<option data-recipient-kind="campus" value="campus:{{ $campus->opaqueId() }}">Campus: {{ $campus->name }}</option>@endforeach</optgroup>@endif

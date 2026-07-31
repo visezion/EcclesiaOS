@@ -322,4 +322,29 @@ final class MessageModuleTest extends TestCase
             ])
             ->assertForbidden();
     }
+
+    public function test_user_management_message_action_opens_composer_with_recipient_selected(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $recipient = User::factory()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'status' => 'active',
+        ]);
+
+        $messageUrl = route('messages.create', ['recipient' => 'user:'.$recipient->opaqueId()]);
+
+        $this->actingAs($admin)
+            ->get(route('users.index'))
+            ->assertOk()
+            ->assertSee($messageUrl, false)
+            ->assertSee(route('users.show', $recipient), false);
+
+        $this->actingAs($admin)
+            ->get($messageUrl)
+            ->assertOk()
+            ->assertSee('composeOpen: true', false)
+            ->assertSee('value="user:'.$recipient->opaqueId().'" selected', false);
+    }
 }
