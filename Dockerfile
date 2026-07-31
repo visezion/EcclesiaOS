@@ -145,7 +145,7 @@ RUN apk upgrade --update-cache --available \
     && apk add --no-cache nginx \
     && rm -rf /var/cache/apk/*
 
-COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 COPY --from=app /var/www/html/public /var/www/html/public
 
 RUN mkdir -p /var/www/html/storage/app/public \
