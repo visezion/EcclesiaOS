@@ -85,6 +85,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('bible/admin/translations/{translation}/install', [BibleTranslationController::class, 'install'])->name('bible.translations.install');
     Route::delete('bible/admin/translations/{translation}', [BibleTranslationController::class, 'destroy'])->name('bible.translations.destroy');
     Route::post('bible/admin/translations/{translation}/import', [BibleTranslationController::class, 'import'])->name('bible.translations.import');
+    Route::get('bible/admin/translations/sample', [BibleTranslationController::class, 'sample'])->name('bible.translations.sample');
     Route::get('bible', [BibleController::class, 'index'])->name('bible.index');
     Route::get('bible/plans', [BibleStudyController::class, 'plans'])->name('bible.plans');
     Route::get('bible/bookmarks', [BibleStudyController::class, 'bookmarks'])->name('bible.bookmarks');

@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class BibleTranslationController extends Controller
 {
@@ -95,6 +96,18 @@ final class BibleTranslationController extends Controller
         $activityLogger->log('Bible', 'translation_imported', 'Bible translation verses imported.', $translation, ['risk' => 'medium', 'status' => 'success', 'rows' => count($rows)], $request);
 
         return back()->with('status', count($rows).' verse rows imported into '.$translation->abbreviation.'.');
+    }
+
+    public function sample(Request $request): StreamedResponse
+    {
+        $this->authorizeManagement($request);
+
+        return response()->streamDownload(function (): void {
+            $handle = fopen('php://output', 'wb');
+            fputcsv($handle, ['book', 'chapter', 'verse', 'text']);
+            fputcsv($handle, ['John', 3, 16, 'For God so loved the world, that he gave his only begotten Son.']);
+            fclose($handle);
+        }, 'bible-translation-sample.csv', ['Content-Type' => 'text/csv']);
     }
 
     private function rowsFromFile(string $path): array
