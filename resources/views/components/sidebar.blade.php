@@ -70,7 +70,7 @@
                     <div x-show="open" class="mt-1 space-y-1 pl-8">
                         @foreach ($children as $child)
                             @php($childActive = $routeMatches($child['route'] ?? null, $child['active_routes'] ?? []))
-                            <a href="{{ route($child['route']) }}" class="{{ $childActive ? 'bg-violet-600/90 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white' }} flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium" aria-current="{{ $childActive ? 'page' : 'false' }}">
+                            <a href="{{ route($child['route'], $child['route_parameters'] ?? []) }}" class="{{ $childActive ? 'bg-violet-600/90 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white' }} flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium" aria-current="{{ $childActive ? 'page' : 'false' }}">
                                 <i data-lucide="{{ $child['icon'] }}" class="size-3.5"></i>
                                 <span class="truncate">{{ $child['label'] }}</span>
                             </a>
