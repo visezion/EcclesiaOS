@@ -100,9 +100,28 @@ final class BibleStudyController extends Controller
     public function highlights(Request $request): View
     {
         $this->authorizeBible($request);
-        $highlights = BibleHighlight::query()->where('user_id', $request->user()->id)->with('translation')->latest()->paginate(7);
+        $filters = ['q' => trim((string) $request->query('q', '')), 'color' => (string) $request->query('color', ''), 'book' => (string) $request->query('book', ''), 'tag' => (string) $request->query('tag', '')];
+        $query = BibleHighlight::query()->where('user_id', $request->user()->id)->with('translation');
+        if ($filters['q'] !== '') {
+            $query->where(fn ($builder) => $builder->where('reference', 'like', '%'.$filters['q'].'%')->orWhere('snippet', 'like', '%'.$filters['q'].'%')->orWhere('meaning', 'like', '%'.$filters['q'].'%'));
+        }
+        if ($filters['color'] !== '') {
+            $query->where('color', $filters['color']);
+        }
+        if ($filters['book'] !== '') {
+            $query->where('reference', 'like', $filters['book'].'%');
+        }
+        if ($filters['tag'] !== '') {
+            $query->whereJsonContains('tags', $filters['tag']);
+        }
+        $highlights = $query->latest()->paginate(7)->withQueryString();
+        $allHighlights = BibleHighlight::query()->where('user_id', $request->user()->id)->get(['color', 'reference', 'tags']);
+        $books = $allHighlights->map(fn ($highlight): string => trim((string) preg_replace('/\\s+.*/', '', $highlight->reference)))->filter()->unique()->sort()->values();
+        $tags = $allHighlights->pluck('tags')->flatten()->filter()->unique()->sort()->values();
+        $colorCounts = $allHighlights->countBy('color');
+        $translations = BibleTranslation::query()->where(fn ($builder) => $builder->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))->where('status', 'active')->orderBy('name')->get();
 
-        return view('bible.highlights', compact('highlights') + ['breadcrumbs' => $this->crumbs('Highlights')]);
+        return view('bible.highlights', compact('highlights', 'filters', 'books', 'tags', 'colorCounts', 'translations') + ['breadcrumbs' => $this->crumbs('Highlights')]);
     }
 
     public function startPlan(Request $request, BibleReadingPlan $plan): RedirectResponse
@@ -129,6 +148,16 @@ final class BibleStudyController extends Controller
         BibleNote::create([...$data, 'bible_translation_id' => $data['translation_id'], 'user_id' => $request->user()->id, 'church_id' => $request->user()->church_id]);
 
         return back()->with('status', 'Note saved.');
+    }
+
+    public function storeHighlight(Request $request): RedirectResponse
+    {
+        $this->authorizeBible($request);
+        $data = $request->validate(['translation_id' => ['required', 'exists:bible_translations,id'], 'reference' => ['required', 'string', 'max:120'], 'snippet' => ['required', 'string', 'max:2000'], 'color' => ['required', 'in:yellow,green,purple,pink,blue'], 'meaning' => ['nullable', 'string', 'max:120'], 'tags' => ['nullable', 'string', 'max:500']]);
+        $tags = collect(explode(',', (string) ($data['tags'] ?? '')))->map(fn ($tag): string => trim($tag))->filter()->values()->all();
+        BibleHighlight::create([...$data, 'bible_translation_id' => $data['translation_id'], 'tags' => $tags, 'user_id' => $request->user()->id, 'church_id' => $request->user()->church_id]);
+
+        return back()->with('status', 'Highlight saved.');
     }
 
     public function destroyBookmark(Request $request, BibleBookmark $bookmark): RedirectResponse
@@ -171,6 +200,21 @@ final class BibleStudyController extends Controller
                 fputcsv($handle, [$note->reference, $note->title, strip_tags($note->body), $note->translation?->abbreviation, $note->updated_at?->toIso8601String()]);
             } fclose($handle);
         }, 'bible-notes.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    public function exportHighlights(Request $request): StreamedResponse
+    {
+        $this->authorizeBible($request);
+        $highlights = BibleHighlight::query()->where('user_id', $request->user()->id)->with('translation')->latest()->get();
+
+        return response()->streamDownload(function () use ($highlights): void {
+            $handle = fopen('php://output', 'wb');
+            fputcsv($handle, ['Reference', 'Snippet', 'Color', 'Meaning', 'Tags', 'Translation', 'Highlighted At']);
+            foreach ($highlights as $highlight) {
+                fputcsv($handle, [$highlight->reference, $highlight->snippet, $highlight->color, $highlight->meaning, implode(', ', $highlight->tags ?? []), $highlight->translation?->abbreviation, $highlight->created_at?->toIso8601String()]);
+            }
+            fclose($handle);
+        }, 'bible-highlights.csv', ['Content-Type' => 'text/csv']);
     }
 
     public function exportBookmarks(Request $request): StreamedResponse
