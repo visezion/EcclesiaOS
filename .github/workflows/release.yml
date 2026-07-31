@@ -156,27 +156,39 @@ jobs:
         run: |
           set -euo pipefail
           RELEASES_JSON="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
-          RELEASE_STATE="$(printf '%s\n' "$RELEASES_JSON" | jq -r \
+          RELEASE_JSON="$(printf '%s\n' "$RELEASES_JSON" | jq -c \
             --arg tag "$GITHUB_REF_NAME" \
-            '[.[] | select(.tag_name == $tag)][0].draft // empty')"
+            '[.[] | select(.tag_name == $tag)][0] // empty')"
 
-          if [[ -n "$RELEASE_STATE" ]]; then
+          if [[ -n "$RELEASE_JSON" ]]; then
+            RELEASE_STATE="$(printf '%s\n' "$RELEASE_JSON" | jq -r '.draft')"
+            ASSET_COUNT="$(printf '%s\n' "$RELEASE_JSON" | jq '.assets | length')"
+
             if [[ "$RELEASE_STATE" != "true" ]]; then
               echo "::error::A published release already exists for $GITHUB_REF_NAME."
               exit 1
             fi
-            echo "Reusing the existing draft release for $GITHUB_REF_NAME."
-          else
+
+            if [[ "$ASSET_COUNT" -eq 0 ]]; then
+              echo "Removing the empty draft release so it can be recreated atomically."
+              gh release delete "$GITHUB_REF_NAME" --yes
+            else
+              echo "Reusing the existing draft release for $GITHUB_REF_NAME."
+            fi
+          fi
+
+          if [[ -z "$RELEASE_JSON" || "$ASSET_COUNT" -eq 0 ]]; then
+            # Attach assets during creation. Immutable-release repositories reject
+            # a later `gh release upload` request.
             gh release create "$GITHUB_REF_NAME" \
               --verify-tag \
               --draft \
               --title "EcclesiaOS $GITHUB_REF_NAME" \
-              --generate-notes
+              --generate-notes \
+              release-assets/*
+          else
+            echo "The existing draft release already has assets; no upload is attempted."
           fi
-
-          gh release upload "$GITHUB_REF_NAME" \
-            release-assets/* \
-            --clobber
 
       - name: Verify draft GitHub Release assets
         env:
