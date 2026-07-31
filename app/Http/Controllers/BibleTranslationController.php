@@ -97,7 +97,7 @@ final class BibleTranslationController extends Controller
                 return null;
             }
 
-return ['book' => $book, 'book_slug' => Str::slug($book), 'testament' => in_array(strtolower($book), ['matthew', 'mark', 'luke', 'john', 'acts', 'romans'], true) ? 'new' : 'old', 'chapter' => $chapter, 'verse' => $verse, 'text' => $text, 'updated_at' => now(), 'created_at' => now()];
+            return ['book' => $book, 'book_slug' => Str::slug($book), 'testament' => in_array(strtolower($book), ['matthew', 'mark', 'luke', 'john', 'acts', 'romans'], true) ? 'new' : 'old', 'chapter' => $chapter, 'verse' => $verse, 'text' => $text, 'updated_at' => now(), 'created_at' => now()];
         })->filter()->values()->all();
     }
 
