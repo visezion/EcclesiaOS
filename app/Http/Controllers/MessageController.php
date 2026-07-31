@@ -30,6 +30,7 @@ use App\Services\ActivityLogger;
 use App\Services\Messages\MessageAuditLogger;
 use App\Services\Messages\MessageContent;
 use App\Services\Messages\MessageRecipientResolver;
+use App\Support\UnreadCounts;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -505,17 +506,7 @@ final class MessageController extends Controller
 
     private function unreadCount(Request $request): int
     {
-        return $this->threadsFor($request)
-            ->whereHas('participants', function (Builder $query) use ($request): void {
-                $query
-                    ->where('users.id', $request->user()->id)
-                    ->where(function (Builder $query): void {
-                        $query
-                            ->whereNull('message_thread_user.last_read_at')
-                            ->orWhereColumn('message_thread_user.last_read_at', '<', 'message_threads.last_message_at');
-                    });
-            })
-            ->count();
+        return app(UnreadCounts::class)->messages($request->user());
     }
 
     private function messageCenter(

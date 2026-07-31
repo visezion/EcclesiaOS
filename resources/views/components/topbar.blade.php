@@ -8,28 +8,7 @@
         && ($user?->isSuperAdministrator() || $permission === null || $user?->hasPermission($permission));
     $unreadNotifications = $user?->unreadNotifications()->latest()->limit(8)->get() ?? collect();
     $unreadCount = $user?->unreadNotifications()->count() ?? 0;
-    $unreadMessagesCount = 0;
-    if ($user && $canAccess('messages.index')) {
-        $unreadMessagesCount = \App\Models\MessageThread::query()
-            ->where('church_id', $user->church_id)
-            ->whereHas('participants', function ($query) use ($user): void {
-                $query
-                    ->where('users.id', $user->id)
-                    ->where(function ($query): void {
-                        $query
-                            ->whereNull('message_thread_user.last_read_at')
-                            ->orWhereColumn('message_thread_user.last_read_at', '<', 'message_threads.last_message_at');
-                    });
-            })
-            ->when(! $user->isSuperAdministrator() && ! $user->hasPermission('view sensitive messages'), function ($query) use ($user): void {
-                $query->where(function ($query) use ($user): void {
-                    $query
-                        ->whereNotIn('permission_scope', ['leadership', 'restricted'])
-                        ->orWhere('created_by', $user->id);
-                });
-            })
-            ->count();
-    }
+    $unreadMessagesCount = $user ? app(\App\Support\UnreadCounts::class)->messages($user) : 0;
     $notificationUrl = $canAccess('communications.notifications', 'manage communications')
         ? route('communications.notifications')
         : route('account.settings').'#notifications';

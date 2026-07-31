@@ -12,7 +12,15 @@ final class UnreadCounts
     /** @return array{notifications: int, messages: int} */
     public function for(User $user): array
     {
-        $messages = MessageThread::query()
+        return [
+            'notifications' => $user->unreadNotifications()->count(),
+            'messages' => $this->messages($user),
+        ];
+    }
+
+    public function messages(User $user): int
+    {
+        return MessageThread::query()
             ->where('church_id', $user->church_id)
             ->whereHas('participants', function ($query) use ($user): void {
                 $query
@@ -31,10 +39,5 @@ final class UnreadCounts
                 });
             })
             ->count();
-
-        return [
-            'notifications' => $user->unreadNotifications()->count(),
-            'messages' => $messages,
-        ];
     }
 }
