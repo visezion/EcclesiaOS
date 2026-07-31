@@ -139,7 +139,11 @@ LABEL org.opencontainers.image.title="EcclesiaOS Web" \
       org.opencontainers.image.description="Nginx edge for the EcclesiaOS application" \
       org.opencontainers.image.source="https://github.com/visezion/EcclesiaOS"
 
-RUN apk upgrade --no-cache
+# Refresh the Alpine index and explicitly upgrade nginx so security fixes are
+# included even when the base image tag or BuildKit cache is stale.
+RUN apk update \
+    && apk upgrade --no-cache nginx \
+    && rm -rf /var/cache/apk/*
 
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=app /var/www/html/public /var/www/html/public
