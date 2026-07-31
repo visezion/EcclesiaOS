@@ -31,10 +31,17 @@ final class BibleController extends Controller
         $settings = data_get($request->user()->account_settings, 'bible', []);
         $preferredTranslation = $request->query('translation') ?: data_get($settings, 'translation_id');
         $translation = $translations->firstWhere('abbreviation', strtoupper((string) $preferredTranslation)) ?? $translations->firstWhere('id', (int) $preferredTranslation) ?? $translations->first();
-        $book = (string) $request->query('book', 'John');
-        $chapter = max(1, (int) $request->query('chapter', 3));
-        $verses = $translation?->verses()->where('book_slug', Str::slug($book))->where('chapter', $chapter)->orderBy('verse')->get() ?? collect();
         $books = $translation?->verses()->select('book')->distinct()->orderBy('book')->pluck('book') ?? collect();
+        $book = (string) $request->query('book', 'John');
+        if ($books->isNotEmpty() && ! $books->contains($book)) {
+            $book = (string) $books->first();
+        }
+        $chapters = $translation?->verses()->where('book_slug', Str::slug($book))->select('chapter')->distinct()->orderBy('chapter')->pluck('chapter') ?? collect();
+        $chapter = (int) $request->query('chapter', $chapters->first() ?? 1);
+        if ($chapters->isNotEmpty() && ! $chapters->contains($chapter)) {
+            $chapter = (int) $chapters->first();
+        }
+        $verses = $translation?->verses()->where('book_slug', Str::slug($book))->where('chapter', $chapter)->orderBy('verse')->get() ?? collect();
         $dailyVerse = $translation?->verses()->orderBy('id')->first();
         $recentNote = BibleNote::query()->where('user_id', $request->user()->id)->with('translation')->latest('updated_at')->first();
         $recentHighlights = BibleHighlight::query()->where('user_id', $request->user()->id)->with('translation')->latest()->limit(3)->get();
@@ -47,6 +54,7 @@ final class BibleController extends Controller
             'chapter' => $chapter,
             'verses' => $verses,
             'books' => $books,
+            'chapters' => $chapters,
             'dailyVerse' => $dailyVerse,
             'recentNote' => $recentNote,
             'recentHighlights' => $recentHighlights,
@@ -157,7 +165,7 @@ final class BibleController extends Controller
             $catalog->only(['name', 'abbreviation', 'language', 'description', 'copyright', 'source_url', 'status']) + ['created_by' => $request->user()->id, 'is_default' => true],
         );
 
-        if ($translation->verses()->exists()) {
+        if ($translation->verses()->count() >= 30000) {
             return;
         }
 
