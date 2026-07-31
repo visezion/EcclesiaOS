@@ -72,7 +72,10 @@ return new class extends Migration
                 $table->json('preferences')->nullable();
                 $table->string('status')->default('queued')->index();
                 $table->timestamps();
-                $table->unique(['communication_campaign_id', 'member_id']);
+                $table->unique(
+                    ['communication_campaign_id', 'member_id'],
+                    'communication_recipients_campaign_member_unique',
+                );
             });
         }
 
