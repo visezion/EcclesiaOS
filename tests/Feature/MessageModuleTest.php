@@ -119,6 +119,42 @@ final class MessageModuleTest extends TestCase
         $this->assertSame('Leadership-only follow-up note.', $internalNote->body);
     }
 
+    public function test_users_can_forward_messages_to_a_new_thread(): void
+    {
+        $this->seed();
+        $sender = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $recipient = User::query()->where('email', 'sarah.johnson@klgc.org')->firstOrFail();
+
+        $this->actingAs($sender)
+            ->post(route('messages.store'), [
+                'recipients' => [$recipient->opaqueId()],
+                'subject' => 'Forward source',
+                'body' => 'Message to forward.',
+            ])
+            ->assertRedirect();
+
+        $message = Message::query()->latest('id')->firstOrFail();
+
+        $this->actingAs($sender)
+            ->post(route('messages.forward', $message), [
+                'recipients' => [$recipient->opaqueId()],
+            ])
+            ->assertRedirect();
+
+        $forwardedThread = MessageThread::query()->latest('id')->firstOrFail();
+        $this->assertDatabaseHas('message_thread_user', [
+            'message_thread_id' => $forwardedThread->id,
+            'user_id' => $sender->id,
+            'participant_role' => 'administrator',
+        ]);
+        $this->assertDatabaseHas('message_thread_user', [
+            'message_thread_id' => $forwardedThread->id,
+            'user_id' => $recipient->id,
+            'participant_role' => 'member',
+            'last_read_at' => null,
+        ]);
+    }
+
     public function test_role_conversations_sanitize_rich_content_and_protect_attachments(): void
     {
         Storage::fake('local');

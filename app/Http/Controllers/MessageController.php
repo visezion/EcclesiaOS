@@ -357,7 +357,11 @@ final class MessageController extends Controller
             ]);
             $participants = [$request->user()->id => ['participant_role' => 'administrator', 'last_read_at' => now(), 'joined_at' => now()]];
             foreach ($resolved['users'] as $recipient) {
-                $participants[$recipient->id] = ['participant_role' => 'member', 'joined_at' => now()];
+                $participants[$recipient->id] = [
+                    'participant_role' => 'member',
+                    'last_read_at' => null,
+                    'joined_at' => now(),
+                ];
             }
             $newThread->participants()->attach($participants);
             $newThread->recipients()->createMany($resolved['recipients']);
