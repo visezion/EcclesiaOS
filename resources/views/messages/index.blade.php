@@ -515,9 +515,9 @@
                                                         </div>
                                                     </div>
                                                 @endif
-                                               <!--@if(auth()->user()->isSuperAdministrator() || auth()->user()->hasPermission('forward messages'))
+                                               @if(auth()->user()->isSuperAdministrator() || auth()->user()->hasPermission('forward messages'))
                                                     <details class="ml-0 mt-2 text-left sm:ml-[52px]"><summary class="inline-flex cursor-pointer items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-violet-600"><i data-lucide="repeat-2" class="size-3"></i>Forward</summary><form method="POST" action="{{ route('messages.forward', $message) }}" class="mt-2 flex gap-2">@csrf<select name="recipients[]" required class="min-w-0 flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[10px]">@foreach($users as $user)<option value="user:{{ $user->opaqueId() }}">{{ $user->name }}</option>@endforeach</select><button class="rounded-lg bg-violet-600 px-2.5 py-1.5 text-[10px] font-bold text-white">Forward</button></form></details>
-                                                @endif-->
+                                                @endif
                                             </div>
                                         </details>
                                     @endforeach
