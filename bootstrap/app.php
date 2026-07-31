@@ -15,6 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Set TRUSTED_PROXIES to the reverse proxy/Cloudflare addresses in production.
+        // This allows Laravel to correctly detect the original HTTPS request.
+        $middleware->trustProxies(env('TRUSTED_PROXIES'));
         $middleware->append(SecurityHeaders::class);
 
         $middleware->alias([

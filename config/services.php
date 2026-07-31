@@ -2,6 +2,10 @@
 
 return [
 
+    'cloudflare_insights' => [
+        'enabled' => env('CLOUDFLARE_INSIGHTS_ENABLED', false),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

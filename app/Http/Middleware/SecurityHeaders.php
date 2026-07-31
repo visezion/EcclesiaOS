@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 final class SecurityHeaders
@@ -20,9 +21,33 @@ final class SecurityHeaders
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin');
         $response->headers->set('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()');
+        $scriptSources = ["'self'", "'unsafe-inline'", "'unsafe-eval'"];
+
+        if (filter_var(config('services.cloudflare_insights.enabled', false), FILTER_VALIDATE_BOOL)) {
+            $scriptSources[] = 'https://static.cloudflareinsights.com';
+        }
+
+        $formSources = ["'self'"];
+        $applicationUrl = config('app.url');
+
+        if (is_string($applicationUrl) && Str::startsWith($applicationUrl, 'https://')) {
+            $formSources[] = rtrim($applicationUrl, '/');
+        }
+
         $response->headers->set(
             'Content-Security-Policy',
-            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.bunny.net; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https: wss:; font-src 'self' data: https://fonts.bunny.net;"
+            implode('; ', [
+                "default-src 'self'",
+                "base-uri 'self'",
+                "object-src 'none'",
+                "frame-ancestors 'self'",
+                'form-action '.implode(' ', $formSources),
+                "img-src 'self' data: blob: https:",
+                "style-src 'self' 'unsafe-inline' https://fonts.bunny.net",
+                'script-src '.implode(' ', $scriptSources),
+                "connect-src 'self' https: wss:",
+                "font-src 'self' data: https://fonts.bunny.net",
+            ]).';'
         );
 
         if ($request->isSecure()) {

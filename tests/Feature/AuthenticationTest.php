@@ -71,6 +71,7 @@ class AuthenticationTest extends TestCase
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+            ->assertHeaderContains('Content-Security-Policy', "form-action 'self';")
             ->assertHeader('Cache-Control', 'no-store, private');
 
         $this->assertContains('throttle:6,1', Route::getRoutes()->getByName('login.mfa.verify')->gatherMiddleware());
