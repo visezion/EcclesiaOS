@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\BibleNote;
 use App\Models\BibleTranslation;
 use App\Models\BibleVerse;
+use App\Support\BibleTranslationCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -135,6 +136,7 @@ final class BibleController extends Controller
 
     private function ensureDefaultBible(Request $request): void
     {
+        BibleTranslationCatalog::ensureFreeDefaults();
         $translation = BibleTranslation::query()->firstOrCreate(
             ['church_id' => null, 'abbreviation' => 'KJV'],
             ['name' => 'King James Version', 'language' => 'English', 'description' => 'The public-domain King James Version.', 'copyright' => 'Public domain', 'status' => 'active', 'is_default' => true],

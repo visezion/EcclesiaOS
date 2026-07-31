@@ -69,6 +69,10 @@ final class BibleModuleTest extends TestCase
         $this->actingAs($user)->get(route('bible.notes'))->assertOk();
         $this->actingAs($user)->get(route('bible.highlights'))->assertOk();
         $this->actingAs($user)->get(route('bible.search', ['q' => 'Nicodemus']))->assertOk()->assertSee('Nicodemus', false);
+        $this->actingAs($user)->get(route('bible.translations.index'))->assertOk()->assertSee('American Standard Version', false);
+        $freeTranslation = BibleTranslation::query()->whereNull('church_id')->where('abbreviation', 'ASV')->firstOrFail();
+        $this->actingAs($user)->post(route('bible.translations.install', $freeTranslation))->assertRedirect();
+        $this->assertDatabaseHas('bible_translations', ['church_id' => $user->church_id, 'abbreviation' => 'ASV']);
         $this->actingAs($user)->get(route('bible.compare'))->assertOk()->assertSee('Verse Comparison', false);
         $this->actingAs($user)->get(route('bible.settings'))->assertOk()->assertSee('Bible Settings', false);
 

@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BibleTranslation;
 use App\Services\ActivityLogger;
+use App\Support\BibleTranslationCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ final class BibleTranslationController extends Controller
     public function index(Request $request): View
     {
         $this->authorizeManagement($request);
+        BibleTranslationCatalog::ensureFreeDefaults();
         $translations = BibleTranslation::query()
             ->where(fn ($query) => $query->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))
             ->withCount('verses')
@@ -63,6 +65,19 @@ final class BibleTranslationController extends Controller
         $activityLogger->log('Bible', 'translation_deleted', 'Bible translation removed.', $translation, ['risk' => 'medium', 'status' => 'success'], $request);
 
         return back()->with('status', $name.' was removed.');
+    }
+
+    public function install(Request $request, BibleTranslation $translation, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeManagement($request);
+        abort_unless($translation->church_id === null, 404);
+        $installed = BibleTranslation::query()->firstOrCreate(
+            ['church_id' => $request->user()->church_id, 'abbreviation' => $translation->abbreviation],
+            $translation->only(['name', 'abbreviation', 'language', 'description', 'copyright', 'source_url', 'status']) + ['created_by' => $request->user()->id, 'is_default' => false],
+        );
+        $activityLogger->log('Bible', 'translation_installed', 'Free Bible translation installed for the church.', $installed, ['risk' => 'low', 'status' => 'success'], $request);
+
+        return back()->with('status', $installed->name.' is ready. Import its verse file to populate the reader.');
     }
 
     public function import(Request $request, BibleTranslation $translation, ActivityLogger $activityLogger): RedirectResponse
