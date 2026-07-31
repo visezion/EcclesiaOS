@@ -12,6 +12,7 @@ use App\Models\BibleTranslation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class BibleStudyController extends Controller
@@ -64,7 +65,7 @@ final class BibleStudyController extends Controller
             $query->where('bible_translation_id', $filters['translation_id']);
         }
         $bookmarks = $query->latest()->paginate(5)->withQueryString();
-        $translations = BibleTranslation::query()->where(fn ($builder) => $builder->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))->where('status', 'active')->orderBy('name')->get();
+        $translations = BibleTranslation::query()->where('church_id', $request->user()->church_id)->where('status', 'active')->orderBy('name')->get();
         $books = BibleBookmark::query()->where('user_id', $request->user()->id)->select('book')->distinct()->orderBy('book')->pluck('book');
         $tags = BibleBookmark::query()->where('user_id', $request->user()->id)->pluck('tags')->flatten()->filter()->unique()->sort()->values();
 
@@ -90,7 +91,7 @@ final class BibleStudyController extends Controller
         }
         $notes = $query->latest('updated_at')->paginate(7)->withQueryString();
         $selectedNote = $notes->firstWhere('id', (int) $request->query('selected')) ?: $notes->first();
-        $translations = BibleTranslation::query()->where(fn ($builder) => $builder->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))->where('status', 'active')->orderBy('name')->get();
+        $translations = BibleTranslation::query()->where('church_id', $request->user()->church_id)->where('status', 'active')->orderBy('name')->get();
         $books = BibleNote::query()->where('user_id', $request->user()->id)->selectRaw("substr(reference, 1, instr(reference, ' ') - 1) as book")->where('reference', 'like', '% %')->distinct()->pluck('book')->filter()->values();
         $tags = BibleNote::query()->where('user_id', $request->user()->id)->pluck('tags')->flatten()->filter()->unique()->sort()->values();
 
@@ -119,7 +120,7 @@ final class BibleStudyController extends Controller
         $books = $allHighlights->map(fn ($highlight): string => trim((string) preg_replace('/\\s+.*/', '', $highlight->reference)))->filter()->unique()->sort()->values();
         $tags = $allHighlights->pluck('tags')->flatten()->filter()->unique()->sort()->values();
         $colorCounts = $allHighlights->countBy('color');
-        $translations = BibleTranslation::query()->where(fn ($builder) => $builder->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))->where('status', 'active')->orderBy('name')->get();
+        $translations = BibleTranslation::query()->where('church_id', $request->user()->church_id)->where('status', 'active')->orderBy('name')->get();
 
         return view('bible.highlights', compact('highlights', 'filters', 'books', 'tags', 'colorCounts', 'translations') + ['breadcrumbs' => $this->crumbs('Highlights')]);
     }
@@ -127,6 +128,7 @@ final class BibleStudyController extends Controller
     public function startPlan(Request $request, BibleReadingPlan $plan): RedirectResponse
     {
         $this->authorizeBible($request);
+        abort_unless($plan->church_id === null || $plan->church_id === $request->user()->church_id, 404);
         $plan->users()->syncWithoutDetaching([$request->user()->id => ['current_day' => 1, 'current_streak' => 0, 'started_at' => now()]]);
 
         return back()->with('status', 'Reading plan started.');
@@ -135,7 +137,7 @@ final class BibleStudyController extends Controller
     public function storeBookmark(Request $request): RedirectResponse
     {
         $this->authorizeBible($request);
-        $data = $request->validate(['translation_id' => ['required', 'exists:bible_translations,id'], 'reference' => ['required', 'string', 'max:120'], 'book' => ['required', 'string', 'max:80'], 'chapter' => ['required', 'integer', 'min:1'], 'verse' => ['required', 'integer', 'min:1'], 'preview' => ['nullable', 'string', 'max:1000']]);
+        $data = $request->validate(['translation_id' => ['required', Rule::exists('bible_translations', 'id')->where('church_id', $request->user()->church_id)], 'reference' => ['required', 'string', 'max:120'], 'book' => ['required', 'string', 'max:80'], 'chapter' => ['required', 'integer', 'min:1'], 'verse' => ['required', 'integer', 'min:1'], 'preview' => ['nullable', 'string', 'max:1000']]);
         BibleBookmark::create([...$data, 'bible_translation_id' => $data['translation_id'], 'user_id' => $request->user()->id, 'church_id' => $request->user()->church_id]);
 
         return back()->with('status', 'Verse bookmarked.');
@@ -144,7 +146,7 @@ final class BibleStudyController extends Controller
     public function storeNote(Request $request): RedirectResponse
     {
         $this->authorizeBible($request);
-        $data = $request->validate(['translation_id' => ['required', 'exists:bible_translations,id'], 'reference' => ['required', 'string', 'max:120'], 'title' => ['required', 'string', 'max:180'], 'body' => ['required', 'string', 'max:20000']]);
+        $data = $request->validate(['translation_id' => ['required', Rule::exists('bible_translations', 'id')->where('church_id', $request->user()->church_id)], 'reference' => ['required', 'string', 'max:120'], 'title' => ['required', 'string', 'max:180'], 'body' => ['required', 'string', 'max:20000']]);
         BibleNote::create([...$data, 'bible_translation_id' => $data['translation_id'], 'user_id' => $request->user()->id, 'church_id' => $request->user()->church_id]);
 
         return back()->with('status', 'Note saved.');
@@ -153,7 +155,7 @@ final class BibleStudyController extends Controller
     public function storeHighlight(Request $request): RedirectResponse
     {
         $this->authorizeBible($request);
-        $data = $request->validate(['translation_id' => ['required', 'exists:bible_translations,id'], 'reference' => ['required', 'string', 'max:120'], 'snippet' => ['required', 'string', 'max:2000'], 'color' => ['required', 'in:yellow,green,purple,pink,blue'], 'meaning' => ['nullable', 'string', 'max:120'], 'tags' => ['nullable', 'string', 'max:500']]);
+        $data = $request->validate(['translation_id' => ['required', Rule::exists('bible_translations', 'id')->where('church_id', $request->user()->church_id)], 'reference' => ['required', 'string', 'max:120'], 'snippet' => ['required', 'string', 'max:2000'], 'color' => ['required', 'in:yellow,green,purple,pink,blue'], 'meaning' => ['nullable', 'string', 'max:120'], 'tags' => ['nullable', 'string', 'max:500']]);
         $tags = collect(explode(',', (string) ($data['tags'] ?? '')))->map(fn ($tag): string => trim($tag))->filter()->values()->all();
         BibleHighlight::create([...$data, 'bible_translation_id' => $data['translation_id'], 'tags' => $tags, 'user_id' => $request->user()->id, 'church_id' => $request->user()->church_id]);
 

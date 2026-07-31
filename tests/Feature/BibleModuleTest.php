@@ -86,7 +86,7 @@ final class BibleModuleTest extends TestCase
         $this->seed();
         $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
         $this->actingAs($user)->get(route('bible.settings'))->assertOk();
-        $translation = BibleTranslation::query()->where('abbreviation', 'KJV')->firstOrFail();
+        $translation = BibleTranslation::query()->where('church_id', $user->church_id)->where('abbreviation', 'KJV')->firstOrFail();
 
         $this->actingAs($user)->put(route('bible.settings.update'), [
             'translation_id' => $translation->id,

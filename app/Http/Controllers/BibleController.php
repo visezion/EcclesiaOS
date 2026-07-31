@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\BibleHighlight;
 use App\Models\BibleNote;
+use App\Models\BibleReadingPlan;
 use App\Models\BibleTranslation;
 use App\Models\BibleVerse;
+use App\Support\BibleFreeTranslationInstaller;
 use App\Support\BibleTranslationCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 final class BibleController extends Controller
 {
@@ -21,7 +25,7 @@ final class BibleController extends Controller
         $this->ensureDefaultBible($request);
 
         $translations = BibleTranslation::query()
-            ->where(fn ($query) => $query->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))
+            ->where('church_id', $request->user()->church_id)
             ->where('status', 'active')
             ->orderByDesc('is_default')->orderBy('name')->get();
         $settings = data_get($request->user()->account_settings, 'bible', []);
@@ -30,6 +34,11 @@ final class BibleController extends Controller
         $book = (string) $request->query('book', 'John');
         $chapter = max(1, (int) $request->query('chapter', 3));
         $verses = $translation?->verses()->where('book_slug', Str::slug($book))->where('chapter', $chapter)->orderBy('verse')->get() ?? collect();
+        $books = $translation?->verses()->select('book')->distinct()->orderBy('book')->pluck('book') ?? collect();
+        $dailyVerse = $translation?->verses()->orderBy('id')->first();
+        $recentNote = BibleNote::query()->where('user_id', $request->user()->id)->with('translation')->latest('updated_at')->first();
+        $recentHighlights = BibleHighlight::query()->where('user_id', $request->user()->id)->with('translation')->latest()->limit(3)->get();
+        $activePlan = BibleReadingPlan::query()->with(['users' => fn ($query) => $query->whereKey($request->user()->id)])->whereHas('users', fn ($query) => $query->whereKey($request->user()->id)->whereNull('completed_at'))->latest('updated_at')->first();
 
         return view('bible.index', [
             'translation' => $translation,
@@ -37,6 +46,11 @@ final class BibleController extends Controller
             'book' => $book,
             'chapter' => $chapter,
             'verses' => $verses,
+            'books' => $books,
+            'dailyVerse' => $dailyVerse,
+            'recentNote' => $recentNote,
+            'recentHighlights' => $recentHighlights,
+            'activePlan' => $activePlan,
             'settings' => $settings,
             'breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => null]],
         ]);
@@ -59,7 +73,7 @@ final class BibleController extends Controller
         $query = trim((string) $request->query('q', ''));
         $filters = ['content' => (string) $request->query('content', ''), 'translation_id' => (string) $request->query('translation_id', ''), 'testament' => (string) $request->query('testament', ''), 'book' => (string) $request->query('book', '')];
         $translations = $this->visibleTranslations($request);
-        $verseQuery = BibleVerse::query()->with('translation')->when($query !== '', fn ($builder) => $builder->where('text', 'like', '%'.$query.'%'));
+        $verseQuery = BibleVerse::query()->with('translation')->whereIn('bible_translation_id', $translations->pluck('id'))->when($query !== '', fn ($builder) => $builder->where('text', 'like', '%'.$query.'%'));
         if ($filters['translation_id'] !== '') {
             $verseQuery->where('bible_translation_id', $filters['translation_id']);
         }
@@ -77,7 +91,7 @@ final class BibleController extends Controller
         if ($filters['content'] === 'notes') {
             $verses = collect();
         }
-        $books = BibleVerse::query()->select('book')->distinct()->orderBy('book')->pluck('book');
+        $books = BibleVerse::query()->whereIn('bible_translation_id', $translations->pluck('id'))->select('book')->distinct()->orderBy('book')->pluck('book');
         $recentSearches = collect($request->session()->get('bible_recent_searches', []))->take(5);
         if ($query !== '') {
             $recentSearches = collect([$query])->merge($recentSearches->reject(fn ($recent): bool => $recent === $query))->take(5);
@@ -113,7 +127,7 @@ final class BibleController extends Controller
     public function updateSettings(Request $request): RedirectResponse
     {
         $this->authorizeBible($request);
-        $data = $request->validate(['translation_id' => ['nullable', 'exists:bible_translations,id'], 'book_view' => ['required', 'in:single,two'], 'font_size' => ['required', 'integer', 'min:12', 'max:28'], 'line_spacing' => ['required', 'in:compact,comfortable,spacious'], 'dark_mode' => ['nullable', 'boolean'], 'verse_of_day' => ['nullable', 'boolean'], 'reading_reminders' => ['nullable', 'boolean'], 'reading_reminder_time' => ['required', 'date_format:H:i'], 'reading_plan_notifications' => ['nullable', 'boolean'], 'autoplay_audio' => ['nullable', 'boolean'], 'open_last_read' => ['nullable', 'boolean'], 'offline_sync' => ['required', 'in:wifi,any'], 'highlight_color' => ['required', 'in:yellow,green,purple,pink,blue'], 'private_notes' => ['nullable', 'boolean']]);
+        $data = $request->validate(['translation_id' => ['nullable', Rule::exists('bible_translations', 'id')->where('church_id', $request->user()->church_id)], 'book_view' => ['required', 'in:single,two'], 'font_size' => ['required', 'integer', 'min:12', 'max:28'], 'line_spacing' => ['required', 'in:compact,comfortable,spacious'], 'dark_mode' => ['nullable', 'boolean'], 'verse_of_day' => ['nullable', 'boolean'], 'reading_reminders' => ['nullable', 'boolean'], 'reading_reminder_time' => ['required', 'date_format:H:i'], 'reading_plan_notifications' => ['nullable', 'boolean'], 'autoplay_audio' => ['nullable', 'boolean'], 'open_last_read' => ['nullable', 'boolean'], 'offline_sync' => ['required', 'in:wifi,any'], 'highlight_color' => ['required', 'in:yellow,green,purple,pink,blue'], 'private_notes' => ['nullable', 'boolean']]);
         foreach (['dark_mode', 'verse_of_day', 'reading_reminders', 'reading_plan_notifications', 'autoplay_audio', 'open_last_read', 'private_notes'] as $toggle) {
             $data[$toggle] = (bool) ($data[$toggle] ?? false);
         }
@@ -126,7 +140,7 @@ final class BibleController extends Controller
 
     private function visibleTranslations(Request $request)
     {
-        return BibleTranslation::query()->where(fn ($query) => $query->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))->where('status', 'active')->orderByDesc('is_default')->orderBy('name')->get();
+        return BibleTranslation::query()->where('church_id', $request->user()->church_id)->where('status', 'active')->orderByDesc('is_default')->orderBy('name')->get();
     }
 
     private function authorizeBible(Request $request): void
@@ -137,12 +151,19 @@ final class BibleController extends Controller
     private function ensureDefaultBible(Request $request): void
     {
         BibleTranslationCatalog::ensureFreeDefaults();
+        $catalog = BibleTranslation::query()->whereNull('church_id')->where('abbreviation', 'KJV')->firstOrFail();
         $translation = BibleTranslation::query()->firstOrCreate(
-            ['church_id' => null, 'abbreviation' => 'KJV'],
-            ['name' => 'King James Version', 'language' => 'English', 'description' => 'The public-domain King James Version.', 'copyright' => 'Public domain', 'status' => 'active', 'is_default' => true],
+            ['church_id' => $request->user()->church_id, 'abbreviation' => 'KJV'],
+            $catalog->only(['name', 'abbreviation', 'language', 'description', 'copyright', 'source_url', 'status']) + ['created_by' => $request->user()->id, 'is_default' => true],
         );
 
         if ($translation->verses()->exists()) {
+            return;
+        }
+
+        if (is_file(storage_path('app/private/bible/free/KJV.txt'))) {
+            BibleFreeTranslationInstaller::install($translation);
+
             return;
         }
 
