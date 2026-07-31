@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BibleTranslation;
 use App\Services\ActivityLogger;
+use App\Support\BibleFreeTranslationInstaller;
 use App\Support\BibleTranslationCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -76,9 +77,10 @@ final class BibleTranslationController extends Controller
             ['church_id' => $request->user()->church_id, 'abbreviation' => $translation->abbreviation],
             $translation->only(['name', 'abbreviation', 'language', 'description', 'copyright', 'source_url', 'status']) + ['created_by' => $request->user()->id, 'is_default' => false],
         );
+        $verseCount = BibleFreeTranslationInstaller::install($installed);
         $activityLogger->log('Bible', 'translation_installed', 'Free Bible translation installed for the church.', $installed, ['risk' => 'low', 'status' => 'success'], $request);
 
-        return back()->with('status', $installed->name.' is ready. Import its verse file to populate the reader.');
+        return back()->with('status', $installed->name.' is installed with '.number_format($verseCount).' verses.');
     }
 
     public function import(Request $request, BibleTranslation $translation, ActivityLogger $activityLogger): RedirectResponse
