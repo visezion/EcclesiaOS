@@ -91,6 +91,8 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('bible/highlights', [BibleStudyController::class, 'highlights'])->name('bible.highlights');
     Route::post('bible/plans/{plan}/start', [BibleStudyController::class, 'startPlan'])->name('bible.plans.start');
     Route::post('bible/bookmarks', [BibleStudyController::class, 'storeBookmark'])->name('bible.bookmarks.store');
+    Route::get('bible/bookmarks/export', [BibleStudyController::class, 'exportBookmarks'])->name('bible.bookmarks.export');
+    Route::delete('bible/bookmarks/{bookmark}', [BibleStudyController::class, 'destroyBookmark'])->name('bible.bookmarks.destroy');
     Route::post('bible/notes', [BibleStudyController::class, 'storeNote'])->name('bible.notes.store');
     Route::get('bible/search', [BibleController::class, 'search'])->name('bible.search');
     Route::get('bible/compare', [BibleController::class, 'compare'])->name('bible.compare');

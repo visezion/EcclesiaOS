@@ -8,9 +8,11 @@ use App\Models\BibleBookmark;
 use App\Models\BibleHighlight;
 use App\Models\BibleNote;
 use App\Models\BibleReadingPlan;
+use App\Models\BibleTranslation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class BibleStudyController extends Controller
 {
@@ -47,9 +49,26 @@ final class BibleStudyController extends Controller
     public function bookmarks(Request $request): View
     {
         $this->authorizeBible($request);
-        $bookmarks = BibleBookmark::query()->where('user_id', $request->user()->id)->with('translation')->latest()->paginate(7);
+        $filters = ['q' => trim((string) $request->query('q', '')), 'book' => (string) $request->query('book', ''), 'tag' => (string) $request->query('tag', ''), 'translation_id' => (string) $request->query('translation_id', '')];
+        $query = BibleBookmark::query()->where('user_id', $request->user()->id)->with('translation');
+        if ($filters['q'] !== '') {
+            $query->where(fn ($builder) => $builder->where('reference', 'like', '%'.$filters['q'].'%')->orWhere('preview', 'like', '%'.$filters['q'].'%'));
+        }
+        if ($filters['book'] !== '') {
+            $query->where('book', $filters['book']);
+        }
+        if ($filters['tag'] !== '') {
+            $query->whereJsonContains('tags', $filters['tag']);
+        }
+        if ($filters['translation_id'] !== '') {
+            $query->where('bible_translation_id', $filters['translation_id']);
+        }
+        $bookmarks = $query->latest()->paginate(5)->withQueryString();
+        $translations = BibleTranslation::query()->where(fn ($builder) => $builder->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))->where('status', 'active')->orderBy('name')->get();
+        $books = BibleBookmark::query()->where('user_id', $request->user()->id)->select('book')->distinct()->orderBy('book')->pluck('book');
+        $tags = BibleBookmark::query()->where('user_id', $request->user()->id)->pluck('tags')->flatten()->filter()->unique()->sort()->values();
 
-        return view('bible.bookmarks', compact('bookmarks') + ['breadcrumbs' => $this->crumbs('Bookmarks')]);
+        return view('bible.bookmarks', compact('bookmarks', 'translations', 'books', 'tags', 'filters') + ['breadcrumbs' => $this->crumbs('Bookmarks')]);
     }
 
     public function notes(Request $request): View
@@ -92,6 +111,30 @@ final class BibleStudyController extends Controller
         BibleNote::create([...$data, 'bible_translation_id' => $data['translation_id'], 'user_id' => $request->user()->id, 'church_id' => $request->user()->church_id]);
 
         return back()->with('status', 'Note saved.');
+    }
+
+    public function destroyBookmark(Request $request, BibleBookmark $bookmark): RedirectResponse
+    {
+        $this->authorizeBible($request);
+        abort_unless($bookmark->user_id === $request->user()->id, 404);
+        $bookmark->delete();
+
+        return back()->with('status', 'Bookmark removed.');
+    }
+
+    public function exportBookmarks(Request $request): StreamedResponse
+    {
+        $this->authorizeBible($request);
+        $bookmarks = BibleBookmark::query()->where('user_id', $request->user()->id)->with('translation')->latest()->get();
+
+        return response()->streamDownload(function () use ($bookmarks): void {
+            $handle = fopen('php://output', 'wb');
+            fputcsv($handle, ['Reference', 'Preview', 'Translation', 'Book', 'Chapter', 'Verse', 'Saved At']);
+            foreach ($bookmarks as $bookmark) {
+                fputcsv($handle, [$bookmark->reference, $bookmark->preview, $bookmark->translation?->abbreviation, $bookmark->book, $bookmark->chapter, $bookmark->verse, $bookmark->created_at?->toIso8601String()]);
+            }
+            fclose($handle);
+        }, 'bible-bookmarks.csv', ['Content-Type' => 'text/csv']);
     }
 
     private function authorizeBible(Request $request): void
