@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\BibleNote;
 use App\Models\BibleTranslation;
+use App\Models\BibleVerse;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -43,6 +46,56 @@ final class BibleController extends Controller
             'breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => (string) $request->route('page'), 'url' => null]],
             'page' => (string) $request->route('page'),
         ]);
+    }
+
+    public function search(Request $request): View
+    {
+        $this->authorizeBible($request);
+        $this->ensureDefaultBible($request);
+        $query = trim((string) $request->query('q', ''));
+        $verses = $query === '' ? collect() : BibleVerse::query()->with('translation')->where('text', 'like', '%'.$query.'%')->limit(25)->get();
+        $notes = $query === '' ? collect() : BibleNote::query()->where('user_id', $request->user()->id)->where(fn ($builder) => $builder->where('title', 'like', '%'.$query.'%')->orWhere('body', 'like', '%'.$query.'%'))->latest()->limit(10)->get();
+
+        return view('bible.search', ['query' => $query, 'verses' => $verses, 'notes' => $notes, 'breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Search', 'url' => null]]]);
+    }
+
+    public function compare(Request $request): View
+    {
+        $this->authorizeBible($request);
+        $this->ensureDefaultBible($request);
+        $translations = $this->visibleTranslations($request);
+        $book = (string) $request->query('book', 'John');
+        $chapter = max(1, (int) $request->query('chapter', 3));
+        $verse = max(1, (int) $request->query('verse', 16));
+        $verses = BibleVerse::query()->with('translation')->whereIn('bible_translation_id', $translations->pluck('id'))->where('book_slug', Str::slug($book))->where('chapter', $chapter)->where('verse', $verse)->get()->keyBy('bible_translation_id');
+
+        return view('bible.compare', compact('translations', 'verses', 'book', 'chapter', 'verse') + ['breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Verse Comparison', 'url' => null]]]);
+    }
+
+    public function settings(Request $request): View
+    {
+        $this->authorizeBible($request);
+        $this->ensureDefaultBible($request);
+        $settings = data_get($request->user()->account_settings, 'bible', []);
+        $translations = $this->visibleTranslations($request);
+
+        return view('bible.settings', compact('settings', 'translations') + ['breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Settings', 'url' => null]]]);
+    }
+
+    public function updateSettings(Request $request): RedirectResponse
+    {
+        $this->authorizeBible($request);
+        $data = $request->validate(['translation_id' => ['nullable', 'exists:bible_translations,id'], 'font_size' => ['required', 'integer', 'min:12', 'max:28'], 'line_spacing' => ['required', 'in:compact,comfortable,spacious'], 'verse_of_day' => ['nullable', 'boolean'], 'reading_reminders' => ['nullable', 'boolean'], 'autoplay_audio' => ['nullable', 'boolean'], 'open_last_read' => ['nullable', 'boolean']]);
+        $account = $request->user()->account_settings ?? [];
+        $account['bible'] = array_merge($account['bible'] ?? [], $data);
+        $request->user()->forceFill(['account_settings' => $account])->save();
+
+        return back()->with('status', 'Bible preferences saved.');
+    }
+
+    private function visibleTranslations(Request $request)
+    {
+        return BibleTranslation::query()->where(fn ($query) => $query->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))->where('status', 'active')->orderByDesc('is_default')->orderBy('name')->get();
     }
 
     private function authorizeBible(Request $request): void

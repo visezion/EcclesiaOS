@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\BibleTranslation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 final class BibleModuleTest extends TestCase
@@ -57,5 +58,22 @@ final class BibleModuleTest extends TestCase
         $this->actingAs($user)->get(route('bible.index'))->assertForbidden();
         $this->actingAs($user)->get(route('bible.translations.index'))->assertForbidden();
         $this->assertCount(0, BibleTranslation::query()->get());
+    }
+
+    public function test_bible_study_pages_and_translation_import_are_available(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $this->actingAs($user)->get(route('bible.plans'))->assertOk()->assertSee('Reading Plans', false);
+        $this->actingAs($user)->get(route('bible.bookmarks'))->assertOk();
+        $this->actingAs($user)->get(route('bible.notes'))->assertOk();
+        $this->actingAs($user)->get(route('bible.highlights'))->assertOk();
+        $this->actingAs($user)->get(route('bible.search', ['q' => 'Nicodemus']))->assertOk()->assertSee('Nicodemus', false);
+        $this->actingAs($user)->get(route('bible.compare'))->assertOk()->assertSee('Verse Comparison', false);
+        $this->actingAs($user)->get(route('bible.settings'))->assertOk()->assertSee('Bible Settings', false);
+
+        $translation = BibleTranslation::create(['church_id' => $user->church_id, 'created_by' => $user->id, 'name' => 'Test Version', 'abbreviation' => 'TST', 'language' => 'English', 'status' => 'active']);
+        $this->actingAs($user)->post(route('bible.translations.import', $translation), ['file' => UploadedFile::fake()->createWithContent('verses.csv', "book,chapter,verse,text\nJohn,3,16,For God so loved the world." )])->assertRedirect();
+        $this->assertDatabaseHas('bible_verses', ['bible_translation_id' => $translation->id, 'verse' => 16]);
     }
 }
