@@ -37,7 +37,8 @@ final class BibleController extends Controller
             $book = (string) $books->first();
         }
         $chapters = $translation?->verses()->where('book_slug', Str::slug($book))->select('chapter')->distinct()->orderBy('chapter')->pluck('chapter') ?? collect();
-        $chapter = (int) $request->query('chapter', $chapters->first() ?? 1);
+        $defaultChapter = $chapters->contains(3) ? 3 : ($chapters->first() ?? 1);
+        $chapter = (int) $request->query('chapter', $defaultChapter);
         if ($chapters->isNotEmpty() && ! $chapters->contains($chapter)) {
             $chapter = (int) $chapters->first();
         }
@@ -79,9 +80,10 @@ final class BibleController extends Controller
         $this->authorizeBible($request);
         $this->ensureDefaultBible($request);
         $query = trim((string) $request->query('q', ''));
-        $filters = ['content' => (string) $request->query('content', ''), 'translation_id' => (string) $request->query('translation_id', ''), 'testament' => (string) $request->query('testament', ''), 'book' => (string) $request->query('book', '')];
+        $filters = ['content' => (string) $request->query('content', ''), 'translation_id' => (string) $request->query('translation_id', ''), 'testament' => (string) $request->query('testament', ''), 'book' => (string) $request->query('book', ''), 'tool' => (string) $request->query('tool', '')];
         $translations = $this->visibleTranslations($request);
-        $verseQuery = BibleVerse::query()->with('translation')->whereIn('bible_translation_id', $translations->pluck('id'))->when($query !== '', fn ($builder) => $builder->where('text', 'like', '%'.$query.'%'));
+        $bookTool = in_array($filters['tool'], ['dictionaries', 'bible-timeline'], true);
+        $verseQuery = BibleVerse::query()->with('translation')->whereIn('bible_translation_id', $translations->pluck('id'))->when($query !== '' && ! $bookTool, fn ($builder) => $builder->where('text', 'like', '%'.$query.'%'));
         if ($filters['translation_id'] !== '') {
             $verseQuery->where('bible_translation_id', $filters['translation_id']);
         }
@@ -93,6 +95,10 @@ final class BibleController extends Controller
         }
         $verses = $query === '' ? collect() : $verseQuery->limit(25)->get();
         $notes = $query === '' ? collect() : BibleNote::query()->where('user_id', $request->user()->id)->where(fn ($builder) => $builder->where('title', 'like', '%'.$query.'%')->orWhere('body', 'like', '%'.$query.'%'))->latest()->limit(10)->get();
+        if ($filters['tool'] === 'commentaries') {
+            $notes = BibleNote::query()->where('user_id', $request->user()->id)->where('reference', 'like', (string) $request->query('book', '').' '.(int) $request->query('chapter', 1).'%')->latest()->limit(25)->get();
+            $verses = collect();
+        }
         if ($filters['content'] === 'verses') {
             $notes = collect();
         }

@@ -19,12 +19,15 @@ final class BibleModuleTest extends TestCase
         $this->seed();
         $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
 
-        $this->actingAs($user)
+        $response = $this->actingAs($user)
             ->get(route('bible.index'))
             ->assertOk()
             ->assertSee('Bible', false)
             ->assertSee('Jesus answered and said unto him', false)
             ->assertSee('King James Version', false);
+        $response->assertSee('bible/compare?book=John&amp;chapter=3&amp;verse=1', false);
+        $response->assertSee('bible/search?q=John&amp;tool=commentaries&amp;book=John&amp;chapter=3', false);
+        $response->assertSee('bible/search?q=John&amp;tool=dictionaries&amp;book=John&amp;chapter=3', false);
     }
 
     public function test_church_administrator_can_add_a_translation(): void
