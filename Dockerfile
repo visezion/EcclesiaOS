@@ -133,7 +133,7 @@ EXPOSE 9000
 ENTRYPOINT ["ecclesiaos-entrypoint"]
 CMD ["php-fpm", "-F"]
 
-FROM nginx:1.28-alpine AS web
+FROM alpine:3.23 AS web
 
 LABEL org.opencontainers.image.title="EcclesiaOS Web" \
       org.opencontainers.image.description="Nginx edge for the EcclesiaOS application" \
@@ -142,6 +142,7 @@ LABEL org.opencontainers.image.title="EcclesiaOS Web" \
 # Reset Alpine's pinned base-image packages to the current repository versions
 # so security fixes are included even when the official base image is behind.
 RUN apk upgrade --update-cache --available \
+    && apk add --no-cache nginx \
     && rm -rf /var/cache/apk/*
 
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
@@ -152,6 +153,8 @@ RUN mkdir -p /var/www/html/storage/app/public \
     && ln -s ../storage/app/public /var/www/html/public/storage
 
 EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
     CMD wget -q -O /dev/null http://127.0.0.1/up || exit 1
