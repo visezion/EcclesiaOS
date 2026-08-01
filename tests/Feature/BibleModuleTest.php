@@ -98,6 +98,34 @@ final class BibleModuleTest extends TestCase
         $this->assertDatabaseHas('bible_verses', ['bible_translation_id' => $translation->id, 'verse' => 16]);
     }
 
+    public function test_every_bible_page_has_the_shared_section_navigation(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $pages = [
+            route('bible.index'),
+            route('bible.plans'),
+            route('bible.bookmarks'),
+            route('bible.notes'),
+            route('bible.highlights'),
+            route('bible.search'),
+            route('bible.compare'),
+            route('bible.settings'),
+            route('bible.translations.index'),
+        ];
+
+        foreach ($pages as $page) {
+            $response = $this->actingAs($user)
+                ->get($page)
+                ->assertOk()
+                ->assertSee('aria-label="Bible sections"', false);
+
+            foreach (['bible.index', 'bible.plans', 'bible.bookmarks', 'bible.notes', 'bible.highlights'] as $tabRoute) {
+                $response->assertSee(route($tabRoute), false);
+            }
+        }
+    }
+
     public function test_bible_settings_are_saved_and_applied_to_the_reader(): void
     {
         $this->seed();

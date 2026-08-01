@@ -1,5 +1,6 @@
 <x-app-layout title="Bible Search" :breadcrumbs="$breadcrumbs" main-class="px-4 py-5 sm:px-6 lg:px-7">
     <div class="space-y-5">
+        @include('bible._tabs')
         <div><h1 class="flex items-center gap-3 text-2xl font-black text-slate-950">Bible Search <i data-lucide="bookmark" class="size-5 text-slate-500"></i></h1><p class="mt-1 text-sm text-slate-500">Search across the Bible, notes, plans, and topics.</p></div>
         <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
             <main class="min-w-0 space-y-4">
