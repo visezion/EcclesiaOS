@@ -104,7 +104,9 @@ final class BibleModuleTest extends TestCase
 
         $translation = BibleTranslation::create(['church_id' => $user->church_id, 'created_by' => $user->id, 'name' => 'Test Version', 'abbreviation' => 'TST', 'language' => 'English', 'status' => 'active']);
         $this->actingAs($user)->post(route('bible.translations.import', $translation), ['file' => UploadedFile::fake()->createWithContent('verses.csv', "book,chapter,verse,text\nJohn,3,16,For God so loved the world.")])->assertRedirect();
+        $this->actingAs($user)->post(route('bible.translations.import', $translation), ['file' => UploadedFile::fake()->createWithContent('verses.json', json_encode([['book' => 'John', 'chapter' => 3, 'verse' => 17, 'content' => 'God sent his Son into the world.']], JSON_THROW_ON_ERROR))])->assertRedirect();
         $this->assertDatabaseHas('bible_verses', ['bible_translation_id' => $translation->id, 'verse' => 16]);
+        $this->assertDatabaseHas('bible_verses', ['bible_translation_id' => $translation->id, 'verse' => 17, 'testament' => 'new']);
     }
 
     public function test_every_bible_page_has_the_shared_section_navigation(): void

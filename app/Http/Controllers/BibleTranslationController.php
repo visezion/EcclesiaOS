@@ -8,11 +8,10 @@ use App\Models\BibleTranslation;
 use App\Services\ActivityLogger;
 use App\Support\BibleFreeTranslationInstaller;
 use App\Support\BibleTranslationCatalog;
+use App\Support\BibleTranslationImporter;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -83,21 +82,16 @@ final class BibleTranslationController extends Controller
         return back()->with('status', $installed->name.' is installed with '.number_format($verseCount).' verses.');
     }
 
-    public function import(Request $request, BibleTranslation $translation, ActivityLogger $activityLogger): RedirectResponse
+    public function import(Request $request, BibleTranslation $translation, ActivityLogger $activityLogger, BibleTranslationImporter $importer): RedirectResponse
     {
         $this->authorizeManagement($request);
         abort_unless($translation->church_id === $request->user()->church_id, 404);
         $request->validate(['file' => ['required', 'file', 'mimes:csv,txt,json', 'max:51200']]);
-        $rows = $this->rowsFromFile($request->file('file')->getRealPath());
-        abort_if($rows === [], 422, 'The verse file did not contain valid rows.');
-        DB::transaction(function () use ($translation, $rows): void {
-            foreach (array_chunk($rows, 500) as $chunk) {
-                $translation->verses()->upsert($chunk, ['bible_translation_id', 'book_slug', 'chapter', 'verse'], ['book', 'testament', 'text', 'updated_at']);
-            }
-        });
-        $activityLogger->log('Bible', 'translation_imported', 'Bible translation verses imported.', $translation, ['risk' => 'medium', 'status' => 'success', 'rows' => count($rows)], $request);
+        $count = $importer->import($translation, $request->file('file')->getRealPath());
+        abort_if($count === 0, 422, 'The verse file did not contain valid rows.');
+        $activityLogger->log('Bible', 'translation_imported', 'Bible translation verses imported.', $translation, ['risk' => 'medium', 'status' => 'success', 'rows' => $count], $request);
 
-        return back()->with('status', count($rows).' verse rows imported into '.$translation->abbreviation.'.');
+        return back()->with('status', $count.' verse rows imported into '.$translation->abbreviation.'.');
     }
 
     public function sample(Request $request): StreamedResponse
@@ -110,41 +104,6 @@ final class BibleTranslationController extends Controller
             fputcsv($handle, ['John', 3, 16, 'For God so loved the world, that he gave his only begotten Son.']);
             fclose($handle);
         }, 'bible-translation-sample.csv', ['Content-Type' => 'text/csv']);
-    }
-
-    private function rowsFromFile(string $path): array
-    {
-        $contents = file_get_contents($path) ?: '';
-        $decoded = json_decode($contents, true);
-        $source = is_array($decoded) ? $decoded : $this->csvRows($path);
-
-        return collect($source)->map(function (array $row): ?array {
-            $book = trim((string) ($row['book'] ?? ''));
-            $chapter = (int) ($row['chapter'] ?? 0);
-            $verse = (int) ($row['verse'] ?? 0);
-            $text = trim((string) ($row['text'] ?? ''));
-            if ($book === '' || $chapter < 1 || $verse < 1 || $text === '') {
-                return null;
-            }
-
-            return ['book' => $book, 'book_slug' => Str::slug($book), 'testament' => in_array(strtolower($book), ['matthew', 'mark', 'luke', 'john', 'acts', 'romans'], true) ? 'new' : 'old', 'chapter' => $chapter, 'verse' => $verse, 'text' => $text, 'updated_at' => now(), 'created_at' => now()];
-        })->filter()->values()->all();
-    }
-
-    private function csvRows(string $path): array
-    {
-        $handle = fopen($path, 'rb');
-        if ($handle === false) {
-            return [];
-        } $header = fgetcsv($handle);
-        if ($header === false) {
-            return [];
-        } $rows = [];
-        while (($values = fgetcsv($handle)) !== false) {
-            $rows[] = array_combine($header, $values) ?: [];
-        } fclose($handle);
-
-        return $rows;
     }
 
     private function authorizeManagement(Request $request): void
