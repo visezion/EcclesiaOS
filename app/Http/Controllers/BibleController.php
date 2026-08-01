@@ -122,12 +122,19 @@ final class BibleController extends Controller
         $this->authorizeBible($request);
         $this->ensureDefaultBible($request);
         $translations = $this->visibleTranslations($request);
+        $selectedTranslationIds = collect($request->query('versions', []))->map(fn ($id): int => (int) $id)->filter()->values();
+        if ($selectedTranslationIds->isNotEmpty()) {
+            $translations = $translations->whereIn('id', $selectedTranslationIds)->values();
+        }
         $book = (string) $request->query('book', 'John');
         $chapter = max(1, (int) $request->query('chapter', 3));
         $verse = max(1, (int) $request->query('verse', 16));
+        $books = BibleVerse::query()->whereIn('bible_translation_id', $this->visibleTranslations($request)->pluck('id'))->select('book')->distinct()->orderBy('book')->pluck('book');
+        $chapters = BibleVerse::query()->whereIn('bible_translation_id', $this->visibleTranslations($request)->pluck('id'))->where('book_slug', Str::slug($book))->select('chapter')->distinct()->orderBy('chapter')->pluck('chapter');
         $verses = BibleVerse::query()->with('translation')->whereIn('bible_translation_id', $translations->pluck('id'))->where('book_slug', Str::slug($book))->where('chapter', $chapter)->where('verse', $verse)->get()->keyBy('bible_translation_id');
+        $relatedVerses = BibleVerse::query()->where('bible_translation_id', $translations->first()?->id)->where('book_slug', Str::slug($book))->where('chapter', $chapter)->where('verse', '!=', $verse)->orderBy('verse')->limit(4)->get();
 
-        return view('bible.compare', compact('translations', 'verses', 'book', 'chapter', 'verse') + ['breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Verse Comparison', 'url' => null]]]);
+        return view('bible.compare', compact('translations', 'verses', 'book', 'chapter', 'verse', 'books', 'chapters', 'selectedTranslationIds', 'relatedVerses') + ['breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Verse Comparison', 'url' => null]]]);
     }
 
     public function settings(Request $request): View
