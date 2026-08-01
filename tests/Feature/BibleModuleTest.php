@@ -24,7 +24,10 @@ final class BibleModuleTest extends TestCase
             ->assertOk()
             ->assertSee('Bible', false)
             ->assertSee('Jesus answered and said unto him', false)
-            ->assertSee('King James Version', false);
+            ->assertSee('King James Version', false)
+            ->assertSee('data-lucide="bookmark-plus"', false)
+            ->assertSee('data-lucide="notebook-pen"', false)
+            ->assertSee('data-lucide="highlighter"', false);
         $response->assertSee('bible/compare?book=John&amp;chapter=3&amp;verse=1', false);
         $response->assertSee('bible/search?q=John&amp;tool=commentaries&amp;book=John&amp;chapter=3', false);
         $response->assertSee('bible/search?q=John&amp;tool=dictionaries&amp;book=John&amp;chapter=3', false);
