@@ -52,7 +52,7 @@
 
         <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <h2 class="text-sm font-black text-slate-900">Highlights by Color</h2>
-            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[220px_repeat(5,minmax(0,1fr))]">
+            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
                 <div class="flex items-center justify-center rounded-2xl bg-slate-50 p-4">
                     <div class="relative grid size-32 place-items-center rounded-full" style="background: conic-gradient({{ $donutBackground }})">
                         <div class="grid size-20 place-items-center rounded-full bg-white text-center shadow-inner">
@@ -71,7 +71,7 @@
         </section>
 
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <form id="highlight-filters" method="GET" action="{{ route('bible.highlights') }}" class="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[minmax(220px,1.2fr)_minmax(140px,.8fr)_minmax(170px,1fr)_minmax(150px,1fr)_minmax(150px,.9fr)_auto]">
+            <form id="highlight-filters" method="GET" action="{{ route('bible.highlights') }}" class="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 xl:grid-cols-6">
                 <label class="relative">
                     <span class="sr-only">Search highlights</span>
                     <i data-lucide="search" class="pointer-events-none absolute left-3 top-3 size-4 text-slate-400"></i>
@@ -103,11 +103,14 @@
             </form>
 
             <div class="overflow-x-auto">
-                <div class="min-w-[1060px]">
-                    <div class="grid grid-cols-[190px_minmax(300px,1fr)_150px_170px_170px_100px] gap-4 border-b border-slate-200 bg-slate-50/60 px-5 py-3 text-xs font-black text-slate-700">
-                        <span>Verse Reference</span><span>Verse Snippet</span><span>Highlight Color</span><span>Meaning / Tag</span><span>Date Highlighted</span><span>Actions</span>
-                    </div>
-                    <div class="divide-y divide-slate-100">
+                <table class="w-full border-collapse text-left" style="min-width: 1060px">
+                    <colgroup>
+                        <col style="width: 18%"><col style="width: 34%"><col style="width: 14%"><col style="width: 15%"><col style="width: 13%"><col style="width: 6%">
+                    </colgroup>
+                    <thead class="border-b border-slate-200 bg-slate-50/60 text-xs font-black text-slate-700">
+                        <tr><th class="px-5 py-3">Verse Reference</th><th class="px-4 py-3">Verse Snippet</th><th class="px-4 py-3">Highlight Color</th><th class="px-4 py-3">Meaning / Tag</th><th class="px-4 py-3">Date Highlighted</th><th class="px-4 py-3">Actions</th></tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
                         @forelse ($highlights as $highlight)
                             @php
                                 [$name, $hex, $dotClass, $borderClass, $bgClass, $textClass] = $palette[$highlight->color] ?? $palette['yellow'];
@@ -119,29 +122,28 @@
                                     'verse' => isset($referenceParts[3]) ? (int) $referenceParts[3] : null,
                                 ]);
                             @endphp
-                            <article class="relative grid grid-cols-[190px_minmax(300px,1fr)_150px_170px_170px_100px] items-center gap-4 px-5 py-4 transition hover:bg-slate-50/80">
-                                <span class="absolute inset-y-3 left-3 w-0.5 rounded-full {{ $borderClass }} border-l-2"></span>
-                                <div class="pl-3"><a href="{{ route('bible.index', $readerParameters) }}" class="font-black text-violet-700 hover:text-violet-900">{{ $highlight->reference }}</a><p class="mt-1 text-xs font-semibold text-slate-500">{{ $highlight->translation?->abbreviation }}</p></div>
-                                <p class="line-clamp-2 text-sm leading-6 text-slate-700">{{ $highlight->snippet }}</p>
-                                <span class="flex items-center gap-2 text-sm font-semibold text-slate-700"><span class="size-3 rounded-full {{ $dotClass }}"></span>{{ $name }}</span>
-                                <span class="inline-flex w-fit max-w-full rounded-lg {{ $bgClass }} px-3 py-1.5 text-xs font-bold {{ $textClass }}">{{ $highlight->meaning ?: ($highlight->tags[0] ?? 'Reflection') }}</span>
-                                <time class="text-xs font-medium text-slate-500">{{ $highlight->created_at->format('M d, Y') }}<span class="mt-0.5 block">{{ $highlight->created_at->format('g:i A') }}</span></time>
-                                <div class="flex items-center gap-3 text-slate-500">
+                            <tr class="transition hover:bg-slate-50/80">
+                                <td class="relative border-l-2 {{ $borderClass }} px-5 py-4 align-middle"><a href="{{ route('bible.index', $readerParameters) }}" class="font-black text-violet-700 hover:text-violet-900">{{ $highlight->reference }}</a><p class="mt-1 text-xs font-semibold text-slate-500">{{ $highlight->translation?->abbreviation }}</p></td>
+                                <td class="px-4 py-4 align-middle"><p class="line-clamp-2 text-sm leading-6 text-slate-700">{{ $highlight->snippet }}</p></td>
+                                <td class="px-4 py-4 align-middle"><span class="flex items-center gap-2 text-sm font-semibold text-slate-700"><span class="size-3 rounded-full {{ $dotClass }}"></span>{{ $name }}</span></td>
+                                <td class="px-4 py-4 align-middle"><span class="inline-flex max-w-full rounded-lg {{ $bgClass }} px-3 py-1.5 text-xs font-bold {{ $textClass }}">{{ $highlight->meaning ?: ($highlight->tags[0] ?? 'Reflection') }}</span></td>
+                                <td class="px-4 py-4 align-middle"><time class="text-xs font-medium text-slate-500">{{ $highlight->created_at->format('M d, Y') }}<span class="mt-0.5 block">{{ $highlight->created_at->format('g:i A') }}</span></time></td>
+                                <td class="px-4 py-4 align-middle"><div class="flex items-center gap-3 text-slate-500">
                                     <button type="button" @click="navigator.clipboard?.writeText(@js($highlight->snippet)); copied = {{ $highlight->id }}; setTimeout(() => copied = null, 1500)" class="hover:text-violet-700" :title="copied === {{ $highlight->id }} ? 'Copied' : 'Copy verse'"><i x-show="copied !== {{ $highlight->id }}" data-lucide="copy" class="size-4"></i><i x-cloak x-show="copied === {{ $highlight->id }}" data-lucide="check" class="size-4 text-emerald-600"></i></button>
                                     <a href="{{ route('bible.notes', ['q' => $highlight->reference]) }}" title="Find related notes" class="hover:text-violet-700"><i data-lucide="notebook-pen" class="size-4"></i></a>
                                     <a href="{{ route('bible.index', $readerParameters) }}" title="Open in reader" class="hover:text-violet-700"><i data-lucide="ellipsis-vertical" class="size-4"></i></a>
-                                </div>
-                            </article>
+                                </div></td>
+                            </tr>
                         @empty
-                            <div class="grid place-items-center px-6 py-16 text-center">
+                            <tr><td colspan="6"><div class="grid place-items-center px-6 py-16 text-center">
                                 <span class="grid size-14 place-items-center rounded-2xl bg-violet-50 text-violet-600"><i data-lucide="highlighter" class="size-7"></i></span>
                                 <h2 class="mt-4 font-black text-slate-900">No highlights found</h2>
                                 <p class="mt-1 text-sm text-slate-500">Highlight a verse in the Bible reader or adjust your filters.</p>
                                 <button type="button" @click="open = true" class="mt-4 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white">Highlight a verse</button>
-                            </div>
+                            </div></td></tr>
                         @endforelse
-                    </div>
-                </div>
+                    </tbody>
+                </table>
             </div>
 
             @if ($highlights->hasPages())
