@@ -43,6 +43,7 @@ final class BibleController extends Controller
             $chapter = (int) $chapters->first();
         }
         $verses = $translation?->verses()->where('book_slug', Str::slug($book))->where('chapter', $chapter)->orderBy('verse')->get() ?? collect();
+        $highlightColors = $this->highlightColorsForChapter($request, $translation, $book, $chapter);
         $dailyVerse = $translation?->verses()->orderBy('id')->first();
         $recentNote = BibleNote::query()->where('user_id', $request->user()->id)->with('translation')->latest('updated_at')->first();
         $recentHighlights = BibleHighlight::query()->where('user_id', $request->user()->id)->with('translation')->latest()->limit(3)->get();
@@ -54,6 +55,7 @@ final class BibleController extends Controller
             'book' => $book,
             'chapter' => $chapter,
             'verses' => $verses,
+            'highlightColors' => $highlightColors,
             'books' => $books,
             'chapters' => $chapters,
             'dailyVerse' => $dailyVerse,
@@ -155,6 +157,38 @@ final class BibleController extends Controller
     private function visibleTranslations(Request $request)
     {
         return BibleTranslation::query()->where('church_id', $request->user()->church_id)->where('status', 'active')->orderByDesc('is_default')->orderBy('name')->get();
+    }
+
+    private function highlightColorsForChapter(Request $request, ?BibleTranslation $translation, string $book, int $chapter): array
+    {
+        if (! $translation) {
+            return [];
+        }
+
+        $colors = [];
+        $highlights = BibleHighlight::query()
+            ->where('user_id', $request->user()->id)
+            ->where('bible_translation_id', $translation->id)
+            ->latest('updated_at')
+            ->get(['reference', 'color']);
+
+        foreach ($highlights as $highlight) {
+            if (! preg_match('/^(.+?)\s+(\d+):(\d+)(?:[-–](\d+))?$/u', trim($highlight->reference), $matches)) {
+                continue;
+            }
+
+            if (Str::slug($matches[1]) !== Str::slug($book) || (int) $matches[2] !== $chapter) {
+                continue;
+            }
+
+            $start = (int) $matches[3];
+            $end = isset($matches[4]) ? (int) $matches[4] : $start;
+            for ($verse = $start; $verse <= $end; $verse++) {
+                $colors[$verse] ??= $highlight->color;
+            }
+        }
+
+        return $colors;
     }
 
     private function authorizeBible(Request $request): void
