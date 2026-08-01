@@ -28,6 +28,13 @@ final class BibleModuleTest extends TestCase
         $response->assertSee('bible/compare?book=John&amp;chapter=3&amp;verse=1', false);
         $response->assertSee('bible/search?q=John&amp;tool=commentaries&amp;book=John&amp;chapter=3', false);
         $response->assertSee('bible/search?q=John&amp;tool=dictionaries&amp;book=John&amp;chapter=3', false);
+        $translation = BibleTranslation::query()->where('church_id', $user->church_id)->where('abbreviation', 'KJV')->firstOrFail();
+        $this->actingAs($user)->post(route('bible.bookmarks.store'), ['translation_id' => $translation->id, 'reference' => 'John 3:1', 'book' => 'John', 'chapter' => 3, 'verse' => 1, 'preview' => 'There was a man of the Pharisees.'])->assertRedirect();
+        $this->actingAs($user)->post(route('bible.notes.store'), ['translation_id' => $translation->id, 'reference' => 'John 3:1', 'title' => 'Reader note', 'body' => 'A note saved from the reader.'])->assertRedirect();
+        $this->actingAs($user)->post(route('bible.highlights.store'), ['translation_id' => $translation->id, 'reference' => 'John 3:1', 'snippet' => 'There was a man of the Pharisees.', 'color' => 'yellow', 'meaning' => 'Study'])->assertRedirect();
+        $this->assertDatabaseHas('bible_bookmarks', ['user_id' => $user->id, 'reference' => 'John 3:1']);
+        $this->assertDatabaseHas('bible_notes', ['user_id' => $user->id, 'reference' => 'John 3:1']);
+        $this->assertDatabaseHas('bible_highlights', ['user_id' => $user->id, 'reference' => 'John 3:1']);
     }
 
     public function test_church_administrator_can_add_a_translation(): void
