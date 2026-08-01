@@ -107,6 +107,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::delete('bible/notes/{note}', [BibleStudyController::class, 'destroyNote'])->name('bible.notes.destroy');
     Route::post('bible/highlights', [BibleStudyController::class, 'storeHighlight'])->name('bible.highlights.store');
     Route::get('bible/highlights/export', [BibleStudyController::class, 'exportHighlights'])->name('bible.highlights.export');
+    Route::get('bible/reference-options', [BibleController::class, 'referenceOptions'])->name('bible.reference-options');
     Route::get('bible/search', [BibleController::class, 'search'])->name('bible.search');
     Route::get('bible/compare', [BibleController::class, 'compare'])->name('bible.compare');
     Route::get('bible/settings', [BibleController::class, 'settings'])->name('bible.settings');

@@ -40,11 +40,11 @@
 
         <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
             <main class="min-w-0 space-y-4">
-                <form method="GET" action="{{ route('bible.compare') }}" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <form id="compare-reference-picker" data-options-url="{{ route('bible.reference-options') }}" method="GET" action="{{ route('bible.compare') }}" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div class="grid gap-3 md:grid-cols-3">
-                        <label class="text-xs font-bold text-slate-500">Book<select name="book" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">@foreach($books as $item)<option value="{{ $item }}" @selected($book === $item)>{{ $item }}</option>@endforeach</select></label>
-                        <label class="text-xs font-bold text-slate-500">Chapter<select name="chapter" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">@foreach($chapters as $item)<option value="{{ $item }}" @selected($chapter === (int) $item)>Chapter {{ $item }}</option>@endforeach</select></label>
-                        <label class="text-xs font-bold text-slate-500">Verse<input name="verse" type="number" min="1" value="{{ $verse }}" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm"></label>
+                        <label class="text-xs font-bold text-slate-500">Book<select data-bible-book name="book" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">@foreach($books as $item)<option value="{{ $item }}" @selected($book === $item)>{{ $item }}</option>@endforeach</select></label>
+                        <label class="text-xs font-bold text-slate-500">Chapter<select data-bible-chapter name="chapter" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">@foreach($chapters as $item)<option value="{{ $item }}" @selected($chapter === (int) $item)>Chapter {{ $item }}</option>@endforeach</select></label>
+                        <label class="text-xs font-bold text-slate-500">Verse<select data-bible-verse name="verse" class="mt-1.5 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm">@foreach($verseNumbers as $item)<option value="{{ $item }}" @selected($verse === (int) $item)>Verse {{ $item }}</option>@endforeach</select></label>
                     </div>
                     <div class="mt-4 border-t border-slate-100 pt-4">
                         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -139,4 +139,5 @@
             </aside>
         </div>
     </div>
+    @include('bible._reference-picker-script', ['pickerId' => 'compare-reference-picker'])
 </x-app-layout>

@@ -13,6 +13,7 @@ use App\Support\BibleFreeTranslationInstaller;
 use App\Support\BibleTranslationCatalog;
 use App\Support\BibleVerseDiffer;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -96,7 +97,7 @@ final class BibleController extends Controller
         $this->authorizeBible($request);
         $this->ensureDefaultBible($request);
         $query = trim((string) $request->query('q', ''));
-        $filters = ['content' => (string) $request->query('content', ''), 'translation_id' => (string) $request->query('translation_id', ''), 'testament' => (string) $request->query('testament', ''), 'book' => (string) $request->query('book', ''), 'tool' => (string) $request->query('tool', '')];
+        $filters = ['content' => (string) $request->query('content', ''), 'translation_id' => (string) $request->query('translation_id', ''), 'testament' => (string) $request->query('testament', ''), 'book' => (string) $request->query('book', ''), 'chapter' => (string) $request->query('chapter', ''), 'verse' => (string) $request->query('verse', ''), 'tool' => (string) $request->query('tool', '')];
         $translations = $this->visibleTranslations($request);
         $bookTool = in_array($filters['tool'], ['dictionaries', 'bible-timeline'], true);
         $verseQuery = BibleVerse::query()->with('translation')->whereIn('bible_translation_id', $translations->pluck('id'))->when($query !== '' && ! $bookTool, fn ($builder) => $builder->where('text', 'like', '%'.$query.'%'));
@@ -109,7 +110,14 @@ final class BibleController extends Controller
         if ($filters['book'] !== '') {
             $verseQuery->where('book_slug', Str::slug($filters['book']));
         }
-        $verses = $query === '' ? collect() : $verseQuery->limit(25)->get();
+        if ($filters['chapter'] !== '') {
+            $verseQuery->where('chapter', max(1, (int) $filters['chapter']));
+        }
+        if ($filters['verse'] !== '') {
+            $verseQuery->where('verse', max(1, (int) $filters['verse']));
+        }
+        $hasReferenceFilter = $filters['book'] !== '' || $filters['chapter'] !== '' || $filters['verse'] !== '';
+        $verses = $query === '' && ! $hasReferenceFilter ? collect() : $verseQuery->limit(25)->get();
         $notes = $query === '' ? collect() : BibleNote::query()->where('user_id', $request->user()->id)->where(fn ($builder) => $builder->where('title', 'like', '%'.$query.'%')->orWhere('body', 'like', '%'.$query.'%'))->latest()->limit(10)->get();
         if ($filters['tool'] === 'commentaries') {
             $notes = BibleNote::query()->where('user_id', $request->user()->id)->where('reference', 'like', (string) $request->query('book', '').' '.(int) $request->query('chapter', 1).'%')->latest()->limit(25)->get();
@@ -122,13 +130,50 @@ final class BibleController extends Controller
             $verses = collect();
         }
         $books = BibleVerse::query()->whereIn('bible_translation_id', $translations->pluck('id'))->select('book')->distinct()->orderBy('book')->pluck('book');
+        $chapters = collect();
+        $verseNumbers = collect();
+        if ($filters['book'] !== '') {
+            $referenceQuery = BibleVerse::query()->whereIn('bible_translation_id', $translations->pluck('id'))->where('book_slug', Str::slug($filters['book']));
+            $chapters = (clone $referenceQuery)->select('chapter')->distinct()->orderBy('chapter')->pluck('chapter');
+            if ($filters['chapter'] !== '') {
+                $verseNumbers = (clone $referenceQuery)->where('chapter', max(1, (int) $filters['chapter']))->select('verse')->distinct()->orderBy('verse')->pluck('verse');
+            }
+        }
         $recentSearches = collect($request->session()->get('bible_recent_searches', []))->take(5);
         if ($query !== '') {
             $recentSearches = collect([$query])->merge($recentSearches->reject(fn ($recent): bool => $recent === $query))->take(5);
             $request->session()->put('bible_recent_searches', $recentSearches->all());
         }
 
-        return view('bible.search', compact('query', 'verses', 'notes', 'translations', 'books', 'filters', 'recentSearches') + ['breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Search', 'url' => null]]]);
+        return view('bible.search', compact('query', 'verses', 'notes', 'translations', 'books', 'chapters', 'verseNumbers', 'filters', 'recentSearches') + ['breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Search', 'url' => null]]]);
+    }
+
+    public function referenceOptions(Request $request): JsonResponse
+    {
+        $this->authorizeBible($request);
+        $this->ensureDefaultBible($request);
+        $data = $request->validate([
+            'book' => ['required', 'string', 'max:100'],
+            'chapter' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $translationIds = $this->visibleTranslations($request)->pluck('id');
+        $referenceQuery = BibleVerse::query()
+            ->whereIn('bible_translation_id', $translationIds)
+            ->where('book_slug', Str::slug($data['book']));
+        $chapters = (clone $referenceQuery)->select('chapter')->distinct()->orderBy('chapter')->pluck('chapter')->map(fn ($chapter): int => (int) $chapter)->values();
+        $chapter = isset($data['chapter']) && $chapters->contains((int) $data['chapter'])
+            ? (int) $data['chapter']
+            : (int) ($chapters->first() ?? 0);
+        $verses = $chapter > 0
+            ? (clone $referenceQuery)->where('chapter', $chapter)->select('verse')->distinct()->orderBy('verse')->pluck('verse')->map(fn ($verse): int => (int) $verse)->values()
+            : collect();
+
+        return response()->json([
+            'book' => $data['book'],
+            'chapters' => $chapters,
+            'chapter' => $chapter,
+            'verses' => $verses,
+        ]);
     }
 
     public function compare(Request $request, BibleVerseDiffer $differ): View
@@ -148,11 +193,21 @@ final class BibleController extends Controller
                 ->values();
         }
         $translations = $availableTranslations->whereIn('id', $selectedTranslationIds)->values();
-        $book = (string) $request->query('book', 'John');
-        $chapter = max(1, (int) $request->query('chapter', 3));
-        $verse = max(1, (int) $request->query('verse', 16));
         $books = BibleVerse::query()->whereIn('bible_translation_id', $availableTranslations->pluck('id'))->select('book')->distinct()->orderBy('book')->pluck('book');
+        $book = (string) $request->query('book', 'John');
+        if ($books->isNotEmpty() && ! $books->contains($book)) {
+            $book = (string) $books->first();
+        }
         $chapters = BibleVerse::query()->whereIn('bible_translation_id', $availableTranslations->pluck('id'))->where('book_slug', Str::slug($book))->select('chapter')->distinct()->orderBy('chapter')->pluck('chapter');
+        $chapter = max(1, (int) $request->query('chapter', 3));
+        if ($chapters->isNotEmpty() && ! $chapters->contains($chapter)) {
+            $chapter = (int) $chapters->first();
+        }
+        $verseNumbers = BibleVerse::query()->whereIn('bible_translation_id', $availableTranslations->pluck('id'))->where('book_slug', Str::slug($book))->where('chapter', $chapter)->select('verse')->distinct()->orderBy('verse')->pluck('verse');
+        $verse = max(1, (int) $request->query('verse', 16));
+        if ($verseNumbers->isNotEmpty() && ! $verseNumbers->contains($verse)) {
+            $verse = (int) $verseNumbers->first();
+        }
         $verses = BibleVerse::query()->with('translation')->whereIn('bible_translation_id', $translations->pluck('id'))->where('book_slug', Str::slug($book))->where('chapter', $chapter)->where('verse', $verse)->get()->keyBy('bible_translation_id');
         $relatedVerses = BibleVerse::query()->where('bible_translation_id', $translations->first()?->id)->where('book_slug', Str::slug($book))->where('chapter', $chapter)->where('verse', '!=', $verse)->orderBy('verse')->limit(4)->get();
         $baselineTranslation = $translations->first();
@@ -172,7 +227,7 @@ final class BibleController extends Controller
             return $translation->abbreviation.' '.$book.' '.$chapter.':'.$verse."\n".($verses->get($translation->id)?->text ?? 'Not available');
         })->join("\n\n");
 
-        return view('bible.compare', compact('availableTranslations', 'translations', 'verses', 'book', 'chapter', 'verse', 'books', 'chapters', 'selectedTranslationIds', 'relatedVerses', 'baselineTranslation', 'differences', 'comparisonCopyText') + ['breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Verse Comparison', 'url' => null]]]);
+        return view('bible.compare', compact('availableTranslations', 'translations', 'verses', 'book', 'chapter', 'verse', 'books', 'chapters', 'verseNumbers', 'selectedTranslationIds', 'relatedVerses', 'baselineTranslation', 'differences', 'comparisonCopyText') + ['breadcrumbs' => [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Bible', 'url' => route('bible.index')], ['label' => 'Verse Comparison', 'url' => null]]]);
     }
 
     public function settings(Request $request): View

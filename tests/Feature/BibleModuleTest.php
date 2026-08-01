@@ -55,6 +55,35 @@ final class BibleModuleTest extends TestCase
         $this->assertDatabaseHas('bible_highlights', ['user_id' => $user->id, 'reference' => 'John 3:1']);
     }
 
+    public function test_search_and_compare_reference_selectors_load_valid_chapters_and_verses(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($user)
+            ->getJson(route('bible.reference-options', ['book' => 'John', 'chapter' => 3]))
+            ->assertOk()
+            ->assertJsonPath('book', 'John')
+            ->assertJsonPath('chapter', 3)
+            ->assertJsonPath('chapters.2', 3)
+            ->assertJsonPath('verses.0', 1);
+
+        $this->actingAs($user)
+            ->get(route('bible.search', ['book' => 'John', 'chapter' => 3, 'verse' => 1]))
+            ->assertOk()
+            ->assertSee('id="search-reference-picker"', false)
+            ->assertSee('data-bible-book', false)
+            ->assertSee('data-bible-chapter', false)
+            ->assertSee('data-bible-verse', false)
+            ->assertSee('John 3:1', false);
+
+        $this->actingAs($user)
+            ->get(route('bible.compare', ['book' => 'John', 'chapter' => 3, 'verse' => 1]))
+            ->assertOk()
+            ->assertSee('id="compare-reference-picker"', false)
+            ->assertSee('<option value="1" selected>Verse 1</option>', false);
+    }
+
     public function test_church_administrator_can_add_a_translation(): void
     {
         $this->seed();
