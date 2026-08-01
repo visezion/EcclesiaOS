@@ -5,6 +5,7 @@ return [
         'view dashboard',
         'use messages',
         'use bible',
+        'manage bible plans',
         'manage bible translations',
         'send messages',
         'create message groups',
@@ -48,7 +49,7 @@ return [
 
     'roles' => [
         'Super Administrator' => ['*'],
-        'Church Administrator' => ['view dashboard', 'use messages', 'use bible', 'manage bible translations', 'send messages', 'create message groups', 'manage message participants', 'forward messages', 'export message history', 'view sensitive messages', 'administer messages', 'manage users', 'manage roles', 'manage permissions', 'view audit log', 'manage members', 'manage attendance', 'manage events', 'manage studio', 'manage communications', 'manage ministries', 'manage campuses', 'manage staff', 'view leadership reports', 'review leadership reports', 'view reports', 'manage settings'],
+        'Church Administrator' => ['view dashboard', 'use messages', 'use bible', 'manage bible plans', 'manage bible translations', 'send messages', 'create message groups', 'manage message participants', 'forward messages', 'export message history', 'view sensitive messages', 'administer messages', 'manage users', 'manage roles', 'manage permissions', 'view audit log', 'manage members', 'manage attendance', 'manage events', 'manage studio', 'manage communications', 'manage ministries', 'manage campuses', 'manage staff', 'view leadership reports', 'review leadership reports', 'view reports', 'manage settings'],
         'Senior Pastor' => ['view dashboard', 'use messages', 'use bible', 'send messages', 'create message groups', 'manage message participants', 'forward messages', 'export message history', 'view sensitive messages', 'manage members', 'manage attendance', 'manage prayer', 'manage communications', 'manage ministries', 'manage campuses', 'view finance', 'view leadership reports', 'review leadership reports', 'manage feedback', 'view reports'],
         'Branch Pastor' => ['view dashboard', 'use messages', 'use bible', 'send messages', 'create message groups', 'manage message participants', 'forward messages', 'view sensitive messages', 'manage members', 'manage attendance', 'manage prayer', 'manage communications', 'manage ministries', 'view finance', 'view leadership reports', 'review leadership reports', 'manage feedback'],
         'Finance Officer' => ['view dashboard', 'use messages', 'use bible', 'send messages', 'forward messages', 'manage finance', 'view finance', 'record finance entries', 'view reports'],

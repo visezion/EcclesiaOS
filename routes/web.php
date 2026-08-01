@@ -88,6 +88,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('bible/admin/translations/sample', [BibleTranslationController::class, 'sample'])->name('bible.translations.sample');
     Route::get('bible', [BibleController::class, 'index'])->name('bible.index');
     Route::get('bible/plans', [BibleStudyController::class, 'plans'])->name('bible.plans');
+    Route::post('bible/plans', [BibleStudyController::class, 'storePlan'])->name('bible.plans.store');
     Route::get('bible/bookmarks', [BibleStudyController::class, 'bookmarks'])->name('bible.bookmarks');
     Route::get('bible/notes', [BibleStudyController::class, 'notes'])->name('bible.notes');
     Route::get('bible/highlights', [BibleStudyController::class, 'highlights'])->name('bible.highlights');

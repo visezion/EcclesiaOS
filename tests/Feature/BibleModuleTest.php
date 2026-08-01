@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\BibleTranslation;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -72,6 +73,47 @@ final class BibleModuleTest extends TestCase
             'abbreviation' => 'ESV',
             'name' => 'English Standard Version',
         ]);
+    }
+
+    public function test_only_authorized_administrators_can_create_church_bible_plans(): void
+    {
+        $this->seed();
+        $administrator = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($administrator)
+            ->get(route('bible.plans'))
+            ->assertOk()
+            ->assertSee('Create Bible Reading Plan', false);
+
+        $this->actingAs($administrator)
+            ->post(route('bible.plans.store'), [
+                'name' => 'Thirty Days in Psalms',
+                'description' => 'Read and reflect on selected Psalms for thirty days.',
+                'category' => 'Psalms',
+                'duration_days' => 30,
+                'is_recommended' => 1,
+            ])
+            ->assertRedirect(route('bible.plans'));
+
+        $this->assertDatabaseHas('bible_reading_plans', [
+            'church_id' => $administrator->church_id,
+            'name' => 'Thirty Days in Psalms',
+            'duration_days' => 30,
+            'is_recommended' => true,
+        ]);
+
+        $viewer = User::factory()->create(['church_id' => $administrator->church_id, 'status' => 'active']);
+        $viewer->roles()->sync([Role::query()->where('name', 'Viewer')->firstOrFail()->id]);
+
+        $this->actingAs($viewer)->get(route('bible.plans'))->assertOk()->assertDontSee('Create Bible Reading Plan', false);
+        $this->actingAs($viewer)->post(route('bible.plans.store'), [
+            'name' => 'Unauthorized Plan',
+            'description' => 'This should not be created.',
+            'category' => 'Topical',
+            'duration_days' => 7,
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('bible_reading_plans', ['name' => 'Unauthorized Plan']);
     }
 
     public function test_user_without_bible_permission_cannot_read_or_manage_translations(): void

@@ -22,7 +22,9 @@ final class BibleStudyController extends Controller
         $this->authorizeBible($request);
         $this->seedPlans($request);
         $filters = ['q' => trim((string) $request->query('q', '')), 'category' => (string) $request->query('category', ''), 'status' => (string) $request->query('status', ''), 'duration' => (string) $request->query('duration', '')];
-        $query = BibleReadingPlan::query()->with(['users' => fn ($q) => $q->whereKey($request->user()->id)]);
+        $query = BibleReadingPlan::query()
+            ->where(fn ($scope) => $scope->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))
+            ->with(['users' => fn ($q) => $q->whereKey($request->user()->id)]);
         if ($filters['q'] !== '') {
             $query->where(fn ($builder) => $builder->where('name', 'like', '%'.$filters['q'].'%')->orWhere('description', 'like', '%'.$filters['q'].'%'));
         }
@@ -42,9 +44,36 @@ final class BibleStudyController extends Controller
         $activePlans = $plans->filter(fn ($plan): bool => $plan->users->isNotEmpty())->values();
         $recommendedPlans = $plans->where('is_recommended', true)->values();
         $completedPlans = $activePlans->filter(fn ($plan): bool => filled($plan->users->first()?->pivot?->completed_at))->values();
-        $categories = BibleReadingPlan::query()->select('category')->selectRaw('count(*) as total')->groupBy('category')->orderBy('category')->get();
+        $categories = BibleReadingPlan::query()
+            ->where(fn ($scope) => $scope->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))
+            ->select('category')
+            ->selectRaw('count(*) as total')
+            ->groupBy('category')
+            ->orderBy('category')
+            ->get();
+        $canManagePlans = $request->user()->isSuperAdministrator() || $request->user()->hasPermission('manage bible plans');
 
-        return view('bible.plans', compact('plans', 'activePlans', 'recommendedPlans', 'completedPlans', 'categories', 'filters') + ['breadcrumbs' => $this->crumbs('Reading Plans')]);
+        return view('bible.plans', compact('plans', 'activePlans', 'recommendedPlans', 'completedPlans', 'categories', 'filters', 'canManagePlans') + ['breadcrumbs' => $this->crumbs('Reading Plans')]);
+    }
+
+    public function storePlan(Request $request): RedirectResponse
+    {
+        $this->authorizePlanManagement($request);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:160'],
+            'description' => ['required', 'string', 'max:2000'],
+            'category' => ['required', 'string', 'max:80'],
+            'duration_days' => ['required', 'integer', 'min:1', 'max:730'],
+            'is_recommended' => ['nullable', 'boolean'],
+        ]);
+
+        BibleReadingPlan::create([
+            ...$data,
+            'church_id' => $request->user()->church_id,
+            'is_recommended' => $request->boolean('is_recommended'),
+        ]);
+
+        return redirect()->route('bible.plans')->with('status', 'Bible reading plan created.');
     }
 
     public function bookmarks(Request $request): View
@@ -251,6 +280,11 @@ final class BibleStudyController extends Controller
     private function authorizeBible(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('use bible'), 403);
+    }
+
+    private function authorizePlanManagement(Request $request): void
+    {
+        abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage bible plans'), 403);
     }
 
     private function crumbs(string $label): array
