@@ -99,7 +99,14 @@ final class BibleModuleTest extends TestCase
         $this->actingAs($user)->post(route('bible.translations.install', $freeTranslation))->assertRedirect();
         $installedTranslation = BibleTranslation::query()->where('church_id', $user->church_id)->where('abbreviation', 'BSB')->firstOrFail();
         $this->assertGreaterThan(30_000, $installedTranslation->verses()->count());
-        $this->actingAs($user)->get(route('bible.compare'))->assertOk()->assertSee('Verse Comparison', false);
+        $this->actingAs($user)->get(route('bible.compare'))
+            ->assertOk()
+            ->assertSee('Verse Comparison', false)
+            ->assertSee('Highlight Differences', false)
+            ->assertSee('role="switch"', false)
+            ->assertSee('data-lucide="highlighter"', false)
+            ->assertSee('Baseline', false)
+            ->assertSee('Different wording', false);
         $this->actingAs($user)->get(route('bible.settings'))->assertOk()->assertSee('Bible Settings', false);
 
         $translation = BibleTranslation::create(['church_id' => $user->church_id, 'created_by' => $user->id, 'name' => 'Test Version', 'abbreviation' => 'TST', 'language' => 'English', 'status' => 'active']);
