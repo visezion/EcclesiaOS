@@ -101,7 +101,7 @@ final class BibleStudyController extends Controller
     public function highlights(Request $request): View
     {
         $this->authorizeBible($request);
-        $filters = ['q' => trim((string) $request->query('q', '')), 'color' => (string) $request->query('color', ''), 'book' => (string) $request->query('book', ''), 'tag' => (string) $request->query('tag', '')];
+        $filters = ['q' => trim((string) $request->query('q', '')), 'color' => (string) $request->query('color', ''), 'book' => (string) $request->query('book', ''), 'tag' => (string) $request->query('tag', ''), 'date' => (string) $request->query('date', '')];
         $query = BibleHighlight::query()->where('user_id', $request->user()->id)->with('translation');
         if ($filters['q'] !== '') {
             $query->where(fn ($builder) => $builder->where('reference', 'like', '%'.$filters['q'].'%')->orWhere('snippet', 'like', '%'.$filters['q'].'%')->orWhere('meaning', 'like', '%'.$filters['q'].'%'));
@@ -113,16 +113,30 @@ final class BibleStudyController extends Controller
             $query->where('reference', 'like', $filters['book'].'%');
         }
         if ($filters['tag'] !== '') {
-            $query->whereJsonContains('tags', $filters['tag']);
+            $query->where(fn ($builder) => $builder->whereJsonContains('tags', $filters['tag'])->orWhere('meaning', $filters['tag']));
+        }
+        if ($filters['date'] === 'today') {
+            $query->whereDate('created_at', today());
+        } elseif ($filters['date'] === '7') {
+            $query->where('created_at', '>=', now()->subDays(7));
+        } elseif ($filters['date'] === '30') {
+            $query->where('created_at', '>=', now()->subDays(30));
+        } elseif ($filters['date'] === 'year') {
+            $query->whereYear('created_at', now()->year);
         }
         $highlights = $query->latest()->paginate(7)->withQueryString();
-        $allHighlights = BibleHighlight::query()->where('user_id', $request->user()->id)->get(['color', 'reference', 'tags']);
-        $books = $allHighlights->map(fn ($highlight): string => trim((string) preg_replace('/\\s+.*/', '', $highlight->reference)))->filter()->unique()->sort()->values();
-        $tags = $allHighlights->pluck('tags')->flatten()->filter()->unique()->sort()->values();
+        $allHighlights = BibleHighlight::query()->where('user_id', $request->user()->id)->get(['color', 'reference', 'meaning', 'tags']);
+        $books = $allHighlights->map(function ($highlight): string {
+            preg_match('/^(.+?)\s+\d+:\d+/', $highlight->reference, $matches);
+
+            return trim((string) ($matches[1] ?? ''));
+        })->filter()->unique()->sort()->values();
+        $tags = $allHighlights->pluck('tags')->flatten()->merge($allHighlights->pluck('meaning'))->filter()->unique()->sort()->values();
         $colorCounts = $allHighlights->countBy('color');
+        $totalHighlights = $allHighlights->count();
         $translations = BibleTranslation::query()->where('church_id', $request->user()->church_id)->where('status', 'active')->orderBy('name')->get();
 
-        return view('bible.highlights', compact('highlights', 'filters', 'books', 'tags', 'colorCounts', 'translations') + ['breadcrumbs' => $this->crumbs('Highlights')]);
+        return view('bible.highlights', compact('highlights', 'filters', 'books', 'tags', 'colorCounts', 'totalHighlights', 'translations') + ['breadcrumbs' => $this->crumbs('Highlights')]);
     }
 
     public function startPlan(Request $request, BibleReadingPlan $plan): RedirectResponse
