@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\AuthenticationSettingsController;
 use App\Http\Controllers\BibleController;
+use App\Http\Controllers\BiblePlanManagementController;
 use App\Http\Controllers\BibleStudyController;
 use App\Http\Controllers\BibleTranslationController;
 use App\Http\Controllers\BookstoreController;
@@ -81,6 +82,10 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('search', SearchController::class)->name('search');
     Route::get('topbar/counts', TopbarCountsController::class)->name('topbar.counts');
     Route::get('bible/admin/translations', [BibleTranslationController::class, 'index'])->name('bible.translations.index');
+    Route::get('bible/admin/plans', [BiblePlanManagementController::class, 'index'])->name('bible.admin.plans.index');
+    Route::post('bible/admin/plans', [BiblePlanManagementController::class, 'store'])->name('bible.admin.plans.store');
+    Route::put('bible/admin/plans/{plan}', [BiblePlanManagementController::class, 'update'])->name('bible.admin.plans.update');
+    Route::delete('bible/admin/plans/{plan}', [BiblePlanManagementController::class, 'destroy'])->name('bible.admin.plans.destroy');
     Route::post('bible/admin/translations', [BibleTranslationController::class, 'store'])->name('bible.translations.store');
     Route::post('bible/admin/translations/{translation}/install', [BibleTranslationController::class, 'install'])->name('bible.translations.install');
     Route::delete('bible/admin/translations/{translation}', [BibleTranslationController::class, 'destroy'])->name('bible.translations.destroy');
@@ -88,11 +93,11 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('bible/admin/translations/sample', [BibleTranslationController::class, 'sample'])->name('bible.translations.sample');
     Route::get('bible', [BibleController::class, 'index'])->name('bible.index');
     Route::get('bible/plans', [BibleStudyController::class, 'plans'])->name('bible.plans');
-    Route::post('bible/plans', [BibleStudyController::class, 'storePlan'])->name('bible.plans.store');
     Route::get('bible/bookmarks', [BibleStudyController::class, 'bookmarks'])->name('bible.bookmarks');
     Route::get('bible/notes', [BibleStudyController::class, 'notes'])->name('bible.notes');
     Route::get('bible/highlights', [BibleStudyController::class, 'highlights'])->name('bible.highlights');
     Route::post('bible/plans/{plan}/start', [BibleStudyController::class, 'startPlan'])->name('bible.plans.start');
+    Route::post('bible/plans/{plan}/complete-day', [BibleStudyController::class, 'completePlanDay'])->name('bible.plans.complete-day');
     Route::post('bible/bookmarks', [BibleStudyController::class, 'storeBookmark'])->name('bible.bookmarks.store');
     Route::get('bible/bookmarks/export', [BibleStudyController::class, 'exportBookmarks'])->name('bible.bookmarks.export');
     Route::delete('bible/bookmarks/{bookmark}', [BibleStudyController::class, 'destroyBookmark'])->name('bible.bookmarks.destroy');
@@ -347,7 +352,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index'], true)) {
             continue;
         }
 

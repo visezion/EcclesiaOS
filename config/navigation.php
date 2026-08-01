@@ -70,6 +70,7 @@ return [
             ['label' => 'Search', 'route' => 'bible.search', 'icon' => 'search', 'permission' => 'use bible'],
             ['label' => 'Study Tools', 'route' => 'bible.compare', 'icon' => 'scale', 'permission' => 'use bible'],
             ['label' => 'Settings', 'route' => 'bible.settings', 'icon' => 'settings', 'permission' => 'use bible'],
+            ['label' => 'Manage Plans', 'route' => 'bible.admin.plans.index', 'icon' => 'list-checks', 'permission' => 'manage bible plans'],
             ['label' => 'Translations', 'route' => 'bible.translations.index', 'icon' => 'languages', 'permission' => 'manage bible translations'],
         ],
     ],

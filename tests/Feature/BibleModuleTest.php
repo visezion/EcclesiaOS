@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\BibleReadingPlan;
 use App\Models\BibleTranslation;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 final class BibleModuleTest extends TestCase
@@ -81,39 +83,70 @@ final class BibleModuleTest extends TestCase
         $administrator = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
 
         $this->actingAs($administrator)
-            ->get(route('bible.plans'))
+            ->get(route('bible.admin.plans.index'))
             ->assertOk()
-            ->assertSee('Create Bible Reading Plan', false);
+            ->assertSee('Manage Reading Plans', false)
+            ->assertSee('New Reading Plan', false);
 
         $this->actingAs($administrator)
-            ->post(route('bible.plans.store'), [
-                'name' => 'Thirty Days in Psalms',
-                'description' => 'Read and reflect on selected Psalms for thirty days.',
+            ->post(route('bible.admin.plans.store'), [
+                'name' => 'Two Days in Psalms',
+                'description' => 'Read and reflect on selected Psalms for two days.',
                 'category' => 'Psalms',
-                'duration_days' => 30,
+                'schedule' => "Songs of trust | Psalms 1-2 | Trust God in every season.\nSongs of worship | Psalms 3-4 | Respond to God with worship.",
                 'is_recommended' => 1,
             ])
-            ->assertRedirect(route('bible.plans'));
+            ->assertRedirect(route('bible.admin.plans.index'));
 
         $this->assertDatabaseHas('bible_reading_plans', [
             'church_id' => $administrator->church_id,
-            'name' => 'Thirty Days in Psalms',
-            'duration_days' => 30,
+            'name' => 'Two Days in Psalms',
+            'duration_days' => 2,
             'is_recommended' => true,
         ]);
+        $plan = BibleReadingPlan::query()->where('name', 'Two Days in Psalms')->firstOrFail();
+        $this->assertDatabaseHas('bible_reading_plan_days', ['bible_reading_plan_id' => $plan->id, 'day_number' => 1, 'passages' => 'Psalms 1-2']);
+        $this->assertDatabaseHas('bible_reading_plan_days', ['bible_reading_plan_id' => $plan->id, 'day_number' => 2, 'passages' => 'Psalms 3-4']);
+        $this->actingAs($administrator)->put(route('bible.admin.plans.update', $plan), [
+            'name' => 'Two Days in Psalms',
+            'description' => 'An updated two-day journey through selected Psalms.',
+            'category' => 'Psalms',
+            'schedule' => "Trust | Psalms 1-2 | Trust in the Lord.\nWorship | Psalms 3-4 | Worship the Lord.",
+            'is_recommended' => 1,
+        ])->assertRedirect(route('bible.admin.plans.index'));
+        $this->assertDatabaseHas('bible_reading_plan_days', ['bible_reading_plan_id' => $plan->id, 'day_number' => 2, 'title' => 'Worship', 'reflection' => 'Worship the Lord.']);
+
+        $this->actingAs($administrator)->post(route('bible.admin.plans.store'), [
+            'name' => 'Temporary Plan',
+            'description' => 'A plan created to verify deletion.',
+            'category' => 'Topical',
+            'schedule' => 'Only day | John 1',
+        ])->assertRedirect(route('bible.admin.plans.index'));
+        $temporaryPlan = BibleReadingPlan::query()->where('name', 'Temporary Plan')->firstOrFail();
+        $this->actingAs($administrator)->delete(route('bible.admin.plans.destroy', $temporaryPlan))->assertRedirect(route('bible.admin.plans.index'));
+        $this->assertDatabaseMissing('bible_reading_plans', ['id' => $temporaryPlan->id]);
 
         $viewer = User::factory()->create(['church_id' => $administrator->church_id, 'status' => 'active']);
         $viewer->roles()->sync([Role::query()->where('name', 'Viewer')->firstOrFail()->id]);
 
-        $this->actingAs($viewer)->get(route('bible.plans'))->assertOk()->assertDontSee('Create Bible Reading Plan', false);
-        $this->actingAs($viewer)->post(route('bible.plans.store'), [
+        $this->actingAs($viewer)->get(route('bible.plans'))->assertOk()->assertSee('Two Days in Psalms', false)->assertDontSee('Manage Plans', false);
+        $this->actingAs($viewer)->get(route('bible.admin.plans.index'))->assertForbidden();
+        $this->actingAs($viewer)->post(route('bible.admin.plans.store'), [
             'name' => 'Unauthorized Plan',
             'description' => 'This should not be created.',
             'category' => 'Topical',
-            'duration_days' => 7,
+            'schedule' => 'Day one | John 1',
         ])->assertForbidden();
 
         $this->assertDatabaseMissing('bible_reading_plans', ['name' => 'Unauthorized Plan']);
+
+        $this->actingAs($viewer)->post(route('bible.plans.start', $plan))->assertRedirect();
+        $this->actingAs($viewer)->post(route('bible.plans.complete-day', $plan), ['day' => 1])->assertRedirect();
+        $this->assertDatabaseHas('bible_reading_plan_user', ['bible_reading_plan_id' => $plan->id, 'user_id' => $viewer->id, 'current_day' => 2, 'current_streak' => 1, 'completed_at' => null]);
+        $this->actingAs($viewer)->get(route('bible.plans'))->assertOk()->assertSee('Psalms 3-4', false);
+        $this->actingAs($viewer)->post(route('bible.plans.complete-day', $plan), ['day' => 2])->assertRedirect();
+        $this->assertDatabaseHas('bible_reading_plan_user', ['bible_reading_plan_id' => $plan->id, 'user_id' => $viewer->id, 'current_day' => 2, 'current_streak' => 1]);
+        $this->assertNotNull(DB::table('bible_reading_plan_user')->where('bible_reading_plan_id', $plan->id)->where('user_id', $viewer->id)->value('completed_at'));
     }
 
     public function test_user_without_bible_permission_cannot_read_or_manage_translations(): void
@@ -171,6 +204,7 @@ final class BibleModuleTest extends TestCase
         $pages = [
             route('bible.index'),
             route('bible.plans'),
+            route('bible.admin.plans.index'),
             route('bible.bookmarks'),
             route('bible.notes'),
             route('bible.highlights'),

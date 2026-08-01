@@ -1,6 +1,6 @@
 @php
     $activeBibleSection = match (true) {
-        request()->routeIs('bible.plans*') => 'plans',
+        request()->routeIs('bible.plans*') || request()->routeIs('bible.admin.plans.*') => 'plans',
         request()->routeIs('bible.bookmarks*') => 'bookmarks',
         request()->routeIs('bible.notes*') => 'notes',
         request()->routeIs('bible.highlights*') => 'highlights',

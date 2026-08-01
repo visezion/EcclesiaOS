@@ -9,6 +9,8 @@ use App\Models\BibleHighlight;
 use App\Models\BibleNote;
 use App\Models\BibleReadingPlan;
 use App\Models\BibleTranslation;
+use App\Support\BibleReadingPlanDefaults;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,10 +23,11 @@ final class BibleStudyController extends Controller
     {
         $this->authorizeBible($request);
         $this->seedPlans($request);
+        BibleReadingPlanDefaults::ensure();
         $filters = ['q' => trim((string) $request->query('q', '')), 'category' => (string) $request->query('category', ''), 'status' => (string) $request->query('status', ''), 'duration' => (string) $request->query('duration', '')];
         $query = BibleReadingPlan::query()
             ->where(fn ($scope) => $scope->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))
-            ->with(['users' => fn ($q) => $q->whereKey($request->user()->id)]);
+            ->with(['days', 'users' => fn ($q) => $q->whereKey($request->user()->id)]);
         if ($filters['q'] !== '') {
             $query->where(fn ($builder) => $builder->where('name', 'like', '%'.$filters['q'].'%')->orWhere('description', 'like', '%'.$filters['q'].'%'));
         }
@@ -41,9 +44,11 @@ final class BibleStudyController extends Controller
             $query->whereHas('users', fn ($builder) => $builder->whereKey($request->user()->id)->whereNotNull('completed_at'));
         }
         $plans = $query->orderByDesc('is_recommended')->orderBy('name')->get();
-        $activePlans = $plans->filter(fn ($plan): bool => $plan->users->isNotEmpty())->values();
+        $enrolledPlans = $plans->filter(fn ($plan): bool => $plan->users->isNotEmpty())->values();
+        $activePlans = $enrolledPlans->filter(fn ($plan): bool => blank($plan->users->first()?->pivot?->completed_at))->values();
         $recommendedPlans = $plans->where('is_recommended', true)->values();
-        $completedPlans = $activePlans->filter(fn ($plan): bool => filled($plan->users->first()?->pivot?->completed_at))->values();
+        $availablePlans = $plans->filter(fn ($plan): bool => $plan->users->isEmpty())->sortByDesc('is_recommended')->values();
+        $completedPlans = $enrolledPlans->filter(fn ($plan): bool => filled($plan->users->first()?->pivot?->completed_at))->values();
         $categories = BibleReadingPlan::query()
             ->where(fn ($scope) => $scope->whereNull('church_id')->orWhere('church_id', $request->user()->church_id))
             ->select('category')
@@ -52,28 +57,10 @@ final class BibleStudyController extends Controller
             ->orderBy('category')
             ->get();
         $canManagePlans = $request->user()->isSuperAdministrator() || $request->user()->hasPermission('manage bible plans');
+        $todayPlan = $activePlans->first();
+        $todayReading = $todayPlan?->days->firstWhere('day_number', (int) ($todayPlan->users->first()?->pivot?->current_day ?? 1));
 
-        return view('bible.plans', compact('plans', 'activePlans', 'recommendedPlans', 'completedPlans', 'categories', 'filters', 'canManagePlans') + ['breadcrumbs' => $this->crumbs('Reading Plans')]);
-    }
-
-    public function storePlan(Request $request): RedirectResponse
-    {
-        $this->authorizePlanManagement($request);
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:160'],
-            'description' => ['required', 'string', 'max:2000'],
-            'category' => ['required', 'string', 'max:80'],
-            'duration_days' => ['required', 'integer', 'min:1', 'max:730'],
-            'is_recommended' => ['nullable', 'boolean'],
-        ]);
-
-        BibleReadingPlan::create([
-            ...$data,
-            'church_id' => $request->user()->church_id,
-            'is_recommended' => $request->boolean('is_recommended'),
-        ]);
-
-        return redirect()->route('bible.plans')->with('status', 'Bible reading plan created.');
+        return view('bible.plans', compact('plans', 'enrolledPlans', 'activePlans', 'recommendedPlans', 'availablePlans', 'completedPlans', 'categories', 'filters', 'canManagePlans', 'todayPlan', 'todayReading') + ['breadcrumbs' => $this->crumbs('Reading Plans')]);
     }
 
     public function bookmarks(Request $request): View
@@ -172,9 +159,37 @@ final class BibleStudyController extends Controller
     {
         $this->authorizeBible($request);
         abort_unless($plan->church_id === null || $plan->church_id === $request->user()->church_id, 404);
-        $plan->users()->syncWithoutDetaching([$request->user()->id => ['current_day' => 1, 'current_streak' => 0, 'started_at' => now()]]);
+        abort_if($plan->days()->doesntExist(), 422, 'This reading plan does not have a schedule yet.');
+        $plan->users()->syncWithoutDetaching([$request->user()->id => ['current_day' => 1, 'current_streak' => 0, 'started_at' => now(), 'completed_at' => null, 'last_read_at' => null]]);
 
         return back()->with('status', 'Reading plan started.');
+    }
+
+    public function completePlanDay(Request $request, BibleReadingPlan $plan): RedirectResponse
+    {
+        $this->authorizeBible($request);
+        abort_unless($plan->church_id === null || $plan->church_id === $request->user()->church_id, 404);
+        $data = $request->validate(['day' => ['required', 'integer', 'min:1']]);
+        $membership = $plan->users()->whereKey($request->user()->id)->firstOrFail();
+        $pivot = $membership->pivot;
+        abort_if(filled($pivot->completed_at), 409, 'This reading plan is already complete.');
+        abort_if((int) $pivot->current_day !== (int) $data['day'], 409, 'Your reading-plan progress has already changed. Refresh the page.');
+        abort_unless($plan->days()->where('day_number', $data['day'])->exists(), 422, 'This reading day is not configured.');
+
+        $lastRead = $pivot->last_read_at ? CarbonImmutable::parse($pivot->last_read_at) : null;
+        $streak = $lastRead?->isToday()
+            ? (int) $pivot->current_streak
+            : ($lastRead?->isYesterday() ? (int) $pivot->current_streak + 1 : 1);
+        $lastDay = (int) $plan->days()->max('day_number');
+        $completed = (int) $data['day'] >= $lastDay;
+        $plan->users()->updateExistingPivot($request->user()->id, [
+            'current_day' => $completed ? $lastDay : (int) $data['day'] + 1,
+            'current_streak' => $streak,
+            'last_read_at' => now(),
+            'completed_at' => $completed ? now() : null,
+        ]);
+
+        return back()->with('status', $completed ? 'Reading plan completed. Well done!' : "Today's reading marked complete.");
     }
 
     public function storeBookmark(Request $request): RedirectResponse
@@ -280,11 +295,6 @@ final class BibleStudyController extends Controller
     private function authorizeBible(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('use bible'), 403);
-    }
-
-    private function authorizePlanManagement(Request $request): void
-    {
-        abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage bible plans'), 403);
     }
 
     private function crumbs(string $label): array
