@@ -25,6 +25,10 @@ final class BibleModuleTest extends TestCase
             ->assertSee('Bible', false)
             ->assertSee('Jesus answered and said unto him', false)
             ->assertSee('King James Version', false)
+            ->assertSee('id="bible-translation"', false)
+            ->assertSee('id="bible-book"', false)
+            ->assertSee('id="bible-chapter"', false)
+            ->assertSee('—', false)
             ->assertSee('data-lucide="bookmark-plus"', false)
             ->assertSee('data-lucide="notebook-pen"', false)
             ->assertSee('data-lucide="highlighter"', false);

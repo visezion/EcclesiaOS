@@ -32,6 +32,18 @@ final class BibleController extends Controller
         $preferredTranslation = $request->query('translation') ?: data_get($settings, 'translation_id');
         $translation = $translations->firstWhere('abbreviation', strtoupper((string) $preferredTranslation)) ?? $translations->firstWhere('id', (int) $preferredTranslation) ?? $translations->first();
         $books = $translation?->verses()->select('book')->distinct()->orderBy('book')->pluck('book') ?? collect();
+        $navigation = [];
+        foreach ($translations as $availableTranslation) {
+            $navigation[$availableTranslation->abbreviation] = $availableTranslation->verses()
+                ->select('book', 'chapter')
+                ->distinct()
+                ->orderBy('book')
+                ->orderBy('chapter')
+                ->get()
+                ->groupBy('book')
+                ->map(fn ($rows) => $rows->pluck('chapter')->map(fn ($chapter): int => (int) $chapter)->values())
+                ->toArray();
+        }
         $book = (string) $request->query('book', 'John');
         if ($books->isNotEmpty() && ! $books->contains($book)) {
             $book = (string) $books->first();
@@ -57,6 +69,7 @@ final class BibleController extends Controller
             'verses' => $verses,
             'highlightColors' => $highlightColors,
             'books' => $books,
+            'navigation' => $navigation,
             'chapters' => $chapters,
             'dailyVerse' => $dailyVerse,
             'recentNote' => $recentNote,
