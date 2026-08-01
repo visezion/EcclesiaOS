@@ -149,15 +149,37 @@ final class BibleModuleTest extends TestCase
         $this->assertNotNull(DB::table('bible_reading_plan_user')->where('bible_reading_plan_id', $plan->id)->where('user_id', $viewer->id)->value('completed_at'));
     }
 
-    public function test_user_without_bible_permission_cannot_read_or_manage_translations(): void
+    public function test_authenticated_users_can_use_bible_but_cannot_access_management_pages_without_permission(): void
     {
         $this->seed();
         $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
         $user = User::factory()->create(['church_id' => $admin->church_id, 'status' => 'active']);
 
-        $this->actingAs($user)->get(route('bible.index'))->assertForbidden();
+        foreach (['bible.index', 'bible.plans', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings'] as $routeName) {
+            $this->actingAs($user)->get(route($routeName))->assertOk();
+        }
+
+        $this->actingAs($user)->get(route('bible.index'))
+            ->assertOk()
+            ->assertSee(route('bible.plans'), false)
+            ->assertDontSee(route('bible.admin.plans.index'), false)
+            ->assertDontSee(route('bible.translations.index'), false);
+        $this->actingAs($user)->get(route('bible.admin.plans.index'))->assertForbidden();
         $this->actingAs($user)->get(route('bible.translations.index'))->assertForbidden();
-        $this->assertCount(0, BibleTranslation::query()->get());
+        $this->actingAs($user)->post(route('bible.admin.plans.store'), [
+            'name' => 'Unauthorized Plan',
+            'description' => 'This plan must not be created.',
+            'category' => 'Topical',
+            'schedule' => 'Day one | John 1',
+        ])->assertForbidden();
+        $this->actingAs($user)->post(route('bible.translations.store'), [
+            'name' => 'Unauthorized Translation',
+            'abbreviation' => 'NOPE',
+            'language' => 'English',
+            'copyright' => 'Not permitted',
+        ])->assertForbidden();
+        $this->assertDatabaseMissing('bible_reading_plans', ['name' => 'Unauthorized Plan']);
+        $this->assertDatabaseMissing('bible_translations', ['abbreviation' => 'NOPE']);
     }
 
     public function test_bible_study_pages_and_translation_import_are_available(): void

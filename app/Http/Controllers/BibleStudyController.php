@@ -294,7 +294,7 @@ final class BibleStudyController extends Controller
 
     private function authorizeBible(Request $request): void
     {
-        abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('use bible'), 403);
+        abort_unless($request->user(), 403);
     }
 
     private function crumbs(string $label): array
