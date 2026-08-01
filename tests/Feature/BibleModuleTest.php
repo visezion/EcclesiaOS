@@ -28,6 +28,8 @@ final class BibleModuleTest extends TestCase
             ->assertSee('id="bible-translation"', false)
             ->assertSee('id="bible-book"', false)
             ->assertSee('id="bible-chapter"', false)
+            ->assertSee(':aria-pressed="isSelected(', false)
+            ->assertDontSee('grid size-5 shrink-0 place-items-center rounded border', false)
             ->assertSee('data-lucide="bookmark-plus"', false)
             ->assertSee('data-lucide="notebook-pen"', false)
             ->assertSee('data-lucide="highlighter"', false);
