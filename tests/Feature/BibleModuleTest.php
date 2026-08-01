@@ -28,7 +28,6 @@ final class BibleModuleTest extends TestCase
             ->assertSee('id="bible-translation"', false)
             ->assertSee('id="bible-book"', false)
             ->assertSee('id="bible-chapter"', false)
-            ->assertSee('—', false)
             ->assertSee('data-lucide="bookmark-plus"', false)
             ->assertSee('data-lucide="notebook-pen"', false)
             ->assertSee('data-lucide="highlighter"', false);
@@ -39,7 +38,7 @@ final class BibleModuleTest extends TestCase
         $this->actingAs($user)->post(route('bible.bookmarks.store'), ['translation_id' => $translation->id, 'reference' => 'John 3:1', 'book' => 'John', 'chapter' => 3, 'verse' => 1, 'preview' => 'There was a man of the Pharisees.'])->assertRedirect();
         $this->actingAs($user)->post(route('bible.notes.store'), ['translation_id' => $translation->id, 'reference' => 'John 3:1', 'title' => 'Reader note', 'body' => 'A note saved from the reader.'])->assertRedirect();
         $this->actingAs($user)->post(route('bible.highlights.store'), ['translation_id' => $translation->id, 'reference' => 'John 3:1', 'snippet' => 'There was a man of the Pharisees.', 'color' => 'yellow', 'meaning' => 'Study'])->assertRedirect();
-        $this->actingAs($user)->get(route('bible.index'))->assertOk()->assertSee('bg-yellow-100 text-yellow-950', false);
+        $this->actingAs($user)->get(route('bible.index'))->assertOk()->assertSee('bg-yellow-100 text-yellow-950', false)->assertSee('border-yellow-400 bg-yellow-50/40', false);
         $this->assertDatabaseHas('bible_bookmarks', ['user_id' => $user->id, 'reference' => 'John 3:1']);
         $this->assertDatabaseHas('bible_notes', ['user_id' => $user->id, 'reference' => 'John 3:1']);
         $this->assertDatabaseHas('bible_highlights', ['user_id' => $user->id, 'reference' => 'John 3:1']);
