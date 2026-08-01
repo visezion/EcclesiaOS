@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class BibleNote extends Model
 {
@@ -13,7 +14,7 @@ final class BibleNote extends Model
         return ['tags' => 'array'];
     }
 
-    public function translation()
+    public function translation(): BelongsTo
     {
         return $this->belongsTo(BibleTranslation::class, 'bible_translation_id');
     }
