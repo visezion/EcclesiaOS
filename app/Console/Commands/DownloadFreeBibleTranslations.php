@@ -19,7 +19,7 @@ final class DownloadFreeBibleTranslations extends Command
             $this->info('Downloading '.$abbreviation.'...');
             BibleFreeTranslationInstaller::download($abbreviation, (bool) $this->option('force'));
         }
-        $this->info('Free Bible translation files are stored in storage/app/bible/free.');
+        $this->info('Free Bible translation files are stored in storage/app/private/bible/free.');
 
         return self::SUCCESS;
     }

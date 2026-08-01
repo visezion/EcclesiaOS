@@ -88,10 +88,17 @@ final class BibleModuleTest extends TestCase
         $this->actingAs($user)->get(route('bible.notes'))->assertOk();
         $this->actingAs($user)->get(route('bible.highlights'))->assertOk();
         $this->actingAs($user)->get(route('bible.search', ['q' => 'Nicodemus']))->assertOk()->assertSee('Nicodemus', false);
-        $this->actingAs($user)->get(route('bible.translations.index'))->assertOk()->assertSee('American Standard Version', false);
-        $freeTranslation = BibleTranslation::query()->whereNull('church_id')->where('abbreviation', 'ASV')->firstOrFail();
+        $this->actingAs($user)->get(route('bible.translations.index'))
+            ->assertOk()
+            ->assertSee('Berean Standard Bible', false)
+            ->assertSee('World English Bible Updated', false)
+            ->assertSee('World English Bible Protestant Edition', false)
+            ->assertSee('Noah Webster Bible', false)
+            ->assertSee('World Messianic Bible', false);
+        $freeTranslation = BibleTranslation::query()->whereNull('church_id')->where('abbreviation', 'BSB')->firstOrFail();
         $this->actingAs($user)->post(route('bible.translations.install', $freeTranslation))->assertRedirect();
-        $this->assertDatabaseHas('bible_translations', ['church_id' => $user->church_id, 'abbreviation' => 'ASV']);
+        $installedTranslation = BibleTranslation::query()->where('church_id', $user->church_id)->where('abbreviation', 'BSB')->firstOrFail();
+        $this->assertGreaterThan(30_000, $installedTranslation->verses()->count());
         $this->actingAs($user)->get(route('bible.compare'))->assertOk()->assertSee('Verse Comparison', false);
         $this->actingAs($user)->get(route('bible.settings'))->assertOk()->assertSee('Bible Settings', false);
 
