@@ -166,7 +166,15 @@ final class BibleModuleTest extends TestCase
         $this->assertNotSame($originalImagePath, $plan->image_path);
         Storage::disk('public')->assertMissing($originalImagePath);
         Storage::disk('public')->assertExists($plan->image_path);
-        $this->actingAs($administrator)->get(route('bible.admin.plans.index'))->assertOk()->assertSee('storage/'.$plan->image_path, false);
+        $this->actingAs($administrator)
+            ->get(route('bible.admin.plans.index'))
+            ->assertOk()
+            ->assertSee('storage/'.$plan->image_path, false)
+            ->assertSee('data-plan-image-preview="create"', false)
+            ->assertSee('data-plan-image-preview="edit"', false)
+            ->assertSee('x-data="planImagePreview"', false)
+            ->assertSee(':src="previewUrl"', false)
+            ->assertSee('Clear selected image', false);
         $this->assertDatabaseHas('bible_reading_plan_days', ['bible_reading_plan_id' => $plan->id, 'day_number' => 2, 'title' => 'Worship', 'reflection' => 'Worship the Lord.']);
 
         $this->actingAs($administrator)->post(route('bible.admin.plans.store'), [

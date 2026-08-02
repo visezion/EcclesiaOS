@@ -336,6 +336,36 @@ function messageAttachmentPicker(initial = {}) {
 }
 
 document.addEventListener('alpine:init', () => {
+    Alpine.data('planImagePreview', () => ({
+        previewUrl: null,
+        removeCurrent: false,
+
+        selectImage(event) {
+            this.releasePreview();
+            const [file] = Array.from(event.target.files || []);
+            this.previewUrl = file ? URL.createObjectURL(file) : null;
+            if (file) {
+                this.removeCurrent = false;
+            }
+        },
+
+        clearImage(input) {
+            this.releasePreview();
+            input.value = '';
+        },
+
+        releasePreview() {
+            if (this.previewUrl) {
+                URL.revokeObjectURL(this.previewUrl);
+                this.previewUrl = null;
+            }
+        },
+
+        destroy() {
+            this.releasePreview();
+        },
+    }));
+
     Alpine.data('topbarCounts', (url, notificationCount = 0, messageCount = 0) => ({
         url,
         notificationCount: Number(notificationCount) || 0,
