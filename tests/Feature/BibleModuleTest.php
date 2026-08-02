@@ -176,6 +176,13 @@ final class BibleModuleTest extends TestCase
         $this->actingAs($viewer)->post(route('bible.plans.complete-day', $plan), ['day' => 2])->assertRedirect();
         $this->assertDatabaseHas('bible_reading_plan_user', ['bible_reading_plan_id' => $plan->id, 'user_id' => $viewer->id, 'current_day' => 2, 'current_streak' => 1]);
         $this->assertNotNull(DB::table('bible_reading_plan_user')->where('bible_reading_plan_id', $plan->id)->where('user_id', $viewer->id)->value('completed_at'));
+        $this->actingAs($viewer)
+            ->get(route('bible.plans'))
+            ->assertOk()
+            ->assertSee('Completed Plans', false)
+            ->assertSee('Two Days in Psalms', false)
+            ->assertSee('1 completed', false)
+            ->assertSee('data-lucide="trophy"', false);
     }
 
     public function test_authenticated_users_can_use_bible_but_cannot_access_management_pages_without_permission(): void
