@@ -6,6 +6,10 @@
                 <p class="mt-1 max-w-3xl text-sm text-slate-500">Technical documentation for contributing to KingdomHub, adding modules, extending workflows, and keeping the application enterprise-ready.</p>
             </div>
             <div class="flex flex-wrap gap-2">
+                <a href="#new-server-deployment" class="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50">
+                    <i data-lucide="cloud-download" class="size-4"></i>
+                    Deploy Server
+                </a>
                 <a href="#module-process" class="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50">
                     <i data-lucide="layout-grid" class="size-4"></i>
                     Add Module
@@ -66,6 +70,7 @@
                 <nav class="space-y-1 text-sm">
                     @foreach ([
                         ['id' => 'quick-links', 'label' => 'Project Files', 'icon' => 'file-text'],
+                        ['id' => 'new-server-deployment', 'label' => 'New Server Deploy', 'icon' => 'cloud-download'],
                         ['id' => 'architecture', 'label' => 'Architecture', 'icon' => 'network'],
                         ['id' => 'layout', 'label' => 'Layout System', 'icon' => 'layout-dashboard'],
                         ['id' => 'module-process', 'label' => 'Add A Module', 'icon' => 'layout-grid'],
@@ -104,6 +109,45 @@
                             </div>
                         @endforeach
                     </div>
+                </section>
+
+                <section id="new-server-deployment" class="dashboard-card">
+                    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h2 class="flex items-center gap-2 text-lg font-semibold text-slate-950">
+                                <span class="grid size-9 place-items-center rounded-lg bg-violet-50 text-violet-600"><i data-lucide="cloud-download" class="size-5"></i></span>
+                                Ubuntu New Server Deployment
+                            </h2>
+                            <p class="mt-2 text-sm text-slate-500">Install Docker, clone EcclesiaOS, and start the production-oriented Compose stack.</p>
+                        </div>
+                        <span class="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                            <i data-lucide="shield-check" class="size-4"></i>
+                            Ubuntu quick start
+                        </span>
+                    </div>
+
+                    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                        <span class="font-semibold">Important:</span> if the login account is not named <code class="rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs">ubuntu</code>, replace it with the actual username. Sign out and reconnect between the two stages so Docker can run without <code class="rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs">sudo</code>.
+                    </div>
+
+                    <div class="grid gap-4 xl:grid-cols-2">
+                        @foreach ($ubuntuDeploymentSteps as $deploymentStep)
+                            <article x-data="{ copied: false }" class="overflow-hidden rounded-xl border border-slate-200 bg-slate-950">
+                                <div class="flex items-start justify-between gap-3 border-b border-slate-800 bg-slate-900 px-4 py-3">
+                                    <div>
+                                        <h3 class="font-semibold text-white">{{ $deploymentStep['title'] }}</h3>
+                                        <p class="mt-1 text-xs leading-5 text-slate-400">{{ $deploymentStep['description'] }}</p>
+                                    </div>
+                                    <button type="button" @click="navigator.clipboard.writeText($refs.commands.innerText); copied = true; setTimeout(() => copied = false, 1800)" class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-violet-400 hover:text-white">
+                                        <i data-lucide="copy" class="size-4"></i>
+                                        <span x-text="copied ? 'Copied' : 'Copy'">Copy</span>
+                                    </button>
+                                </div>
+                                <pre class="overflow-x-auto p-4 text-sm leading-7 text-emerald-300"><code x-ref="commands">{{ $deploymentStep['commands'] }}</code></pre>
+                            </article>
+                        @endforeach
+                    </div>
+                    <p class="mt-4 text-xs leading-5 text-slate-500">The setup script creates <code class="font-mono text-slate-700">.env.docker</code>, generates application and database secrets, starts the services, runs migrations, and guides initial administrator setup.</p>
                 </section>
 
                 <section id="architecture" class="dashboard-card">

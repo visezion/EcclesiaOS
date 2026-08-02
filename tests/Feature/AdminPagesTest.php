@@ -45,6 +45,20 @@ class AdminPagesTest extends TestCase
         }
     }
 
+    public function test_developer_hub_includes_the_new_ubuntu_server_deployment_guide(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('developer-hub.index'))
+            ->assertOk()
+            ->assertSee('Ubuntu New Server Deployment')
+            ->assertSee('sudo apt update')
+            ->assertSee('git clone https://github.com/visezion/EcclesiaOS.git')
+            ->assertSee('sh docker/setup.sh');
+    }
+
     public function test_user_directory_can_be_exported(): void
     {
         $this->seed();

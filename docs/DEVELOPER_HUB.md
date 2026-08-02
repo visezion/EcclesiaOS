@@ -335,7 +335,36 @@ Rollback expectation:
 - Restore the database backup if the migration changed data in a way that cannot be reversed safely.
 - Clear and rebuild Laravel caches after rollback.
 
-## 15. Ownership Expectations
+## 15. New Ubuntu Server Deployment
+
+For a new Ubuntu host, install the required system tools first:
+
+```bash
+sudo apt update
+sudo apt install -y git curl ca-certificates
+curl -fsSL https://get.docker.com | sudo sh
+sudo systemctl enable --now docker
+sudo usermod -aG docker ubuntu
+sudo apt install -y docker-compose-plugin
+```
+
+Replace `ubuntu` when the login account has another name, then sign out and
+reconnect so Docker group access takes effect. Deploy after reconnecting:
+
+```bash
+docker --version
+docker compose version
+git --version
+git clone https://github.com/visezion/EcclesiaOS.git
+cd EcclesiaOS
+sh docker/setup.sh
+```
+
+The same copyable instructions are available in Administration > Developer
+Hub > New Server Deploy. See `docs/DOCKER.md` for environment configuration,
+HTTPS, backups, updates, and troubleshooting.
+
+## 16. Ownership Expectations
 
 When adding or changing a module, the developer owns:
 

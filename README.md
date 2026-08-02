@@ -42,6 +42,35 @@ health checks, backups, and update scripts, see
 
 ### Docker Deployment
 
+#### Quick deployment on a new Ubuntu server
+
+Install Git, Docker Engine, and the Docker Compose plugin:
+
+```bash
+sudo apt update
+sudo apt install -y git curl ca-certificates
+curl -fsSL https://get.docker.com | sudo sh
+sudo systemctl enable --now docker
+sudo usermod -aG docker ubuntu
+sudo apt install -y docker-compose-plugin
+```
+
+If the server login is not named `ubuntu`, replace `ubuntu` with the actual
+username. Sign out and reconnect after adding the user to the Docker group.
+Then verify the tools and deploy EcclesiaOS:
+
+```bash
+docker --version
+docker compose version
+git --version
+git clone https://github.com/visezion/EcclesiaOS.git
+cd EcclesiaOS
+sh docker/setup.sh
+```
+
+The reconnect is required before running the setup script; otherwise Docker
+may report a permission error when accessing its socket.
+
 Windows PowerShell:
 
 ```powershell

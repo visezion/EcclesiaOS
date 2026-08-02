@@ -21,6 +21,7 @@ final class DeveloperHubController extends Controller
             'quickLinks' => [
                 ['label' => 'README', 'path' => 'README.md', 'icon' => 'book-open'],
                 ['label' => 'Developer Docs', 'path' => 'docs/DEVELOPER_HUB.md', 'icon' => 'file-text'],
+                ['label' => 'Docker Deployment', 'path' => 'docs/DOCKER.md', 'icon' => 'cloud-download'],
                 ['label' => 'Navigation Config', 'path' => 'config/navigation.php', 'icon' => 'layout-grid'],
                 ['label' => 'Routes', 'path' => 'routes/web.php', 'icon' => 'route'],
                 ['label' => 'Main Migration', 'path' => 'database/migrations/2026_07_21_000000_create_church_management_tables.php', 'icon' => 'database'],
@@ -59,6 +60,32 @@ final class DeveloperHubController extends Controller
                 'Run migrations with --force, then cache config, routes, events, and views.',
                 'Smoke-test login, dashboard, active modules, admin settings, and the changed feature path.',
                 'Bring the app out of maintenance mode and watch logs, queues, and failed jobs for at least 15 minutes.',
+            ],
+            'ubuntuDeploymentSteps' => [
+                [
+                    'title' => '1. Install the server prerequisites',
+                    'description' => 'Run this once while signed in as the standard ubuntu user.',
+                    'commands' => <<<'BASH'
+sudo apt update
+sudo apt install -y git curl ca-certificates
+curl -fsSL https://get.docker.com | sudo sh
+sudo systemctl enable --now docker
+sudo usermod -aG docker ubuntu
+sudo apt install -y docker-compose-plugin
+BASH,
+                ],
+                [
+                    'title' => '2. Reconnect and deploy EcclesiaOS',
+                    'description' => 'Sign out and reconnect first so the new Docker group membership is active.',
+                    'commands' => <<<'BASH'
+docker --version
+docker compose version
+git --version
+git clone https://github.com/visezion/EcclesiaOS.git
+cd EcclesiaOS
+sh docker/setup.sh
+BASH,
+                ],
             ],
             'layoutRules' => [
                 'Use x-app-layout for authenticated pages and pass breadcrumbs.',

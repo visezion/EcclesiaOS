@@ -20,6 +20,39 @@ EcclesiaOS ships with a production-oriented Docker Compose stack:
 Docker is the only runtime dependency. PHP, Composer, Node.js, MySQL, Redis, and
 Nginx do not need to be installed on the host.
 
+## New Ubuntu Server Quick Start
+
+On a fresh Ubuntu server, install Git, Docker Engine, and Docker Compose:
+
+```bash
+sudo apt update
+sudo apt install -y git curl ca-certificates
+curl -fsSL https://get.docker.com | sudo sh
+sudo systemctl enable --now docker
+sudo usermod -aG docker ubuntu
+sudo apt install -y docker-compose-plugin
+```
+
+Replace `ubuntu` with the server login name when the host uses a different
+account. Sign out and reconnect after `usermod`; the current shell does not
+automatically receive the new Docker group membership.
+
+After reconnecting, verify the installation and deploy the application:
+
+```bash
+docker --version
+docker compose version
+git --version
+git clone https://github.com/visezion/EcclesiaOS.git
+cd EcclesiaOS
+sh docker/setup.sh
+```
+
+The setup script creates the deployment environment, generates secrets, starts
+the Compose services, runs migrations, and bootstraps the first administrator.
+Configure DNS and an HTTPS reverse proxy before exposing the deployment to the
+internet.
+
 ## First Deployment
 
 ### Windows
