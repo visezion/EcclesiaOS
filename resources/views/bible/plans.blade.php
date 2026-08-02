@@ -33,7 +33,7 @@
         ];
     @endphp
 
-    <div class="mx-auto max-w-[1500px] space-y-5">
+    <div class="w-full space-y-5">
         @include('bible._tabs')
 
         <header class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
