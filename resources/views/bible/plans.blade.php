@@ -87,7 +87,7 @@
                             @endphp
                             <article class="grid gap-4 rounded-2xl border border-slate-200 p-4 transition hover:border-violet-200 hover:shadow-md md:grid-cols-[112px_minmax(0,1fr)] lg:grid-cols-[112px_minmax(0,1fr)_150px_155px] lg:items-center">
                                 <div class="relative h-28 overflow-hidden rounded-xl bg-gradient-to-br {{ $art }} md:h-full md:min-h-28">
-                                    <span class="absolute -right-4 -top-4 size-20 rounded-full bg-white/50"></span><span class="absolute -bottom-8 left-5 size-24 rotate-45 rounded-2xl bg-slate-700/15"></span><span class="absolute bottom-3 left-3 grid size-9 place-items-center rounded-lg bg-white/80 text-violet-700 shadow"><i data-lucide="book-open" class="size-5"></i></span>
+                                    @if($plan->image_path)<img src="{{ Storage::disk('public')->url($plan->image_path) }}" alt="Cover image for {{ $plan->name }}" class="absolute inset-0 size-full object-cover">@else<span class="absolute -right-4 -top-4 size-20 rounded-full bg-white/50"></span><span class="absolute -bottom-8 left-5 size-24 rotate-45 rounded-2xl bg-slate-700/15"></span><span class="absolute bottom-3 left-3 grid size-9 place-items-center rounded-lg bg-white/80 text-violet-700 shadow"><i data-lucide="book-open" class="size-5"></i></span>@endif
                                 </div>
                                 <div class="min-w-0">
                                     <p class="text-xs font-black text-violet-700">Day {{ $day }}/{{ $plan->duration_days }}</p>
@@ -119,7 +119,7 @@
                         @forelse($availablePlans as $plan)
                             @php($art = $planArt[$loop->index % count($planArt)])
                             <article class="relative grid min-h-44 grid-cols-[105px_minmax(0,1fr)] gap-4 overflow-hidden rounded-2xl border border-slate-200 p-4 transition hover:border-violet-200 hover:shadow-md">
-                                <div class="relative overflow-hidden rounded-xl bg-gradient-to-br {{ $art }}"><span class="absolute -right-5 -top-5 size-20 rounded-full bg-white/50"></span><span class="absolute bottom-3 left-3 grid size-9 place-items-center rounded-lg bg-white/85 text-violet-700"><i data-lucide="book-open-check" class="size-5"></i></span></div>
+                                <div class="relative overflow-hidden rounded-xl bg-gradient-to-br {{ $art }}">@if($plan->image_path)<img src="{{ Storage::disk('public')->url($plan->image_path) }}" alt="Cover image for {{ $plan->name }}" class="absolute inset-0 size-full object-cover">@else<span class="absolute -right-5 -top-5 size-20 rounded-full bg-white/50"></span><span class="absolute bottom-3 left-3 grid size-9 place-items-center rounded-lg bg-white/85 text-violet-700"><i data-lucide="book-open-check" class="size-5"></i></span>@endif</div>
                                 <div class="flex min-w-0 flex-col">
                                     @if($plan->is_recommended)<span class="mb-2 w-fit rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">Recommended</span>@endif
                                     <h3 class="truncate text-sm font-black text-slate-950">{{ $plan->name }}</h3>
@@ -149,6 +149,7 @@
 
             <aside class="space-y-4 xl:sticky xl:top-5">
                 <section class="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-amber-50 via-rose-50 to-violet-100 p-4 shadow-sm">
+                    @if($todayPlan?->image_path)<img src="{{ Storage::disk('public')->url($todayPlan->image_path) }}" alt="" class="absolute inset-0 size-full object-cover opacity-20">@endif
                     <span class="absolute -right-10 top-12 size-36 rounded-full bg-white/45"></span><span class="absolute -bottom-16 right-12 size-40 rotate-45 rounded-3xl bg-violet-400/15"></span>
                     <div class="relative flex items-center gap-2"><span class="grid size-9 place-items-center rounded-xl bg-violet-100 text-violet-700"><i data-lucide="calendar-days" class="size-5"></i></span><h2 class="font-black text-slate-950">Today&rsquo;s Reading</h2></div>
                     @if($todayPlan && $todayReading)

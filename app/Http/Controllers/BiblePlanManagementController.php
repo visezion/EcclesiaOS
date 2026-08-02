@@ -9,7 +9,9 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 final class BiblePlanManagementController extends Controller
 {
@@ -38,18 +40,26 @@ final class BiblePlanManagementController extends Controller
         $this->authorizeManagement($request);
         $data = $this->validatedPlan($request);
         $days = $this->parseSchedule($data['schedule']);
+        $imagePath = $this->storePlanImage($request);
 
-        DB::transaction(function () use ($data, $days, $request): void {
-            $plan = BibleReadingPlan::create([
-                'church_id' => $request->user()->church_id,
-                'name' => $data['name'],
-                'description' => $data['description'],
-                'category' => $data['category'],
-                'duration_days' => count($days),
-                'is_recommended' => $request->boolean('is_recommended'),
-            ]);
-            $plan->days()->createMany($days);
-        });
+        try {
+            DB::transaction(function () use ($data, $days, $request, $imagePath): void {
+                $plan = BibleReadingPlan::create([
+                    'church_id' => $request->user()->church_id,
+                    'name' => $data['name'],
+                    'description' => $data['description'],
+                    'image_path' => $imagePath,
+                    'category' => $data['category'],
+                    'duration_days' => count($days),
+                    'is_recommended' => $request->boolean('is_recommended'),
+                ]);
+                $plan->days()->createMany($days);
+            });
+        } catch (Throwable $exception) {
+            $this->deletePlanImage($imagePath);
+
+            throw $exception;
+        }
 
         return redirect()->route('bible.admin.plans.index')->with('status', 'Reading plan created with '.count($days).' scheduled days.');
     }
@@ -59,22 +69,36 @@ final class BiblePlanManagementController extends Controller
         $this->authorizeOwnedPlan($request, $plan);
         $data = $this->validatedPlan($request);
         $days = $this->parseSchedule($data['schedule']);
+        $oldImagePath = $plan->image_path;
+        $newImagePath = $this->storePlanImage($request);
+        $imagePath = $newImagePath ?? ($request->boolean('remove_image') ? null : $oldImagePath);
 
-        DB::transaction(function () use ($data, $days, $request, $plan): void {
-            $plan->update([
-                'name' => $data['name'],
-                'description' => $data['description'],
-                'category' => $data['category'],
-                'duration_days' => count($days),
-                'is_recommended' => $request->boolean('is_recommended'),
-            ]);
-            $plan->days()->delete();
-            $plan->days()->createMany($days);
-            DB::table('bible_reading_plan_user')
-                ->where('bible_reading_plan_id', $plan->id)
-                ->where('current_day', '>', count($days))
-                ->update(['current_day' => count($days), 'updated_at' => now()]);
-        });
+        try {
+            DB::transaction(function () use ($data, $days, $request, $plan, $imagePath): void {
+                $plan->update([
+                    'name' => $data['name'],
+                    'description' => $data['description'],
+                    'image_path' => $imagePath,
+                    'category' => $data['category'],
+                    'duration_days' => count($days),
+                    'is_recommended' => $request->boolean('is_recommended'),
+                ]);
+                $plan->days()->delete();
+                $plan->days()->createMany($days);
+                DB::table('bible_reading_plan_user')
+                    ->where('bible_reading_plan_id', $plan->id)
+                    ->where('current_day', '>', count($days))
+                    ->update(['current_day' => count($days), 'updated_at' => now()]);
+            });
+        } catch (Throwable $exception) {
+            $this->deletePlanImage($newImagePath);
+
+            throw $exception;
+        }
+
+        if ($oldImagePath !== $imagePath) {
+            $this->deletePlanImage($oldImagePath);
+        }
 
         return redirect()->route('bible.admin.plans.index')->with('status', 'Reading plan updated.');
     }
@@ -82,7 +106,9 @@ final class BiblePlanManagementController extends Controller
     public function destroy(Request $request, BibleReadingPlan $plan): RedirectResponse
     {
         $this->authorizeOwnedPlan($request, $plan);
+        $imagePath = $plan->image_path;
         $plan->delete();
+        $this->deletePlanImage($imagePath);
 
         return redirect()->route('bible.admin.plans.index')->with('status', 'Reading plan deleted.');
     }
@@ -94,8 +120,22 @@ final class BiblePlanManagementController extends Controller
             'description' => ['required', 'string', 'max:2000'],
             'category' => ['required', 'string', 'max:80'],
             'schedule' => ['required', 'string', 'max:100000'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=320,min_height=180,max_width=4000,max_height=3000'],
+            'remove_image' => ['nullable', 'boolean'],
             'is_recommended' => ['nullable', 'boolean'],
         ]);
+    }
+
+    private function storePlanImage(Request $request): ?string
+    {
+        return $request->file('image')?->store('bible/plans', 'public');
+    }
+
+    private function deletePlanImage(?string $path): void
+    {
+        if (is_string($path) && str_starts_with($path, 'bible/plans/')) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     private function parseSchedule(string $schedule): array

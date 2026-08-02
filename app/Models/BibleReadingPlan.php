@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class BibleReadingPlan extends Model
 {
-    protected $fillable = ['church_id', 'name', 'description', 'category', 'duration_days', 'is_recommended'];
+    protected $fillable = ['church_id', 'name', 'description', 'image_path', 'category', 'duration_days', 'is_recommended'];
 
     protected function casts(): array
     {

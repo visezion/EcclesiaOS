@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 final class BibleModuleTest extends TestCase
@@ -108,8 +109,20 @@ final class BibleModuleTest extends TestCase
 
     public function test_only_authorized_administrators_can_create_church_bible_plans(): void
     {
+        Storage::fake('public');
         $this->seed();
         $administrator = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($administrator)
+            ->post(route('bible.admin.plans.store'), [
+                'name' => 'Unsafe Cover Plan',
+                'description' => 'This plan must reject a non-image cover.',
+                'category' => 'Topical',
+                'schedule' => 'Day one | John 1',
+                'image' => UploadedFile::fake()->createWithContent('cover.svg', '<svg><script>alert(1)</script></svg>'),
+            ])
+            ->assertSessionHasErrors('image');
+        $this->assertDatabaseMissing('bible_reading_plans', ['name' => 'Unsafe Cover Plan']);
 
         $this->actingAs($administrator)
             ->get(route('bible.admin.plans.index'))
@@ -124,6 +137,7 @@ final class BibleModuleTest extends TestCase
                 'category' => 'Psalms',
                 'schedule' => "Songs of trust | Psalms 1-2 | Trust God in every season.\nSongs of worship | Psalms 3-4 | Respond to God with worship.",
                 'is_recommended' => 1,
+                'image' => UploadedFile::fake()->image('psalms.jpg', 1280, 720),
             ])
             ->assertRedirect(route('bible.admin.plans.index'));
 
@@ -134,6 +148,10 @@ final class BibleModuleTest extends TestCase
             'is_recommended' => true,
         ]);
         $plan = BibleReadingPlan::query()->where('name', 'Two Days in Psalms')->firstOrFail();
+        $this->assertIsString($plan->image_path);
+        $this->assertStringStartsWith('bible/plans/', $plan->image_path);
+        Storage::disk('public')->assertExists($plan->image_path);
+        $originalImagePath = $plan->image_path;
         $this->assertDatabaseHas('bible_reading_plan_days', ['bible_reading_plan_id' => $plan->id, 'day_number' => 1, 'passages' => 'Psalms 1-2']);
         $this->assertDatabaseHas('bible_reading_plan_days', ['bible_reading_plan_id' => $plan->id, 'day_number' => 2, 'passages' => 'Psalms 3-4']);
         $this->actingAs($administrator)->put(route('bible.admin.plans.update', $plan), [
@@ -142,7 +160,13 @@ final class BibleModuleTest extends TestCase
             'category' => 'Psalms',
             'schedule' => "Trust | Psalms 1-2 | Trust in the Lord.\nWorship | Psalms 3-4 | Worship the Lord.",
             'is_recommended' => 1,
+            'image' => UploadedFile::fake()->image('updated-psalms.webp', 1280, 720),
         ])->assertRedirect(route('bible.admin.plans.index'));
+        $plan->refresh();
+        $this->assertNotSame($originalImagePath, $plan->image_path);
+        Storage::disk('public')->assertMissing($originalImagePath);
+        Storage::disk('public')->assertExists($plan->image_path);
+        $this->actingAs($administrator)->get(route('bible.admin.plans.index'))->assertOk()->assertSee('storage/'.$plan->image_path, false);
         $this->assertDatabaseHas('bible_reading_plan_days', ['bible_reading_plan_id' => $plan->id, 'day_number' => 2, 'title' => 'Worship', 'reflection' => 'Worship the Lord.']);
 
         $this->actingAs($administrator)->post(route('bible.admin.plans.store'), [
@@ -150,15 +174,19 @@ final class BibleModuleTest extends TestCase
             'description' => 'A plan created to verify deletion.',
             'category' => 'Topical',
             'schedule' => 'Only day | John 1',
+            'image' => UploadedFile::fake()->image('temporary.png', 640, 360),
         ])->assertRedirect(route('bible.admin.plans.index'));
         $temporaryPlan = BibleReadingPlan::query()->where('name', 'Temporary Plan')->firstOrFail();
+        $temporaryImagePath = $temporaryPlan->image_path;
+        Storage::disk('public')->assertExists($temporaryImagePath);
         $this->actingAs($administrator)->delete(route('bible.admin.plans.destroy', $temporaryPlan))->assertRedirect(route('bible.admin.plans.index'));
         $this->assertDatabaseMissing('bible_reading_plans', ['id' => $temporaryPlan->id]);
+        Storage::disk('public')->assertMissing($temporaryImagePath);
 
         $viewer = User::factory()->create(['church_id' => $administrator->church_id, 'status' => 'active']);
         $viewer->roles()->sync([Role::query()->where('name', 'Viewer')->firstOrFail()->id]);
 
-        $this->actingAs($viewer)->get(route('bible.plans'))->assertOk()->assertSee('Two Days in Psalms', false)->assertDontSee('Manage Plans', false);
+        $this->actingAs($viewer)->get(route('bible.plans'))->assertOk()->assertSee('Two Days in Psalms', false)->assertSee('storage/'.$plan->image_path, false)->assertDontSee('Manage Plans', false);
         $this->actingAs($viewer)->get(route('bible.admin.plans.index'))->assertForbidden();
         $this->actingAs($viewer)->post(route('bible.admin.plans.store'), [
             'name' => 'Unauthorized Plan',
