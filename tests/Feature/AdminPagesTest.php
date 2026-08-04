@@ -461,6 +461,107 @@ class AdminPagesTest extends TestCase
         ]);
     }
 
+    public function test_administrator_can_edit_and_delete_an_unassigned_campus(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $campus = Campus::query()->create([
+            'church_id' => $admin->church_id,
+            'name' => 'Temporary Campus',
+            'slug' => 'temporary-campus',
+            'type' => 'Regional Campus',
+            'status' => 'inactive',
+            'city' => 'Austin',
+            'country' => 'USA',
+            'address' => '1 Temporary Way',
+            'capacity' => 100,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('campuses.update', $campus), [
+                'church_id' => $admin->church_id,
+                'name' => 'Updated Outreach Campus',
+                'type' => 'City Campus',
+                'status' => 'active',
+                'city' => 'Houston',
+                'country' => 'USA',
+                'address' => '10 Outreach Avenue',
+                'capacity' => 325,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Campus updated.');
+
+        $this->assertDatabaseHas('campuses', [
+            'id' => $campus->id,
+            'name' => 'Updated Outreach Campus',
+            'slug' => 'updated-outreach-campus',
+            'capacity' => 325,
+        ]);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'campus_updated']);
+
+        $this->actingAs($admin)
+            ->delete(route('campuses.destroy', $campus))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Campus deleted.');
+
+        $this->assertSoftDeleted('campuses', ['id' => $campus->id]);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'campus_deleted']);
+    }
+
+    public function test_campus_with_related_records_cannot_be_deleted(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $campus = $admin->campus()->firstOrFail();
+
+        $this->actingAs($admin)
+            ->from(route('campuses.index'))
+            ->delete(route('campuses.destroy', $campus))
+            ->assertRedirect(route('campuses.index'))
+            ->assertSessionHasErrors('campus');
+
+        $this->assertNotSoftDeleted('campuses', ['id' => $campus->id]);
+    }
+
+    public function test_super_administrator_can_edit_and_delete_an_empty_church(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $church = Church::query()->create([
+            'name' => 'Temporary Church',
+            'slug' => 'temporary-church',
+            'timezone' => 'UTC',
+            'currency' => 'USD',
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('churches.update', $church), [
+                'name' => 'Updated Community Church',
+                'timezone' => 'America/New_York',
+                'currency' => 'eur',
+                'email' => 'office@example.test',
+                'phone' => '+1 555 0100',
+                'address' => '20 Community Road',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Church updated.');
+
+        $this->assertDatabaseHas('churches', [
+            'id' => $church->id,
+            'name' => 'Updated Community Church',
+            'slug' => 'updated-community-church',
+            'currency' => 'EUR',
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('churches.destroy', $church))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Church deleted.');
+
+        $this->assertSoftDeleted('churches', ['id' => $church->id]);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'church_deleted']);
+    }
+
     public function test_ministry_leader_can_only_manage_ministries_for_assigned_campus(): void
     {
         $this->seed();

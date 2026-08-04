@@ -750,6 +750,10 @@ document.addEventListener('alpine:init', () => {
         accessScope: 'single',
         addOpen: false,
         importOpen: false,
+        editCampusOpen: false,
+        editChurchOpen: false,
+        editingCampus: {},
+        editingChurch: {},
         moreFiltersOpen: false,
         expandedCampusId: '',
 
@@ -796,6 +800,16 @@ document.addEventListener('alpine:init', () => {
 
         toggleCampus(id) {
             this.expandedCampusId = this.expandedCampusId === String(id) ? '' : String(id);
+        },
+
+        openCampusEditor(campus) {
+            this.editingCampus = { ...campus };
+            this.editCampusOpen = true;
+        },
+
+        openChurchEditor(church) {
+            this.editingChurch = { ...church };
+            this.editChurchOpen = true;
         },
 
         resetAssignment() {

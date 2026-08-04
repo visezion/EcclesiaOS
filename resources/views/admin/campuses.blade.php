@@ -52,6 +52,8 @@
             'role_ids' => $user->roles->pluck('id')->values(),
             'search' => strtolower($user->name.' '.$user->email.' '.$user->phone),
         ])->values();
+        $canMutateOrganizations = auth()->user()?->isSuperAdministrator() || auth()->user()?->campus_id === null;
+        $canDeleteChurches = auth()->user()?->isSuperAdministrator();
     @endphp
 
     <div
@@ -59,6 +61,17 @@
         class="grid gap-4 xl:grid-cols-[1fr_430px]"
     >
         <main class="min-w-0 space-y-4">
+            @if ($errors->any())
+                <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="circle-alert" class="mt-0.5 size-5 shrink-0"></i>
+                        <div>
+                            <div class="font-semibold">The organization could not be changed.</div>
+                            <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                        </div>
+                    </div>
+                </div>
+            @endif
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex items-center gap-4">
                     <div class="grid size-14 place-items-center rounded-full bg-violet-100 text-violet-600">
@@ -140,6 +153,7 @@
                                 <th>Church Administrator</th>
                                 <th class="text-center">Total Users</th>
                                 <th>Location</th>
+                                <th class="text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -200,11 +214,39 @@
                                             {{ $campus->address }}
                                         </div>
                                     </td>
+                                    <td>
+                                        @if ($canMutateOrganizations)
+                                            <div class="flex items-center justify-end gap-1">
+                                                <button
+                                                    type="button"
+                                                    x-on:click='openCampusEditor(@js([
+                                                        "update_url" => route("campuses.update", $campus),
+                                                        "church_id" => (string) $campus->church_id,
+                                                        "name" => $campus->name,
+                                                        "type" => $campus->type,
+                                                        "status" => $campus->status,
+                                                        "city" => $campus->city,
+                                                        "country" => $campus->country,
+                                                        "address" => $campus->address,
+                                                        "capacity" => $campus->capacity,
+                                                    ]))'
+                                                    class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
+                                                    title="Edit {{ Str::lower($terminology['campus_singular']) }}"
+                                                    aria-label="Edit {{ $campus->name }}"
+                                                ><i data-lucide="pencil" class="size-4"></i></button>
+                                                <form method="POST" action="{{ route('campuses.destroy', $campus) }}" onsubmit="return confirm('Delete {{ addslashes($campus->name) }}? This is only allowed after all related records are moved or removed.')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="grid size-8 place-items-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50" title="Delete {{ Str::lower($terminology['campus_singular']) }}" aria-label="Delete {{ $campus->name }}"><i data-lucide="trash-2" class="size-4"></i></button>
+                                                </form>
+                                            </div>
+                                        @endif
+                                    </td>
                                 </tr>
                                 <tr x-cloak x-show="expandedCampusId === '{{ $campus->id }}' && matchesCampus($el.previousElementSibling)">
                                     <td></td>
                                     <td colspan="7" class="bg-slate-50/70">
-                                        <div class="grid gap-3 py-3 md:grid-cols-4">
+                                        <div class="grid gap-3 py-3 md:grid-cols-5">
                                             <div class="rounded-lg border border-slate-200 bg-white p-3">
                                                 <div class="text-xs text-slate-500">Members</div>
                                                 <div class="mt-1 text-lg font-semibold text-slate-950">{{ number_format($campus->members_count) }}</div>
@@ -221,6 +263,33 @@
                                                 <div class="text-xs text-slate-500">Sunday Service</div>
                                                 <div class="mt-1 truncate text-sm font-semibold text-slate-950">{{ $campus->metadata['sunday_service'] ?? '9:00 AM' }}</div>
                                             </div>
+                                            @if ($canMutateOrganizations)
+                                                <div class="rounded-lg border border-slate-200 bg-white p-3">
+                                                    <div class="text-xs text-slate-500">Church Actions</div>
+                                                    <div class="mt-2 flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            x-on:click='openChurchEditor(@js([
+                                                                "update_url" => route("churches.update", $campus->church),
+                                                                "name" => $campus->church->name,
+                                                                "timezone" => $campus->church->timezone,
+                                                                "currency" => $campus->church->currency,
+                                                                "email" => $campus->church->email,
+                                                                "phone" => $campus->church->phone,
+                                                                "address" => $campus->church->address,
+                                                            ]))'
+                                                            class="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-2.5 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-50"
+                                                        ><i data-lucide="pencil" class="size-3.5"></i>Edit Church</button>
+                                                        @if ($canDeleteChurches)
+                                                            <form method="POST" action="{{ route('churches.destroy', $campus->church) }}" onsubmit="return confirm('Delete {{ addslashes($campus->church->name) }}? All campuses and related records must be removed first.')">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"><i data-lucide="trash-2" class="size-3.5"></i>Delete Church</button>
+                                                            </form>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -456,6 +525,45 @@
                     <button type="button" x-on:click="addOpen = false" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
                     <button type="submit" class="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white">Save {{ $terminology['campus_singular'] }}</button>
                 </div>
+            </form>
+        </div>
+
+        <div x-cloak x-show="editCampusOpen" x-on:keydown.escape.window="editCampusOpen = false" class="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4">
+            <form method="POST" x-bind:action="editingCampus.update_url" class="w-full max-w-2xl rounded-xl bg-white p-5 shadow-2xl" x-on:click.outside="editCampusOpen = false">
+                @csrf
+                @method('PUT')
+                <div class="mb-4 flex items-center justify-between">
+                    <div><h2 class="text-lg font-semibold text-slate-950">Edit {{ $terminology['campus_singular'] }}</h2><p class="mt-1 text-xs text-slate-500">Update this location and its operating status.</p></div>
+                    <button type="button" x-on:click="editCampusOpen = false" class="text-slate-400"><i data-lucide="x" class="size-5"></i></button>
+                </div>
+                <div class="grid gap-3 md:grid-cols-2">
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Church</span><select name="church_id" x-model="editingCampus.church_id" required class="w-full rounded-lg border border-slate-200 px-3 py-2">@foreach($churches as $church)<option value="{{ $church->id }}">{{ $church->name }}</option>@endforeach</select></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">{{ $terminology['campus_singular'] }} Name</span><input name="name" x-model="editingCampus.name" required class="w-full rounded-lg border border-slate-200 px-3 py-2"></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Type</span><select name="type" x-model="editingCampus.type" required class="w-full rounded-lg border border-slate-200 px-3 py-2"><option>Main Campus</option><option>Regional Campus</option><option>City Campus</option><option>Online Campus</option><option>Ministry Campus</option></select></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Status</span><select name="status" x-model="editingCampus.status" required class="w-full rounded-lg border border-slate-200 px-3 py-2"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">City</span><input name="city" x-model="editingCampus.city" required class="w-full rounded-lg border border-slate-200 px-3 py-2"></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Country</span><input name="country" x-model="editingCampus.country" required class="w-full rounded-lg border border-slate-200 px-3 py-2"></label>
+                    <label class="space-y-1 text-sm md:col-span-2"><span class="font-semibold text-slate-700">Address</span><input name="address" x-model="editingCampus.address" required class="w-full rounded-lg border border-slate-200 px-3 py-2"></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Capacity</span><input name="capacity" x-model="editingCampus.capacity" type="number" min="1" class="w-full rounded-lg border border-slate-200 px-3 py-2"></label>
+                </div>
+                <div class="mt-5 flex justify-end gap-3"><button type="button" x-on:click="editCampusOpen = false" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button><button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white"><i data-lucide="save" class="size-4"></i>Save Changes</button></div>
+            </form>
+        </div>
+
+        <div x-cloak x-show="editChurchOpen" x-on:keydown.escape.window="editChurchOpen = false" class="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4">
+            <form method="POST" x-bind:action="editingChurch.update_url" class="w-full max-w-2xl rounded-xl bg-white p-5 shadow-2xl" x-on:click.outside="editChurchOpen = false">
+                @csrf
+                @method('PUT')
+                <div class="mb-4 flex items-center justify-between"><div><h2 class="text-lg font-semibold text-slate-950">Edit Church</h2><p class="mt-1 text-xs text-slate-500">Update the church identity and contact details.</p></div><button type="button" x-on:click="editChurchOpen = false" class="text-slate-400"><i data-lucide="x" class="size-5"></i></button></div>
+                <div class="grid gap-3 md:grid-cols-2">
+                    <label class="space-y-1 text-sm md:col-span-2"><span class="font-semibold text-slate-700">Church Name</span><input name="name" x-model="editingChurch.name" required class="w-full rounded-lg border border-slate-200 px-3 py-2"></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Timezone</span><input name="timezone" x-model="editingChurch.timezone" required class="w-full rounded-lg border border-slate-200 px-3 py-2" placeholder="UTC"></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Currency</span><input name="currency" x-model="editingChurch.currency" required maxlength="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 uppercase" placeholder="USD"></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Email</span><input name="email" x-model="editingChurch.email" type="email" class="w-full rounded-lg border border-slate-200 px-3 py-2"></label>
+                    <label class="space-y-1 text-sm"><span class="font-semibold text-slate-700">Phone</span><input name="phone" x-model="editingChurch.phone" class="w-full rounded-lg border border-slate-200 px-3 py-2"></label>
+                    <label class="space-y-1 text-sm md:col-span-2"><span class="font-semibold text-slate-700">Address</span><textarea name="address" x-model="editingChurch.address" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2"></textarea></label>
+                </div>
+                <div class="mt-5 flex justify-end gap-3"><button type="button" x-on:click="editChurchOpen = false" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button><button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white"><i data-lucide="save" class="size-4"></i>Save Church</button></div>
             </form>
         </div>
 

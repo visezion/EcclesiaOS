@@ -318,6 +318,10 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('administration/roles/report', [RolePermissionController::class, 'report'])->name('roles.report');
     Route::get('administration/campuses', CampusManagementController::class)->name('campuses.index');
     Route::post('administration/campuses', [CampusManagementController::class, 'store'])->name('campuses.store');
+    Route::put('administration/campuses/{campus}', [CampusManagementController::class, 'update'])->name('campuses.update');
+    Route::delete('administration/campuses/{campus}', [CampusManagementController::class, 'destroy'])->name('campuses.destroy');
+    Route::put('administration/churches/{church}', [CampusManagementController::class, 'updateChurch'])->name('churches.update');
+    Route::delete('administration/churches/{church}', [CampusManagementController::class, 'destroyChurch'])->name('churches.destroy');
     Route::post('administration/campuses/import', [CampusManagementController::class, 'import'])->name('campuses.import');
     Route::get('administration/modules', ModuleManagementController::class)->name('modules.index');
     Route::put('administration/modules', [ModuleManagementController::class, 'update'])->name('modules.update');
