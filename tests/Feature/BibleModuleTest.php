@@ -41,10 +41,12 @@ final class BibleModuleTest extends TestCase
         $response->assertSee('bible/search?q=John&amp;tool=commentaries&amp;book=John&amp;chapter=3', false);
         $response->assertSee('bible/search?q=John&amp;tool=dictionaries&amp;book=John&amp;chapter=3', false);
         $translation = BibleTranslation::query()->where('church_id', $user->church_id)->where('abbreviation', 'KJV')->firstOrFail();
+        $this->assertSame(10, $translation->verses()->count(), 'Opening the reader must not run a full translation import during the web request.');
         $this->actingAs($user)->post(route('bible.bookmarks.store'), ['translation_id' => $translation->id, 'reference' => 'John 3:1', 'book' => 'John', 'chapter' => 3, 'verse' => 1, 'preview' => 'There was a man of the Pharisees.'])->assertRedirect();
         $this->actingAs($user)->post(route('bible.notes.store'), ['translation_id' => $translation->id, 'reference' => 'John 3:1', 'title' => 'Reader note', 'body' => 'A note saved from the reader.'])->assertRedirect();
         $this->actingAs($user)->post(route('bible.highlights.store'), ['translation_id' => $translation->id, 'reference' => 'John 3:1', 'snippet' => 'There was a man of the Pharisees.', 'color' => 'yellow', 'meaning' => 'Study'])->assertRedirect();
         $this->actingAs($user)->get(route('bible.index'))->assertOk()->assertSee('bg-yellow-100 text-yellow-950', false)->assertSee('border-yellow-400 bg-yellow-50/40', false);
+        $this->assertSame(10, $translation->verses()->count(), 'Repeated reader visits must keep fallback verse bootstrapping idempotent.');
         $this->actingAs($user)->get(route('bible.highlights', ['book' => 'John', 'date' => 'year']))
             ->assertOk()
             ->assertSee('Highlights by Color', false)
@@ -61,13 +63,13 @@ final class BibleModuleTest extends TestCase
         $this->seed();
         $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
 
-        $this->actingAs($user)
+        $referenceResponse = $this->actingAs($user)
             ->getJson(route('bible.reference-options', ['book' => 'John', 'chapter' => 3]))
             ->assertOk()
             ->assertJsonPath('book', 'John')
             ->assertJsonPath('chapter', 3)
-            ->assertJsonPath('chapters.2', 3)
             ->assertJsonPath('verses.0', 1);
+        $this->assertContains(3, $referenceResponse->json('chapters'));
 
         $this->actingAs($user)
             ->get(route('bible.search', ['book' => 'John', 'chapter' => 3, 'verse' => 1]))
@@ -83,6 +85,43 @@ final class BibleModuleTest extends TestCase
             ->assertOk()
             ->assertSee('id="compare-reference-picker"', false)
             ->assertSee('<option value="1" selected>Verse 1</option>', false);
+    }
+
+    public function test_bible_notes_use_database_portable_multi_word_book_filters(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $this->actingAs($user)->get(route('bible.index'))->assertOk();
+        $translation = BibleTranslation::query()
+            ->where('church_id', $user->church_id)
+            ->where('abbreviation', 'KJV')
+            ->firstOrFail();
+
+        $this->actingAs($user)->post(route('bible.notes.store'), [
+            'translation_id' => $translation->id,
+            'reference' => 'Song of Solomon 1:1',
+            'title' => 'A multi-word Bible book',
+            'body' => 'This note verifies database-portable reference parsing.',
+        ])->assertRedirect();
+
+        $this->actingAs($user)
+            ->get(route('bible.notes'))
+            ->assertOk()
+            ->assertSee('<option value="Song of Solomon"', false)
+            ->assertSee('>Song of Solomon</option>', false);
+    }
+
+    public function test_bible_writes_fail_safely_when_user_has_no_church(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $user->forceFill(['church_id' => null, 'campus_id' => null])->save();
+
+        $this->actingAs($user)->get(route('bible.index'))->assertOk();
+        $this->actingAs($user)->post(route('bible.bookmarks.store'), [])->assertUnprocessable();
+        $this->actingAs($user)->post(route('bible.notes.store'), [])->assertUnprocessable();
+        $this->actingAs($user)->post(route('bible.highlights.store'), [])->assertUnprocessable();
+        $this->actingAs($user)->get(route('bible.translations.index'))->assertUnprocessable();
     }
 
     public function test_church_administrator_can_add_a_translation(): void
@@ -347,5 +386,22 @@ final class BibleModuleTest extends TestCase
         $this->assertSame(20, data_get($user->fresh()->account_settings, 'bible.font_size'));
         $this->assertSame('spacious', data_get($user->fresh()->account_settings, 'bible.line_spacing'));
         $this->actingAs($user)->get(route('bible.index'))->assertOk()->assertSee('font-size: 20px', false)->assertSee('line-height: 2.25', false);
+    }
+
+    public function test_bible_settings_tolerate_invalid_legacy_reminder_time(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $user->forceFill([
+            'account_settings' => [
+                ...($user->account_settings ?? []),
+                'bible' => ['reading_reminder_time' => 'not-a-time'],
+            ],
+        ])->save();
+
+        $this->actingAs($user)
+            ->get(route('bible.settings'))
+            ->assertOk()
+            ->assertSee('8:00 AM', false);
     }
 }

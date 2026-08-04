@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Models\BibleTranslation;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -43,12 +44,24 @@ final class BibleFreeTranslationInstaller
         if (! $force && Storage::disk('local')->exists($path)) {
             return 0;
         }
-        $response = Http::timeout(180)->get(self::sources()[$abbreviation] ?? abort(422, 'No download source configured.'));
+
+        abort_unless(class_exists(ZipArchive::class), 503, 'The PHP ZIP extension is required to download Bible translations.');
+
+        try {
+            $response = Http::connectTimeout(15)->timeout(180)->get(self::sources()[$abbreviation] ?? abort(422, 'No download source configured.'));
+        } catch (ConnectionException) {
+            abort(502, 'The free translation provider could not be reached.');
+        }
+
         abort_unless($response->successful(), 502, 'The free translation archive could not be downloaded.');
-        $temporary = tempnam(sys_get_temp_dir(), 'bible-');
-        file_put_contents($temporary, $response->body());
+        $temporary = @tempnam(sys_get_temp_dir(), 'bible-');
+        abort_unless(is_string($temporary), 503, 'A temporary file could not be created for the translation archive.');
+        abort_unless(@file_put_contents($temporary, $response->body()) !== false, 503, 'The translation archive could not be written to temporary storage.');
         $zip = new ZipArchive;
-        abort_unless($zip->open($temporary) === true, 422, 'The translation archive is invalid.');
+        if ($zip->open($temporary) !== true) {
+            @unlink($temporary);
+            abort(422, 'The translation archive is invalid.');
+        }
         $text = '';
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $name = $zip->getNameIndex($i);
@@ -59,7 +72,7 @@ final class BibleFreeTranslationInstaller
         $zip->close();
         @unlink($temporary);
         abort_if(trim($text) === '', 422, 'The archive did not contain readable verse text.');
-        Storage::disk('local')->put($path, $text);
+        abort_unless(Storage::disk('local')->put($path, $text), 503, 'The translation file could not be saved to application storage.');
 
         return substr_count($text, "\n");
     }

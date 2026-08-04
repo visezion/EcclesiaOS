@@ -9,7 +9,6 @@ use App\Models\BibleNote;
 use App\Models\BibleReadingPlan;
 use App\Models\BibleTranslation;
 use App\Models\BibleVerse;
-use App\Support\BibleFreeTranslationInstaller;
 use App\Support\BibleTranslationCatalog;
 use App\Support\BibleVerseDiffer;
 use Illuminate\Contracts\View\View;
@@ -305,13 +304,7 @@ final class BibleController extends Controller
             $catalog->only(['name', 'abbreviation', 'language', 'description', 'copyright', 'source_url', 'status']) + ['created_by' => $request->user()->id, 'is_default' => true],
         );
 
-        if ($translation->verses()->count() >= 30000) {
-            return;
-        }
-
-        if (is_file(storage_path('app/private/bible/free/KJV.txt'))) {
-            BibleFreeTranslationInstaller::install($translation);
-
+        if ($translation->verses()->exists()) {
             return;
         }
 
@@ -328,6 +321,20 @@ final class BibleController extends Controller
             [10, 'Jesus answered and said unto him, Art thou a master of Israel, and knowest not these things?'],
         ];
 
-        $translation->verses()->createMany(collect($verses)->map(fn (array $verse): array => ['book' => 'John', 'book_slug' => 'john', 'testament' => 'new', 'chapter' => 3, 'verse' => $verse[0], 'text' => $verse[1]])->all());
+        $now = now();
+        $translation->verses()->upsert(
+            collect($verses)->map(fn (array $verse): array => [
+                'book' => 'John',
+                'book_slug' => 'john',
+                'testament' => 'new',
+                'chapter' => 3,
+                'verse' => $verse[0],
+                'text' => $verse[1],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all(),
+            ['bible_translation_id', 'book_slug', 'chapter', 'verse'],
+            ['book', 'testament', 'text', 'updated_at'],
+        );
     }
 }

@@ -2,6 +2,63 @@
 
 EcclesiaOS uses GitHub Releases as the authoritative changelog for deployed application versions.
 
+## 1.0.21 - 2026-08-04
+
+### Highlights
+
+- Fixed a production-only Bible reader 500 error caused by release packages correctly excluding private translation source files.
+- Removed large synchronous Bible imports from normal page requests to prevent request timeouts.
+- Hardened Bible Notes, Settings, study-content writes, catalog initialization, and free-translation downloads for production environments.
+
+### Fixed
+
+- Fixed repeated Bible visits inserting the same fallback verses and violating the unique verse-reference index.
+- Fixed a fresh production installation working on the first Bible visit and failing with HTTP 500 on a later visit.
+- Fixed the reader attempting to import more than 30,000 verses during an ordinary web request when a private KJV source file existed.
+- Fixed partially initialized Bible translations repeatedly attempting unsafe repair work during page loads.
+- Fixed the Bible Notes book filter using a database-specific string expression that was incompatible with PostgreSQL.
+- Fixed multi-word Bible books such as Song of Solomon being reduced to their first word in Notes filters.
+- Fixed users without a church triggering non-null database constraint failures when saving bookmarks, notes, or highlights.
+- Fixed users without a church being able to enter Bible translation management workflows that require church ownership.
+- Fixed malformed legacy reminder-time preferences crashing the Bible Settings page.
+- Fixed missing PHP ZIP support, provider connection failures, temporary-file failures, and unwritable storage surfacing as unhandled translation-download errors.
+
+### Improved
+
+- Made lightweight fallback verse creation idempotent and safe under repeated or concurrent requests.
+- Changed the Bible reader bootstrap to stop as soon as any translation verses are available.
+- Kept full Bible installation in the explicit translation-management workflow instead of the reader request lifecycle.
+- Reduced unnecessary writes when the shared free-translation catalog is already initialized.
+- Replaced SQL-specific Notes reference parsing with database-portable application parsing.
+- Added clear HTTP 422 responses when a church assignment is required for Bible study content.
+- Added clear HTTP 502 and 503 responses for external provider and server-capability failures during free-translation downloads.
+
+### Deployment and compatibility
+
+- Direct upgrades remain supported from `1.0.0` and later.
+- This release contains no database migration.
+- Existing installed translations and saved Bible study content are preserved.
+- Production assets are rebuilt by the release workflow and packaged with the required update manifest and checksum.
+
+### Full Changelog
+
+- Removed automatic full KJV installation from `BibleController` page requests.
+- Replaced repeated fallback `createMany` calls with conflict-safe verse upserts.
+- Added an existence check that makes reader initialization constant-time after the first successful bootstrap.
+- Changed free catalog initialization to create only missing definitions.
+- Preserved explicit administrator-controlled installation for complete free translations.
+- Added graceful handling when the ZIP extension is unavailable.
+- Added a bounded connection timeout and friendly upstream failure response for translation downloads.
+- Added safe checks for temporary archive creation and writing.
+- Added cleanup for invalid temporary ZIP archives.
+- Added a storage-write check before reporting a downloaded translation as available.
+- Replaced SQLite/MySQL-style `substr` and `instr` Notes filtering with portable reference parsing.
+- Preserved full multi-word Bible book names in Notes filter options.
+- Added church-assignment guards for bookmark, note, highlight, and translation-management writes.
+- Normalized invalid legacy Bible reminder times to the safe 8:00 AM default when rendering settings.
+- Added regression coverage for idempotent reader visits, lightweight bootstrap behavior, database-portable book parsing, missing church assignments, and malformed legacy settings.
+- Verified all Bible pages, shared navigation routes, production Blade compilation, formatting, and Composer metadata.
+
 ## 1.0.20 - 2026-08-04
 
 ### Highlights

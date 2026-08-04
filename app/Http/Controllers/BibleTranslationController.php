@@ -109,5 +109,6 @@ final class BibleTranslationController extends Controller
     private function authorizeManagement(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage bible translations'), 403);
+        abort_unless($request->user()?->church_id, 422, 'Select a church before managing Bible translations.');
     }
 }

@@ -10,8 +10,15 @@ final class BibleTranslationCatalog
 {
     public static function ensureFreeDefaults(): void
     {
-        foreach (self::definitions() as $definition) {
-            BibleTranslation::query()->updateOrCreate(
+        $definitions = collect(self::definitions());
+        $existing = BibleTranslation::query()
+            ->whereNull('church_id')
+            ->whereIn('abbreviation', $definitions->pluck('abbreviation'))
+            ->pluck('abbreviation')
+            ->all();
+
+        foreach ($definitions->whereNotIn('abbreviation', $existing) as $definition) {
+            BibleTranslation::query()->firstOrCreate(
                 ['church_id' => null, 'abbreviation' => $definition['abbreviation']],
                 $definition + ['created_by' => null, 'status' => 'active'],
             );

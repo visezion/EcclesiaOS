@@ -108,7 +108,18 @@ final class BibleStudyController extends Controller
         $notes = $query->latest('updated_at')->paginate(7)->withQueryString();
         $selectedNote = $notes->firstWhere('id', (int) $request->query('selected')) ?: $notes->first();
         $translations = BibleTranslation::query()->where('church_id', $request->user()->church_id)->where('status', 'active')->orderBy('name')->get();
-        $books = BibleNote::query()->where('user_id', $request->user()->id)->selectRaw("substr(reference, 1, instr(reference, ' ') - 1) as book")->where('reference', 'like', '% %')->distinct()->pluck('book')->filter()->values();
+        $books = BibleNote::query()
+            ->where('user_id', $request->user()->id)
+            ->pluck('reference')
+            ->map(function (string $reference): string {
+                preg_match('/^(.+?)\s+\d+:\d+/', $reference, $matches);
+
+                return trim((string) ($matches[1] ?? ''));
+            })
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
         $tags = BibleNote::query()->where('user_id', $request->user()->id)->pluck('tags')->flatten()->filter()->unique()->sort()->values();
 
         return view('bible.notes', compact('notes', 'selectedNote', 'translations', 'books', 'tags', 'filters') + ['breadcrumbs' => $this->crumbs('Notes')]);
@@ -195,6 +206,7 @@ final class BibleStudyController extends Controller
     public function storeBookmark(Request $request): RedirectResponse
     {
         $this->authorizeBible($request);
+        $this->requireChurch($request);
         $data = $request->validate(['translation_id' => ['required', Rule::exists('bible_translations', 'id')->where('church_id', $request->user()->church_id)], 'reference' => ['required', 'string', 'max:120'], 'book' => ['required', 'string', 'max:80'], 'chapter' => ['required', 'integer', 'min:1'], 'verse' => ['required', 'integer', 'min:1'], 'preview' => ['nullable', 'string', 'max:1000']]);
         BibleBookmark::create([...$data, 'bible_translation_id' => $data['translation_id'], 'user_id' => $request->user()->id, 'church_id' => $request->user()->church_id]);
 
@@ -204,6 +216,7 @@ final class BibleStudyController extends Controller
     public function storeNote(Request $request): RedirectResponse
     {
         $this->authorizeBible($request);
+        $this->requireChurch($request);
         $data = $request->validate(['translation_id' => ['required', Rule::exists('bible_translations', 'id')->where('church_id', $request->user()->church_id)], 'reference' => ['required', 'string', 'max:120'], 'title' => ['required', 'string', 'max:180'], 'body' => ['required', 'string', 'max:20000']]);
         BibleNote::create([...$data, 'bible_translation_id' => $data['translation_id'], 'user_id' => $request->user()->id, 'church_id' => $request->user()->church_id]);
 
@@ -213,6 +226,7 @@ final class BibleStudyController extends Controller
     public function storeHighlight(Request $request): RedirectResponse
     {
         $this->authorizeBible($request);
+        $this->requireChurch($request);
         $data = $request->validate(['translation_id' => ['required', Rule::exists('bible_translations', 'id')->where('church_id', $request->user()->church_id)], 'reference' => ['required', 'string', 'max:120'], 'snippet' => ['required', 'string', 'max:2000'], 'color' => ['required', 'in:yellow,green,purple,pink,blue'], 'meaning' => ['nullable', 'string', 'max:120'], 'tags' => ['nullable', 'string', 'max:500']]);
         $tags = collect(explode(',', (string) ($data['tags'] ?? '')))->map(fn ($tag): string => trim($tag))->filter()->values()->all();
         BibleHighlight::create([...$data, 'bible_translation_id' => $data['translation_id'], 'tags' => $tags, 'user_id' => $request->user()->id, 'church_id' => $request->user()->church_id]);
@@ -295,6 +309,11 @@ final class BibleStudyController extends Controller
     private function authorizeBible(Request $request): void
     {
         abort_unless($request->user(), 403);
+    }
+
+    private function requireChurch(Request $request): void
+    {
+        abort_unless($request->user()->church_id, 422, 'Select a church before saving Bible study content.');
     }
 
     private function crumbs(string $label): array
