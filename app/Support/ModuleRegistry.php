@@ -19,9 +19,26 @@ final class ModuleRegistry
 
         return collect(config('navigation'))
             ->map(fn (array $item): array => OrganizationTerminology::translateNavigationItem($item, $terminology))
-            ->flatMap(fn (array $item): array => $item['children'] ?? [$item])
+            ->flatMap(function (array $item): array {
+                $group = (string) ($item['section'] ?? 'Other');
+                $children = collect($item['children'] ?? []);
+
+                if ($children->isEmpty()) {
+                    return [[...$item, 'module_group' => $group, 'module_subgroup' => 'Standalone']];
+                }
+
+                return $children->map(fn (array $child): array => [
+                    ...$child,
+                    'module_group' => $group,
+                    'module_subgroup' => (string) $item['label'],
+                ])->all();
+            })
             ->filter(fn (array $item): bool => isset($item['route']))
-            ->concat(self::featureModules())
+            ->concat(self::featureModules()->map(fn (array $item): array => [
+                ...$item,
+                'module_group' => 'Planning & Attendance',
+                'module_subgroup' => 'Meetings',
+            ]))
             ->unique('route')
             ->values();
     }

@@ -73,6 +73,7 @@ final class SystemSettingsController extends Controller
             'sidebar_end_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'sidebar_text_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'sidebar_profile_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'sidebar_colorful_icons' => ['nullable', 'boolean'],
             'email_template_branding' => ['required', 'string', 'max:80'],
             'mfa_required' => ['nullable', 'boolean'],
             'login_notifications' => ['nullable', 'boolean'],
@@ -141,6 +142,7 @@ final class SystemSettingsController extends Controller
             'mfa_required' => $request->boolean('mfa_required'),
             'login_notifications' => $request->boolean('login_notifications'),
             'low_stock_alerts' => $request->boolean('low_stock_alerts'),
+            'sidebar_colorful_icons' => $request->boolean('sidebar_colorful_icons'),
             'last_updated_by' => $request->user()?->name,
             'last_updated_at' => now()->toDateTimeString(),
         ]);
@@ -286,6 +288,7 @@ final class SystemSettingsController extends Controller
             'sidebar_end_color' => '#061633',
             'sidebar_text_color' => '#E2E8F0',
             'sidebar_profile_color' => '#020617',
+            'sidebar_colorful_icons' => false,
             'email_template_branding' => 'Use Custom Branding',
             'sidebar_background' => config('church.sidebar_background'),
             'logo' => config('church.logo'),

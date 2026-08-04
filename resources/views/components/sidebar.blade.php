@@ -9,7 +9,65 @@
         ->filter(fn (array $item): bool => $canAccessNavigationItem($item) || collect($item['children'] ?? [])->contains($canAccessNavigationItem))
         ->all();
     $sections = collect($items)->groupBy(fn (array $item): string => $item['section'] ?? 'Other');
+    $colorfulSidebarIcons = (bool) data_get($branding->settings, 'sidebar_colorful_icons', false);
+    $sidebarIconTones = [
+        'dashboard' => 'text-violet-500',
+        'members.index' => 'text-sky-500',
+        'families.index' => 'text-rose-500',
+        'programs.index' => 'text-indigo-500',
+        'events.index' => 'text-amber-500',
+        'calendar.index' => 'text-blue-500',
+        'meetings.index' => 'text-cyan-500',
+        'attendance.index' => 'text-emerald-500',
+        'finance.index' => 'text-emerald-500',
+        'sermons.index' => 'text-orange-500',
+        'prayer-requests.index' => 'text-pink-500',
+        'bible.index' => 'text-amber-500',
+        'messages.index' => 'text-sky-500',
+        'communications.index' => 'text-fuchsia-500',
+        'volunteers.index' => 'text-teal-500',
+        'ministries.index' => 'text-indigo-500',
+        'campuses.index' => 'text-red-500',
+        'assets.index' => 'text-cyan-500',
+        'facilities.index' => 'text-slate-500',
+        'bookstore.index' => 'text-yellow-500',
+        'children-youth.index' => 'text-rose-500',
+        'counselling.index' => 'text-purple-500',
+        'leadership-reports.index' => 'text-blue-500',
+        'feedback.index' => 'text-lime-500',
+        'staff.index' => 'text-teal-500',
+        'reports.index' => 'text-orange-500',
+        'workflows.index' => 'text-violet-500',
+        'users.index' => 'text-sky-500',
+        'settings.index' => 'text-slate-500',
+    ];
+    $sidebarIconPalette = [
+        'text-blue-500', 'text-emerald-500', 'text-amber-500',
+        'text-rose-500', 'text-cyan-500', 'text-purple-500',
+        'text-orange-500', 'text-teal-500', 'text-pink-500',
+    ];
+    $sidebarIconTone = function (?string $route) use ($sidebarIconTones, $sidebarIconPalette): string {
+        if (isset($sidebarIconTones[$route])) {
+            return $sidebarIconTones[$route];
+        }
+
+        return $sidebarIconPalette[((int) sprintf('%u', crc32((string) $route))) % count($sidebarIconPalette)];
+    };
     $currentRoute = request()->route()?->getName();
+    $sidebarNotificationCount = ($user?->unreadNotifications()->count() ?? 0) + ($user ? \App\Models\CommunicationDelivery::query()
+        ->where('church_id', $user->church_id)
+        ->where('channel', 'in_app')
+        ->whereNull('read_at')
+        ->when(! $user->isSuperAdministrator() && $user->campus_id, function ($query) use ($user): void {
+            $query->where(function ($scope) use ($user): void {
+                $scope->whereHas('member', fn ($memberQuery) => $memberQuery->where('campus_id', $user->campus_id))
+                    ->orWhereHas('whatsappGroup', function ($groupQuery) use ($user): void {
+                        $groupQuery->where('campus_id', $user->campus_id)
+                            ->orWhereHas('ministry', fn ($ministryQuery) => $ministryQuery->where('campus_id', $user->campus_id));
+                    });
+            });
+        })->count() : 0);
+    $sidebarMessageCount = $user ? app(\App\Support\UnreadCounts::class)->messages($user) : 0;
     $routeMatches = function (?string $route, array $activeRoutes = []) use ($currentRoute): bool {
         if ($currentRoute === null) {
             return false;
@@ -28,39 +86,44 @@
 
 <aside
     x-bind:class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
-    class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col overflow-y-auto bg-sidebar text-white shadow-lg transition-transform duration-200 lg:translate-x-0"
+    class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col overflow-hidden bg-sidebar text-white shadow-lg transition-transform duration-200 lg:translate-x-0"
+    style="background-color: var(--sidebar-mid); background-image: none;"
 >
-    <div class="flex items-center gap-3 px-5 py-5">
-        <div class="grid size-12 place-items-center overflow-hidden rounded-xl bg-transparent">
-            @if ($branding->logo())
-                <img src="{{ $branding->logo() }}" alt="{{ $branding->churchName() }} logo" class="size-full object-contain">
-            @else
-                <i data-lucide="cross" class="size-8"></i>
-            @endif
+    <nav class="relative z-10 min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-5">
+        <div class="-mx-3 mb-4 flex items-center gap-3 border-b border-white/10 px-5 py-3">
+            <div class="grid size-12 place-items-center overflow-hidden rounded-xl bg-transparent">
+                @if ($branding->logo())
+                    <img src="{{ $branding->logo() }}" alt="{{ $branding->churchName() }} logo" class="size-full object-contain">
+                @else
+                    <i data-lucide="cross" class="size-8"></i>
+                @endif
+            </div>
+            <div class="min-w-0">
+                <div class="sidebar-brand-text text-lg font-semibold leading-tight" style="color: var(--sidebar-text) !important;">{{ $branding->systemName() }}</div>
+                <div class="text-xs leading-tight text-slate-300">{{ $branding->churchName() }}</div>
+            </div>
         </div>
-        <div class="min-w-0">
-            <div class="text-lg font-semibold leading-tight">{{ $branding->systemName() }}</div>
-            <div class="text-xs leading-tight text-slate-300">{{ $branding->churchName() }}</div>
-        </div>
-    </div>
-
-    <nav class="relative z-10 flex-1 space-y-1 px-3 pb-5">
         @foreach ($sections as $sectionLabel => $sectionItems)
             <div class="px-3 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 first:pt-1">{{ $sectionLabel }}</div>
             @foreach ($sectionItems as $item)
             @php
                 $children = collect($item['children'] ?? [])->filter($canAccessNavigationItem);
                 $isActive = $routeMatches($item['route'] ?? null, $item['active_routes'] ?? []) || $children->contains(fn (array $child): bool => $routeMatches($child['route'] ?? null, $child['active_routes'] ?? []));
+                $itemIconTone = $sidebarIconTone($item['route'] ?? null);
             @endphp
             <div x-data="{ open: @js($isActive) }">
                 @if ($children->isNotEmpty())
                     <button
                         type="button"
                         x-on:click="open = ! open"
-                        class="{{ $isActive ? 'bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-lg shadow-purple-950/25' : 'text-slate-200 hover:bg-white/10 hover:text-white' }} group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-white/70"
+                        class="{{ $isActive ? 'sidebar-nav-active text-white' : 'sidebar-nav-item text-slate-200 hover:bg-white/10 hover:text-white' }} group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-white/70"
                         x-bind:aria-expanded="open.toString()"
                     >
-                        <i data-lucide="{{ $item['icon'] }}" class="size-4 shrink-0"></i>
+                        @if ($colorfulSidebarIcons)
+                            <span class="sidebar-color-icon grid size-4 shrink-0 place-items-center {{ $itemIconTone }}"><i data-lucide="{{ $item['icon'] }}" class="size-4"></i></span>
+                        @else
+                            <i data-lucide="{{ $item['icon'] }}" class="size-4 shrink-0"></i>
+                        @endif
                         <span class="min-w-0 flex-1 truncate">{{ $item['label'] }}</span>
                         @isset($item['badge'])
                             <span class="rounded-full bg-violet-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ $item['badge'] }}</span>
@@ -70,19 +133,36 @@
                     <div x-show="open" class="mt-1 space-y-1 pl-8">
                         @foreach ($children as $child)
                             @php($childActive = $routeMatches($child['route'] ?? null, $child['active_routes'] ?? []))
-                            <a href="{{ route($child['route'], $child['route_parameters'] ?? []) }}" class="{{ $childActive ? 'bg-violet-600/90 text-white' : 'text-slate-300 hover:bg-white/10 hover:text-white' }} flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium" aria-current="{{ $childActive ? 'page' : 'false' }}">
-                                <i data-lucide="{{ $child['icon'] }}" class="size-3.5"></i>
-                                <span class="truncate">{{ $child['label'] }}</span>
+                            @php($childIconTone = $sidebarIconTone($child['route'] ?? null))
+                            @php($childBadge = match ($child['route'] ?? null) {
+                                'communications.notifications' => $sidebarNotificationCount,
+                                'messages.index' => $sidebarMessageCount,
+                                default => null,
+                            })
+                            <a href="{{ route($child['route'], $child['route_parameters'] ?? []) }}" class="{{ $childActive ? 'sidebar-nav-active text-white' : 'sidebar-nav-item text-slate-300 hover:bg-white/10 hover:text-white' }} flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium" aria-current="{{ $childActive ? 'page' : 'false' }}">
+                                @if ($colorfulSidebarIcons)
+                                    <span class="sidebar-color-icon grid size-3.5 shrink-0 place-items-center {{ $childIconTone }}"><i data-lucide="{{ $child['icon'] }}" class="size-3.5"></i></span>
+                                @else
+                                    <i data-lucide="{{ $child['icon'] }}" class="size-3.5"></i>
+                                @endif
+                                <span class="min-w-0 flex-1 truncate">{{ $child['label'] }}</span>
+                                @if ($childBadge !== null && $childBadge > 0)
+                                    <span class="rounded-full bg-violet-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white" title="{{ number_format($childBadge) }} unread">{{ $childBadge > 99 ? '99+' : $childBadge }}</span>
+                                @endif
                             </a>
                         @endforeach
                     </div>
                 @else
                     <a
                         href="{{ route($item['route']) }}"
-                        class="{{ $isActive ? 'bg-gradient-to-r from-violet-600 to-purple-500 text-white shadow-lg shadow-purple-950/25' : 'text-slate-200 hover:bg-white/10 hover:text-white' }} group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-white/70"
+                        class="{{ $isActive ? 'sidebar-nav-active text-white' : 'sidebar-nav-item text-slate-200 hover:bg-white/10 hover:text-white' }} group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                         aria-current="{{ $routeMatches($item['route'] ?? null, $item['active_routes'] ?? []) ? 'page' : 'false' }}"
                     >
-                        <i data-lucide="{{ $item['icon'] }}" class="size-4 shrink-0"></i>
+                        @if ($colorfulSidebarIcons)
+                            <span class="sidebar-color-icon grid size-4 shrink-0 place-items-center {{ $itemIconTone }}"><i data-lucide="{{ $item['icon'] }}" class="size-4"></i></span>
+                        @else
+                            <i data-lucide="{{ $item['icon'] }}" class="size-4 shrink-0"></i>
+                        @endif
                         <span class="min-w-0 flex-1 truncate">{{ $item['label'] }}</span>
                         @isset($item['badge'])
                             <span class="rounded-full bg-violet-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ $item['badge'] }}</span>
@@ -94,7 +174,7 @@
         @endforeach
     </nav>
 
-    <div class="relative z-0 mt-auto px-4 pb-5 pt-10">
+    <div class="relative z-0 mt-auto shrink-0 overflow-hidden px-4 pb-5 pt-4">
         <div class="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-52 bg-church-silhouette opacity-90" style="--sidebar-background-image: url('{{ $sidebarBackgroundUrl }}');" aria-hidden="true"></div>
         <div class="sidebar-profile-card relative z-10 flex items-center gap-3 rounded-xl p-3 backdrop-blur">
             @if (auth()->user()?->avatar_src)

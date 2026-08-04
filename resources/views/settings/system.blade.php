@@ -210,6 +210,20 @@
                                     Sidebar Background PNG
                                     <input name="sidebar_background" type="file" accept="image/png" class="block w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-violet-50 file:px-3 file:py-1 file:text-xs file:font-medium file:text-violet-700">
                                 </label>
+                                <label class="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                                    <span class="flex min-w-0 items-center gap-3">
+                                        <span class="grid size-9 shrink-0 place-items-center text-fuchsia-600"><i data-lucide="palette" class="size-5"></i></span>
+                                        <span>
+                                            <span class="block text-sm font-semibold text-slate-800">Colorful sidebar icons</span>
+                                            <span class="mt-0.5 block text-xs font-normal text-slate-500">Give every navigation icon its own coordinated color without changing its background.</span>
+                                        </span>
+                                    </span>
+                                    <span class="relative inline-flex shrink-0 items-center">
+                                        <input name="sidebar_colorful_icons" type="checkbox" value="1" @checked(old('sidebar_colorful_icons', $settings['sidebar_colorful_icons'] ?? false)) class="peer sr-only">
+                                        <span class="h-6 w-11 rounded-full bg-slate-200 transition peer-checked:bg-violet-600"></span>
+                                        <span class="absolute left-0.5 size-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+                                    </span>
+                                </label>
                                 <details class="rounded-lg border border-slate-200 bg-slate-50/60">
                                     <summary class="cursor-pointer px-3 py-2 text-xs font-medium text-slate-600">Advanced branding</summary>
                                     <div class="grid gap-3 border-t border-slate-200 bg-white p-3">

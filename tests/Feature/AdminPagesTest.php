@@ -305,6 +305,7 @@ class AdminPagesTest extends TestCase
                 'sidebar_end_color' => '#030712',
                 'sidebar_text_color' => '#F8FAFC',
                 'sidebar_profile_color' => '#172554',
+                'sidebar_colorful_icons' => '1',
                 'card_radius' => 12,
                 'campus_singular_label' => 'Branch',
                 'campus_plural_label' => 'Branches',
@@ -321,6 +322,7 @@ class AdminPagesTest extends TestCase
         $this->assertSame('#0EA5E9', data_get($church->settings, 'primary_color'));
         $this->assertSame('dark', data_get($church->settings, 'theme_mode'));
         $this->assertSame('Roboto', data_get($church->settings, 'font_family'));
+        $this->assertTrue(data_get($church->settings, 'sidebar_colorful_icons'));
         $this->assertSame('Branch', data_get($church->settings, 'campus_singular_label'));
         $this->assertSame('Departments', data_get($church->settings, 'ministry_plural_label'));
         $this->assertDatabaseHas('activity_logs', ['action' => 'system_settings_updated']);
@@ -331,7 +333,8 @@ class AdminPagesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Churches &amp; Branches', false);
+            ->assertSee('Churches &amp; Branches', false)
+            ->assertSee('text-sky-500', false);
 
         $this->actingAs($admin)
             ->get(route('modules.index'))
@@ -1231,6 +1234,7 @@ class AdminPagesTest extends TestCase
             'sidebar_end_color' => '#061633',
             'sidebar_text_color' => '#E2E8F0',
             'sidebar_profile_color' => '#020617',
+            'sidebar_colorful_icons' => '1',
             'email_template_branding' => 'Use Custom Branding',
             'mfa_required' => '1',
             'login_notifications' => '1',

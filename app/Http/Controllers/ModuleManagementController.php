@@ -105,6 +105,54 @@ final class ModuleManagementController extends Controller
         return back()->with('status', 'Module settings saved.');
     }
 
+    public function bulkUpdate(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeSettings($request);
+
+        $validated = $request->validate([
+            'scope' => ['required', Rule::in(['group', 'subgroup'])],
+            'key' => ['required', 'string', 'max:120'],
+            'enabled' => ['required', 'boolean'],
+        ]);
+
+        $church = $this->settingsChurch();
+        $modules = ModuleRegistry::modules($church);
+        $field = $validated['scope'] === 'group' ? 'module_group' : 'module_subgroup';
+        $routes = $modules
+            ->filter(fn (array $module): bool => ($module[$field] ?? null) === $validated['key'])
+            ->reject(fn (array $module): bool => ModuleRegistry::isRequiredRoute((string) $module['route']))
+            ->pluck('route');
+
+        abort_if($routes->isEmpty(), 422, 'No configurable modules were found for this selection.');
+
+        $disabled = ModuleRegistry::disabledRoutes($church)
+            ->reject(fn (string $route): bool => $routes->contains($route));
+
+        if (! $validated['enabled']) {
+            $disabled = $disabled->merge($routes);
+        }
+
+        $disabled = $disabled->unique()->values()->all();
+        $church->forceFill(['settings' => array_merge($church->settings ?? [], [
+            'disabled_modules' => $disabled,
+            'last_updated_by' => $request->user()?->name,
+            'last_updated_at' => now()->toDateTimeString(),
+        ])])->save();
+
+        $label = $validated['scope'] === 'group' ? 'group' : 'subgroup';
+        $action = $validated['enabled'] ? 'enabled' : 'disabled';
+        $activityLogger->log('Settings', 'modules_updated', "Administrator {$action} a module {$label}.", $church, [
+            'resource' => 'Module Management',
+            'risk' => 'medium',
+            'status' => 'success',
+            'scope' => $validated['scope'],
+            'scope_key' => $validated['key'],
+            'disabled_modules' => $disabled,
+        ], $request);
+
+        return back()->with('status', 'Module '.$label.' '.$action.'.');
+    }
+
     public function reset(Request $request, ActivityLogger $activityLogger): RedirectResponse
     {
         $this->authorizeSettings($request);
@@ -188,7 +236,22 @@ final class ModuleManagementController extends Controller
             'disabled_count' => $allModules->where('disabled', true)->count(),
             'required_count' => $allModules->where('required', true)->count(),
             'total' => $allModules->count(),
+            'groups' => $this->moduleScopes($allModules, 'module_group', 'group'),
+            'subgroups' => $this->moduleScopes($allModules, 'module_subgroup', 'subgroup'),
         ];
+    }
+
+    private function moduleScopes(Collection $modules, string $key, string $scope): Collection
+    {
+        return $modules->filter(fn (array $module): bool => ! $module['required'])
+            ->groupBy($key)
+            ->map(fn (Collection $items, string $value): array => [
+                'key' => $value,
+                'label' => $value,
+                'count' => $items->count(),
+                'enabled' => $items->where('disabled', false)->count(),
+                'scope' => $scope,
+            ])->sortBy('label')->values();
     }
 
     /**
@@ -205,6 +268,8 @@ final class ModuleManagementController extends Controller
             ...$item,
             'category' => $category,
             'category_label' => str($category)->headline()->toString(),
+            'group' => $item['module_group'] ?? 'Other',
+            'subgroup' => $item['module_subgroup'] ?? 'Standalone',
             'required' => $isRequired,
             'disabled' => ! $isRequired && $disabled->contains($route),
             'status' => empty($item['planned']) ? 'live' : 'planned',

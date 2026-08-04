@@ -112,7 +112,7 @@ return [
     ['label' => 'Feedback System', 'route' => 'feedback.index', 'icon' => 'message-square-text', 'section' => 'Leadership & Insights', 'permission' => 'manage feedback', 'planned' => $planned['feedback.index']],
     ['label' => 'HR & Staff', 'route' => 'staff.index', 'icon' => 'user-round-cog', 'section' => 'Leadership & Insights', 'permission' => 'manage staff', 'planned' => $planned['staff.index']],
     ['label' => 'Reports & Analytics', 'route' => 'reports.index', 'icon' => 'chart-column', 'section' => 'Leadership & Insights', 'permission' => 'view reports', 'planned' => $planned['reports.index']],
-    ['label' => 'Workflow & Approvals', 'route' => 'workflows.index', 'icon' => 'git-branch', 'section' => 'Leadership & Insights', 'permission' => 'manage workflows', 'badge' => '5', 'planned' => $planned['workflows.index']],
+    ['label' => 'Workflow & Approvals', 'route' => 'workflows.index', 'icon' => 'git-branch', 'section' => 'Leadership & Insights', 'permission' => 'manage workflows', 'planned' => $planned['workflows.index']],
     [
         'label' => 'Administration',
         'route' => 'users.index',

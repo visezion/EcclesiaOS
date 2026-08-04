@@ -327,6 +327,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('administration/campuses/import', [CampusManagementController::class, 'import'])->name('campuses.import');
     Route::get('administration/modules', ModuleManagementController::class)->name('modules.index');
     Route::put('administration/modules', [ModuleManagementController::class, 'update'])->name('modules.update');
+    Route::put('administration/modules/bulk', [ModuleManagementController::class, 'bulkUpdate'])->name('modules.bulk-update');
     Route::put('administration/modules/reset', [ModuleManagementController::class, 'reset'])->name('modules.reset');
     Route::get('administration/authentication', [AuthenticationSettingsController::class, 'index'])->name('auth-settings.index');
     Route::put('administration/authentication', [AuthenticationSettingsController::class, 'update'])->name('auth-settings.update');

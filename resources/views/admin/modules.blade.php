@@ -103,6 +103,67 @@
                         </div>
                     </div>
 
+                    <div class="border-b border-slate-100 bg-gradient-to-br from-violet-50/70 via-white to-slate-50 p-5">
+                        <div class="mb-4 flex items-start gap-3">
+                            <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-600 text-white shadow-sm shadow-violet-200">
+                                <i data-lucide="layers-2" class="size-5"></i>
+                            </span>
+                            <div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h3 class="text-base font-semibold text-slate-950">Bulk controls</h3>
+                                    <span class="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700">Quick actions</span>
+                                </div>
+                                <p class="mt-1 text-xs leading-5 text-slate-500">Enable or disable a complete group or subgroup at once. Required modules are protected automatically.</p>
+                            </div>
+                        </div>
+                        <div class="grid gap-4 lg:grid-cols-2">
+                            @foreach (['Groups' => $moduleSettings['groups'], 'Subgroups' => $moduleSettings['subgroups']] as $scopeTitle => $scopes)
+                                <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                    <div class="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
+                                        <div class="flex items-center gap-2">
+                                            <i data-lucide="{{ strtolower($scopeTitle) === 'groups' ? 'layout-grid' : 'list-tree' }}" class="size-4 text-violet-600"></i>
+                                            <span class="text-xs font-bold uppercase tracking-[0.12em] text-slate-600">{{ $scopeTitle }}</span>
+                                        </div>
+                                        <span class="text-xs font-medium text-slate-400">{{ $scopes->count() }} options</span>
+                                    </div>
+                                    <div class="space-y-1">
+                                        @foreach ($scopes as $scopeItem)
+                                            <div class="flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition hover:bg-slate-50">
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="flex items-center justify-between gap-2">
+                                                        <span class="truncate text-sm font-semibold text-slate-700" title="{{ $scopeItem['label'] }}">{{ $scopeItem['label'] }}</span>
+                                                        <span class="shrink-0 text-[11px] font-medium text-slate-400">{{ $scopeItem['enabled'] }}/{{ $scopeItem['count'] }} on</span>
+                                                    </div>
+                                                    <div class="mt-2 h-1 overflow-hidden rounded-full bg-slate-100">
+                                                        <div class="h-full rounded-full bg-emerald-500 transition-all" style="width: {{ $scopeItem['count'] > 0 ? round(($scopeItem['enabled'] / $scopeItem['count']) * 100) : 0 }}%"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="flex shrink-0 gap-1">
+                                                    <form method="POST" action="{{ route('modules.bulk-update') }}">
+                                                        @csrf
+                                                        @method('PUT')
+                                                        <input type="hidden" name="scope" value="{{ strtolower($scopeTitle) === 'groups' ? 'group' : 'subgroup' }}">
+                                                        <input type="hidden" name="key" value="{{ $scopeItem['key'] }}">
+                                                        <input type="hidden" name="enabled" value="1">
+                                                        <button class="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"><i data-lucide="check" class="size-3"></i>Enable</button>
+                                                    </form>
+                                                    <form method="POST" action="{{ route('modules.bulk-update') }}">
+                                                        @csrf
+                                                        @method('PUT')
+                                                        <input type="hidden" name="scope" value="{{ strtolower($scopeTitle) === 'groups' ? 'group' : 'subgroup' }}">
+                                                        <input type="hidden" name="key" value="{{ $scopeItem['key'] }}">
+                                                        <input type="hidden" name="enabled" value="0">
+                                                        <button class="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-100"><i data-lucide="power" class="size-3"></i>Disable</button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
                     <form id="module-settings-form" method="POST" action="{{ route('modules.update') }}">
                         @csrf
                         @method('PUT')
@@ -113,6 +174,7 @@
                                     <tr>
                                         <th class="px-4 py-3">Module</th>
                                         <th class="px-4 py-3">Category</th>
+                                        <th class="px-4 py-3">Group / Subgroup</th>
                                         <th class="px-4 py-3">Status</th>
                                         <th class="px-4 py-3">Usage</th>
                                         <th class="px-4 py-3">Description</th>
@@ -136,8 +198,12 @@
                                             <td class="px-4 py-4">
                                                 <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{{ $module['category_label'] }}</span>
                                             </td>
+                                            <td class="px-4 py-4 text-xs text-slate-600">
+                                                <div class="font-semibold text-slate-700">{{ $module['group'] }}</div>
+                                                <div class="mt-1 text-slate-400">{{ $module['subgroup'] }}</div>
+                                            </td>
                                             <td class="px-4 py-4">
-                                                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $module['disabled'] ? 'bg-rose-50 text-rose-700 ring-rose-100' : 'bg-emerald-50 text-emerald-700 ring-emerald-100' }}">
+                                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {{ $module['disabled'] ? 'bg-rose-50 text-rose-700 ring-rose-100' : 'bg-emerald-50 text-emerald-700 ring-emerald-100' }}">
                                                     {{ $module['disabled'] ? 'Disabled' : 'Enabled' }}
                                                 </span>
                                                 @if ($module['required'])
@@ -172,7 +238,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="6" class="px-4 py-12 text-center text-sm text-slate-500">No modules match the selected filters.</td>
+                                            <td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">No modules match the selected filters.</td>
                                         </tr>
                                     @endforelse
                                 </tbody>

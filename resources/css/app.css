@@ -129,9 +129,8 @@
 
 @layer components {
     .bg-sidebar {
-        background:
-            radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--brand-primary, #6d4aff) 38%, transparent), transparent 30%),
-            linear-gradient(180deg, var(--sidebar-start, #061633) 0%, var(--sidebar-mid, #082851) 52%, var(--sidebar-end, #061633) 100%);
+        background-color: var(--sidebar-mid, #082851) !important;
+        background-image: none !important;
         color: var(--sidebar-text, #e2e8f0);
     }
 
@@ -303,6 +302,33 @@
 
     .sidebar-profile-card {
         background: color-mix(in srgb, var(--sidebar-profile-bg, #020617) 72%, transparent);
+        border: 1px solid color-mix(in srgb, var(--sidebar-text, #e2e8f0) 14%, transparent);
+    }
+
+    .sidebar-brand-text {
+        color: var(--sidebar-text, #e2e8f0) !important;
+    }
+
+    .sidebar-color-icon,
+    .sidebar-color-icon svg {
+        background: none !important;
+        background-image: none !important;
+        opacity: 1 !important;
+        filter: none !important;
+    }
+
+    .sidebar-nav-item {
+        border: 1px solid transparent;
+    }
+
+    .sidebar-nav-item:hover {
+        border-color: color-mix(in srgb, var(--sidebar-text, #e2e8f0) 16%, transparent);
+    }
+
+    .sidebar-nav-active {
+        background: var(--brand-primary, #6d4aff);
+        border: 1px solid transparent;
+        box-shadow: 0 8px 18px color-mix(in srgb, var(--brand-primary, #6d4aff) 28%, transparent);
     }
 
     .bg-sidebar .text-slate-200,
