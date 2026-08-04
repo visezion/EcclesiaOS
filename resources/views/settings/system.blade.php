@@ -206,6 +206,28 @@
                                     <label class="space-y-1 text-xs font-medium text-slate-500">Font Style<select name="font_family" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">@foreach (['Inter', 'Roboto', 'Lato', 'Nunito Sans', 'System UI'] as $value)<option value="{{ $value }}" @selected(old('font_family', $settings['font_family']) === $value)>{{ $value }}</option>@endforeach</select></label>
                                     <label class="space-y-1 text-xs font-medium text-slate-500">Email Branding<select name="email_template_branding" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">@foreach (['Use Custom Branding', 'Use Default Branding', 'Minimal Branding'] as $value)<option value="{{ $value }}" @selected(old('email_template_branding', $settings['email_template_branding']) === $value)>{{ $value }}</option>@endforeach</select></label>
                                 </div>
+                                <div
+                                    x-data="{ zoom: Number(@js((int) old('interface_zoom', $settings['interface_zoom'] ?? 80))) }"
+                                    class="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+                                >
+                                    <div class="flex items-center justify-between gap-4">
+                                        <div>
+                                            <div class="text-sm font-semibold text-slate-800">Interface zoom</div>
+                                            <div class="mt-0.5 text-xs font-normal text-slate-500">Adjust the size of the entire system for all users.</div>
+                                        </div>
+                                        <output class="min-w-14 rounded-md bg-white px-2.5 py-1 text-center text-sm font-bold text-violet-700 shadow-sm" x-text="zoom + '%'"></output>
+                                    </div>
+                                    <input
+                                        name="interface_zoom"
+                                        type="range"
+                                        min="70"
+                                        max="120"
+                                        step="5"
+                                        x-model.number="zoom"
+                                        class="mt-3 w-full accent-violet-600"
+                                    >
+                                    <div class="mt-1 flex justify-between text-[10px] font-semibold text-slate-400"><span>70%</span><span>80% default</span><span>100%</span><span>120%</span></div>
+                                </div>
                                 <label class="space-y-1 text-xs font-medium text-slate-500">
                                     Sidebar Background PNG
                                     <input name="sidebar_background" type="file" accept="image/png" class="block w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-violet-50 file:px-3 file:py-1 file:text-xs file:font-medium file:text-violet-700">

@@ -31,6 +31,20 @@ class ProfileSecurityTest extends TestCase
             ->assertSee($user->avatar_src, false);
     }
 
+    public function test_profile_displays_same_day_password_change_as_today(): void
+    {
+        $user = User::factory()->create(['password_changed_at' => now()->subMinutes(10)]);
+
+        $this->actingAs($user)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('Last changed today')
+            ->assertSee('Not assessed')
+            ->assertSee('Strength will be assessed the next time you update your password.')
+            ->assertDontSee('Your password is strong')
+            ->assertDontSee('0.000');
+    }
+
     public function test_profile_can_be_updated(): void
     {
         $user = User::factory()->create();
@@ -59,8 +73,38 @@ class ProfileSecurityTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertTrue(Hash::check('NewPassword!234', $user->fresh()->password));
+        $user->refresh();
+
+        $this->assertTrue(Hash::check('NewPassword!234', $user->password));
+        $this->assertSame('Strong', data_get($user->account_settings, 'security.password_strength.label'));
+        $this->assertSame(4, data_get($user->account_settings, 'security.password_strength.score'));
         $this->assertDatabaseHas('activity_logs', ['action' => 'password_changed']);
+
+        $this->actingAs($user)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('Your password meets all strong password requirements.');
+    }
+
+    public function test_weak_password_is_rejected_from_profile(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->put(route('profile.password'), [
+                'current_password' => 'password',
+                'password' => 'weakpassword',
+                'password_confirmation' => 'weakpassword',
+            ])
+            ->assertRedirect(route('profile.edit'))
+            ->assertSessionHasErrors('password');
+
+        $user->refresh();
+
+        $this->assertTrue(Hash::check('password', $user->password));
+        $this->assertNull(data_get($user->account_settings, 'security.password_strength'));
+        $this->assertDatabaseMissing('activity_logs', ['action' => 'password_changed']);
     }
 
     public function test_profile_avatar_can_be_uploaded(): void
@@ -179,6 +223,28 @@ class ProfileSecurityTest extends TestCase
 
         $this->assertSame(1, $user->fresh()->unreadNotifications()->count());
         $this->assertDatabaseHas('activity_logs', ['action' => 'test_notification_sent']);
+    }
+
+    public function test_opening_an_account_notification_marks_it_read_and_removes_it_from_topbar_count(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('account.settings.test-notification'))
+            ->assertRedirect();
+
+        $notification = $user->fresh()->unreadNotifications()->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('account.notifications.open', $notification->id))
+            ->assertRedirect(route('account.settings').'#notifications');
+
+        $this->assertNotNull($notification->fresh()->read_at);
+
+        $this->actingAs($user)
+            ->getJson(route('topbar.counts'))
+            ->assertOk()
+            ->assertJsonPath('notifications', 0);
     }
 
     public function test_authenticator_mfa_can_be_setup_with_scan_code_and_recovery_codes(): void

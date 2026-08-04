@@ -87,7 +87,7 @@
                         @php
                             $databaseData = is_array($databaseNotification->data) ? $databaseNotification->data : [];
                         @endphp
-                        <a href="{{ $databaseData['url'] ?? route('communications.notifications') }}" class="flex items-start gap-3 px-4 py-3 hover:bg-violet-50 {{ $databaseNotification->read_at ? '' : 'bg-violet-50/40' }}">
+                        <a href="{{ route('account.notifications.open', $databaseNotification->id) }}" class="flex items-start gap-3 px-4 py-3 hover:bg-violet-50 {{ $databaseNotification->read_at ? '' : 'bg-violet-50/40' }}">
                             <span class="mt-1.5 size-2 shrink-0 rounded-full {{ $databaseNotification->read_at ? 'border border-slate-300' : 'bg-violet-600' }}"></span>
                             <span class="min-w-0 flex-1">
                                 <span class="block text-sm font-medium text-slate-800">{{ $databaseData['title'] ?? 'Notification' }}</span>

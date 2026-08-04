@@ -23,8 +23,33 @@
         ];
         $completedFields = collect($profileFields)->filter(fn ($value) => filled($value))->count();
         $completion = (int) round(($completedFields / count($profileFields)) * 100);
-        $passwordAge = $user->password_changed_at ? $user->password_changed_at->diffInDays(now()) : null;
-        $passwordStrength = $passwordAge !== null && $passwordAge <= 90 ? 'Strong' : 'Review';
+        $passwordAge = $user->password_changed_at
+            ? (int) $user->password_changed_at->copy()->startOfDay()->diffInDays(now()->startOfDay())
+            : null;
+        $passwordAgeLabel = match ($passwordAge) {
+            null => 'N/A',
+            0 => 'today',
+            1 => '1 day ago',
+            default => number_format($passwordAge).' days ago',
+        };
+        $storedPasswordStrength = data_get($user->account_settings, 'security.password_strength');
+        $passwordStrength = is_array($storedPasswordStrength)
+            ? ($storedPasswordStrength['label'] ?? 'Not assessed')
+            : 'Not assessed';
+        $passwordStrengthScore = is_array($storedPasswordStrength)
+            ? min(4, max(0, (int) ($storedPasswordStrength['score'] ?? 0)))
+            : 0;
+        $passwordStrengthClasses = match ($passwordStrength) {
+            'Strong' => 'bg-emerald-100 text-emerald-700',
+            'Fair' => 'bg-amber-100 text-amber-700',
+            'Weak' => 'bg-rose-100 text-rose-700',
+            default => 'bg-slate-100 text-slate-600',
+        };
+        $passwordStrengthMessage = match ($passwordStrength) {
+            'Strong' => 'Your password meets all strong password requirements.',
+            'Fair', 'Weak' => 'Your password should be updated to meet the strong password requirements.',
+            default => 'Strength will be assessed the next time you update your password.',
+        };
         $sessionCount = max($activeSessions->count(), 1);
         $avatarFallback = Str::of($user->name)->explode(' ')->map(fn ($part) => Str::substr($part, 0, 1))->take(2)->join('');
         $tabs = [
@@ -47,7 +72,7 @@
         $adminCampuses = collect($campuses ?? []);
     @endphp
 
-    <div x-data="profilePage(@js(request()->boolean('edit')))" class="space-y-4">
+    <div x-data="profilePage(@js(request()->boolean('edit')), @js($errors->has('password') || $errors->has('password_confirmation') || $errors->has('current_password')))" class="space-y-4">
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="flex items-center gap-3">
                 <h1 class="text-xl font-black text-slate-950">User Profile</h1>
@@ -233,7 +258,7 @@
                         <button type="button" @click="passwordOpen = true" class="text-xs font-bold text-violet-600">Manage</button>
                     </div>
                     <dl class="space-y-4 text-sm">
-                        <div class="grid grid-cols-[150px_1fr_auto] gap-3"><dt class="text-slate-500">Password</dt><dd class="font-bold text-slate-950">Last changed {{ $passwordAge !== null ? $passwordAge.' days ago' : 'N/A' }}</dd><dd><span class="rounded-md bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">{{ $passwordStrength }}</span></dd></div>
+                        <div class="grid grid-cols-[150px_1fr_auto] gap-3"><dt class="text-slate-500">Password</dt><dd class="font-bold text-slate-950">Last changed {{ $passwordAgeLabel }}</dd><dd><span class="rounded-md px-3 py-1 text-xs font-black {{ $passwordStrengthClasses }}">{{ $passwordStrength }}</span></dd></div>
                         <div class="grid grid-cols-[150px_1fr_auto] gap-3"><dt class="text-slate-500">Two-Factor Authentication</dt><dd class="font-bold text-slate-950">{{ $user->mfa_enabled ? 'Enabled' : 'Disabled' }}</dd><dd><span class="rounded-md {{ $user->mfa_enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }} px-3 py-1 text-xs font-black">{{ $user->mfa_enabled ? 'Active' : 'Inactive' }}</span></dd></div>
                         <div class="grid grid-cols-[150px_1fr] gap-3"><dt class="text-slate-500">MFA Method</dt><dd class="font-bold text-slate-950">{{ $user->mfa_enabled ? 'Authenticator App (Google Authenticator)' : 'Not configured' }}</dd></div>
                         <div class="grid grid-cols-[150px_1fr_auto] gap-3"><dt class="text-slate-500">Recovery Email</dt><dd class="break-all font-bold text-slate-950">{{ $user->recovery_email ?? 'N/A' }}</dd><dd><span class="rounded-md bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">Verified</span></dd></div>
@@ -256,7 +281,7 @@
         <div x-show="tab === 'security'" class="grid gap-4 xl:grid-cols-2">
             <section class="dashboard-card">
                 <div class="mb-4 flex items-center justify-between"><h2 class="text-base font-black text-slate-950">Password Update</h2><button type="button" @click="passwordOpen = true" class="text-xs font-bold text-violet-600">Update Password</button></div>
-                <p class="text-sm text-slate-500">Password last changed {{ $passwordAge !== null ? $passwordAge.' days ago' : 'N/A' }}.</p>
+                <p class="text-sm text-slate-500">Password last changed {{ $passwordAgeLabel }}.</p>
             </section>
             <section class="dashboard-card">
                 <div class="mb-4 flex items-center justify-between"><h2 class="text-base font-black text-slate-950">Recovery Settings</h2><button type="button" @click="editOpen = true" class="text-xs font-bold text-violet-600">Edit</button></div>
@@ -303,13 +328,13 @@
                     <button type="button" @click="passwordOpen = true" class="text-xs font-bold text-violet-600">Update Password</button>
                 </div>
                 <div class="text-sm text-slate-500">Last changed</div>
-                <div class="mt-1 font-black text-slate-950">{{ $user->password_changed_at?->format('F d, Y') ?? 'N/A' }} {{ $passwordAge !== null ? '('.$passwordAge.' days ago)' : '' }}</div>
+                <div class="mt-1 font-black text-slate-950">{{ $user->password_changed_at?->format('F d, Y') ?? 'N/A' }} {{ $passwordAge !== null ? '('.$passwordAgeLabel.')' : '' }}</div>
                 <div class="mt-6 flex gap-2">
-                    <span class="h-2 flex-1 rounded-full bg-emerald-600"></span>
-                    <span class="h-2 flex-1 rounded-full bg-emerald-600"></span>
-                    <span class="h-2 flex-1 rounded-full bg-emerald-600"></span>
+                    @foreach (range(1, 4) as $segment)
+                        <span class="h-2 flex-1 rounded-full {{ $passwordStrengthScore >= $segment ? 'bg-emerald-600' : 'bg-slate-200' }}"></span>
+                    @endforeach
                 </div>
-                <p class="mt-4 text-sm font-semibold text-emerald-600">Your password is strong. Great job!</p>
+                <p class="mt-4 text-sm font-semibold {{ $passwordStrength === 'Strong' ? 'text-emerald-600' : 'text-slate-600' }}">{{ $passwordStrengthMessage }}</p>
             </section>
 
             <section class="dashboard-card">
@@ -412,7 +437,19 @@
                     @if ($passwordRequiresCurrent)
                         <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Current Password<input name="current_password" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" required></label>
                     @endif
-                    <label class="space-y-1 text-xs font-bold uppercase text-slate-500">New Password<input name="password" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" required></label>
+                    <label class="space-y-1 text-xs font-bold uppercase text-slate-500">New Password<input name="password" x-model="newPassword" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" required></label>
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 normal-case">
+                        <div class="flex items-center justify-between text-xs font-bold">
+                            <span class="text-slate-600">Password strength</span>
+                            <span :class="passwordStrengthClass" x-text="passwordStrengthLabel"></span>
+                        </div>
+                        <div class="mt-2 flex gap-1.5">
+                            <template x-for="segment in 4" :key="segment">
+                                <span class="h-1.5 flex-1 rounded-full" :class="passwordStrengthScore >= segment ? passwordStrengthBarClass : 'bg-slate-200'"></span>
+                            </template>
+                        </div>
+                        <p class="mt-2 text-xs font-medium text-slate-500">Use at least 12 characters with uppercase, lowercase, a number, and a symbol.</p>
+                    </div>
                     <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Confirm New Password<input name="password_confirmation" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" required></label>
                     <div class="flex justify-end gap-3 border-t border-slate-100 pt-4">
                         <button type="button" @click="passwordOpen = false" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">Cancel</button>

@@ -374,6 +374,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('account/settings', [AccountSettingsController::class, 'edit'])->name('account.settings');
     Route::put('account/settings', [AccountSettingsController::class, 'update'])->name('account.settings.update');
     Route::post('account/settings/test-notification', [AccountSettingsController::class, 'testNotification'])->name('account.settings.test-notification');
+    Route::get('account/notifications/{notification}/open', [AccountSettingsController::class, 'openNotification'])->name('account.notifications.open');
     Route::get('account/mfa/setup', [AccountSettingsController::class, 'mfaSetup'])->name('account.mfa.setup');
     Route::post('account/mfa/confirm', [AccountSettingsController::class, 'confirmMfa'])->name('account.mfa.confirm');
     Route::post('account/mfa/recovery-codes', [AccountSettingsController::class, 'regenerateRecoveryCodes'])->name('account.mfa.recovery-codes');

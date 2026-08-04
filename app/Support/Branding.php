@@ -50,6 +50,11 @@ final class Branding
         return (string) (data_get($this->settings, 'subtitle') ?: config('church.subtitle', 'Enterprise Church Management System'));
     }
 
+    public function interfaceZoom(): int
+    {
+        return min(120, max(70, (int) data_get($this->settings, 'interface_zoom', 80)));
+    }
+
     public function logo(): ?string
     {
         return $this->assetPath(data_get($this->settings, 'logo') ?: config('church.logo'));

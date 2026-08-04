@@ -2,6 +2,92 @@
 
 EcclesiaOS uses GitHub Releases as the authoritative changelog for deployed application versions.
 
+## 1.0.19 - 2026-08-04
+
+### Highlights
+
+- Added a global administrator-controlled interface zoom setting for consistent sizing across the application.
+- Replaced the profile's estimated password status with real password-strength enforcement, live feedback, and honest assessment state.
+- Improved dashboard cards and the Calendar, Meetings, Events, and Children & Youth pages for phones, tablets, laptops, and wide displays.
+- Made account notifications mark themselves as read when opened and disappear from the topbar unread count.
+
+### Added
+
+- Added an Interface Zoom control under Branding & Appearance with validated values from 70% through 120% in 5% steps.
+- Applied the configured zoom to authenticated layouts, login and authentication screens, and public branded pages.
+- Added live password-strength feedback to the profile password form.
+- Added server-side strong-password requirements: at least 12 characters with uppercase, lowercase, number, and symbol.
+- Added stored password-strength assessment metadata after a successful password change without storing plaintext passwords.
+- Added a secure account-notification redirect endpoint that marks owned notifications as read before opening their destination.
+- Added reusable responsive page headers, action groups, statistic grids, filter grids, content/sidebar layouts, and touch-friendly table containers.
+- Added a compact agenda presentation for the Calendar on mobile screens.
+
+### Improved
+
+- Made the sidebar use the exact configured solid background color without color mixing.
+- Replaced fractional password-age output with calendar-day labels such as `today`, `1 day ago`, and `N days ago`.
+- Reopened the password dialog automatically after password validation errors.
+- Made dashboard statistic cards automatically reflow, keep equal row heights, wrap long content, and resize icons and values.
+- Made negative dashboard changes use a red downward indicator and neutral changes use a neutral indicator.
+- Made page actions, filters, statistic cards, side panels, forms, and tables adapt across screen sizes and interface zoom levels.
+- Moved secondary panels below primary content until enough desktop width is available.
+- Made Children & Youth create and edit headers stack correctly on narrow screens.
+
+### Fixed
+
+- Fixed account notifications remaining visible in the topbar after the user opened them.
+- Fixed recently changed passwords being incorrectly labeled `Strong` based only on password age.
+- Fixed legacy passwords being presented as assessed when their strength cannot be recovered from a secure password hash.
+- Fixed fractional password ages such as `0.00022562989583333 days ago`.
+- Fixed dashboard cards becoming cramped or overflowing at different viewport widths.
+- Fixed negative growth values displaying a green upward arrow.
+- Fixed Calendar forcing a wide desktop month grid on phones.
+- Fixed rigid filter columns and early sidebar splits making Meetings, Events, and Children & Youth pages cramped.
+
+### Removed
+
+- Removed the Active Volunteers summary card from the dashboard while retaining the Volunteers module and page.
+
+### Security
+
+- Prevented open redirects from account notification destinations by allowing only local application URLs.
+- Enforced strong passwords on profile password updates using server-side validation.
+- Continued storing only password hashes and non-sensitive strength metadata.
+
+### Deployment and compatibility
+
+- Direct upgrades remain supported from `1.0.0` and later.
+- This release contains no database migration.
+- Production assets are rebuilt by the release workflow and packaged with the required update manifest and checksum.
+
+### Full Changelog
+
+- Account notifications now mark themselves as read when clicked from the topbar or Communications notification list.
+- Read notifications are immediately removed from the topbar unread notification count.
+- Notification redirects are restricted to safe local destinations with an Account Settings fallback.
+- Password age is calculated by calendar day instead of fractional elapsed days.
+- Existing passwords without an assessment now display `Not assessed` instead of an unsupported strength claim.
+- Profile password changes require at least 12 characters, mixed case, a number, and a symbol.
+- The password form provides a live four-stage strength meter and requirement guidance.
+- Successful password changes store only the verified label, score, and assessment time.
+- Failed password validation automatically reopens the password dialog.
+- The sidebar background uses the exact selected solid color.
+- Branding & Appearance includes a global Interface Zoom slider from 70% to 120%.
+- The configured interface zoom is applied consistently to application, authentication, landing, and feature pages.
+- The dashboard Active Volunteers card and its unnecessary summary query were removed.
+- Dashboard cache versioning was advanced so the removed card disappears immediately.
+- Dashboard summary cards use a fluid auto-fitting grid and equal card heights.
+- Long statistic labels, values, and comparison text wrap without overlap.
+- Negative and neutral dashboard changes now use semantically correct icons and colors.
+- Calendar statistic cards, headers, actions, and side content now reflow responsively.
+- Calendar uses a touch-friendly agenda on phones and preserves the month grid on larger displays.
+- Meetings headers, actions, filters, tables, and provider panels now adapt to available width.
+- Events headers, actions, filters, tables, event details, and side content now adapt to available width.
+- Children & Youth statistics, filters, register, inline editor, add panel, and age-group panel now adapt to available width.
+- Children & Youth create and edit page headers now stack correctly on narrow screens.
+- Wide data tables retain full desktop data while supporting contained momentum scrolling on intermediate widths.
+- Added and expanded automated coverage for notifications, password age, password strength, interface zoom, dashboard metrics, and responsive rendering hooks.
+
 ## 1.0.18 - 2026-08-04
 
 ### Highlights

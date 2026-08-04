@@ -63,17 +63,31 @@ final class ProfileController extends Controller
     {
         $validated = $request->validate([
             'current_password' => ['required', 'current_password'],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'password' => [
+                'required',
+                'confirmed',
+                Rules\Password::min(12)->mixedCase()->numbers()->symbols(),
+            ],
         ]);
 
-        $request->user()->update([
+        $user = $request->user();
+        $settings = $user->account_settings ?? [];
+
+        data_set($settings, 'security.password_strength', [
+            'label' => 'Strong',
+            'score' => 4,
+            'assessed_at' => now()->toIso8601String(),
+        ]);
+
+        $user->forceFill([
             'password' => $validated['password'],
             'password_changed_at' => now(),
-        ]);
+            'account_settings' => $settings,
+        ])->save();
 
-        $activityLogger->log('Profile', 'password_changed', 'User changed their password.', $request->user(), request: $request);
+        $activityLogger->log('Profile', 'password_changed', 'User changed their password.', $user, request: $request);
 
-        return back()->with('password_status', 'Password updated.');
+        return back()->with('password_status', 'Password updated. It meets all strong password requirements.');
     }
 
     public function impersonate(Request $request, ActivityLogger $activityLogger): RedirectResponse

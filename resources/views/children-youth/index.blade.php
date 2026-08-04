@@ -1,11 +1,11 @@
 <x-app-layout title="Child & Youth" :breadcrumbs="$breadcrumbs">
     <div class="space-y-5">
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div class="flex items-center gap-4">
-                <div class="grid size-14 place-items-center rounded-xl bg-sky-100 text-sky-600"><i data-lucide="baby" class="size-7"></i></div>
+        <div class="responsive-page-header">
+            <div class="responsive-page-title">
+                <div class="grid size-12 shrink-0 place-items-center rounded-xl bg-sky-100 text-sky-600 sm:size-14"><i data-lucide="baby" class="size-7"></i></div>
                 <div><h1 class="text-2xl font-semibold text-slate-950">Child & Youth</h1><p class="text-sm text-slate-500">Manage child and youth records, guardian contacts, consent, medical notes, and check-in state.</p></div>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="responsive-page-actions">
                 <a href="{{ route('children-youth.overview') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><i data-lucide="layout-dashboard" class="size-4"></i>Overview</a>
                 <a href="{{ route('children-youth.create') }}" class="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white"><i data-lucide="plus" class="size-4"></i>Add Record</a>
                 <a href="{{ route('children-youth.export', request()->query()) }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><i data-lucide="download" class="size-4"></i>Export</a>
@@ -15,16 +15,16 @@
         @if (session('status'))<div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">{{ session('status') }}</div>@endif
         @if ($errors->any())<div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-700">{{ $errors->first() }}</div>@endif
 
-        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="responsive-stat-grid">
             <x-stat-card :metric="['label' => 'Active Records', 'value' => number_format($stats['total']), 'change' => null, 'period' => 'children and youth', 'icon' => 'users-round', 'color' => 'purple', 'route' => 'children-youth.index']" />
             <x-stat-card :metric="['label' => 'Checked In', 'value' => number_format($stats['checked_in']), 'change' => null, 'period' => 'currently present', 'icon' => 'clipboard-check', 'color' => 'emerald', 'route' => 'children-youth.index']" />
             <x-stat-card :metric="['label' => 'Consent Pending', 'value' => number_format($stats['consent_pending']), 'change' => null, 'period' => 'needs guardian action', 'icon' => 'file-warning', 'color' => 'orange', 'route' => 'children-youth.index']" />
             <x-stat-card :metric="['label' => 'Medical Notes', 'value' => number_format($stats['medical_notes']), 'change' => null, 'period' => 'safety records', 'icon' => 'heart-pulse', 'color' => 'rose', 'route' => 'children-youth.index']" />
         </div>
 
-        <div class="grid gap-4 xl:grid-cols-[1fr_390px]">
-            <main class="space-y-4">
-                <form method="GET" action="{{ route('children-youth.index') }}" class="dashboard-card grid gap-3 lg:grid-cols-[1fr_160px_170px_170px_170px_auto_auto]">
+        <div class="responsive-content-sidebar" style="--responsive-sidebar-width: 390px;">
+            <main class="min-w-0 space-y-4">
+                <form method="GET" action="{{ route('children-youth.index') }}" class="dashboard-card responsive-filter-grid">
                     <input name="q" value="{{ request('q') }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Search name, guardian, phone...">
                     <select name="age_group" class="h-10 rounded-lg border border-slate-200 px-3 text-sm"><option value="">Age Group</option>@foreach($ageGroups as $group)<option value="{{ $group }}" @selected(request('age_group') === $group)>{{ Str::headline($group) }}</option>@endforeach</select>
                     <select name="consent_status" class="h-10 rounded-lg border border-slate-200 px-3 text-sm"><option value="">Consent</option>@foreach($consentStatuses as $status)<option value="{{ $status }}" @selected(request('consent_status') === $status)>{{ Str::headline($status) }}</option>@endforeach</select>
@@ -36,7 +36,7 @@
 
                 <section class="dashboard-card p-0">
                     <div class="flex items-center justify-between border-b border-slate-100 p-4"><h2 class="text-base font-semibold text-slate-950">Children & Youth Register</h2><span class="text-sm font-semibold text-violet-600">{{ number_format($records->total()) }} records</span></div>
-                    <div class="overflow-x-auto">
+                    <div class="responsive-table-scroll">
                         <table class="table-compact min-w-[1100px]">
                             <thead><tr><th>Name</th><th>Age Group</th><th>{{ $terminology['campus_singular'] }}</th><th>Guardian</th><th>Consent</th><th>Check-in</th><th>Pickup</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
                             <tbody>

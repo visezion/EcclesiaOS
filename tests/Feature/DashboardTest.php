@@ -20,6 +20,8 @@ class DashboardTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Total Members')
+            ->assertSee('dashboard-stat-grid', false)
+            ->assertDontSee('repeat(auto-fit, minmax(220px, 1fr))', false)
             ->assertSee('Attendance Trend')
             ->assertSee('AI Insights &amp; Smart Recommendations', false);
     }

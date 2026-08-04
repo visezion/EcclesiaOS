@@ -30,9 +30,9 @@
     @endphp
 
     <div class="space-y-5">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div class="flex items-center gap-4">
-                <div class="grid size-14 place-items-center rounded-lg bg-violet-100 text-violet-600">
+        <div class="responsive-page-header">
+            <div class="responsive-page-title">
+                <div class="grid size-12 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-600 sm:size-14">
                     <i data-lucide="video" class="size-7"></i>
                 </div>
                 <div>
@@ -45,7 +45,7 @@
                     <p class="text-sm text-slate-500">Physical and built-in online meetings connected to sessions and attendance automation.</p>
                 </div>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="responsive-page-actions">
                 <a href="{{ route('meeting-integrations.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                     <i data-lucide="settings" class="size-4"></i>
                     Built-in Setup
@@ -57,7 +57,7 @@
             </div>
         </div>
 
-        <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section class="responsive-stat-grid">
             @foreach($statCards as $card)
                 <article class="dashboard-card">
                     <div class="flex items-center gap-3">
@@ -74,10 +74,10 @@
             @endforeach
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-[1fr_350px]">
+        <section class="responsive-content-sidebar" style="--responsive-sidebar-width: 350px;">
             <main class="space-y-4">
                 <form method="GET" action="{{ route('meetings.index') }}" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <div class="grid gap-3 xl:grid-cols-[1fr_180px_180px_auto_auto] xl:items-end">
+                    <div class="responsive-filter-grid">
                         <label class="text-sm text-slate-600">
                             Search Meetings
                             <span class="relative mt-1 block">
@@ -124,7 +124,7 @@
                             {{ $connectedIntegrations }} providers enabled
                         </span>
                     </div>
-                    <div class="overflow-x-auto">
+                    <div class="responsive-table-scroll">
                         <table class="w-full min-w-[1020px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500">
                                 <tr>

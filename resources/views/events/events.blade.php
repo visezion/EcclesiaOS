@@ -17,9 +17,9 @@
     @endphp
 
     <div x-data="{ createOpen: {{ $errors->any() ? 'true' : 'false' }} }" class="space-y-5">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div class="flex items-center gap-4">
-                <div class="grid size-14 place-items-center rounded-lg bg-violet-100 text-violet-600">
+        <div class="responsive-page-header">
+            <div class="responsive-page-title">
+                <div class="grid size-12 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-600 sm:size-14">
                     <i data-lucide="calendar-plus" class="size-7"></i>
                 </div>
                 <div>
@@ -32,7 +32,7 @@
                     <p class="text-sm text-slate-500">{{ $program?->description ?? 'Events grouped under programs with sessions, meetings, and attendance.' }}</p>
                 </div>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="responsive-page-actions">
                 <a href="{{ route('calendar.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                     <i data-lucide="calendar-days" class="size-4"></i>
                     Calendar
@@ -57,7 +57,7 @@
             <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ $errors->first() }}</div>
         @endif
 
-        <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section class="responsive-stat-grid">
             @foreach($statCards as $card)
                 <article class="dashboard-card">
                     <div class="flex items-center gap-3">
@@ -74,10 +74,10 @@
             @endforeach
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-[1fr_340px]">
+        <section class="responsive-content-sidebar" style="--responsive-sidebar-width: 340px;">
             <main class="space-y-4">
                 <form method="GET" action="{{ $program ? route('programs.events', $program) : route('events.index') }}" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <div class="grid gap-3 xl:grid-cols-[230px_1fr_170px_170px_auto_auto] xl:items-end">
+                    <div class="responsive-filter-grid">
                         <label class="text-sm text-slate-600">
                             Program
                             <select onchange="if(this.value) location.href=this.value" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
@@ -128,7 +128,7 @@
                             Database backed
                         </span>
                     </div>
-                    <div class="overflow-x-auto">
+                    <div class="responsive-table-scroll">
                         <table class="w-full min-w-[920px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500">
                                 <tr>

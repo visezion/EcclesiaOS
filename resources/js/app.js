@@ -852,12 +852,45 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    Alpine.data('profilePage', (openEdit = false) => ({
+    Alpine.data('profilePage', (openEdit = false, openPassword = false) => ({
         tab: 'overview',
         editOpen: Boolean(openEdit),
-        passwordOpen: false,
+        passwordOpen: Boolean(openPassword),
         actionOpen: false,
         avatarPreview: null,
+        newPassword: '',
+
+        get passwordStrengthScore() {
+            if (! this.newPassword) return 0;
+
+            return [
+                this.newPassword.length >= 12,
+                /[a-z]/.test(this.newPassword) && /[A-Z]/.test(this.newPassword),
+                /\d/.test(this.newPassword),
+                /[^A-Za-z0-9]/.test(this.newPassword),
+            ].filter(Boolean).length;
+        },
+
+        get passwordStrengthLabel() {
+            if (this.passwordStrengthScore === 4) return 'Strong';
+            if (this.passwordStrengthScore >= 2) return 'Needs improvement';
+
+            return this.newPassword ? 'Weak' : 'Not entered';
+        },
+
+        get passwordStrengthClass() {
+            if (this.passwordStrengthScore === 4) return 'text-emerald-600';
+            if (this.passwordStrengthScore >= 2) return 'text-amber-600';
+
+            return this.newPassword ? 'text-rose-600' : 'text-slate-500';
+        },
+
+        get passwordStrengthBarClass() {
+            if (this.passwordStrengthScore === 4) return 'bg-emerald-600';
+            if (this.passwordStrengthScore >= 2) return 'bg-amber-500';
+
+            return 'bg-rose-600';
+        },
 
         previewAvatar(event) {
             const file = event.target.files?.[0];

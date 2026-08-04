@@ -76,7 +76,7 @@
                             @php
                                 $notificationData = is_array($notification->data) ? $notification->data : [];
                             @endphp
-                            <a href="{{ $notificationData['url'] ?? $notificationUrl }}" class="block border-b border-slate-50 px-3 py-3 last:border-0 hover:bg-violet-50">
+                            <a href="{{ route('account.notifications.open', $notification->id) }}" class="block border-b border-slate-50 px-3 py-3 last:border-0 hover:bg-violet-50">
                                 <div class="flex items-start gap-2">
                                     <span class="mt-1 size-2 shrink-0 rounded-full bg-violet-600"></span>
                                     <div class="min-w-0">

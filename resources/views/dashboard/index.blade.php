@@ -27,7 +27,7 @@
         ])->filter()->count();
     @endphp
 
-    <div class="grid gap-4" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+    <div class="dashboard-stat-grid">
         @foreach ($summaryMetrics as $metric)
             <x-stat-card :metric="$metric" />
         @endforeach

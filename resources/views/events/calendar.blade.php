@@ -3,6 +3,7 @@
         $start = $month->copy()->startOfMonth()->startOfWeek();
         $end = $month->copy()->endOfMonth()->endOfWeek();
         $monthSessions = collect($monthSessions ?? []);
+        $calendarAgenda = $monthSessions->sortBy(fn ($session) => $session->session_date->format('Y-m-d').' '.$session->starts_at);
         $today = now()->toDateString();
         $upcoming = $monthSessions->filter(fn ($session) => $session->session_date->gte(now()->startOfDay()))->sortBy(['session_date', 'starts_at'])->take(6);
         $statCards = [
@@ -19,9 +20,9 @@
     @endphp
 
     <div class="space-y-5">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div class="flex items-center gap-4">
-                <div class="grid size-14 place-items-center rounded-lg bg-violet-100 text-violet-600">
+        <div class="responsive-page-header">
+            <div class="responsive-page-title">
+                <div class="grid size-12 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-600 sm:size-14">
                     <i data-lucide="calendar-days" class="size-7"></i>
                 </div>
                 <div>
@@ -34,7 +35,7 @@
                     <p class="text-sm text-slate-500">All event sessions, meetings, venue bookings, and attendance windows from one shared source.</p>
                 </div>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="responsive-page-actions">
                 <a href="{{ route('calendar.index', ['month' => now()->format('Y-m-01')]) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                     <i data-lucide="calendar-check" class="size-4"></i>
                     Today
@@ -48,7 +49,7 @@
             </div>
         </div>
 
-        <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section class="responsive-stat-grid">
             @foreach($statCards as $card)
                 <article class="dashboard-card">
                     <div class="flex items-center gap-3">
@@ -65,7 +66,7 @@
             @endforeach
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <section class="responsive-content-sidebar" style="--responsive-sidebar-width: 360px;">
             <main class="rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div class="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
@@ -78,13 +79,36 @@
                         <span class="inline-flex items-center gap-1.5"><i class="size-2.5 rounded-full bg-emerald-500"></i>Attendance</span>
                     </div>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="divide-y divide-slate-100 md:hidden">
+                    @forelse($calendarAgenda as $session)
+                        @php
+                            $sessionType = $typeTone[$session->meeting_type] ?? $typeTone['physical'];
+                        @endphp
+                        <a href="{{ route('event-sessions.meeting', $session) }}" class="flex items-start gap-3 p-4 hover:bg-slate-50">
+                            <span class="grid w-12 shrink-0 place-items-center rounded-lg bg-violet-50 px-2 py-2 text-center text-violet-700">
+                                <span class="text-[10px] font-semibold uppercase">{{ $session->session_date->format('M') }}</span>
+                                <span class="text-lg font-semibold leading-none">{{ $session->session_date->format('d') }}</span>
+                            </span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block font-medium text-slate-950">{{ $session->title }}</span>
+                                <span class="mt-1 block text-xs text-slate-500">{{ Str::of($session->starts_at)->substr(0,5) }}{{ $session->ends_at ? ' - '.Str::of($session->ends_at)->substr(0,5) : '' }} · {{ $session->venue ?: Str::headline($session->meeting_type) }}</span>
+                                <span class="mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] ring-1 {{ $sessionType }}">{{ Str::headline($session->meeting_type) }}</span>
+                            </span>
+                            <i data-lucide="chevron-right" class="mt-2 size-4 shrink-0 text-slate-400"></i>
+                        </a>
+                    @empty
+                        <div class="p-6 text-center text-sm text-slate-500">No sessions scheduled for this month.</div>
+                    @endforelse
+                </div>
+                <div class="responsive-table-scroll hidden md:block">
                     <div class="grid min-w-[980px] grid-cols-7 text-sm">
                         @foreach(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] as $day)
                             <div class="border-b border-slate-200 bg-slate-50 p-3 text-center text-xs uppercase text-slate-500">{{ $day }}</div>
                         @endforeach
                         @for($date = $start->copy(); $date->lte($end); $date->addDay())
-                            @php $daySessions = $sessionsByDate[$date->toDateString()] ?? collect(); @endphp
+                            @php
+                                $daySessions = $sessionsByDate[$date->toDateString()] ?? collect();
+                            @endphp
                             <div class="min-h-36 border-b border-r border-slate-100 p-2 {{ $date->month !== $month->month ? 'bg-slate-50/70 text-slate-400' : 'bg-white' }}">
                                 <div class="mb-2 flex items-center justify-between">
                                     <span class="grid size-7 place-items-center rounded-full text-xs {{ $date->toDateString() === $today ? 'bg-violet-600 text-white' : 'text-slate-600' }}">{{ $date->format('j') }}</span>

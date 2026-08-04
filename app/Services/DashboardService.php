@@ -22,7 +22,6 @@ use App\Models\Ministry;
 use App\Models\PrayerRequest;
 use App\Models\Staff;
 use App\Models\User;
-use App\Models\Volunteer;
 use App\Support\ModuleRegistry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -100,7 +99,7 @@ final class DashboardService
             $permissions,
         ]);
 
-        return 'dashboard:v2:'.hash('sha256', $fingerprint);
+        return 'dashboard:v3:'.hash('sha256', $fingerprint);
     }
 
     public function getSummaryMetrics(): array
@@ -113,7 +112,6 @@ final class DashboardService
             ->pluck('total')
             ->avg() ?? 0));
         $givingTotal = $this->query(Donation::class)->whereMonth('received_at', now()->month)->sum('amount');
-        $volunteers = $this->query(Volunteer::class)->where('status', 'active')->count();
         $events = $this->query(Event::class)->where('starts_at', '>=', now())->count();
         $bookstoreRevenue = $this->query(BookstoreOrder::class)->whereMonth('ordered_at', now()->month)->sum('total_amount');
         $assetHealth = $this->assetHealthScore();
@@ -122,7 +120,6 @@ final class DashboardService
             ['label' => 'Total Members', 'value' => Number::format($memberCount), 'change' => $this->growth($this->query(Member::class), 'created_at'), 'period' => 'vs last month', 'icon' => 'users', 'color' => 'purple', 'route' => 'members.index'],
             ['label' => 'Avg. Attendance', 'value' => Number::format($attendanceAverage), 'change' => $this->attendanceGrowth(), 'period' => 'vs last month', 'icon' => 'users-round', 'color' => 'emerald', 'route' => 'attendance.index'],
             ['label' => 'Total Giving (Month)', 'value' => Number::currency((float) $givingTotal, $currency), 'change' => $this->moneyGrowth($this->query(Donation::class), 'received_at', 'amount'), 'period' => 'vs last month', 'icon' => 'heart', 'color' => 'rose', 'route' => 'finance.index', 'sensitive_finance' => true],
-            ['label' => 'Active Volunteers', 'value' => Number::format($volunteers), 'change' => $this->growth($this->query(Volunteer::class)->where('status', 'active'), 'created_at'), 'period' => 'vs last month', 'icon' => 'hand-heart', 'color' => 'indigo', 'route' => 'volunteers.index'],
             ['label' => 'Upcoming Events', 'value' => Number::format($events), 'change' => null, 'period' => 'Next: '.($this->query(Event::class)->where('starts_at', '>=', now())->orderBy('starts_at')->value('title') ?? 'None scheduled'), 'icon' => 'calendar-days', 'color' => 'orange', 'route' => 'events.index'],
             ['label' => 'Book Store Revenue', 'value' => Number::currency((float) $bookstoreRevenue, $currency), 'change' => $this->moneyGrowth($this->query(BookstoreOrder::class), 'ordered_at', 'total_amount'), 'period' => 'this month', 'icon' => 'book-open', 'color' => 'amber', 'route' => 'bookstore.index'],
             ['label' => 'Asset Health Score', 'value' => $assetHealth.'/100', 'change' => null, 'period' => $assetHealth >= 80 ? 'Good' : 'Needs attention', 'icon' => 'shield-check', 'color' => 'teal', 'route' => 'assets.index'],

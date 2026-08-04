@@ -131,6 +131,29 @@ final class AccountSettingsController extends Controller
         return back()->with('status', 'Test notification created.');
     }
 
+    public function openNotification(Request $request, string $notification): RedirectResponse
+    {
+        $databaseNotification = $request->user()
+            ->notifications()
+            ->whereKey($notification)
+            ->firstOrFail();
+
+        $databaseNotification->markAsRead();
+
+        $destination = data_get($databaseNotification->data, 'url');
+        $fallback = route('account.settings').'#notifications';
+
+        if (! is_string($destination) || $destination === '') {
+            return redirect()->to($fallback);
+        }
+
+        $applicationUrl = rtrim(url('/'), '/');
+        $isApplicationUrl = $destination === $applicationUrl || Str::startsWith($destination, $applicationUrl.'/');
+        $isRelativeUrl = Str::startsWith($destination, '/') && ! Str::startsWith($destination, '//');
+
+        return redirect()->to($isApplicationUrl || $isRelativeUrl ? $destination : $fallback);
+    }
+
     public function mfaSetup(Request $request, TotpService $totpService): View
     {
         $user = $request->user();

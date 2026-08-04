@@ -9,6 +9,8 @@
         ->filter(fn (array $item): bool => $canAccessNavigationItem($item) || collect($item['children'] ?? [])->contains($canAccessNavigationItem))
         ->all();
     $sections = collect($items)->groupBy(fn (array $item): string => $item['section'] ?? 'Other');
+    $configuredSidebarColor = (string) data_get($branding->settings, 'sidebar_middle_color', '#082851');
+    $sidebarBackgroundColor = preg_match('/^#[0-9A-Fa-f]{6}$/', $configuredSidebarColor) ? $configuredSidebarColor : '#082851';
     $colorfulSidebarIcons = (bool) data_get($branding->settings, 'sidebar_colorful_icons', false);
     $sidebarIconTones = [
         'dashboard' => 'text-violet-500',
@@ -87,7 +89,7 @@
 <aside
     x-bind:class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
     class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col overflow-hidden bg-sidebar text-white shadow-lg transition-transform duration-200 lg:translate-x-0"
-    style="background-color: var(--sidebar-mid); background-image: none;"
+    style="background-color: {{ $sidebarBackgroundColor }} !important; background-image: none !important;"
 >
     <nav class="relative z-10 min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-5">
         <div class="-mx-3 mb-4 flex items-center gap-3 border-b border-white/10 px-5 py-3">

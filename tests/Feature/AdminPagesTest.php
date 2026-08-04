@@ -299,6 +299,7 @@ class AdminPagesTest extends TestCase
                 'theme_mode' => 'dark',
                 'font_family' => 'Roboto',
                 'font_scale' => 'comfortable',
+                'interface_zoom' => 95,
                 'page_background' => '#EEF2FF',
                 'sidebar_start_color' => '#111827',
                 'sidebar_middle_color' => '#1E3A8A',
@@ -322,6 +323,7 @@ class AdminPagesTest extends TestCase
         $this->assertSame('#0EA5E9', data_get($church->settings, 'primary_color'));
         $this->assertSame('dark', data_get($church->settings, 'theme_mode'));
         $this->assertSame('Roboto', data_get($church->settings, 'font_family'));
+        $this->assertSame(95, data_get($church->settings, 'interface_zoom'));
         $this->assertTrue(data_get($church->settings, 'sidebar_colorful_icons'));
         $this->assertSame('Branch', data_get($church->settings, 'campus_singular_label'));
         $this->assertSame('Departments', data_get($church->settings, 'ministry_plural_label'));
@@ -333,6 +335,7 @@ class AdminPagesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
+            ->assertSee('style="font-size: 95%;"', false)
             ->assertSee('Churches &amp; Branches', false)
             ->assertSee('text-sky-500', false);
 
@@ -1228,6 +1231,7 @@ class AdminPagesTest extends TestCase
             'card_radius' => 8,
             'font_family' => 'Inter',
             'font_scale' => 'default',
+            'interface_zoom' => 80,
             'theme_mode' => 'light',
             'sidebar_start_color' => '#061633',
             'sidebar_middle_color' => '#082851',
