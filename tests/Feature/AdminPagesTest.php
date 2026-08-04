@@ -433,7 +433,11 @@ class AdminPagesTest extends TestCase
             ->assertSee('data-chart="doughnut"', false)
             ->assertSee('data-colors=', false)
             ->assertSee('conic-gradient(', false)
-            ->assertSee('data-lucide="map-pin"', false);
+            ->assertSee('data-lucide="map-pin"', false)
+            ->assertSee('x-on:click="openCampusEditor(', false)
+            ->assertSee('x-on:click="openChurchEditor(', false)
+            ->assertDontSee('x-on:click="openCampusEditor(JSON.parse(', false)
+            ->assertDontSee('x-on:click="openChurchEditor(JSON.parse(', false);
     }
 
     public function test_administrator_can_create_campus_from_directory(): void

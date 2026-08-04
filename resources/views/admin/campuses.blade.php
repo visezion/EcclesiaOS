@@ -52,12 +52,32 @@
             'role_ids' => $user->roles->pluck('id')->values(),
             'search' => strtolower($user->name.' '.$user->email.' '.$user->phone),
         ])->values();
+        $campusEditorRecords = $campuses->mapWithKeys(fn ($campus) => [$campus->opaqueId() => [
+            'update_url' => route('campuses.update', $campus),
+            'church_id' => (string) $campus->church_id,
+            'name' => $campus->name,
+            'type' => $campus->type,
+            'status' => $campus->status,
+            'city' => $campus->city,
+            'country' => $campus->country,
+            'address' => $campus->address,
+            'capacity' => $campus->capacity,
+        ]]);
+        $churchEditorRecords = $churches->mapWithKeys(fn ($church) => [$church->opaqueId() => [
+            'update_url' => route('churches.update', $church),
+            'name' => $church->name,
+            'timezone' => $church->timezone,
+            'currency' => $church->currency,
+            'email' => $church->email,
+            'phone' => $church->phone,
+            'address' => $church->address,
+        ]]);
         $canMutateOrganizations = auth()->user()?->isSuperAdministrator() || auth()->user()?->campus_id === null;
         $canDeleteChurches = auth()->user()?->isSuperAdministrator();
     @endphp
 
     <div
-        x-data="campusDirectory(@js($assignmentUsers), '{{ url('settings/users') }}')"
+        x-data="campusDirectory(@js($assignmentUsers), @js(url('settings/users')), @js($campusEditorRecords), @js($churchEditorRecords))"
         class="grid gap-4 xl:grid-cols-[1fr_430px]"
     >
         <main class="min-w-0 space-y-4">
@@ -219,17 +239,7 @@
                                             <div class="flex items-center justify-end gap-1">
                                                 <button
                                                     type="button"
-                                                    x-on:click='openCampusEditor(@js([
-                                                        "update_url" => route("campuses.update", $campus),
-                                                        "church_id" => (string) $campus->church_id,
-                                                        "name" => $campus->name,
-                                                        "type" => $campus->type,
-                                                        "status" => $campus->status,
-                                                        "city" => $campus->city,
-                                                        "country" => $campus->country,
-                                                        "address" => $campus->address,
-                                                        "capacity" => $campus->capacity,
-                                                    ]))'
+                                                    x-on:click="openCampusEditor('{{ $campus->opaqueId() }}')"
                                                     class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
                                                     title="Edit {{ Str::lower($terminology['campus_singular']) }}"
                                                     aria-label="Edit {{ $campus->name }}"
@@ -269,15 +279,7 @@
                                                     <div class="mt-2 flex flex-wrap gap-2">
                                                         <button
                                                             type="button"
-                                                            x-on:click='openChurchEditor(@js([
-                                                                "update_url" => route("churches.update", $campus->church),
-                                                                "name" => $campus->church->name,
-                                                                "timezone" => $campus->church->timezone,
-                                                                "currency" => $campus->church->currency,
-                                                                "email" => $campus->church->email,
-                                                                "phone" => $campus->church->phone,
-                                                                "address" => $campus->church->address,
-                                                            ]))'
+                                                            x-on:click="openChurchEditor('{{ $campus->church->opaqueId() }}')"
                                                             class="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-2.5 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-50"
                                                         ><i data-lucide="pencil" class="size-3.5"></i>Edit Church</button>
                                                         @if ($canDeleteChurches)

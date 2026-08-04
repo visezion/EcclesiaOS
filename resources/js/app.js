@@ -404,6 +404,12 @@ document.addEventListener('alpine:init', () => {
                     cache: 'no-store',
                 });
 
+                if (response.status === 401 || response.status === 419) {
+                    this.stop();
+
+                    return;
+                }
+
                 if (! response.ok) {
                     return;
                 }
@@ -733,9 +739,11 @@ document.addEventListener('alpine:init', () => {
         },
     }));
 
-    Alpine.data('campusDirectory', (users, assignmentBaseUrl) => ({
+    Alpine.data('campusDirectory', (users, assignmentBaseUrl, campusEditorRecords = {}, churchEditorRecords = {}) => ({
         users,
         assignmentBaseUrl,
+        campusEditorRecords,
+        churchEditorRecords,
         search: '',
         church: '',
         type: '',
@@ -802,12 +810,24 @@ document.addEventListener('alpine:init', () => {
             this.expandedCampusId = this.expandedCampusId === String(id) ? '' : String(id);
         },
 
-        openCampusEditor(campus) {
+        openCampusEditor(campusKey) {
+            const campus = this.campusEditorRecords[campusKey];
+
+            if (! campus) {
+                return;
+            }
+
             this.editingCampus = { ...campus };
             this.editCampusOpen = true;
         },
 
-        openChurchEditor(church) {
+        openChurchEditor(churchKey) {
+            const church = this.churchEditorRecords[churchKey];
+
+            if (! church) {
+                return;
+            }
+
             this.editingChurch = { ...church };
             this.editChurchOpen = true;
         },
