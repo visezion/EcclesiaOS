@@ -177,8 +177,8 @@
                                 <tr>
                                     <th class="px-4 py-3">Group</th>
                                     <th class="px-4 py-3">Scope</th>
-                                    <th class="px-4 py-3">Campus</th>
-                                    <th class="px-4 py-3">Ministry</th>
+                                    <th class="px-4 py-3">{{ $terminology['campus_singular'] }}</th>
+                                    <th class="px-4 py-3">{{ $terminology['ministry_singular'] }}</th>
                                     <th class="px-4 py-3">Synced</th>
                                     <th class="px-4 py-3 text-right">Enabled</th>
                                 </tr>
@@ -197,7 +197,7 @@
                                         </td>
                                         <td class="px-4 py-3">
                                             <select name="zender_groups[{{ $group->id }}][target_scope]" class="w-full min-w-[130px] rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                                                @foreach(['unassigned' => 'Unassigned', 'church' => 'All Church', 'campus' => 'Campus', 'ministry' => 'Ministry', 'ignore' => 'Ignore'] as $value => $label)
+                                                @foreach(['unassigned' => 'Unassigned', 'church' => 'All Church', 'campus' => $terminology['campus_singular'], 'ministry' => $terminology['ministry_singular'], 'ignore' => 'Ignore'] as $value => $label)
                                                     <option value="{{ $value }}" @selected($group->target_scope === $value)>{{ $label }}</option>
                                                 @endforeach
                                             </select>
@@ -249,8 +249,8 @@
                             <label class="text-xs text-slate-500">Send To
                                 <select form="manual-zender-group-form" name="target_scope" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                     <option value="church">All Church</option>
-                                    <option value="campus">Campus</option>
-                                    <option value="ministry">Ministry</option>
+                                    <option value="campus">{{ $terminology['campus_singular'] }}</option>
+                                    <option value="ministry">{{ $terminology['ministry_singular'] }}</option>
                                     <option value="unassigned">Unassigned</option>
                                 </select>
                             </label>
@@ -262,9 +262,9 @@
                                     @endforeach
                                 </select>
                             </label>
-                            <label class="text-xs text-slate-500">Ministry
+                            <label class="text-xs text-slate-500">{{ $terminology['ministry_singular'] }}
                                 <select form="manual-zender-group-form" name="ministry_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                    <option value="">No ministry</option>
+                                    <option value="">No {{ Str::lower($terminology['ministry_singular']) }}</option>
                                     @foreach($ministryOptions as $ministry)
                                         <option value="{{ $ministry->id }}">{{ $ministry->name }}{{ $ministry->campus?->name ? ' - '.$ministry->campus->name : '' }}</option>
                                     @endforeach

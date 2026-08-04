@@ -38,7 +38,7 @@
                 <div class="mb-4 grid gap-3 lg:grid-cols-[1fr_180px_180px_180px_auto]">
                     <input x-model.debounce.150ms="search" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Search users by name, email, or phone...">
                     <select x-model="role" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All Roles</option>@foreach($roles as $role)<option value="{{ $role->id }}">{{ $role->name }}</option>@endforeach</select>
-                    <select x-model="campus" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All Campuses</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}">{{ $campus->name }}</option>@endforeach</select>
+                    <select x-model="campus" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All {{ $terminology['campus_plural'] }}</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}">{{ $campus->name }}</option>@endforeach</select>
                     <select x-model="status" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All Statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="inactive">Inactive</option></select>
                     <button type="button" @click="clearFilters()" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">Clear</button>
                 </div>
@@ -72,7 +72,7 @@
                                     <th>Email</th>
                                     <th>Role</th>
                                     <th>Church</th>
-                                    <th>Campus</th>
+                                    <th>{{ $terminology['campus_singular'] }}</th>
                                     <th>Status</th>
                                     <th>Last Login</th>
                                     <th>MFA</th>
@@ -201,7 +201,7 @@
                     ])->values();
                     $campusOtherCount = (int) $campusSourceRows->skip(5)->sum('users_count');
                     if ($campusOtherCount > 0) {
-                        $campusChartRows->push(['label' => 'Other Campuses', 'value' => $campusOtherCount, 'color' => 'bg-teal-500', 'hex' => '#14b8a6']);
+                        $campusChartRows->push(['label' => 'Other '.$terminology['campus_plural'], 'value' => $campusOtherCount, 'color' => 'bg-teal-500', 'hex' => '#14b8a6']);
                     }
                     $roleTotal = max($roleChartRows->sum('value'), 1);
                     $campusTotal = max($campusChartRows->sum('value'), 1);
@@ -321,7 +321,7 @@
 
                 <section class="dashboard-card">
                     <div class="mb-4 flex items-center justify-between">
-                        <h2 class="text-base font-bold text-slate-950">Users by Campus</h2>
+                        <h2 class="text-base font-bold text-slate-950">Users by {{ $terminology['campus_singular'] }}</h2>
                         <a href="{{ route('campuses.index') }}" class="text-xs font-bold text-violet-600">View All</a>
                     </div>
                     <div class="space-y-5">
@@ -415,7 +415,7 @@
                         <div class="mt-1 text-sm font-bold text-slate-900" x-text="viewing ? viewing.church : ''"></div>
                     </div>
                     <div class="rounded-lg border border-slate-100 p-3">
-                        <div class="text-xs font-black uppercase text-slate-400">Campus</div>
+                        <div class="text-xs font-black uppercase text-slate-400">{{ $terminology['campus_singular'] }}</div>
                         <div class="mt-1 text-sm font-bold text-slate-900" x-text="viewing ? viewing.campus : ''"></div>
                     </div>
                     <div class="rounded-lg border border-slate-100 p-3">
@@ -513,7 +513,7 @@
                                 :options="$campuses->map(fn ($campus) => [
                                     'value' => $campus->id,
                                     'label' => $campus->name,
-                                    'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+                                    'meta' => trim(($campus->type ?? $terminology['campus_singular']).' - '.($campus->city ?? '')),
                                     'initials' => Str::substr($campus->name, 0, 2),
                                 ])->values()"
                                 class="text-xs font-bold uppercase text-slate-500"
@@ -651,7 +651,7 @@
                             <input name="phone" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" placeholder="+1 (555) 000-0000">
                         </label>
                         <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Title
-                            <input name="title" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" placeholder="Ministry role">
+                            <input name="title" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900" placeholder="{{ $terminology['ministry_singular'] }} role">
                         </label>
                         <x-searchable-select
                             name="roles[]"
@@ -690,7 +690,7 @@
                             :options="$campuses->map(fn ($campus) => [
                                 'value' => $campus->id,
                                 'label' => $campus->name,
-                                'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+                                'meta' => trim(($campus->type ?? $terminology['campus_singular']).' - '.($campus->city ?? '')),
                                 'initials' => Str::substr($campus->name, 0, 2),
                             ])->values()"
                             class="text-xs font-bold uppercase text-slate-500"

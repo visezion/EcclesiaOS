@@ -8,6 +8,7 @@
 
 @php
     $branding = \App\Support\Branding::current();
+    $title = \App\Support\OrganizationTerminology::translate($title, $terminology);
     $settings = $branding->settings;
     $fontStacks = [
         'Inter' => 'Inter, ui-sans-serif, system-ui, sans-serif',

@@ -53,7 +53,7 @@
                 @foreach($productStatuses as $status)<option value="{{ $status }}" @selected(request('status') === $status)>{{ Str::headline($status) }}</option>@endforeach
             </select>
             <select name="campus_id" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                <option value="">Campus</option>
+                <option value="">{{ $terminology['campus_singular'] }}</option>
                 @foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected((string) request('campus_id') === (string) $campus->id)>{{ $campus->name }}</option>@endforeach
             </select>
             <button class="h-10 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white">Apply</button>
@@ -70,7 +70,7 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="table-compact min-w-[1040px]">
-                    <thead><tr><th>Product</th><th>Format</th><th>Category</th><th>Campus</th><th>Price</th><th>Stock</th><th>Library</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
+                    <thead><tr><th>Product</th><th>Format</th><th>Category</th><th>{{ $terminology['campus_singular'] }}</th><th>Price</th><th>Stock</th><th>Library</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
                     <tbody>
                         @forelse($products as $product)
                             <tr>
@@ -123,7 +123,7 @@
                         @foreach($orderStatuses as $status)<option value="{{ $status }}" @selected(request('order_status') === $status)>{{ Str::headline($status) }}</option>@endforeach
                     </select>
                     <select name="order_campus_id" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                        <option value="">Campus</option>
+                        <option value="">{{ $terminology['campus_singular'] }}</option>
                         @foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected((string) request('order_campus_id') === (string) $campus->id)>{{ $campus->name }}</option>@endforeach
                     </select>
                     <button class="h-10 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white">Apply</button>

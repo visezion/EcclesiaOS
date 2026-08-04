@@ -90,9 +90,9 @@
                             </select>
                         </label>
                         <label class="text-sm text-slate-600">
-                            Campus
+                            {{ $terminology['campus_singular'] }}
                             <select name="campus" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                                <option value="">All Campuses</option>
+                                <option value="">All {{ $terminology['campus_plural'] }}</option>
                                 @foreach($campuses as $campus)
                                     <option value="{{ $campus->opaqueId() }}" @selected(request('campus') === $campus->opaqueId())>{{ $campus->name }}</option>
                                 @endforeach
@@ -124,7 +124,7 @@
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500">
                                 <tr>
                                     <th class="px-5 py-3">Program</th>
-                                    <th class="px-5 py-3">Campus</th>
+                                    <th class="px-5 py-3">{{ $terminology['campus_singular'] }}</th>
                                     <th class="px-5 py-3">Schedule</th>
                                     <th class="px-5 py-3">Events</th>
                                     <th class="px-5 py-3">Sessions</th>

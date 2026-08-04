@@ -39,7 +39,7 @@
                 <select name="loan_type" class="h-10 rounded-lg border border-slate-200 px-3 text-sm"><option value="">Type</option>@foreach($loanTypes as $type)<option value="{{ $type }}" @selected(request('loan_type') === $type)>{{ Str::headline($type) }}</option>@endforeach</select>
                 <select name="loan_status" class="h-10 rounded-lg border border-slate-200 px-3 text-sm"><option value="">Status</option>@foreach($loanStatuses as $status)<option value="{{ $status }}" @selected(request('loan_status') === $status)>{{ Str::headline($status) }}</option>@endforeach</select>
                 <select name="approval_status" class="h-10 rounded-lg border border-slate-200 px-3 text-sm"><option value="">Approval</option>@foreach($approvalStatuses as $status)<option value="{{ $status }}" @selected(request('approval_status') === $status)>{{ Str::headline($status) }}</option>@endforeach</select>
-                <select name="loan_campus_id" class="h-10 rounded-lg border border-slate-200 px-3 text-sm"><option value="">Campus</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected((string) request('loan_campus_id') === (string) $campus->id)>{{ $campus->name }}</option>@endforeach</select>
+                <select name="loan_campus_id" class="h-10 rounded-lg border border-slate-200 px-3 text-sm"><option value="">{{ $terminology['campus_singular'] }}</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected((string) request('loan_campus_id') === (string) $campus->id)>{{ $campus->name }}</option>@endforeach</select>
                 <button class="h-10 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white">Apply</button>
                 <a href="{{ route('bookstore.library') }}" class="inline-flex h-10 items-center px-3 text-sm font-semibold text-slate-500">Clear</a>
             </form>
@@ -83,7 +83,7 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="table-compact min-w-[1120px]">
-                    <thead><tr><th>Book</th><th>Format</th><th>Campus</th><th>Physical Stock</th><th>Library</th><th>Borrow</th><th>Rent</th><th>Buy</th><th class="text-right">Actions</th></tr></thead>
+                    <thead><tr><th>Book</th><th>Format</th><th>{{ $terminology['campus_singular'] }}</th><th>Physical Stock</th><th>Library</th><th>Borrow</th><th>Rent</th><th>Buy</th><th class="text-right">Actions</th></tr></thead>
                     <tbody>
                         @forelse($catalogItems as $item)
                             <tr>

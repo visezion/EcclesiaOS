@@ -198,7 +198,7 @@
         @if ($dashboardSections['ministries'] ?? false)
         <x-dashboard-card title="Ministry & Department Performance" class="dashboard-auto-span" style="--dashboard-span: {{ $dashboardSpan($insightsPanelCount, 3) }};" :action="['label' => 'View All', 'url' => route('ministries.index')]">
             <table class="table-compact">
-                <thead><tr><th>Ministry</th><th>Members</th><th>Activities</th><th>Impact</th><th>Trend</th></tr></thead>
+                <thead><tr><th>{{ $terminology['ministry_singular'] }}</th><th>Members</th><th>Activities</th><th>Impact</th><th>Trend</th></tr></thead>
                 <tbody>
                     @foreach ($ministries as $ministry)
                         <tr><td class="font-semibold">{{ $ministry['ministry'] }}</td><td>{{ $ministry['members'] }}</td><td>{{ $ministry['activities'] }}</td><td class="font-bold text-emerald-600">{{ $ministry['impact'] }}</td><td><i data-lucide="trending-up" class="size-4 text-emerald-600"></i></td></tr>

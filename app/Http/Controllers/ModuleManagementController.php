@@ -157,7 +157,7 @@ final class ModuleManagementController extends Controller
     private function moduleSettings(Church $church, array $filters): array
     {
         $disabled = ModuleRegistry::disabledRoutes($church);
-        $allModules = ModuleRegistry::modules()
+        $allModules = ModuleRegistry::modules($church)
             ->map(fn (array $item): array => $this->normalizeModule($item, $disabled))
             ->values();
 

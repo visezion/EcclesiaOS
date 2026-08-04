@@ -107,9 +107,9 @@
                                 </select>
                             </label>
                             <label class="space-y-1 text-xs font-semibold text-slate-500">
-                                <span>Campus</span>
+                                <span>{{ $terminology['campus_singular'] }}</span>
                                 <select name="campus" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-                                    <option value="">All Campuses</option>
+                                    <option value="">All {{ $terminology['campus_plural'] }}</option>
                                     @foreach ($campuses as $campus)
                                         <option value="{{ $campus->opaqueId() }}" @selected($filters['campus'] === $campus->id)>{{ $campus->name }}</option>
                                     @endforeach

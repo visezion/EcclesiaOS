@@ -6,9 +6,9 @@
             <i data-lucide="chevron-right" class="size-4"></i>
         @endif
         @if ($item['url'])
-            <a class="font-medium text-slate-600 hover:text-violet-700" href="{{ $item['url'] }}">{{ $item['label'] }}</a>
+            <a class="font-medium text-slate-600 hover:text-violet-700" href="{{ $item['url'] }}">{{ $term($item['label']) }}</a>
         @else
-            <span class="font-semibold text-slate-900">{{ $item['label'] }}</span>
+            <span class="font-semibold text-slate-900">{{ $term($item['label']) }}</span>
         @endif
     @endforeach
 </nav>

@@ -6,7 +6,7 @@
             <div class="grid size-16 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/20">
                 <i data-lucide="{{ $module['icon'] }}" class="size-8"></i>
             </div>
-            <h1 class="mt-5 text-3xl font-bold tracking-normal">{{ $module['label'] }}</h1>
+            <h1 class="mt-5 text-3xl font-bold tracking-normal">{{ $term($module['label']) }}</h1>
             <p class="mt-2 max-w-2xl text-sm text-slate-300">This module is currently under development. The route, navigation state, permissions, and layout are already wired so the implementation can be added incrementally.</p>
         </div>
         <div class="grid gap-6 p-8 md:grid-cols-[1fr_280px]">
@@ -16,7 +16,7 @@
                     @foreach (($module['planned'] ?? []) as $capability)
                         <li class="flex items-center gap-2 text-sm text-slate-700">
                             <i data-lucide="check-circle-2" class="size-4 text-emerald-600"></i>
-                            <span>{{ $capability }}</span>
+                            <span>{{ $term($capability) }}</span>
                         </li>
                     @endforeach
                 </ul>

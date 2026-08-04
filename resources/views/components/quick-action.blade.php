@@ -15,5 +15,5 @@
 
 <a href="{{ route($action['route']) }}" class="flex min-h-12 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-bold transition focus-visible:ring-2 focus-visible:ring-violet-500 {{ $classes }}">
     <i data-lucide="{{ $action['icon'] }}" class="size-5"></i>
-    <span>{{ $action['label'] }}</span>
+    <span>{{ $term($action['label']) }}</span>
 </a>

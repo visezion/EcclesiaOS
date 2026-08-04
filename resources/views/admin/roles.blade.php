@@ -66,6 +66,13 @@
                 ['permission' => 'manage media', 'label' => 'Sermons & Media', 'help' => 'Manage sermons, media files, and streaming content.', 'icon' => 'monitor-play', 'class' => 'bg-slate-50 text-slate-600'],
             ],
         ]);
+        $permissionDefinitions = $permissionDefinitions->map(fn ($rows) => collect($rows)
+            ->map(function (array $row) use ($term): array {
+                $row['label'] = $term($row['label']);
+                $row['help'] = $term($row['help']);
+
+                return $row;
+            })->all());
         $definedPermissionNames = $permissionDefinitions->flatten(1)->pluck('permission');
         $extraPermissions = $permissions
             ->reject(fn ($permission) => $definedPermissionNames->contains($permission->name))
@@ -201,7 +208,7 @@
                                 >
                                     <span class="grid size-10 shrink-0 place-items-center rounded-lg border {{ $roleIcon['class'] }}"><i data-lucide="{{ $roleIcon['icon'] }}" class="size-5"></i></span>
                                     <span class="min-w-0 flex-1">
-                                        <span class="block truncate text-sm font-black text-slate-900">{{ $role->name }}</span>
+                                        <span class="block truncate text-sm font-black text-slate-900">{{ $term($role->name) }}</span>
                                         <span class="block truncate text-xs text-slate-500">{{ $role->description }}</span>
                                     </span>
                                     <span class="w-20 shrink-0 text-right text-xs font-black text-slate-700">{{ number_format($role->users_count) }} {{ Str::plural('User', $role->users_count) }}</span>
@@ -234,7 +241,7 @@
                                     <div class="grid size-14 place-items-center rounded-full border {{ $roleIcon['class'] }}"><i data-lucide="{{ $roleIcon['icon'] }}" class="size-7"></i></div>
                                     <div>
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <h2 class="text-xl font-black text-slate-950">{{ $role->name }}</h2>
+                                            <h2 class="text-xl font-black text-slate-950">{{ $term($role->name) }}</h2>
                                             <span class="rounded-full {{ $isSystem ? 'bg-emerald-100 text-emerald-700' : 'bg-violet-100 text-violet-700' }} px-3 py-1 text-xs font-black">{{ $isSystem ? 'System Role' : 'Custom Role' }}</span>
                                         </div>
                                         <p class="mt-2 max-w-2xl text-sm text-slate-500">{{ $role->description }}</p>
@@ -264,7 +271,7 @@
                                 <div class="space-y-5 p-4">
                                     @foreach ($permissionGroups as $groupName => $groupRows)
                                         <div>
-                                            <h3 class="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">{{ $groupName }}</h3>
+                                            <h3 class="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">{{ $term($groupName) }}</h3>
                                             <div class="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
                                                 @foreach ($groupRows as $row)
                                                     @php
@@ -338,7 +345,7 @@
                     <div class="max-h-[360px] space-y-4 overflow-y-auto rounded-lg border border-slate-100 p-3">
                         @foreach ($permissionGroups as $groupName => $groupRows)
                             <div>
-                                <h3 class="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">{{ $groupName }}</h3>
+                                <h3 class="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">{{ $term($groupName) }}</h3>
                                 <div class="grid gap-2 sm:grid-cols-2">
                                     @foreach ($groupRows as $row)
                                         <label class="flex items-start gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-violet-50/50">

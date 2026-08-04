@@ -199,14 +199,14 @@
 
                 <section class="dashboard-card">
                     <div class="mb-5 flex items-center justify-between">
-                        <h2 class="flex items-center gap-3 text-base font-black text-slate-950"><i data-lucide="landmark" class="size-5 text-violet-600"></i>Church & Campus Assignment</h2>
+                        <h2 class="flex items-center gap-3 text-base font-black text-slate-950"><i data-lucide="landmark" class="size-5 text-violet-600"></i>Church & {{ $terminology['campus_singular'] }} Assignment</h2>
                         <button type="button" @click="editOpen = true" class="text-xs font-bold text-violet-600">Edit</button>
                     </div>
                     <dl class="space-y-4 text-sm">
                         <div class="grid grid-cols-[130px_1fr] gap-4"><dt class="text-slate-500">Church</dt><dd class="font-bold text-slate-950">{{ $user->church?->name ?? 'Global' }}</dd></div>
-                        <div class="grid grid-cols-[130px_1fr] gap-4"><dt class="text-slate-500">Campus</dt><dd class="font-bold text-slate-950">{{ $user->campus?->name ?? 'All' }}</dd></div>
+                        <div class="grid grid-cols-[130px_1fr] gap-4"><dt class="text-slate-500">{{ $terminology['campus_singular'] }}</dt><dd class="font-bold text-slate-950">{{ $user->campus?->name ?? 'All' }}</dd></div>
                         <div class="grid grid-cols-[130px_1fr] gap-4"><dt class="text-slate-500">Service Location</dt><dd class="font-bold text-slate-950">{{ $user->campus?->metadata['service_location'] ?? 'N/A' }}</dd></div>
-                        <div class="grid grid-cols-[130px_1fr] gap-4"><dt class="text-slate-500">Ministry Involvement</dt><dd class="font-bold text-slate-950">{{ $user->title ? $user->title.', Discipleship, Church Council' : 'N/A' }}</dd></div>
+                        <div class="grid grid-cols-[130px_1fr] gap-4"><dt class="text-slate-500">{{ $terminology['ministry_singular'] }} Involvement</dt><dd class="font-bold text-slate-950">{{ $user->title ? $user->title.', Discipleship, Church Council' : 'N/A' }}</dd></div>
                         <div class="grid grid-cols-[130px_1fr] gap-4"><dt class="text-slate-500">Sunday Service</dt><dd class="font-bold text-slate-950">{{ $user->campus?->metadata['sunday_service'] ?? 'N/A' }}</dd></div>
                     </dl>
                 </section>
@@ -386,7 +386,7 @@
                             <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Status<select name="status" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900"><option value="active" @selected(old('status', $user->status) === 'active')>Active</option><option value="inactive" @selected(old('status', $user->status) === 'inactive')>Inactive</option><option value="suspended" @selected(old('status', $user->status) === 'suspended')>Suspended</option></select></label>
                             <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Role<select name="roles[]" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900">@foreach($adminRoles as $adminRole)<option value="{{ $adminRole->id }}" @selected($user->roles->contains($adminRole))>{{ $adminRole->name }}</option>@endforeach</select></label>
                             <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Church<select name="church_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900"><option value="">Global</option>@foreach($adminChurches as $church)<option value="{{ $church->id }}" @selected((string) old('church_id', $user->church_id) === (string) $church->id)>{{ $church->name }}</option>@endforeach</select></label>
-                            <label class="space-y-1 text-xs font-bold uppercase text-slate-500">Campus<select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900"><option value="">All Campuses</option>@foreach($adminCampuses as $campus)<option value="{{ $campus->id }}" @selected((string) old('campus_id', $user->campus_id) === (string) $campus->id)>{{ $campus->name }}</option>@endforeach</select></label>
+                            <label class="space-y-1 text-xs font-bold uppercase text-slate-500">{{ $terminology['campus_singular'] }}<select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm normal-case text-slate-900"><option value="">All {{ $terminology['campus_plural'] }}</option>@foreach($adminCampuses as $campus)<option value="{{ $campus->id }}" @selected((string) old('campus_id', $user->campus_id) === (string) $campus->id)>{{ $campus->name }}</option>@endforeach</select></label>
                         @endif
                     </div>
                     <div class="flex justify-end gap-3 border-t border-slate-100 pt-4">

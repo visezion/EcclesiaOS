@@ -11,6 +11,10 @@
 
 @php
     $id = 'searchable-select-'.\Illuminate\Support\Str::uuid();
+    $label = $term($label);
+    $placeholder = $term($placeholder);
+    $emptyLabel = $term($emptyLabel);
+    $hint = $term($hint);
     $normalizedOptions = collect($options)->map(function ($option) {
         $label = (string) ($option['label'] ?? '');
         $meta = (string) ($option['meta'] ?? '');

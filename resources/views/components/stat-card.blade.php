@@ -17,13 +17,13 @@
         <i data-lucide="{{ $metric['icon'] }}" class="size-6"></i>
     </div>
     <div class="min-w-0">
-        <div class="truncate text-xs font-semibold text-slate-500">{{ $metric['label'] }}</div>
+        <div class="truncate text-xs font-semibold text-slate-500">{{ $term($metric['label']) }}</div>
         <div class="mt-1 text-2xl font-bold tracking-normal text-slate-950">{{ $metric['value'] }}</div>
         <div class="mt-1 flex items-center gap-1 text-xs">
             @if ($metric['change'])
                 <span class="font-semibold text-emerald-600"><i data-lucide="arrow-up" class="inline size-3"></i> {{ $metric['change'] }}</span>
             @endif
-            <span class="{{ $metric['change'] ? 'text-slate-500' : 'font-semibold text-emerald-600' }}">{{ $metric['period'] }}</span>
+            <span class="{{ $metric['change'] ? 'text-slate-500' : 'font-semibold text-emerald-600' }}">{{ $term($metric['period']) }}</span>
         </div>
     </div>
 </a>

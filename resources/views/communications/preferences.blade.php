@@ -73,7 +73,7 @@
                 </label>
                 <label class="text-xs text-slate-500">Campus
                     <select name="campus" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                        <option value="">All Campuses</option>
+                        <option value="">All {{ $terminology['campus_plural'] }}</option>
                         @foreach($campuses as $campus)
                             <option value="{{ $campus->id }}" @selected(request('campus') == $campus->id)>{{ $campus->name }}</option>
                         @endforeach
@@ -155,7 +155,7 @@
                                 <th class="w-10 px-4 py-3"><input type="checkbox" class="rounded border-slate-300 text-violet-600"></th>
                                 <th class="px-4 py-3">Member</th>
                                 <th class="px-4 py-3">Role</th>
-                                <th class="px-4 py-3">Campus</th>
+                                <th class="px-4 py-3">{{ $terminology['campus_singular'] }}</th>
                                 <th class="px-4 py-3">Preferred Channels</th>
                                 <th class="px-4 py-3">Critical Alerts</th>
                                 <th class="px-4 py-3">Digest Mode</th>
@@ -191,7 +191,7 @@
                                         </a>
                                     </td>
                                     <td class="px-4 py-3"><span class="rounded-md bg-violet-50 px-2 py-1 text-xs text-violet-700">{{ $roleName }}</span></td>
-                                    <td class="px-4 py-3">{{ $preference->member?->campus?->name ?? $preference->user?->campus?->name ?? 'All Campuses' }}</td>
+                                    <td class="px-4 py-3">{{ $preference->member?->campus?->name ?? $preference->user?->campus?->name ?? 'All '.$terminology['campus_plural'] }}</td>
                                     <td class="px-4 py-3">@include('communications.partials.channel-chips', ['selected' => $preference->channels ?? [], 'channels' => $channels])</td>
                                     <td class="px-4 py-3">
                                         <span class="inline-flex items-center gap-1 text-xs {{ $preference->critical_alerts ? 'text-emerald-600' : 'text-slate-400' }}">
@@ -264,7 +264,7 @@
                                 </label>
                                 <label class="text-xs text-slate-500">Campus
                                     <select name="campus_id" @disabled(! $selected) class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm disabled:opacity-50">
-                                        <option value="">All Campuses</option>
+                                        <option value="">All {{ $terminology['campus_plural'] }}</option>
                                         @foreach($campuses as $campus)
                                             <option value="{{ $campus->id }}" @selected(($selected?->member?->campus_id ?? $selected?->user?->campus_id) === $campus->id)>{{ $campus->name }}</option>
                                         @endforeach

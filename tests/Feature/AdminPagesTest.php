@@ -324,16 +324,34 @@ class AdminPagesTest extends TestCase
         $this->assertSame('Branch', data_get($church->settings, 'campus_singular_label'));
         $this->assertSame('Departments', data_get($church->settings, 'ministry_plural_label'));
         $this->assertDatabaseHas('activity_logs', ['action' => 'system_settings_updated']);
+        $translatedNavigation = collect(ModuleRegistry::visibleNavigation($church));
+        $this->assertTrue($translatedNavigation->contains('section', 'Department Operations'));
+        $this->assertTrue($translatedNavigation->contains('label', 'Departments'));
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Churches &amp; Branches', false);
 
         $this->actingAs($admin)
             ->get(route('modules.index'))
             ->assertOk()
             ->assertSee('Module Management')
             ->assertSee('All Modules')
+            ->assertSee('Departments')
+            ->assertSee('Churches &amp; Branches', false)
             ->assertSee('Studio')
             ->assertSee('meetings.rooms.studio')
             ->assertSee(route('modules.update'), false)
             ->assertSee(route('modules.reset'), false);
+
+        $this->actingAs($admin)
+            ->get(route('members.index'))
+            ->assertOk()
+            ->assertSee('Branch: All')
+            ->assertSee('Department: All')
+            ->assertDontSee('Campus: All')
+            ->assertDontSee('Ministry: All');
 
         $enabledModules = ModuleRegistry::configurableRoutes()
             ->reject(fn (string $route): bool => $route === 'finance.index')

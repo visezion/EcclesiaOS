@@ -93,18 +93,18 @@
                         </div>
                         <div class="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
                             <label class="space-y-1 text-xs text-slate-500">
-                                <span>Campus</span>
+                                <span>{{ $terminology['campus_singular'] }}</span>
                                 <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-                                    <option value="">All Campuses</option>
+                                    <option value="">All {{ $terminology['campus_plural'] }}</option>
                                     @foreach($campuses as $campus)
                                         <option value="{{ $campus->id }}" @selected(old('campus_id', request('campus_id')) == $campus->id)>{{ $campus->name }}</option>
                                     @endforeach
                                 </select>
                             </label>
                             <label class="space-y-1 text-xs text-slate-500">
-                                <span>Ministry</span>
+                                <span>{{ $terminology['ministry_singular'] }}</span>
                                 <select name="ministry" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-                                    <option value="">All Ministries</option>
+                                    <option value="">All {{ $terminology['ministry_plural'] }}</option>
                                     <option value="pastoral-care" @selected(request('ministry') === 'pastoral-care')>Pastoral Care</option>
                                     <option value="youth-ministry" @selected(request('ministry') === 'youth-ministry')>Youth Ministry</option>
                                     <option value="worship-ministry" @selected(request('ministry') === 'worship-ministry')>Worship Ministry</option>
@@ -116,7 +116,7 @@
                                     <option value="">All Roles</option>
                                     <option value="members" @selected(request('audience_role') === 'members')>Members</option>
                                     <option value="volunteers" @selected(request('audience_role') === 'volunteers')>Volunteers</option>
-                                    <option value="ministry-leaders" @selected(request('audience_role') === 'ministry-leaders')>Ministry Leaders</option>
+                                    <option value="ministry-leaders" @selected(request('audience_role') === 'ministry-leaders')>{{ $terminology['ministry_singular'] }} Leaders</option>
                                 </select>
                             </label>
                             <label class="space-y-1 text-xs text-slate-500">

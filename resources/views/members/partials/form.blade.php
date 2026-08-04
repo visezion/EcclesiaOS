@@ -187,21 +187,21 @@
     <div class="grid gap-3 sm:grid-cols-2">
         <x-searchable-select
             name="campus_id"
-            label="Campus"
+            :label="$terminology['campus_singular']"
             empty-label="Unassigned"
             placeholder="Search campus"
             :selected="$value('campusId')"
             :options="$campuses->map(fn ($campus) => [
                 'value' => $campus->id,
                 'label' => $campus->name,
-                'meta' => trim(($campus->type ?? 'Campus').' - '.($campus->city ?? '')),
+                'meta' => trim(($campus->type ?? $terminology['campus_singular']).' - '.($campus->city ?? '')),
                 'initials' => Str::substr($campus->name, 0, 2),
             ])->values()"
             class="text-slate-600"
         />
         <x-searchable-select
             name="ministry_id"
-            label="Ministry"
+            :label="$terminology['ministry_singular']"
             empty-label="No ministry"
             placeholder="Search ministries"
             :selected="$value('ministryId')"

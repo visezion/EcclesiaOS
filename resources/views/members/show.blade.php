@@ -48,7 +48,7 @@
         $recentInteractions = collect()
             ->merge($member->attendanceRecords->map(fn ($record) => [
                 'label' => 'Checked in for service',
-                'meta' => $member->campus?->name ?? 'Campus',
+                'meta' => $member->campus?->name ?? $terminology['campus_singular'],
                 'date' => $record->service_date,
                 'icon' => 'calendar-check',
                 'color' => 'text-emerald-600 bg-emerald-50',
@@ -114,7 +114,7 @@
                     </form>
                     <button type="button" @click="ministryOpen = true" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700">
                         <i data-lucide="users-round" class="size-4"></i>
-                        Assign Ministry
+                        Assign {{ $terminology['ministry_singular'] }}
                     </button>
                     <div class="relative">
                         <button type="button" @click="actionMenu = ! actionMenu" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-violet-700">
@@ -173,7 +173,7 @@
                         <div class="grid gap-3 border-slate-200 text-sm lg:border-l lg:pl-6">
                             <div class="grid grid-cols-[36px_1fr] items-center gap-3">
                                 <span class="grid size-9 place-items-center rounded-lg bg-violet-50 text-violet-600"><i data-lucide="church" class="size-4"></i></span>
-                                <span><span class="block text-xs text-slate-500">Campus</span>{{ $member->campus?->name ?? 'Unassigned' }}</span>
+                                <span><span class="block text-xs text-slate-500">{{ $terminology['campus_singular'] }}</span>{{ $member->campus?->name ?? 'Unassigned' }}</span>
                             </div>
                             <div class="grid grid-cols-[36px_1fr] items-center gap-3">
                                 <span class="grid size-9 place-items-center rounded-lg bg-sky-50 text-sky-600"><i data-lucide="user-round-check" class="size-4"></i></span>
@@ -230,7 +230,7 @@
                 ['Family', 'users-round'],
                 ['Attendance', 'calendar-days'],
                 ['Giving', 'hand-coins'],
-                ['Ministry Involvement', 'flame'],
+                [$terminology['ministry_singular'].' Involvement', 'flame'],
                 ['Notes', 'square-pen'],
                 ['Documents', 'file-text'],
                 ['Activity Timeline', 'history'],
@@ -298,13 +298,13 @@
 
             <article class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <div class="mb-4 flex items-center justify-between">
-                    <h2 class="flex items-center gap-2 text-base text-slate-950"><i data-lucide="church" class="size-4 text-violet-600"></i>Church & Campus Assignment</h2>
+                    <h2 class="flex items-center gap-2 text-base text-slate-950"><i data-lucide="church" class="size-4 text-violet-600"></i>Church & {{ $terminology['campus_singular'] }} Assignment</h2>
                     <button type="button" @click="editOpen = true" class="text-sm text-violet-600">Edit</button>
                 </div>
                 <dl class="space-y-3 text-sm">
                     <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">Church</dt><dd>{{ $member->church?->name ?? 'N/A' }}</dd></div>
-                    <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">Campus</dt><dd>{{ $member->campus?->name ?? 'Unassigned' }}</dd></div>
-                    <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">Ministry</dt><dd>{{ $primaryMinistry }}</dd></div>
+                    <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">{{ $terminology['campus_singular'] }}</dt><dd>{{ $member->campus?->name ?? 'Unassigned' }}</dd></div>
+                    <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">{{ $terminology['ministry_singular'] }}</dt><dd>{{ $primaryMinistry }}</dd></div>
                     <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">Sunday Service</dt><dd>{{ $latestAttendance?->service_date?->format('M d, Y') ?? 'No attendance yet' }}</dd></div>
                 </dl>
             </article>
@@ -332,11 +332,11 @@
 
             <article id="ministry-involvement" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <div class="mb-4 flex items-center justify-between">
-                    <h2 class="flex items-center gap-2 text-base text-slate-950"><i data-lucide="hand-heart" class="size-4 text-violet-600"></i>Ministry Involvement</h2>
+                    <h2 class="flex items-center gap-2 text-base text-slate-950"><i data-lucide="hand-heart" class="size-4 text-violet-600"></i>{{ $terminology['ministry_singular'] }} Involvement</h2>
                     <button type="button" @click="ministryOpen = true" class="text-sm text-violet-600">Manage</button>
                 </div>
                 <dl class="space-y-3 text-sm">
-                    <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">Primary Ministry</dt><dd>{{ $primaryMinistry }}</dd></div>
+                    <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">Primary {{ $terminology['ministry_singular'] }}</dt><dd>{{ $primaryMinistry }}</dd></div>
                     <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">Role</dt><dd>{{ $primaryVolunteer?->role ? Str::headline($primaryVolunteer->role) : 'Team Member' }}</dd></div>
                     <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">Status</dt><dd>{{ $primaryVolunteer?->status ? Str::headline($primaryVolunteer->status) : 'Not assigned' }}</dd></div>
                     <div class="grid grid-cols-[130px_1fr] gap-3"><dt class="text-slate-500">Assignments</dt><dd>{{ $member->volunteers->count() }}</dd></div>
@@ -617,14 +617,14 @@
 
         <aside x-cloak x-show="ministryOpen" class="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
             <div class="mb-5 flex items-center justify-between">
-                <h2 class="text-lg text-slate-950">Assign Ministry</h2>
+                <h2 class="text-lg text-slate-950">Assign {{ $terminology['ministry_singular'] }}</h2>
                 <button type="button" @click="ministryOpen = false" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><i data-lucide="x" class="size-5"></i></button>
             </div>
             <form method="POST" action="{{ route('members.assign-ministry', $member) }}" class="space-y-4">
                 @csrf
                 <x-searchable-select
                     name="ministry_id"
-                    label="Ministry"
+                    :label="$terminology['ministry_singular']"
                     :required="true"
                     placeholder="Search ministries"
                     :selected="$primaryVolunteer?->ministry_id"
@@ -635,7 +635,7 @@
                         'initials' => Str::substr($ministry->name, 0, 2),
                     ])->values()"
                 />
-                <button class="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white hover:bg-violet-700">Assign Ministry</button>
+                <button class="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white hover:bg-violet-700">Assign {{ $terminology['ministry_singular'] }}</button>
             </form>
         </aside>
     </div>

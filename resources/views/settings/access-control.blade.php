@@ -13,7 +13,7 @@
         <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
                 <h1 class="text-2xl font-bold text-slate-950">Authentication & Access Control</h1>
-                <p class="mt-1 text-sm text-slate-500">Manage users, church and campus assignments, roles, permissions, and audit activity.</p>
+                <p class="mt-1 text-sm text-slate-500">Manage users, church and {{ Str::lower($terminology['campus_singular']) }} assignments, roles, permissions, and audit activity.</p>
             </div>
             <div class="grid grid-cols-3 gap-3 text-center">
                 <div class="dashboard-card px-5 py-3"><div class="text-2xl font-black">{{ $users->count() }}</div><div class="text-xs font-bold text-slate-500">Users</div></div>
@@ -66,7 +66,7 @@
         <section class="dashboard-card">
             <div class="mb-4 flex items-center justify-between gap-3">
                 <h2 class="text-base font-bold text-slate-950">Create User</h2>
-                <span class="text-xs font-semibold text-slate-500">Church/campus assignment is enforced at the account level.</span>
+                <span class="text-xs font-semibold text-slate-500">Church/{{ Str::lower($terminology['campus_singular']) }} assignment is enforced at the account level.</span>
             </div>
             <form method="POST" action="{{ route('users.store') }}" class="grid gap-3 lg:grid-cols-6">
                 @csrf
@@ -85,7 +85,7 @@
                     @endforeach
                 </select>
                 <select name="campus_id" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                    <option value="">All campuses</option>
+                    <option value="">All {{ Str::lower($terminology['campus_plural']) }}</option>
                     @foreach ($campuses as $campus)
                         <option value="{{ $campus->id }}">{{ $campus->name }}</option>
                     @endforeach
@@ -114,7 +114,7 @@
                             <th>User</th>
                             <th>Status</th>
                             <th>Church</th>
-                            <th>Campus</th>
+                            <th>{{ $terminology['campus_singular'] }}</th>
                             <th>Roles</th>
                             <th>Last Login</th>
                             <th>Update</th>

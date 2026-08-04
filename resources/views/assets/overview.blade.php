@@ -47,7 +47,7 @@
                 <div class="border-b border-slate-100 p-4"><h2 class="text-base font-semibold text-slate-950">Recent Assets</h2></div>
                 <div class="overflow-x-auto">
                     <table class="table-compact min-w-[760px]">
-                        <thead><tr><th>Asset</th><th>Category</th><th>Campus</th><th>Status</th><th>Condition</th><th class="text-right">Action</th></tr></thead>
+                        <thead><tr><th>Asset</th><th>Category</th><th>{{ $terminology['campus_singular'] }}</th><th>Status</th><th>Condition</th><th class="text-right">Action</th></tr></thead>
                         <tbody>
                             @forelse($recentAssets as $asset)
                                 <tr><td><div class="font-semibold text-slate-950">{{ $asset->name }}</div><div class="text-xs text-slate-500">{{ $asset->serial_number ?: 'No serial number' }}</div></td><td>{{ $asset->category?->name ?? 'Uncategorized' }}</td><td>{{ $asset->campus?->name ?? 'Unassigned' }}</td><td><x-status-badge :status="Str::headline($asset->status)" /></td><td><x-status-badge :status="Str::headline($asset->condition)" /></td><td class="text-right"><a href="{{ route('assets.edit', $asset) }}" class="text-sm font-semibold text-violet-600">Edit</a></td></tr>

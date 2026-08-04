@@ -95,7 +95,7 @@
                     @endforeach
                 </select>
                 <select name="campus_id" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-slate-700">
-                    <option value="">Campus: All</option>
+                    <option value="">{{ $terminology['campus_singular'] }}: All</option>
                     @foreach ($campuses as $campus)
                         <option value="{{ $campus->opaqueId() }}" @selected($selectedCampusId === $campus->id)>{{ $campus->name }}</option>
                     @endforeach
@@ -107,7 +107,7 @@
                     <option value="follow-up" @selected(request('engagement') === 'follow-up')>Needs Follow-up</option>
                 </select>
                 <select name="ministry_id" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-slate-700">
-                    <option value="">Ministry: All</option>
+                    <option value="">{{ $terminology['ministry_singular'] }}: All</option>
                     @foreach ($ministries as $ministry)
                         <option value="{{ $ministry->opaqueId() }}" @selected($selectedMinistryId === $ministry->id)>{{ $ministry->name }}</option>
                     @endforeach
@@ -206,8 +206,8 @@
                                         <th>Phone</th>
                                         <th>Marital Status</th>
                                         <th>Status</th>
-                                        <th>Campus</th>
-                                        <th>Ministry</th>
+                                        <th>{{ $terminology['campus_singular'] }}</th>
+                                        <th>{{ $terminology['ministry_singular'] }}</th>
                                         <th>Join Date</th>
                                         <th>Attendance</th>
                                         <th>Giving</th>
@@ -286,7 +286,7 @@
                 </section>
 
                 <section class="dashboard-card">
-                    <div class="mb-4 flex items-center justify-between gap-3"><h2 class="text-base font-semibold text-slate-950">Members by Campus</h2><a href="{{ route('campuses.index') }}" class="text-xs font-medium text-violet-600">View Report</a></div>
+                    <div class="mb-4 flex items-center justify-between gap-3"><h2 class="text-base font-semibold text-slate-950">Members by {{ $terminology['campus_singular'] }}</h2><a href="{{ route('campuses.index') }}" class="text-xs font-medium text-violet-600">View Report</a></div>
                     <div class="space-y-3">
                         @foreach ($campusDistribution as $item)
                             <div class="grid grid-cols-[1fr_auto] items-center gap-3 text-sm">

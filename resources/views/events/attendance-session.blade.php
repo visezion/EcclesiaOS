@@ -289,8 +289,8 @@
                             <dd class="text-right text-slate-900">{{ $session->venue ?: 'Built-in online room' }}</dd>
                         </div>
                         <div class="flex justify-between gap-4">
-                            <dt class="text-slate-500">Campus</dt>
-                            <dd class="text-right text-slate-900">{{ $session->campus?->name ?? 'All campuses' }}</dd>
+                            <dt class="text-slate-500">{{ $terminology['campus_singular'] }}</dt>
+                            <dd class="text-right text-slate-900">{{ $session->campus?->name ?? 'All '.Str::lower($terminology['campus_plural']) }}</dd>
                         </div>
                         <div class="flex justify-between gap-4">
                             <dt class="text-slate-500">Check-in Window</dt>

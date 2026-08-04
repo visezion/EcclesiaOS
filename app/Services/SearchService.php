@@ -20,7 +20,7 @@ final class SearchService
             return ['query' => $query, 'results' => []];
         }
 
-        $navigation = collect(ModuleRegistry::visibleNavigation())
+        $navigation = collect(ModuleRegistry::visibleNavigation($actor?->church))
             ->flatMap(fn (array $item): array => [$item, ...($item['children'] ?? [])])
             ->filter(fn (array $item): bool => isset($item['route']))
             ->filter(fn (array $item): bool => $this->canAccessNavigationItem($item, $actor))

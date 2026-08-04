@@ -1,5 +1,6 @@
 import Alpine from 'alpinejs';
 import {
+    ArrowDown,
     ArrowLeft,
     ArrowRight,
     ArrowUp,
@@ -2303,6 +2304,7 @@ document.addEventListener('alpine:init', () => {
 Alpine.start();
 
 const icons = {
+    ArrowDown,
     ArrowLeft,
     ArrowRight,
     ArrowUp,

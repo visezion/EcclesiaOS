@@ -6,7 +6,7 @@
                 <div class="grid size-14 place-items-center rounded-xl bg-emerald-100 text-emerald-600"><i data-lucide="badge-dollar-sign" class="size-7"></i></div>
                 <div>
                     <h1 class="text-2xl font-semibold text-slate-950">Giving & Finance</h1>
-                    <p class="text-sm text-slate-500">Campus giving, ministry donations, income, expenses, funds, and export controls.</p>
+                    <p class="text-sm text-slate-500">{{ $terminology['campus_singular'] }} giving, {{ Str::lower($terminology['ministry_singular']) }} donations, income, expenses, funds, and export controls.</p>
                 </div>
             </div>
             <div class="flex flex-wrap gap-2">
@@ -67,11 +67,11 @@
                 @foreach($methods as $method)<option value="{{ $method }}" @selected(request('method') === $method)>{{ Str::headline($method) }}</option>@endforeach
             </select>
             <select name="campus_id" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                <option value="">Campus</option>
+                <option value="">{{ $terminology['campus_singular'] }}</option>
                 @foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected((string) request('campus_id') === (string) $campus->id)>{{ $campus->name }}</option>@endforeach
             </select>
             <select name="ministry_id" class="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-                <option value="">Ministry</option>
+                <option value="">{{ $terminology['ministry_singular'] }}</option>
                 @foreach($ministries as $ministry)<option value="{{ $ministry->id }}" @selected((string) request('ministry_id') === (string) $ministry->id)>{{ $ministry->name }}</option>@endforeach
             </select>
             <button class="h-10 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white">Apply</button>
@@ -82,12 +82,12 @@
         <div class="grid gap-4 xl:grid-cols-[1fr_390px]">
             <section class="dashboard-card p-0">
                 <div class="border-b border-slate-100 p-4">
-                    <h2 class="text-base font-semibold text-slate-950">Campus Income & Expenses</h2>
+                    <h2 class="text-base font-semibold text-slate-950">{{ $terminology['campus_singular'] }} Income & Expenses</h2>
                     <p class="mt-1 text-sm text-slate-500">Current month giving plus operating income, less posted expenses.</p>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="table-compact min-w-[760px]">
-                        <thead><tr><th>Campus</th><th>Donations</th><th>Income</th><th>Expenses</th><th>Net</th><th>Items</th></tr></thead>
+                        <thead><tr><th>{{ $terminology['campus_singular'] }}</th><th>Donations</th><th>Income</th><th>Expenses</th><th>Net</th><th>Items</th></tr></thead>
                         <tbody>
                             @forelse($campusFinanceRows as $row)
                                 <tr>
@@ -107,7 +107,7 @@
             </section>
 
             <section class="dashboard-card">
-                <h2 class="mb-4 text-base font-semibold text-slate-950">Ministry Giving</h2>
+                <h2 class="mb-4 text-base font-semibold text-slate-950">{{ $terminology['ministry_singular'] }} Giving</h2>
                 <div class="space-y-3">
                     @forelse($ministryGivingRows as $row)
                         <div class="rounded-lg border border-slate-100 p-3">
@@ -128,7 +128,7 @@
         </div>
         @else
             <section class="dashboard-card">
-                <h2 class="text-base font-semibold text-slate-950">Ministry Contributions</h2>
+                <h2 class="text-base font-semibold text-slate-950">{{ $terminology['ministry_singular'] }} Contributions</h2>
                 <p class="mt-1 text-sm text-slate-500">This view only shows contribution records you created. Full campus finance, funds, exports, income, and expense information is hidden by permission.</p>
             </section>
         @endif
@@ -145,7 +145,7 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="table-compact min-w-[1180px]">
-                    <thead><tr><th>Reference</th><th>Date</th><th>Member</th><th>Fund</th><th>Ministry</th><th>Campus</th><th>Frequency</th><th>Method</th><th>Amount</th><th class="text-right">Actions</th></tr></thead>
+                    <thead><tr><th>Reference</th><th>Date</th><th>Member</th><th>Fund</th><th>{{ $terminology['ministry_singular'] }}</th><th>{{ $terminology['campus_singular'] }}</th><th>Frequency</th><th>Method</th><th>Amount</th><th class="text-right">Actions</th></tr></thead>
                     <tbody>
                         @forelse($donations as $donation)
                             <tr>
@@ -185,7 +185,7 @@
             <div class="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <h2 class="text-base font-semibold text-slate-950">Income & Expense Ledger</h2>
-                    <p class="mt-1 text-sm text-slate-500">Campus and ministry operating records for simple finance tracking.</p>
+                    <p class="mt-1 text-sm text-slate-500">{{ $terminology['campus_singular'] }} and {{ Str::lower($terminology['ministry_singular']) }} operating records for simple finance tracking.</p>
                 </div>
                 <form method="GET" action="{{ route('finance.index') }}" class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[190px_140px_140px_auto]">
                     <input type="hidden" name="q" value="{{ request('q') }}">
@@ -197,7 +197,7 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="table-compact min-w-[1120px]">
-                    <thead><tr><th>Reference</th><th>Date</th><th>Type</th><th>Category</th><th>Campus</th><th>Ministry</th><th>Source / Vendor</th><th>Status</th><th>Amount</th><th class="text-right">Actions</th></tr></thead>
+                    <thead><tr><th>Reference</th><th>Date</th><th>Type</th><th>Category</th><th>{{ $terminology['campus_singular'] }}</th><th>{{ $terminology['ministry_singular'] }}</th><th>Source / Vendor</th><th>Status</th><th>Amount</th><th class="text-right">Actions</th></tr></thead>
                     <tbody>
                         @forelse($transactions as $transaction)
                             <tr>

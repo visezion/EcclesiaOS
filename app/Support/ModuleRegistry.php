@@ -13,9 +13,12 @@ final class ModuleRegistry
     /**
      * @return Collection<int, array<string, mixed>>
      */
-    public static function modules(): Collection
+    public static function modules(?Church $church = null): Collection
     {
+        $terminology = OrganizationTerminology::forChurch(self::terminologyChurch($church));
+
         return collect(config('navigation'))
+            ->map(fn (array $item): array => OrganizationTerminology::translateNavigationItem($item, $terminology))
             ->flatMap(fn (array $item): array => $item['children'] ?? [$item])
             ->filter(fn (array $item): bool => isset($item['route']))
             ->concat(self::featureModules())
@@ -64,7 +67,9 @@ final class ModuleRegistry
      */
     public static function disabledRoutes(?Church $church = null): Collection
     {
-        $church ??= Church::query()->first();
+        $church = $church?->getKey()
+            ? Church::query()->find($church->getKey())
+            : Church::query()->first();
 
         return collect(data_get($church?->settings, 'disabled_modules', []))
             ->filter(fn ($route): bool => is_string($route) && self::configurableRoutes()->contains($route))
@@ -147,8 +152,10 @@ final class ModuleRegistry
     public static function visibleNavigation(?Church $church = null): array
     {
         $disabled = self::disabledRoutes($church);
+        $terminology = OrganizationTerminology::forChurch(self::terminologyChurch($church));
 
         return collect(config('navigation'))
+            ->map(fn (array $item): array => OrganizationTerminology::translateNavigationItem($item, $terminology))
             ->map(function (array $item) use ($disabled): ?array {
                 $children = collect($item['children'] ?? [])
                     ->reject(fn (array $child): bool => $disabled->contains($child['route'] ?? null))
@@ -170,5 +177,16 @@ final class ModuleRegistry
             ->filter()
             ->values()
             ->all();
+    }
+
+    private static function terminologyChurch(?Church $church): ?Church
+    {
+        if ($church) {
+            return $church;
+        }
+
+        $user = auth()->user();
+
+        return $user?->church_id ? Church::query()->find($user->church_id) : null;
     }
 }
