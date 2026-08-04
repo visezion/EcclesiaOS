@@ -32,10 +32,14 @@ use App\Http\Controllers\MinistryController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\ModuleManagementController;
 use App\Http\Controllers\PastoralCareController;
+use App\Http\Controllers\PaymentGatewaySettingsController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicGivingController;
+use App\Http\Controllers\PublicMemberRegistrationController;
 use App\Http\Controllers\RoleDirectoryController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\SystemUpdateController;
 use App\Http\Controllers\TopbarCountsController;
@@ -58,6 +62,17 @@ Route::post('m/{code}/{provider}/polls/{poll}/vote', [EventFlowController::class
 
 Route::view('/', 'landing')->name('home');
 Route::view('features', 'features')->name('features');
+Route::get('member-registration', [PublicMemberRegistrationController::class, 'create'])->name('members.self-register');
+Route::post('member-registration', [PublicMemberRegistrationController::class, 'store'])->middleware('throttle:10,1')->name('members.self-register.store');
+Route::get('give', [PublicGivingController::class, 'create'])->name('giving.create');
+Route::post('give/checkout', [PublicGivingController::class, 'checkout'])->middleware('throttle:10,1')->name('giving.checkout');
+Route::get('give/success', [PublicGivingController::class, 'success'])->name('giving.success');
+Route::get('give/cancel', [PublicGivingController::class, 'cancel'])->name('giving.cancel');
+Route::post('webhooks/stripe', StripeWebhookController::class)->middleware('throttle:120,1')->name('webhooks.stripe');
+Route::post('webhooks/payments/{provider}', StripeWebhookController::class)
+    ->whereIn('provider', ['paystack', 'paypal'])
+    ->middleware('throttle:120,1')
+    ->name('webhooks.payment');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('install', [InstallerController::class, 'create'])->name('install');
@@ -278,6 +293,11 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/system', [SystemSettingsController::class, 'update'])->name('settings.system.update');
     Route::put('settings/system/reset', [SystemSettingsController::class, 'reset'])->name('settings.system.reset');
     Route::post('settings/system/test-connection', [SystemSettingsController::class, 'testConnection'])->name('settings.system.test-connection');
+    Route::get('administration/payment-gateways', [PaymentGatewaySettingsController::class, 'index'])->name('payment-gateways.index');
+    Route::put('administration/payment-gateways', [PaymentGatewaySettingsController::class, 'update'])->name('payment-gateways.update');
+    Route::put('administration/payment-gateways/{provider}', [PaymentGatewaySettingsController::class, 'update'])->name('payment-gateways.update-provider');
+    Route::post('administration/payment-gateways/test', [PaymentGatewaySettingsController::class, 'test'])->name('payment-gateways.test');
+    Route::post('administration/payment-gateways/{provider}/test', [PaymentGatewaySettingsController::class, 'test'])->name('payment-gateways.test-provider');
     Route::post('settings/branding/sidebar-background', [BrandingController::class, 'updateSidebarBackground'])->name('settings.branding.sidebar-background');
     Route::delete('settings/branding/sidebar-background', [BrandingController::class, 'resetSidebarBackground'])->name('settings.branding.sidebar-background.reset');
     Route::get('communications', [CommunicationController::class, 'overview'])->name('communications.index');
@@ -360,7 +380,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index'], true)) {
             continue;
         }
 

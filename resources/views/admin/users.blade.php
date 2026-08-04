@@ -25,8 +25,8 @@
             <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{{ $errors->first() }}</div>
         @endif
 
-        <div class="grid gap-4 xl:grid-cols-[1fr_340px]">
-            <div class="space-y-4">
+        <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div class="min-w-0 space-y-4">
                 <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <x-stat-card :metric="['label' => 'Total Users', 'value' => number_format($stats['total']), 'change' => 'DB', 'period' => 'live records', 'icon' => 'users', 'color' => 'purple', 'route' => 'users.index']" />
                     <x-stat-card :metric="['label' => 'Active Users', 'value' => number_format($stats['active']), 'change' => null, 'period' => 'active accounts', 'icon' => 'users-round', 'color' => 'emerald', 'route' => 'users.index']" />
@@ -35,13 +35,24 @@
                 </div>
 
                 <section class="dashboard-card">
-                <div class="mb-4 grid gap-3 lg:grid-cols-[1fr_180px_180px_180px_auto]">
-                    <input x-model.debounce.150ms="search" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Search users by name, email, or phone...">
-                    <select x-model="role" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All Roles</option>@foreach($roles as $role)<option value="{{ $role->id }}">{{ $role->name }}</option>@endforeach</select>
-                    <select x-model="campus" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All {{ $terminology['campus_plural'] }}</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}">{{ $campus->name }}</option>@endforeach</select>
-                    <select x-model="status" class="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">All Statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="inactive">Inactive</option></select>
-                    <button type="button" @click="clearFilters()" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">Clear</button>
-                </div>
+                <form method="GET" action="{{ route('users.index') }}" class="mb-4 grid gap-2 md:grid-cols-2 xl:grid-cols-6">
+                    <label class="relative md:col-span-2 xl:col-span-2">
+                        <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"></i>
+                        <input name="q" value="{{ request('q') }}" class="h-10 w-full rounded-lg border border-slate-200 pl-9 pr-3 text-sm" placeholder="Search users by name, email, or phone...">
+                    </label>
+                    <select name="role_id" class="h-10 min-w-0 rounded-lg border border-slate-200 px-3 text-sm"><option value="">All Roles</option>@foreach($roles as $role)<option value="{{ $role->id }}" @selected((int) request('role_id') === $role->id)>{{ $role->name }}</option>@endforeach</select>
+                    <select name="campus_id" class="h-10 min-w-0 rounded-lg border border-slate-200 px-3 text-sm"><option value="">All {{ $terminology['campus_plural'] }}</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected((int) request('campus_id') === $campus->id)>{{ $campus->name }}</option>@endforeach</select>
+                    <select name="status" class="h-10 min-w-0 rounded-lg border border-slate-200 px-3 text-sm"><option value="">All Statuses</option><option value="active" @selected(request('status') === 'active')>Active</option><option value="suspended" @selected(request('status') === 'suspended')>Suspended</option><option value="inactive" @selected(request('status') === 'inactive')>Inactive</option></select>
+                    <div class="grid grid-cols-[1fr_auto] gap-2">
+                        <button class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 text-sm font-bold text-white hover:bg-violet-700">
+                            <i data-lucide="list-filter" class="size-4"></i>
+                            Filter
+                        </button>
+                        <a href="{{ route('users.index') }}" class="grid size-10 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Clear filters" aria-label="Clear filters">
+                            <i data-lucide="x" class="size-4"></i>
+                        </a>
+                    </div>
+                </form>
                 <form id="bulk-users-form" method="POST" action="{{ route('users.bulk') }}">
                     @csrf
                     <div class="mb-3 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -57,9 +68,9 @@
                             <button type="submit" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" :disabled="selected.length === 0">
                                 <i data-lucide="check" class="size-4"></i> Apply
                             </button>
-                            <span class="text-xs font-semibold text-slate-400" x-text="selected.length ? `${selected.length} selected` : `${visibleCount()} users found`"></span>
+                            <span class="text-xs font-semibold text-slate-400" x-text="selected.length ? `${selected.length} selected` : '{{ number_format($users->total()) }} users found'"></span>
                         </div>
-                        <a href="{{ route('users.export') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+                        <a href="{{ route('users.export', request()->query()) }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
                             <i data-lucide="download" class="size-4"></i> Export
                         </a>
                     </div>
@@ -105,7 +116,6 @@
                                         data-roles="{{ $user->roles->pluck('id')->join(',') }}"
                                         data-campus="{{ $user->campus_id ?? '' }}"
                                         data-status="{{ $user->status }}"
-                                        x-show="matches($el)"
                                     >
                                         <td><input type="checkbox" name="users[]" value="{{ $user->opaqueId() }}" x-model="selected" class="rounded border-slate-300"></td>
                                         <td>
@@ -139,15 +149,17 @@
                                         </td>
                                     </tr>
                                 @endforeach
-                                <tr x-show="visibleCount() === 0">
+                                @if($users->isEmpty())
+                                <tr>
                                     <td colspan="10" class="py-8 text-center text-sm font-semibold text-slate-500">No users match the current filters.</td>
                                 </tr>
+                                @endif
                             </tbody>
                         </table>
                     </div>
-                    <div class="mt-4 flex items-center justify-between text-sm text-slate-500">
-                        <span x-text="`Showing ${visibleCount()} of {{ $users->count() }} users`"></span>
-                        <span class="rounded-lg border border-slate-200 px-3 py-2">10 per page</span>
+                    <div class="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                        <span>Showing {{ number_format($users->firstItem() ?? 0) }} to {{ number_format($users->lastItem() ?? 0) }} of {{ number_format($users->total()) }} users · 20 per page</span>
+                        {{ $users->onEachSide(1)->links() }}
                     </div>
                 </form>
                 @foreach ($users as $user)

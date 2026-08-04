@@ -86,7 +86,7 @@ final class MemberManagementController extends Controller
         $this->scopeMembers($query, $request);
         $this->applyFilters($query, $request);
 
-        $perPage = min(50, max(10, (int) $request->integer('per_page', 10)));
+        $perPage = min(50, max(10, (int) $request->integer('per_page', 15)));
         $members = $query->latest('joined_at')->latest()->paginate($perPage)->withQueryString();
         $members->setCollection($members->getCollection()->map(fn (Member $member): array => $this->memberRow($member)));
 

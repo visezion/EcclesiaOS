@@ -25,6 +25,24 @@ class AdminPagesTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_planned_modules_render_the_shared_coming_soon_experience(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('reports.index'))
+            ->assertOk()
+            ->assertSee('Reports &amp; Analytics', false)
+            ->assertSee('Under development')
+            ->assertSee('Coming soon')
+            ->assertSee('Planned capabilities')
+            ->assertSee('Custom reports')
+            ->assertSee('Analytics dashboards')
+            ->assertSee('Foundation prepared')
+            ->assertSee('No action is needed right now');
+    }
+
     public function test_database_backed_admin_pages_render(): void
     {
         $this->seed();
@@ -42,6 +60,61 @@ class AdminPagesTest extends TestCase
                 ->get(route($route))
                 ->assertOk()
                 ->assertSee($text, false);
+        }
+    }
+
+    public function test_users_management_paginates_twenty_users_per_page(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        User::factory()->count(15)->create(['church_id' => $admin->church_id]);
+
+        $this->actingAs($admin)
+            ->get(route('users.index'))
+            ->assertOk()
+            ->assertViewHas('users', fn ($users): bool => $users->perPage() === 20 && $users->count() === 20 && $users->total() > 20)
+            ->assertSee('20 per page');
+    }
+
+    public function test_users_management_filters_search_role_campus_and_status(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $church = Church::query()->firstOrFail();
+        $campuses = Campus::query()->where('church_id', $church->id)->take(2)->get();
+        $filterRole = Role::query()->create(['name' => 'Directory Filter QA', 'slug' => 'directory-filter-qa']);
+        $viewerRole = Role::query()->where('name', 'Viewer')->firstOrFail();
+
+        $target = User::factory()->create([
+            'name' => 'Unique Filter Target',
+            'email' => 'filter-target@example.test',
+            'phone' => '+234 800 555 0199',
+            'church_id' => $church->id,
+            'campus_id' => $campuses->first()->id,
+            'status' => 'suspended',
+        ]);
+        $target->roles()->sync([$filterRole->id]);
+
+        $other = User::factory()->create([
+            'name' => 'Different Directory User',
+            'church_id' => $church->id,
+            'campus_id' => $campuses->last()->id,
+            'status' => 'active',
+        ]);
+        $other->roles()->sync([$viewerRole->id]);
+
+        foreach ([
+            ['q' => '800 555 0199'],
+            ['role_id' => $filterRole->id],
+            ['campus_id' => $campuses->first()->id, 'status' => 'suspended'],
+            ['q' => 'Unique Filter', 'role_id' => $filterRole->id, 'campus_id' => $campuses->first()->id, 'status' => 'suspended'],
+        ] as $filters) {
+            $this->actingAs($admin)
+                ->get(route('users.index', $filters))
+                ->assertOk()
+                ->assertViewHas('users', fn ($users): bool => $users->total() === 1 && $users->first()?->is($target))
+                ->assertSee('Unique Filter Target')
+                ->assertDontSee('Different Directory User');
         }
     }
 
@@ -769,6 +842,7 @@ class AdminPagesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('members.index'))
             ->assertOk()
+            ->assertViewHas('members', fn ($members): bool => $members->perPage() === 15 && $members->count() <= 15)
             ->assertSee('Members Management')
             ->assertSee('Members Directory')
             ->assertSee('Members by Status')

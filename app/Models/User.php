@@ -47,6 +47,7 @@ class User extends Authenticatable
         'status',
         'church_id',
         'campus_id',
+        'member_id',
         'last_login_at',
         'password_changed_at',
     ];
@@ -88,6 +89,11 @@ class User extends Authenticatable
     public function campus(): BelongsTo
     {
         return $this->belongsTo(Campus::class);
+    }
+
+    public function member(): BelongsTo
+    {
+        return $this->belongsTo(Member::class);
     }
 
     public function roles(): BelongsToMany

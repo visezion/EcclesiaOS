@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // This allows Laravel to correctly detect the original HTTPS request.
         $middleware->trustProxies(env('TRUSTED_PROXIES'));
         $middleware->append(SecurityHeaders::class);
+        $middleware->validateCsrfTokens(except: ['webhooks/stripe', 'webhooks/payments/*']);
 
         $middleware->alias([
             'module.enabled' => EnsureModuleEnabled::class,

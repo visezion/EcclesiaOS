@@ -49,6 +49,10 @@ final class AuthenticatedSessionController extends Controller
         $user?->forceFill(['last_login_at' => now()])->save();
         $activityLogger->log('Authentication', 'login', 'User signed in.', $user, request: $request);
 
+        if ($user?->hasAnyRole(['Member']) && ! $user->hasPermission('view dashboard')) {
+            return redirect()->route('bible.index');
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

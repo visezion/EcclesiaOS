@@ -125,6 +125,12 @@ return [
             ['label' => 'System Settings', 'route' => 'settings.index', 'icon' => 'settings', 'permission' => 'manage settings'],
             ['label' => 'Meeting Integrations', 'route' => 'meeting-integrations.index', 'icon' => 'radio-tower', 'permission' => 'manage settings'],
             ['label' => 'Communication Integrations', 'route' => 'communications.integrations', 'icon' => 'webhook', 'permission' => 'manage settings'],
+            [
+                'label' => 'Payment Gateways',
+                'route' => 'payment-gateways.index',
+                'icon' => 'credit-card',
+                'permission' => 'manage settings',
+            ],
             ['label' => 'Module Management', 'route' => 'modules.index', 'icon' => 'layout-grid', 'permission' => 'manage settings'],
             ['label' => 'Authentication', 'route' => 'auth-settings.index', 'icon' => 'lock-keyhole', 'permission' => 'manage settings'],
             ['label' => 'System Updates', 'route' => 'system-updates.index', 'icon' => 'refresh-cw', 'permission' => 'manage settings', 'super_admin' => true],

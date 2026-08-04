@@ -130,8 +130,8 @@
                     @endforeach
                 </select>
                 <select name="per_page" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-slate-700">
-                    @foreach ([10, 25, 50] as $value)
-                        <option value="{{ $value }}" @selected((int) request('per_page', 10) === $value)>{{ $value }} per page</option>
+                    @foreach ([15, 25, 50] as $value)
+                        <option value="{{ $value }}" @selected((int) request('per_page', 15) === $value)>{{ $value }} per page</option>
                     @endforeach
                 </select>
                 <div class="flex items-center gap-2 text-sm text-slate-500">

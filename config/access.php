@@ -58,6 +58,7 @@ return [
         'Book Store Manager' => ['view dashboard', 'use messages', 'use bible', 'send messages', 'forward messages', 'manage bookstore', 'view reports'],
         'Ministry Leader' => ['view dashboard', 'use messages', 'use bible', 'send messages', 'create message groups', 'manage message participants', 'forward messages', 'manage volunteers', 'manage ministries', 'manage events', 'manage communications', 'view ministry finance', 'record ministry contributions'],
         'Staff' => ['view dashboard', 'use messages', 'use bible', 'send messages', 'forward messages'],
+        'Member' => ['use messages', 'use bible'],
         'Viewer' => ['view dashboard', 'use messages', 'use bible'],
     ],
 ];

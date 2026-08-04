@@ -91,7 +91,7 @@
     class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col overflow-hidden bg-sidebar text-white shadow-lg transition-transform duration-200 lg:translate-x-0"
     style="background-color: {{ $sidebarBackgroundColor }} !important; background-image: none !important;"
 >
-    <nav class="relative z-10 min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-5">
+    <nav class="sidebar-nav-scroll relative z-10 min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-5">
         <div class="-mx-3 mb-4 flex items-center gap-3 border-b border-white/10 px-5 py-3">
             <div class="grid size-12 place-items-center overflow-hidden rounded-xl bg-transparent">
                 @if ($branding->logo())

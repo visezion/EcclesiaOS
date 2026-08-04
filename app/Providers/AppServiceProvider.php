@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Contracts\PaymentGateway;
+use App\Services\PaymentGatewayManager;
 use App\Support\OrganizationTerminology;
 use Illuminate\Foundation\Vite;
 use Illuminate\Http\Request;
@@ -16,7 +18,7 @@ final class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(PaymentGateway::class, PaymentGatewayManager::class);
     }
 
     /**

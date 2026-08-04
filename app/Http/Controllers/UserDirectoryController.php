@@ -20,9 +20,13 @@ final class UserDirectoryController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
-        $users = $this->scopeUsers(User::query(), $request)->with(['church', 'campus', 'roles'])->latest()->get();
+        $scopedUsers = $this->scopeUsers(User::query(), $request);
+        $filteredUsers = clone $scopedUsers;
+        $this->applyFilters($filteredUsers, $request);
+        $users = $filteredUsers->with(['church', 'campus', 'roles'])->latest()->paginate(20)->withQueryString();
         $roles = Role::query()->orderBy('name')->get();
         $campuses = $this->scopeCampuses(Campus::query(), $request)->orderBy('name')->get();
+        $totalUsers = (clone $scopedUsers)->count();
 
         return view('admin.users', [
             'users' => $users,
@@ -33,12 +37,12 @@ final class UserDirectoryController extends Controller
             'campusDistribution' => $this->scopeCampuses(Campus::query(), $request)->withCount(['users' => fn (Builder $query) => $this->scopeUsers($query, $request)])->orderByDesc('users_count')->get(),
             'recentActivity' => ActivityLog::query()->with('user')->where('module', 'Access Control')->latest()->limit(6)->get(),
             'stats' => [
-                'total' => $users->count(),
-                'active' => $users->where('status', 'active')->count(),
-                'pending' => $users->where('status', 'inactive')->count(),
-                'locked' => $users->where('status', 'suspended')->count(),
+                'total' => $totalUsers,
+                'active' => (clone $scopedUsers)->where('status', 'active')->count(),
+                'pending' => (clone $scopedUsers)->where('status', 'inactive')->count(),
+                'locked' => (clone $scopedUsers)->where('status', 'suspended')->count(),
                 'campuses' => $campuses->count(),
-                'mfa' => $users->where('mfa_enabled', true)->count(),
+                'mfa' => (clone $scopedUsers)->where('mfa_enabled', true)->count(),
             ],
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
@@ -72,7 +76,10 @@ final class UserDirectoryController extends Controller
                 'Last Login',
             ]);
 
-            $this->scopeUsers(User::query(), $request)
+            $query = $this->scopeUsers(User::query(), $request);
+            $this->applyFilters($query, $request);
+
+            $query
                 ->with(['church', 'campus', 'roles'])
                 ->orderBy('name')
                 ->lazy(100)
@@ -135,6 +142,31 @@ final class UserDirectoryController extends Controller
         }
 
         return $query;
+    }
+
+    private function applyFilters(Builder $query, Request $request): void
+    {
+        $search = trim($request->string('q')->toString());
+        if ($search !== '') {
+            $query->where(function (Builder $searchQuery) use ($search): void {
+                $searchQuery
+                    ->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%')
+                    ->orWhere('phone', 'like', '%'.$search.'%');
+            });
+        }
+
+        if ($request->filled('role_id')) {
+            $query->whereHas('roles', fn (Builder $roleQuery) => $roleQuery->whereKey($request->integer('role_id')));
+        }
+
+        if ($request->filled('campus_id')) {
+            $query->where('campus_id', $request->integer('campus_id'));
+        }
+
+        if (in_array($request->string('status')->toString(), ['active', 'inactive', 'suspended'], true)) {
+            $query->where('status', $request->string('status')->toString());
+        }
     }
 
     private function scopeChurches(Builder $query, Request $request): Builder

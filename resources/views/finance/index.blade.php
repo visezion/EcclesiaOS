@@ -10,6 +10,10 @@
                 </div>
             </div>
             <div class="flex flex-wrap gap-2">
+                <a href="{{ route('giving.create') }}" target="_blank" class="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"><i data-lucide="credit-card" class="size-4"></i>Online Giving</a>
+                @if(auth()->user()?->isSuperAdministrator() || auth()->user()?->hasPermission('manage settings'))
+                    <a href="{{ route('payment-gateways.index') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50"><i data-lucide="settings-2" class="size-4"></i>Configure Gateway</a>
+                @endif
                 @if($financeCapabilities['can_view_sensitive_finance'])
                     <a href="{{ route('finance.overview') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><i data-lucide="layout-dashboard" class="size-4"></i>Overview</a>
                 @endif
@@ -55,6 +59,39 @@
                 <div class="dashboard-card"><p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{{ $financeTitlePrefix }}Pending Items</p><p class="mt-2 text-2xl font-semibold text-slate-950">{{ number_format($transactionStats['pending']) }}</p><p class="mt-1 text-sm text-slate-500">awaiting posting</p></div>
             @endif
         </div>
+
+        @if($financeCapabilities['can_view_sensitive_finance'])
+            <section class="dashboard-card p-0">
+                <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div><h2 class="font-semibold text-slate-950">Payment Gateway Activity</h2><p class="mt-1 text-sm text-slate-500">Verified Stripe payments and checkout attempts.</p></div>
+                    <div class="flex gap-2 text-xs font-bold">
+                        <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700">{{ $gatewayStats['paid'] }} paid</span>
+                        <span class="rounded-full bg-amber-50 px-3 py-1.5 text-amber-700">{{ $gatewayStats['pending'] }} pending</span>
+                        <span class="rounded-full bg-rose-50 px-3 py-1.5 text-rose-700">{{ $gatewayStats['failed'] }} failed</span>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="table-compact min-w-[760px]">
+                        <thead><tr><th>Reference</th><th>Started</th><th>Donor</th><th>Fund</th><th>Amount</th><th>Status</th><th>Ledger</th></tr></thead>
+                        <tbody>
+                            @forelse($gatewayTransactions as $gatewayTransaction)
+                                <tr>
+                                    <td class="font-mono text-xs font-semibold">{{ $gatewayTransaction->reference }}</td>
+                                    <td>{{ $gatewayTransaction->created_at?->format('M d, Y h:i A') }}</td>
+                                    <td>{{ $gatewayTransaction->donor_name ?: 'Anonymous' }}</td>
+                                    <td>{{ $gatewayTransaction->fund?->name ?? 'General giving' }}</td>
+                                    <td class="font-semibold">{{ $gatewayTransaction->currency }} {{ number_format((float)$gatewayTransaction->amount, 2) }}</td>
+                                    <td><x-status-badge :status="Str::headline($gatewayTransaction->status)" /></td>
+                                    <td>{{ $gatewayTransaction->donation?->reference ?? 'Not recorded' }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">No online checkout activity yet.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        @endif
 
         <form method="GET" action="{{ route('finance.index') }}" class="dashboard-card grid gap-3 md:grid-cols-2 xl:grid-cols-7">
             <input name="q" value="{{ request('q') }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm" placeholder="Search giving...">

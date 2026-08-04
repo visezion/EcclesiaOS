@@ -17,7 +17,7 @@
     $changeTone = $changeIsNegative ? 'text-rose-600' : ($changeIsNeutral ? 'text-slate-500' : 'text-emerald-600');
 @endphp
 
-<a href="{{ route($metric['route']) }}" class="dashboard-card flex h-full min-h-[104px] items-center gap-3 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-violet-500 sm:gap-4" aria-label="{{ $term($metric['label']).': '.$metric['value'] }}">
+<a href="{{ route($metric['route']) }}" class="dashboard-card flex min-h-[104px] items-center gap-3 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-violet-500 sm:gap-4" aria-label="{{ $term($metric['label']).': '.$metric['value'] }}">
     <div class="grid size-10 shrink-0 place-items-center rounded-full sm:size-12 {{ $tone }}">
         <i data-lucide="{{ $metric['icon'] }}" class="size-5 sm:size-6"></i>
     </div>

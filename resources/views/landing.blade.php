@@ -162,6 +162,8 @@
                 </a>
 
                 <div class="hidden items-center gap-9 text-sm font-semibold text-slate-700 lg:flex">
+                    <a href="{{ route('giving.create') }}" class="hover:text-violet-600">Give</a>
+                    <a href="{{ route('members.self-register') }}" class="hover:text-violet-600">Member Registration</a>
                     <a href="{{ route('features') }}" class="hover:text-violet-600">Features</a>
                     <a href="#solutions" class="hover:text-violet-600">Solutions</a>
                     <a href="#resources" class="hover:text-violet-600">Resources</a>
@@ -184,6 +186,8 @@
             </nav>
             <div x-cloak x-show="mobileMenu" x-transition class="border-t border-slate-200 bg-white p-5 sm:hidden">
                 <div class="grid gap-2 text-sm font-semibold text-slate-700">
+                    <a href="{{ route('giving.create') }}" class="rounded-lg px-3 py-2">Give</a>
+                    <a href="{{ route('members.self-register') }}" class="rounded-lg px-3 py-2">Member Registration</a>
                     <a href="{{ route('features') }}" class="rounded-lg px-3 py-2">Features</a>
                     <a href="#solutions" @click="mobileMenu = false" class="rounded-lg px-3 py-2">Solutions</a>
                     <a href="{{ $downloadUrl }}" class="rounded-lg px-3 py-2">Download</a>

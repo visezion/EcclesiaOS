@@ -2,6 +2,135 @@
 
 EcclesiaOS uses GitHub Releases as the authoritative changelog for deployed application versions.
 
+## 1.0.20 - 2026-08-04
+
+### Highlights
+
+- Added secure self-service registration for new and returning members, including linked member accounts and a default Member role.
+- Added configurable online giving through Stripe, Paystack, and PayPal with administrator-managed credentials, sandbox testing, verified callbacks, and safe financial recording.
+- Upgraded user and member directories with real server-side pagination and reliable filtering.
+- Redesigned shared under-development pages and corrected missing interface icons across production builds.
+
+### Added
+
+- Added a public member-registration experience with the same branded topbar used by the home page.
+- Added separate registration paths for new and returning members with duplicate-member and duplicate-account safeguards.
+- Added linked member user accounts, member-to-user relationships, and automatic login after successful registration.
+- Added a default Member role with access to Messages and Bible features.
+- Added a public online-giving checkout with donor details, amount, currency, fund, note, and provider selection.
+- Added Stripe hosted checkout support for global card payments.
+- Added Paystack support for Nigerian payments in NGN.
+- Added PayPal support for United States payments in USD.
+- Added encrypted database-backed payment gateway settings that administrators can update from the GUI.
+- Added individual test/live operating modes, enable controls, credential forms, connection tests, and webhook guidance for each payment provider.
+- Added payment callback and webhook handling with provider-specific verification.
+- Added a payment transaction ledger for provider references, statuses, verified values, timestamps, payload metadata, and linked finance records.
+- Added idempotent payment recording to prevent duplicate donations from repeated callbacks.
+- Added local Stripe, Paystack, and PayPal logo assets for provider-specific controls.
+- Added a Payment Gateways administration route, sidebar entry, permission checks, and responsive management page.
+- Added automated feature coverage for member registration, gateway settings, sandbox providers, online giving, user filters, and pagination.
+
+### Improved
+
+- Moved Interface Zoom into the Advanced Branding section while preserving administrator control.
+- Made member accounts authenticate through the existing login flow with appropriate default permissions.
+- Added clear registration and giving entry points to public and authenticated pages.
+- Redesigned the Payment Gateways page to match the existing administration shell, cards, controls, spacing, and responsive behavior.
+- Used a standard credit-card icon for the Payment Gateways page and sidebar while retaining provider logos only where provider identity is useful.
+- Made the public giving flow show only enabled and fully configured providers.
+- Made payment credentials retain their saved encrypted value when an administrator leaves a credential field blank.
+- Changed the member directory default page size to 15 and retained 15, 25, and 50 record options.
+- Changed User Management to display 20 users per page.
+- Reworked User Management search, role, campus, and status filters as server-side filters with combined-query support.
+- Preserved User Management filter values across pagination and limited exports to the filtered result set.
+- Made the User Management filter toolbar compact and responsive instead of stacking unnecessarily on desktop.
+- Redesigned shared planned-module pages with a polished Coming Soon presentation, capability cards, release status, progress timeline, and responsive layout.
+- Applied the improved under-development presentation to Reports & Analytics and every module using the shared component.
+- Replaced misleading notification actions on planned-module pages with honest release-status guidance.
+- Registered the complete icon set required by the new payment and Coming Soon interfaces.
+
+### Fixed
+
+- Fixed oversized and empty User Management sidebar statistic cards, including the Campuses card.
+- Fixed User Management filters that appeared to submit but did not reliably filter server-side records.
+- Fixed pagination links losing active User Management filters.
+- Fixed member and user directories using inconsistent or client-only page limits.
+- Fixed missing Payment Gateways page and sidebar icons.
+- Fixed missing Custom Reports, Saved Views, Exports, progress, and rollout icons on shared Coming Soon pages.
+- Fixed interface icons rendering as blank gray placeholders when their Lucide definitions were omitted from the production bundle.
+- Fixed returning-member registration creating duplicate member records.
+- Fixed payment callbacks recording donations before provider status, amount, currency, and payment date were verified.
+- Fixed repeated provider callbacks being able to create duplicate finance records.
+- Fixed login redirects for newly registered member accounts.
+- Fixed responsive spacing and wrapping in directory filters, payment controls, planned-module cards, and statistic cards.
+
+### Security
+
+- Encrypts payment gateway credentials at rest and never returns saved secrets to the browser.
+- Verifies provider callback signatures or provider API state before recording successful giving.
+- Validates payment status, amount, currency, provider reference, and provider timestamp before creating a finance record.
+- Rate-limits public registration, checkout, and payment webhook endpoints.
+- Applies role and settings permissions to all payment gateway administration endpoints.
+- Uses unique transaction references and idempotent recording to protect against replayed callbacks.
+- Continues storing account passwords only as secure hashes.
+
+### Deployment and compatibility
+
+- Direct upgrades remain supported from `1.0.0` and later.
+- This release contains additive migrations for member-account links, the default Member role, and payment gateway transactions.
+- Run database migrations during deployment before enabling member registration or online giving.
+- Payment providers remain disabled until an administrator saves valid credentials, selects the correct operating mode, and enables the provider.
+- Production assets are rebuilt by the release workflow and packaged with the required update manifest and checksum.
+
+### Full Changelog
+
+- Added new-member self-registration with name, contact, password, and membership details.
+- Added returning-member account activation against an existing member record.
+- Added validation that prevents duplicate emails, duplicate linked users, and accidental duplicate member profiles.
+- Linked member and user models through a nullable user-account association.
+- Added an additive migration to connect existing member records to user accounts.
+- Added an additive migration and access configuration for the default Member role.
+- Granted the Member role access to Messages and Bible without granting staff or administration capabilities.
+- Enabled registered members to sign in through the standard login page.
+- Added automatic post-registration authentication and safe member landing behavior.
+- Reused the public home topbar on the member-registration page.
+- Added public navigation links for member registration and online giving.
+- Added a gateway-neutral payment contract and manager for provider selection.
+- Added Stripe, Paystack, and PayPal provider services.
+- Added Stripe Checkout session creation and verified completion handling.
+- Added Paystack transaction initialization and verification for NGN payments.
+- Added PayPal order creation and capture verification for USD payments.
+- Added encrypted GUI-managed provider configuration with environment-variable fallback support.
+- Added gateway enable/disable controls and separate Test/Sandbox and Live modes.
+- Added per-provider connection tests with visible connection-health results.
+- Added provider webhook endpoint instructions and copy controls.
+- Added local, reliable provider logos for Stripe, Paystack, and PayPal controls.
+- Added a standard credit-card icon to Payment Gateways navigation and page headings.
+- Added a responsive public giving form and success/cancellation result screens.
+- Added a payment transaction model and additive transaction-ledger migration.
+- Recorded provider references, exact amounts, currencies, statuses, provider dates, and verification metadata.
+- Linked verified successful transactions to the corresponding finance contribution record.
+- Prevented duplicate contribution records when a provider retries a webhook or callback.
+- Added throttling to public registration, checkout, and webhook routes.
+- Added Payment Gateways to Administration navigation and module registration.
+- Added a responsive Payment Gateways dashboard with configuration, enablement, and connection summary cards.
+- Added gateway-specific credential fields, operating-mode controls, webhook guidance, and safe-save behavior.
+- Added a Giving entry point to the Finance page.
+- Set the member directory to 15 records per page with selectable 15, 25, and 50 record sizes.
+- Set User Management to 20 records per server-rendered page.
+- Added server-side User Management search across supported user identity fields.
+- Added working role, campus, and account-status filters.
+- Added combined filters, clear controls, query persistence, result totals, and filtered export behavior.
+- Improved User Management filter responsiveness and compact desktop layout.
+- Corrected the Campuses summary card sizing in User Management.
+- Moved Interface Zoom from the general Branding area into Advanced Branding.
+- Rebuilt the shared Coming Soon component for Reports & Analytics and other planned modules.
+- Added planned-capability cards, development progress, release status, and role-access messaging.
+- Added responsive layouts for the Coming Soon hero, capability grid, timeline, and action area.
+- Registered Credit Card, Layers, File Download, Rocket, and Construction icons in the application bundle.
+- Fixed blank icon placeholders across Payment Gateways and under-development pages.
+- Added and expanded automated tests for all new registration, payment, pagination, filtering, and interface behavior.
+
 ## 1.0.19 - 2026-08-04
 
 ### Highlights

@@ -10,6 +10,7 @@ use App\Models\FinanceTransaction;
 use App\Models\Fund;
 use App\Models\Member;
 use App\Models\Ministry;
+use App\Models\PaymentGatewayTransaction;
 use App\Services\ActivityLogger;
 use App\Support\Csv;
 use Illuminate\Contracts\View\View;
@@ -53,6 +54,7 @@ final class FinanceController extends Controller
         $donations = $query->latest('received_at')->paginate(12)->withQueryString();
         $transactions = $transactionQuery->latest('occurred_at')->paginate(10, ['*'], 'transactions_page')->withQueryString();
         $base = $this->donationVisibilityQuery($request);
+        $gatewayBase = $this->scopeChurchCampus(PaymentGatewayTransaction::query(), $request);
         $currency = $this->currency($request);
         $funds = $capabilities['can_view_sensitive_finance']
             ? $this->fundQuery($request)->withCount('donations')->orderBy('name')->get()
@@ -84,6 +86,12 @@ final class FinanceController extends Controller
             'ministryGivingRows' => $this->ministryGivingRows($request),
             'fundRows' => $this->fundRows($request),
             'methodRows' => $this->methodRows($request),
+            'gatewayStats' => [
+                'paid' => (clone $gatewayBase)->where('status', 'paid')->count(),
+                'pending' => (clone $gatewayBase)->whereIn('status', ['initiated', 'unpaid'])->count(),
+                'failed' => (clone $gatewayBase)->whereIn('status', ['failed', 'amount_mismatch'])->count(),
+            ],
+            'gatewayTransactions' => (clone $gatewayBase)->with(['fund', 'donation'])->latest()->limit(6)->get(),
             'financeCapabilities' => $capabilities,
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
