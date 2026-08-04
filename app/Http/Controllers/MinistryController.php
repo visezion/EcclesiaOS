@@ -7,11 +7,15 @@ namespace App\Http\Controllers;
 use App\Models\Campus;
 use App\Models\Member;
 use App\Models\Ministry;
+use App\Services\ActivityLogger;
 use App\Support\OrganizationTerminology;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 final class MinistryController extends Controller
 {
@@ -78,6 +82,174 @@ final class MinistryController extends Controller
         return back()->with('status', $terminology['ministry_singular'].' archived.');
     }
 
+    public function import(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeMinistries($request);
+        $validated = $request->validate([
+            'campus_id' => ['required', 'exists:campuses,id'],
+            'import_file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
+        ]);
+        $campus = $this->authorizedCampus($request, (int) $validated['campus_id']);
+        $handle = fopen($validated['import_file']->getRealPath(), 'r');
+
+        if ($handle === false) {
+            return back()->withErrors(['import_file' => 'The ministry import file could not be opened.']);
+        }
+
+        $headers = fgetcsv($handle);
+
+        if ($headers === false) {
+            fclose($handle);
+
+            return back()->withErrors(['import_file' => 'The ministry import file is empty.']);
+        }
+
+        $headers = array_map(fn ($header): string => $this->normalizeImportHeader((string) $header), $headers);
+        $nameColumn = array_search('name', $headers, true);
+
+        if ($nameColumn === false) {
+            fclose($handle);
+
+            throw ValidationException::withMessages([
+                'import_file' => 'The CSV must include a name or ministry column.',
+            ]);
+        }
+
+        $imported = 0;
+        $skipped = 0;
+        $rowNumber = 1;
+
+        while (($values = fgetcsv($handle)) !== false) {
+            $rowNumber++;
+
+            if ($rowNumber > 5001) {
+                $skipped++;
+
+                continue;
+            }
+
+            $values = array_pad($values, count($headers), null);
+            $row = array_combine($headers, array_slice($values, 0, count($headers)));
+            $name = trim((string) ($row['name'] ?? ''));
+            $status = Str::lower(trim((string) ($row['status'] ?? 'active')));
+
+            if ($name === '' || ! in_array($status, ['active', 'inactive'], true)) {
+                $skipped++;
+
+                continue;
+            }
+
+            $duplicate = Ministry::query()
+                ->where('church_id', $campus->church_id)
+                ->where('campus_id', $campus->id)
+                ->whereRaw('LOWER(name) = ?', [Str::lower($name)])
+                ->exists();
+
+            if ($duplicate) {
+                $skipped++;
+
+                continue;
+            }
+
+            $leaderId = null;
+            $leaderEmail = trim((string) ($row['leader_email'] ?? ''));
+
+            if ($leaderEmail !== '') {
+                $leaderId = Member::query()
+                    ->where('church_id', $campus->church_id)
+                    ->where('campus_id', $campus->id)
+                    ->whereRaw('LOWER(email) = ?', [Str::lower($leaderEmail)])
+                    ->value('id');
+            }
+
+            Ministry::query()->create([
+                'church_id' => $campus->church_id,
+                'campus_id' => $campus->id,
+                'name' => $name,
+                'leader_id' => $leaderId,
+                'description' => filled($row['description'] ?? null) ? trim((string) $row['description']) : null,
+                'status' => $status,
+            ]);
+            $imported++;
+        }
+
+        fclose($handle);
+        $activityLogger->log('Ministries', 'ministries_imported', $imported.' ministries were imported into '.$campus->name.'.', $campus, [
+            'resource' => 'Ministry Import',
+            'risk' => 'low',
+            'status' => 'success',
+            'imported' => $imported,
+            'skipped' => $skipped,
+        ], $request);
+
+        return back()->with('status', $imported.' ministries imported into '.$campus->name.'; '.$skipped.' rows skipped.');
+    }
+
+    public function cloneCampus(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeMinistries($request);
+        $validated = $request->validate([
+            'source_campus_id' => ['required', 'exists:campuses,id'],
+            'target_campus_id' => ['required', 'different:source_campus_id', 'exists:campuses,id'],
+        ]);
+        $source = $this->authorizedCampus($request, (int) $validated['source_campus_id']);
+        $target = $this->authorizedCampus($request, (int) $validated['target_campus_id']);
+
+        if ($source->church_id !== $target->church_id) {
+            throw ValidationException::withMessages([
+                'target_campus_id' => 'Ministries can only be cloned between campuses in the same church.',
+            ]);
+        }
+
+        $sourceMinistries = $this->ministryQuery($request)
+            ->where('campus_id', $source->id)
+            ->orderBy('id')
+            ->get();
+        $targetNames = Ministry::query()
+            ->where('church_id', $target->church_id)
+            ->where('campus_id', $target->id)
+            ->pluck('name')
+            ->map(fn (string $name): string => Str::lower(trim($name)))
+            ->all();
+        $cloned = 0;
+        $skipped = 0;
+
+        DB::transaction(function () use ($sourceMinistries, $target, &$targetNames, &$cloned, &$skipped): void {
+            foreach ($sourceMinistries as $ministry) {
+                $normalizedName = Str::lower(trim($ministry->name));
+
+                if (in_array($normalizedName, $targetNames, true)) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                Ministry::query()->create([
+                    'church_id' => $target->church_id,
+                    'campus_id' => $target->id,
+                    'name' => $ministry->name,
+                    'leader_id' => null,
+                    'description' => $ministry->description,
+                    'status' => $ministry->status,
+                ]);
+                $targetNames[] = $normalizedName;
+                $cloned++;
+            }
+        });
+
+        $activityLogger->log('Ministries', 'campus_ministries_cloned', $cloned.' ministries were cloned from '.$source->name.' to '.$target->name.'.', $target, [
+            'resource' => 'Ministry Clone',
+            'risk' => 'medium',
+            'status' => 'success',
+            'source_campus_id' => $source->id,
+            'target_campus_id' => $target->id,
+            'cloned' => $cloned,
+            'skipped' => $skipped,
+        ], $request);
+
+        return back()->with('status', $cloned.' ministries cloned to '.$target->name.'; '.$skipped.' existing '.Str::plural('ministry', $skipped).' skipped.');
+    }
+
     private function authorizeMinistries(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage ministries'), 403);
@@ -87,6 +259,30 @@ final class MinistryController extends Controller
     {
         $user = $request->user();
         abort_unless($user?->canAccessChurch($ministry->church_id) && $user->canAccessCampus($ministry->campus_id), 403);
+    }
+
+    private function authorizedCampus(Request $request, int $campusId): Campus
+    {
+        $campus = $this->campusQuery($request)->whereKey($campusId)->first();
+        abort_unless($campus, 403);
+
+        return $campus;
+    }
+
+    private function normalizeImportHeader(string $header): string
+    {
+        $normalized = Str::of($header)
+            ->replace("\xEF\xBB\xBF", '')
+            ->trim()
+            ->lower()
+            ->replace([' ', '-'], '_')
+            ->toString();
+
+        return match ($normalized) {
+            'ministry', 'ministry_name' => 'name',
+            'leader', 'leaderemail', 'leader_e_mail' => 'leader_email',
+            default => $normalized,
+        };
     }
 
     /**

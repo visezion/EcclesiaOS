@@ -202,6 +202,8 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::delete('members/{member}', [MemberManagementController::class, 'destroy'])->name('members.destroy');
     Route::get('ministries', [MinistryController::class, 'index'])->name('ministries.index');
     Route::post('ministries', [MinistryController::class, 'store'])->name('ministries.store');
+    Route::post('ministries/import', [MinistryController::class, 'import'])->name('ministries.import');
+    Route::post('ministries/clone-campus', [MinistryController::class, 'cloneCampus'])->name('ministries.clone-campus');
     Route::put('ministries/{ministry}', [MinistryController::class, 'update'])->name('ministries.update');
     Route::delete('ministries/{ministry}', [MinistryController::class, 'destroy'])->name('ministries.destroy');
     Route::get('families', [FamilyManagementController::class, 'index'])->name('families.index');

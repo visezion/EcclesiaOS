@@ -27,6 +27,10 @@
             status: '',
             expanded: null,
             addOpen: false,
+            importOpen: false,
+            cloneOpen: false,
+            cloneSource: '',
+            cloneTarget: '',
             matches(row) {
                 const text = row.dataset.search || '';
                 return (!this.search || text.includes(this.search.toLowerCase()))
@@ -55,11 +59,21 @@
                         <p class="text-sm text-slate-500">Manage {{ Str::lower($terminology['ministry_plural']) }}, leaders, volunteers, and {{ Str::lower($terminology['campus_singular']) }} assignments.</p>
                     </div>
                 </div>
-                <button type="button" x-on:click="addOpen = true; $nextTick(() => $refs.createPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }))" class="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">
-                    <i data-lucide="plus" class="size-4"></i>
-                    Add {{ $terminology['ministry_singular'] }}
-                    <i data-lucide="chevron-up" class="size-4 rotate-180"></i>
-                </button>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" x-on:click="importOpen = true" class="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm hover:bg-violet-50">
+                        <i data-lucide="upload" class="size-4"></i>
+                        Import {{ $terminology['ministry_plural'] }}
+                    </button>
+                    <button type="button" x-on:click="cloneOpen = true" class="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm hover:bg-violet-50">
+                        <i data-lucide="copy" class="size-4"></i>
+                        Clone Campus {{ $terminology['ministry_plural'] }}
+                    </button>
+                    <button type="button" x-on:click="addOpen = true; $nextTick(() => $refs.createPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }))" class="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">
+                        <i data-lucide="plus" class="size-4"></i>
+                        Add {{ $terminology['ministry_singular'] }}
+                        <i data-lucide="chevron-up" class="size-4 rotate-180"></i>
+                    </button>
+                </div>
             </div>
 
             @if (session('status'))
@@ -321,5 +335,54 @@
                 </div>
             </form>
         </aside>
+
+        <div x-cloak x-show="importOpen" x-on:keydown.escape.window="importOpen = false" class="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4">
+            <form method="POST" action="{{ route('ministries.import') }}" enctype="multipart/form-data" class="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl" x-on:click.outside="importOpen = false">
+                @csrf
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div class="flex items-start gap-3">
+                        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600"><i data-lucide="upload" class="size-5"></i></span>
+                        <div><h2 class="text-lg font-semibold text-slate-950">Import {{ $terminology['ministry_plural'] }}</h2><p class="mt-1 text-sm text-slate-500">Import multiple ministry records into one {{ Str::lower($terminology['campus_singular']) }}.</p></div>
+                    </div>
+                    <button type="button" x-on:click="importOpen = false" class="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-50"><i data-lucide="x" class="size-5"></i></button>
+                </div>
+
+                <div class="space-y-4">
+                    <label class="block space-y-1.5 text-sm"><span class="font-semibold text-slate-700">Destination {{ $terminology['campus_singular'] }}</span><select name="campus_id" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900"><option value="">Select a {{ Str::lower($terminology['campus_singular']) }}</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}">{{ $campus->name }}</option>@endforeach</select></label>
+                    <label class="block space-y-1.5 text-sm"><span class="font-semibold text-slate-700">CSV File</span><input name="import_file" type="file" accept=".csv,.txt,text/csv" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-violet-50 file:px-3 file:py-1.5 file:font-semibold file:text-violet-700"></label>
+                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-800">
+                        <div class="font-semibold">CSV columns</div>
+                        <code class="mt-1 block overflow-x-auto rounded bg-white/70 px-2 py-1 font-mono">name,description,status,leader_email</code>
+                        <p class="mt-1">The <strong>name</strong> column is required. Status accepts active or inactive. Existing names and invalid rows are safely skipped.</p>
+                    </div>
+                </div>
+
+                <div class="mt-5 flex justify-end gap-3"><button type="button" x-on:click="importOpen = false" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</button><button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white"><i data-lucide="upload" class="size-4"></i>Import</button></div>
+            </form>
+        </div>
+
+        <div x-cloak x-show="cloneOpen" x-on:keydown.escape.window="cloneOpen = false" class="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4">
+            <form method="POST" action="{{ route('ministries.clone-campus') }}" class="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl" x-on:click.outside="cloneOpen = false">
+                @csrf
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div class="flex items-start gap-3">
+                        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600"><i data-lucide="copy" class="size-5"></i></span>
+                        <div><h2 class="text-lg font-semibold text-slate-950">Clone Campus {{ $terminology['ministry_plural'] }}</h2><p class="mt-1 text-sm text-slate-500">Copy every ministry from one campus into another campus.</p></div>
+                    </div>
+                    <button type="button" x-on:click="cloneOpen = false" class="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-50"><i data-lucide="x" class="size-5"></i></button>
+                </div>
+
+                <div class="space-y-4">
+                    <label class="block space-y-1.5 text-sm"><span class="font-semibold text-slate-700">Source {{ $terminology['campus_singular'] }}</span><select name="source_campus_id" x-model="cloneSource" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900"><option value="">Select source</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}">{{ $campus->name }}</option>@endforeach</select></label>
+                    <div class="flex justify-center text-violet-500"><i data-lucide="arrow-down" class="size-5"></i></div>
+                    <label class="block space-y-1.5 text-sm"><span class="font-semibold text-slate-700">Destination {{ $terminology['campus_singular'] }}</span><select name="target_campus_id" x-model="cloneTarget" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900"><option value="">Select destination</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}" x-bind:disabled="cloneSource === '{{ $campus->id }}'">{{ $campus->name }}</option>@endforeach</select></label>
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                        Names, descriptions, and statuses are copied. Existing ministry names are skipped. Leaders and volunteers are not copied because they belong to the source campus and must be assigned at the destination.
+                    </div>
+                </div>
+
+                <div class="mt-5 flex justify-end gap-3"><button type="button" x-on:click="cloneOpen = false" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Cancel</button><button type="submit" x-bind:disabled="!cloneSource || !cloneTarget || cloneSource === cloneTarget" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><i data-lucide="copy" class="size-4"></i>Clone All {{ $terminology['ministry_plural'] }}</button></div>
+            </form>
+        </div>
     </div>
 </x-app-layout>

@@ -623,6 +623,118 @@ class AdminPagesTest extends TestCase
         $this->actingAs($leader)
             ->delete(route('ministries.destroy', $otherMinistry))
             ->assertForbidden();
+
+        $this->actingAs($leader)
+            ->post(route('ministries.clone-campus'), [
+                'source_campus_id' => $ownCampus->id,
+                'target_campus_id' => $otherCampus->id,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_administrator_can_import_ministries_into_a_campus(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $campus = Campus::query()->create([
+            'church_id' => $admin->church_id,
+            'name' => 'Import Test Campus',
+            'slug' => 'import-test-campus',
+            'type' => 'Regional Campus',
+            'status' => 'active',
+            'city' => 'Dallas',
+            'country' => 'USA',
+            'address' => '100 Import Way',
+        ]);
+        $file = UploadedFile::fake()->createWithContent('ministries.csv', implode("\n", [
+            'name,description,status,leader_email',
+            'Welcome Team,Welcomes guests,active,',
+            'Prayer Team,Coordinates prayer,inactive,',
+            'Invalid Team,Invalid status,paused,',
+            'Welcome Team,Duplicate name,active,',
+        ]));
+
+        $this->actingAs($admin)
+            ->post(route('ministries.import'), [
+                'campus_id' => $campus->id,
+                'import_file' => $file,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', '2 ministries imported into Import Test Campus; 2 rows skipped.');
+
+        $this->assertDatabaseHas('ministries', [
+            'campus_id' => $campus->id,
+            'name' => 'Welcome Team',
+            'status' => 'active',
+        ]);
+        $this->assertDatabaseHas('ministries', [
+            'campus_id' => $campus->id,
+            'name' => 'Prayer Team',
+            'status' => 'inactive',
+        ]);
+        $this->assertSame(2, Ministry::query()->where('campus_id', $campus->id)->count());
+        $this->assertDatabaseHas('activity_logs', ['action' => 'ministries_imported']);
+    }
+
+    public function test_administrator_can_clone_all_unique_ministries_between_campuses(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $source = Campus::query()->create([
+            'church_id' => $admin->church_id,
+            'name' => 'Clone Source Campus',
+            'slug' => 'clone-source-campus',
+            'type' => 'Regional Campus',
+            'status' => 'active',
+            'city' => 'Dallas',
+            'country' => 'USA',
+            'address' => '1 Source Road',
+        ]);
+        $target = Campus::query()->create([
+            'church_id' => $admin->church_id,
+            'name' => 'Clone Target Campus',
+            'slug' => 'clone-target-campus',
+            'type' => 'Regional Campus',
+            'status' => 'active',
+            'city' => 'Austin',
+            'country' => 'USA',
+            'address' => '2 Target Road',
+        ]);
+
+        foreach (range(1, 10) as $number) {
+            Ministry::query()->create([
+                'church_id' => $admin->church_id,
+                'campus_id' => $source->id,
+                'name' => 'Clone Ministry '.$number,
+                'description' => 'Source ministry '.$number,
+                'status' => $number % 2 === 0 ? 'inactive' : 'active',
+            ]);
+        }
+
+        Ministry::query()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $target->id,
+            'name' => 'clone ministry 3',
+            'description' => 'Existing destination ministry.',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('ministries.clone-campus'), [
+                'source_campus_id' => $source->id,
+                'target_campus_id' => $target->id,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', '9 ministries cloned to Clone Target Campus; 1 existing ministry skipped.');
+
+        $this->assertSame(10, Ministry::query()->where('campus_id', $target->id)->count());
+        $this->assertDatabaseHas('ministries', [
+            'campus_id' => $target->id,
+            'name' => 'Clone Ministry 10',
+            'leader_id' => null,
+            'status' => 'inactive',
+        ]);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'campus_ministries_cloned']);
     }
 
     public function test_members_management_renders_live_directory(): void
