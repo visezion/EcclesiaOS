@@ -199,17 +199,6 @@
                     </div>
                 </form>
             </main>
-
-            <section class="dashboard-card">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div><h2 class="text-sm font-semibold text-slate-950">Account information</h2><p class="mt-1 text-xs text-slate-500">Identity and access details associated with these settings.</p></div>
-                    <dl class="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
-                        <div><dt class="text-[10px] uppercase tracking-wide text-slate-400">Name</dt><dd class="font-medium text-slate-800">{{ $user->name }}</dd></div>
-                        <div><dt class="text-[10px] uppercase tracking-wide text-slate-400">Email</dt><dd class="break-all font-medium text-slate-800">{{ $user->email }}</dd></div>
-                        <div><dt class="text-[10px] uppercase tracking-wide text-slate-400">Role</dt><dd class="font-medium text-slate-800">{{ $user->roles->pluck('name')->join(', ') ?: 'No role' }}</dd></div>
-                    </dl>
-                </div>
-            </section>
         </section>
     </div>
 </x-app-layout>
