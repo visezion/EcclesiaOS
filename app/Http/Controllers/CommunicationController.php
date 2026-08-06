@@ -1127,7 +1127,7 @@ final class CommunicationController extends Controller
         if ($setting->enabled && $validationError === null && Str::contains(Str::lower($setting->provider), 'zender')) {
             $probeError = $this->testZenderProviderConnection($setting);
         }
-        $driverSupported = $channel === 'in_app'
+        $driverSupported = in_array($channel, ['in_app', 'email', 'push'], true)
             || (in_array($channel, ['sms', 'whatsapp'], true) && Str::contains(Str::lower($setting->provider), 'zender'));
         if (! $driverSupported && $validationError === null) {
             $validationError = 'No delivery driver is installed for '.$setting->provider.'.';
@@ -2400,6 +2400,15 @@ final class CommunicationController extends Controller
             }
             if ($setting->channel === 'sms' && blank($settings['device_id'] ?? null) && blank($settings['gateway_id'] ?? null)) {
                 return 'Zender SMS requires a device unique ID or gateway unique ID.';
+            }
+        }
+
+        if ($setting->channel === 'push') {
+            if (blank($settings['endpoint_url'] ?? null) && blank($settings['account_id'] ?? null)) {
+                return 'Firebase endpoint URL or project ID is required.';
+            }
+            if (blank($settings['api_key_encrypted'] ?? null)) {
+                return 'Firebase access token is required.';
             }
         }
 

@@ -592,7 +592,7 @@ class OperationalModulesTest extends TestCase
         $this->assertDatabaseHas('communication_deliveries', [
             'event_type' => 'LibraryLoanApprovalRequested',
             'channel' => 'email',
-            'status' => 'failed',
+            'status' => 'delivered',
         ]);
 
         $this->actingAs($admin)

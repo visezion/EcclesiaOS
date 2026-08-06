@@ -98,7 +98,11 @@ final class CommunicationCampaignDispatcher
             'channel' => $channel,
             'provider' => $provider,
             'recipient_name' => $recipient->name,
-            'recipient_contact' => in_array($channel, ['sms', 'whatsapp'], true) ? $recipient->phone : $recipient->email,
+            'recipient_contact' => match ($channel) {
+                'sms', 'whatsapp' => $recipient->phone,
+                'push' => data_get($recipient->preferences, 'push_token'),
+                default => $recipient->email,
+            },
             'subject' => $campaign->subject,
             'body_excerpt' => Str::limit(strip_tags($campaign->body), 180),
             'body' => $campaign->body,

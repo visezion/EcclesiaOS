@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Communications;
 
+use App\Mail\CommunicationMail;
 use App\Models\CommunicationDelivery;
 use App\Models\CommunicationProviderSetting;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Support\SafeOutboundUrl;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -38,7 +40,9 @@ final class CommunicationDeliveryDispatcher
         try {
             $outcome = match ($delivery->channel) {
                 'in_app' => $this->sendInApp($delivery),
+                'email' => $this->sendEmail($delivery),
                 'sms', 'whatsapp' => $this->sendZender($delivery),
+                'push' => $this->sendPush($delivery),
                 default => $this->failed(
                     'Provider not implemented',
                     Str::headline($delivery->channel).' delivery is not implemented in this stage.',
@@ -147,6 +151,81 @@ final class CommunicationDeliveryDispatcher
             'HTTP '.$response->status(),
             data_get($json, 'data.id') ?? data_get($json, 'data.message_id') ?? data_get($json, 'message_id'),
         );
+    }
+
+    private function sendEmail(CommunicationDelivery $delivery): array
+    {
+        $setting = CommunicationProviderSetting::query()
+            ->where('church_id', $delivery->church_id)
+            ->where('channel', 'email')
+            ->first();
+
+        if ($setting && ! $setting->enabled) {
+            return $this->failed('Provider disabled', 'The email channel is disabled.');
+        }
+
+        if (blank($delivery->recipient_contact) || ! filter_var($delivery->recipient_contact, FILTER_VALIDATE_EMAIL)) {
+            return $this->failed('Invalid recipient', 'A valid recipient email address is required.');
+        }
+
+        $mail = new CommunicationMail(
+            $delivery->subject ?: 'Notification from EcclesiaOS',
+            $delivery->body ?: $delivery->body_excerpt ?: '',
+        );
+        if (filled($setting?->sender_identity) && filter_var($setting->sender_identity, FILTER_VALIDATE_EMAIL)) {
+            $mail->from($setting->sender_identity);
+        }
+        Mail::to($delivery->recipient_contact, $delivery->recipient_name)->send($mail);
+
+        return $this->delivered('Mailer accepted');
+    }
+
+    private function sendPush(CommunicationDelivery $delivery): array
+    {
+        $setting = CommunicationProviderSetting::query()
+            ->where('church_id', $delivery->church_id)
+            ->where('channel', 'push')
+            ->first();
+
+        if (! $setting?->enabled) {
+            return $this->failed('Provider disabled', 'The push notification channel is disabled.');
+        }
+
+        if (blank($delivery->recipient_contact)) {
+            return $this->failed('Missing device token', 'A recipient FCM device token is required.');
+        }
+
+        $settings = $setting->settings ?? [];
+        $projectId = (string) ($settings['account_id'] ?? '');
+        $accessToken = $this->apiKey($setting);
+        $endpoint = $this->siteUrl($settings['endpoint_url'] ?? null);
+        if ($endpoint === null && $projectId !== '') {
+            $endpoint = 'https://fcm.googleapis.com/v1/projects/'.rawurlencode($projectId).'/messages:send';
+        }
+        if ($endpoint === null || $accessToken === null) {
+            return $this->failed('Configuration check failed', 'FCM endpoint/project ID and access token are required.');
+        }
+
+        $response = $this->client($endpoint)
+            ->withToken($accessToken)
+            ->post($endpoint, [
+                'message' => [
+                    'token' => $delivery->recipient_contact,
+                    'notification' => [
+                        'title' => $delivery->subject ?: 'EcclesiaOS notification',
+                        'body' => $delivery->body_excerpt ?: Str::limit(strip_tags((string) $delivery->body), 180),
+                    ],
+                    'data' => collect($delivery->metadata ?? [])
+                        ->mapWithKeys(fn (mixed $value, string $key): array => [$key => is_scalar($value) ? (string) $value : json_encode($value)])
+                        ->all(),
+                ],
+            ]);
+
+        if (! $response->successful()) {
+            return $this->failed('HTTP '.$response->status(), Str::limit($response->body(), 1000));
+        }
+
+        return $this->delivered('HTTP '.$response->status(), data_get($response->json(), 'name'));
     }
 
     private function client(string $siteUrl): PendingRequest
