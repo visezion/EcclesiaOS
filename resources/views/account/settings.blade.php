@@ -72,39 +72,28 @@
             </article>
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <aside class="space-y-3">
-                <nav aria-label="Account settings sections" role="tablist" class="grid grid-cols-3 gap-2 xl:block xl:space-y-2">
-                    @foreach([
-                        ['preferences', 'Preferences', 'sliders-horizontal'],
-                        ['notifications', 'Notifications', 'bell'],
-                        ['security', 'Security & MFA', 'lock'],
-                    ] as [$tabId, $tabLabel, $tabIcon])
-                        <a
-                            id="{{ $tabId }}-tab"
-                            href="#{{ $tabId }}"
-                            role="tab"
-                            :aria-selected="tab === '{{ $tabId }}'"
-                            aria-controls="{{ $tabId }}"
-                            @click="tab = '{{ $tabId }}'"
-                            class="flex min-w-0 flex-col items-center justify-center gap-2 rounded-lg border px-3 py-3 text-center text-xs font-semibold transition xl:flex-row xl:justify-start xl:px-4 xl:text-left xl:text-sm"
-                            :class="tab === '{{ $tabId }}' ? 'border-violet-200 bg-violet-50 text-violet-700 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
-                        >
-                            <i data-lucide="{{ $tabIcon }}" class="size-4 shrink-0" :class="tab === '{{ $tabId }}' ? 'text-violet-600' : 'text-slate-400'"></i>
-                            <span class="truncate">{{ $tabLabel }}</span>
-                            <i x-show="tab === '{{ $tabId }}'" data-lucide="chevron-right" class="ml-auto hidden size-4 xl:block"></i>
-                        </a>
-                    @endforeach
-                </nav>
-                <section class="dashboard-card">
-                    <h2 class="text-base font-semibold text-slate-950">Account</h2>
-                    <dl class="mt-4 space-y-3 text-sm">
-                        <div><dt class="text-xs text-slate-500">Name</dt><dd class="text-slate-950">{{ $user->name }}</dd></div>
-                        <div><dt class="text-xs text-slate-500">Email</dt><dd class="break-all text-slate-950">{{ $user->email }}</dd></div>
-                        <div><dt class="text-xs text-slate-500">Role</dt><dd class="text-slate-950">{{ $user->roles->pluck('name')->join(', ') ?: 'No role' }}</dd></div>
-                    </dl>
-                </section>
-            </aside>
+        <section class="space-y-4">
+            <nav aria-label="Account settings sections" role="tablist" class="flex overflow-x-auto rounded-xl border border-slate-200 bg-white px-2 shadow-sm">
+                @foreach([
+                    ['preferences', 'Preferences', 'sliders-horizontal'],
+                    ['notifications', 'Notifications', 'bell'],
+                    ['security', 'Security & MFA', 'lock'],
+                ] as [$tabId, $tabLabel, $tabIcon])
+                    <a
+                        id="{{ $tabId }}-tab"
+                        href="#{{ $tabId }}"
+                        role="tab"
+                        :aria-selected="tab === '{{ $tabId }}'"
+                        aria-controls="{{ $tabId }}"
+                        @click="tab = '{{ $tabId }}'"
+                        class="relative inline-flex min-w-max flex-1 items-center justify-center gap-2 border-b-2 px-4 py-3.5 text-xs font-semibold transition sm:text-sm"
+                        :class="tab === '{{ $tabId }}' ? 'border-violet-600 bg-violet-50/60 text-violet-700' : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'"
+                    >
+                        <i data-lucide="{{ $tabIcon }}" class="size-4 shrink-0" :class="tab === '{{ $tabId }}' ? 'text-violet-600' : 'text-slate-400'"></i>
+                        <span>{{ $tabLabel }}</span>
+                    </a>
+                @endforeach
+            </nav>
 
             <main class="space-y-4">
                 <form id="preferences" x-show="tab === 'preferences'" x-cloak role="tabpanel" aria-labelledby="preferences-tab" method="POST" action="{{ route('account.settings.update') }}" class="dashboard-card">
@@ -210,6 +199,17 @@
                     </div>
                 </form>
             </main>
+
+            <section class="dashboard-card">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div><h2 class="text-sm font-semibold text-slate-950">Account information</h2><p class="mt-1 text-xs text-slate-500">Identity and access details associated with these settings.</p></div>
+                    <dl class="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
+                        <div><dt class="text-[10px] uppercase tracking-wide text-slate-400">Name</dt><dd class="font-medium text-slate-800">{{ $user->name }}</dd></div>
+                        <div><dt class="text-[10px] uppercase tracking-wide text-slate-400">Email</dt><dd class="break-all font-medium text-slate-800">{{ $user->email }}</dd></div>
+                        <div><dt class="text-[10px] uppercase tracking-wide text-slate-400">Role</dt><dd class="font-medium text-slate-800">{{ $user->roles->pluck('name')->join(', ') ?: 'No role' }}</dd></div>
+                    </dl>
+                </div>
+            </section>
         </section>
     </div>
 </x-app-layout>
