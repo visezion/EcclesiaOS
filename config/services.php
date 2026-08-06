@@ -56,4 +56,8 @@ return [
         'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
     ],
 
+    'central_support' => [
+        'url' => env('CENTRAL_SUPPORT_URL', 'https://ecclesiaos.vicezion.com'),
+    ],
+
 ];

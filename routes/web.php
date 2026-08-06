@@ -16,6 +16,7 @@ use App\Http\Controllers\BibleTranslationController;
 use App\Http\Controllers\BookstoreController;
 use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CampusManagementController;
+use App\Http\Controllers\CentralSupportController;
 use App\Http\Controllers\ChildrenYouthController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CounsellingController;
@@ -36,10 +37,14 @@ use App\Http\Controllers\PaymentGatewaySettingsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicGivingController;
 use App\Http\Controllers\PublicMemberRegistrationController;
+use App\Http\Controllers\RemoteSupportAccessController;
 use App\Http\Controllers\RoleDirectoryController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\StripeWebhookController;
+use App\Http\Controllers\SupportCommunityController;
+use App\Http\Controllers\SupportResourceController;
+use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\SystemUpdateController;
 use App\Http\Controllers\TopbarCountsController;
@@ -74,6 +79,19 @@ Route::post('webhooks/payments/{provider}', StripeWebhookController::class)
     ->middleware('throttle:120,1')
     ->name('webhooks.payment');
 
+Route::post('support/central-access/exchange', [RemoteSupportAccessController::class, 'exchange'])
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->middleware('throttle:20,1')
+    ->name('central-support.remote.exchange');
+Route::post('support/central-events', [RemoteSupportAccessController::class, 'event'])
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->middleware('throttle:120,1')
+    ->name('central-support.events.receive');
+Route::get('support/central-access/login/{token}', [RemoteSupportAccessController::class, 'login'])
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->middleware('throttle:20,1')
+    ->name('central-support.remote.login');
+
 Route::middleware('guest')->group(function (): void {
     Route::get('install', [InstallerController::class, 'create'])->name('install');
     Route::post('install', [InstallerController::class, 'store'])->middleware('throttle:5,1')->name('install.store');
@@ -96,6 +114,26 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('search', SearchController::class)->name('search');
     Route::get('topbar/counts', TopbarCountsController::class)->name('topbar.counts');
+    Route::get('support', [SupportTicketController::class, 'index'])->name('support.index');
+    Route::get('support/tickets', [SupportTicketController::class, 'tickets'])->name('support.tickets.index');
+    Route::get('support/new', [SupportTicketController::class, 'create'])->name('support.tickets.create');
+    Route::post('support', [SupportTicketController::class, 'store'])->middleware('throttle:10,1')->name('support.tickets.store');
+    Route::get('support/community', [SupportCommunityController::class, 'index'])->name('support.community');
+    Route::post('support/community', [SupportCommunityController::class, 'store'])->middleware('throttle:10,1')->name('support.community.store');
+    Route::get('support/knowledge', [SupportResourceController::class, 'knowledge'])->name('support.knowledge');
+    Route::get('support/live', [SupportResourceController::class, 'live'])->name('support.live');
+    Route::post('support/live/messages', [SupportResourceController::class, 'sendLiveMessage'])->middleware('throttle:30,1')->name('support.live.messages');
+    Route::get('support/central-connection', [CentralSupportController::class, 'index'])->name('central-support.index');
+    Route::put('support/central-connection', [CentralSupportController::class, 'update'])->name('central-support.update');
+    Route::post('support/central-connection/test', [CentralSupportController::class, 'test'])->middleware('throttle:10,1')->name('central-support.test');
+    Route::post('support/central-connection/sync', [CentralSupportController::class, 'sync'])->middleware('throttle:10,1')->name('central-support.sync');
+    Route::post('support/central-connection/grants', [CentralSupportController::class, 'grant'])->middleware('throttle:10,1')->name('central-support.grants.store');
+    Route::delete('support/central-connection/grants/{centralSupportSession}', [CentralSupportController::class, 'revoke'])->name('central-support.grants.revoke');
+    Route::post('support/central-access/end', [RemoteSupportAccessController::class, 'end'])->name('central-support.remote.end');
+    Route::get('support/attachments/{attachment}/download', [SupportTicketController::class, 'downloadAttachment'])->name('support.attachments.download');
+    Route::get('support/{ticket}', [SupportTicketController::class, 'show'])->name('support.tickets.show');
+    Route::post('support/{ticket}/replies', [SupportTicketController::class, 'reply'])->middleware('throttle:20,1')->name('support.tickets.replies.store');
+    Route::patch('support/{ticket}/tracking', [SupportTicketController::class, 'updateTracking'])->middleware('throttle:20,1')->name('support.tickets.tracking.update');
     Route::get('bible/admin/translations', [BibleTranslationController::class, 'index'])->name('bible.translations.index');
     Route::get('bible/admin/plans', [BiblePlanManagementController::class, 'index'])->name('bible.admin.plans.index');
     Route::post('bible/admin/plans', [BiblePlanManagementController::class, 'store'])->name('bible.admin.plans.store');
@@ -103,6 +141,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::delete('bible/admin/plans/{plan}', [BiblePlanManagementController::class, 'destroy'])->name('bible.admin.plans.destroy');
     Route::post('bible/admin/translations', [BibleTranslationController::class, 'store'])->name('bible.translations.store');
     Route::post('bible/admin/translations/{translation}/install', [BibleTranslationController::class, 'install'])->name('bible.translations.install');
+    Route::delete('bible/admin/translations/{translation}/uninstall', [BibleTranslationController::class, 'uninstall'])->name('bible.translations.uninstall');
     Route::delete('bible/admin/translations/{translation}', [BibleTranslationController::class, 'destroy'])->name('bible.translations.destroy');
     Route::post('bible/admin/translations/{translation}/import', [BibleTranslationController::class, 'import'])->name('bible.translations.import');
     Route::get('bible/admin/translations/sample', [BibleTranslationController::class, 'sample'])->name('bible.translations.sample');
@@ -380,7 +419,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index'], true)) {
             continue;
         }
 

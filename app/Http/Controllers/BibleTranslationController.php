@@ -60,12 +60,41 @@ final class BibleTranslationController extends Controller
     {
         $this->authorizeManagement($request);
         abort_unless($translation->church_id === $request->user()->church_id, 404);
-        abort_if($translation->is_default, 422, 'The default translation cannot be removed.');
-        $name = $translation->name;
-        $translation->delete();
-        $activityLogger->log('Bible', 'translation_deleted', 'Bible translation removed.', $translation, ['risk' => 'medium', 'status' => 'success'], $request);
 
-        return back()->with('status', $name.' was removed.');
+        return $this->removeInstalledTranslation($request, $translation, $activityLogger);
+    }
+
+    public function uninstall(Request $request, BibleTranslation $translation, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeManagement($request);
+        abort_unless($translation->church_id === null, 404);
+
+        $installed = BibleTranslation::query()
+            ->where('church_id', $request->user()->church_id)
+            ->where('abbreviation', $translation->abbreviation)
+            ->firstOrFail();
+
+        return $this->removeInstalledTranslation($request, $installed, $activityLogger);
+    }
+
+    private function removeInstalledTranslation(
+        Request $request,
+        BibleTranslation $translation,
+        ActivityLogger $activityLogger,
+    ): RedirectResponse {
+        abort_if($translation->is_default, 422, 'Choose another default translation before uninstalling this one.');
+        $name = $translation->name;
+        $abbreviation = $translation->abbreviation;
+        $verseCount = $translation->verses()->count();
+        $translation->delete();
+        $activityLogger->log('Bible', 'translation_uninstalled', 'Bible translation uninstalled.', $translation, [
+            'risk' => 'medium',
+            'status' => 'success',
+            'abbreviation' => $abbreviation,
+            'verses_removed' => $verseCount,
+        ], $request);
+
+        return back()->with('status', $name.' was uninstalled from this church.');
     }
 
     public function install(Request $request, BibleTranslation $translation, ActivityLogger $activityLogger): RedirectResponse

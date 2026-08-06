@@ -157,6 +157,7 @@ final class ModuleRegistry
                 'auth-settings.',
                 'developer-hub.',
                 'audit-logs.',
+                'support.',
                 'profile.',
                 'account.',
                 'search',

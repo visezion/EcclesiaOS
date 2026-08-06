@@ -18,8 +18,8 @@
     $calendarUrl = $canAccess('calendar.index', 'manage events')
         ? route('calendar.index')
         : route('dashboard');
-    $helpUrl = $canAccess('developer-hub.index', 'manage settings')
-        ? route('developer-hub.index')
+    $helpUrl = $canAccess('support.index')
+        ? route('support.index')
         : route('account.settings');
     $availableSystemUpdate = $user?->isSuperAdministrator()
         ? app(\App\Services\Updates\UpdateManager::class)->available()

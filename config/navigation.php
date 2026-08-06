@@ -138,4 +138,20 @@ return [
             ['label' => 'Audit Logs', 'route' => 'audit-logs.index', 'icon' => 'clipboard-list', 'permission' => 'view audit log'],
         ],
     ],
+    [
+        'label' => 'Support Center',
+        'route' => 'support.index',
+        'icon' => 'life-buoy',
+        'section' => 'Support',
+        'implemented' => true,
+        'description' => 'Submit bugs, ideas, feature-expansion requests, new-function proposals, and other support tickets.',
+        'children' => [
+            ['label' => 'Overview', 'route' => 'support.index', 'icon' => 'layout-dashboard'],
+            ['label' => 'My Tickets', 'route' => 'support.tickets.index', 'icon' => 'inbox', 'active_routes' => ['support.tickets']],
+            ['label' => 'Community', 'route' => 'support.community', 'icon' => 'messages-square'],
+            ['label' => 'Knowledge Base', 'route' => 'support.knowledge', 'icon' => 'book-open'],
+            ['label' => 'Live Support', 'route' => 'support.live', 'icon' => 'headphones'],
+            ['label' => 'Central Connection', 'route' => 'central-support.index', 'icon' => 'radio-tower', 'permission' => 'manage settings', 'active_routes' => ['central-support']],
+        ],
+    ],
 ];

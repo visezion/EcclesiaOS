@@ -55,7 +55,7 @@ final class OnlineGivingPaymentTest extends TestCase
         $transaction = PaymentGatewayTransaction::query()->sole();
         $this->assertSame('125.75', $transaction->amount);
         $this->assertSame(12575, $transaction->amount_minor);
-        $this->assertSame('2026-08-04', $transaction->created_at->toDateString());
+        $this->assertSame(today()->toDateString(), $transaction->created_at->toDateString());
         $this->assertSame('cs_test_ecclesia', $transaction->provider_session_id);
 
         $this->get(route('giving.success', ['session_id' => 'cs_test_ecclesia']))

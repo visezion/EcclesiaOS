@@ -146,6 +146,65 @@ final class BibleModuleTest extends TestCase
         ]);
     }
 
+    public function test_church_administrator_can_uninstall_a_catalog_translation(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($user)->get(route('bible.index'))->assertOk();
+        $this->actingAs($user)->get(route('bible.translations.index'))->assertOk();
+
+        $catalogTranslation = BibleTranslation::query()
+            ->whereNull('church_id')
+            ->where('abbreviation', 'ASV')
+            ->firstOrFail();
+        $installedTranslation = BibleTranslation::query()->create(
+            $catalogTranslation->only(['name', 'abbreviation', 'language', 'description', 'copyright', 'source_url', 'status'])
+            + [
+                'church_id' => $user->church_id,
+                'created_by' => $user->id,
+                'is_default' => false,
+            ],
+        );
+        $installedTranslation->verses()->create([
+            'book' => 'John',
+            'book_slug' => 'john',
+            'testament' => 'new',
+            'chapter' => 1,
+            'verse' => 1,
+            'text' => 'In the beginning was the Word.',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('bible.translations.index'))
+            ->assertOk()
+            ->assertSee(route('bible.translations.uninstall', $catalogTranslation), false)
+            ->assertSee('Uninstall', false);
+
+        $this->actingAs($user)
+            ->delete(route('bible.translations.uninstall', $catalogTranslation))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'American Standard Version was uninstalled from this church.');
+
+        $this->assertDatabaseMissing('bible_translations', ['id' => $installedTranslation->id]);
+        $this->assertDatabaseMissing('bible_verses', ['bible_translation_id' => $installedTranslation->id]);
+        $this->assertDatabaseHas('bible_translations', ['id' => $catalogTranslation->id, 'church_id' => null]);
+
+        $defaultTranslation = BibleTranslation::query()
+            ->where('church_id', $user->church_id)
+            ->where('is_default', true)
+            ->firstOrFail();
+        $defaultCatalogTranslation = BibleTranslation::query()
+            ->whereNull('church_id')
+            ->where('abbreviation', $defaultTranslation->abbreviation)
+            ->firstOrFail();
+
+        $this->actingAs($user)
+            ->delete(route('bible.translations.uninstall', $defaultCatalogTranslation))
+            ->assertUnprocessable();
+        $this->assertDatabaseHas('bible_translations', ['id' => $defaultTranslation->id, 'is_default' => true]);
+    }
+
     public function test_only_authorized_administrators_can_create_church_bible_plans(): void
     {
         Storage::fake('public');
