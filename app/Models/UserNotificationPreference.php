@@ -12,7 +12,7 @@ final class UserNotificationPreference extends Model
 {
     use UsesOpaqueRouteKeys;
 
-    protected $fillable = ['church_id', 'user_id', 'member_id', 'channels', 'categories', 'category_channels', 'digest_mode', 'quiet_hours_start', 'quiet_hours_end', 'language', 'critical_alerts', 'opted_out_at'];
+    protected $fillable = ['church_id', 'user_id', 'member_id', 'channels', 'categories', 'category_channels', 'digest_mode', 'quiet_hours_start', 'quiet_hours_end', 'language', 'push_token', 'critical_alerts', 'opted_out_at'];
 
     protected function casts(): array
     {

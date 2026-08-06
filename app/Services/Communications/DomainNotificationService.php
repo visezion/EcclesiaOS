@@ -14,7 +14,10 @@ use Illuminate\Support\Str;
 
 final class DomainNotificationService
 {
-    public function __construct(private readonly CommunicationDeliveryDispatcher $dispatcher) {}
+    public function __construct(
+        private readonly CommunicationDeliveryDispatcher $dispatcher,
+        private readonly NotificationPreferenceResolver $preferences,
+    ) {}
 
     /**
      * @param  array<int, string>  $channels
@@ -190,6 +193,12 @@ final class DomainNotificationService
             ->keyBy('channel');
 
         return collect($channels)->unique()->map(function (string $channel) use ($churchId, $name, $email, $phone, $eventType, $category, $subject, $message, $metadata, $critical, $userId, $memberId, $settings): CommunicationDelivery {
+            $preference = $this->preferences->resolve($churchId, $userId, $memberId, $channel, $category, $critical);
+            $contact = match ($channel) {
+                'sms', 'whatsapp' => $phone,
+                'push' => $preference['contact'],
+                default => $email,
+            };
             $delivery = CommunicationDelivery::query()->create([
                 'church_id' => $churchId,
                 'member_id' => $memberId,
@@ -197,7 +206,7 @@ final class DomainNotificationService
                 'channel' => $channel,
                 'provider' => $settings[$channel]?->provider ?? ($channel === 'in_app' ? 'EcclesiaOS' : Str::headline($channel)),
                 'recipient_name' => $name ?: 'Recipient',
-                'recipient_contact' => in_array($channel, ['sms', 'whatsapp'], true) ? $phone : $email,
+                'recipient_contact' => $contact,
                 'subject' => $subject,
                 'body_excerpt' => Str::limit(strip_tags($message), 180),
                 'body' => $message,
@@ -205,12 +214,16 @@ final class DomainNotificationService
                 'category' => $category,
                 'critical' => $critical,
                 'metadata' => $metadata,
-                'status' => 'queued',
-                'retry_status' => 'queued',
+                'available_at' => $preference['available_at'],
+                'status' => $preference['allowed'] ? 'queued' : 'skipped',
+                'retry_status' => $preference['allowed'] ? 'queued' : 'none',
                 'attempt' => 1,
+                'error' => $preference['reason'],
             ]);
 
-            return $this->dispatcher->dispatch($delivery);
+            return $preference['allowed'] && $preference['available_at'] === null
+                ? $this->dispatcher->dispatch($delivery)
+                : $delivery;
         });
     }
 }

@@ -57,6 +57,7 @@ final class CommunicationDeliveryDispatcher
             'latency_ms' => $outcome['latency_ms'] ?? $latency,
             'available_at' => null,
         ])->save();
+        $this->syncCampaign($delivery);
 
         return $delivery->refresh();
     }
@@ -299,5 +300,30 @@ final class CommunicationDeliveryDispatcher
             'error' => $error,
             'delivered_at' => null,
         ];
+    }
+
+    private function syncCampaign(CommunicationDelivery $delivery): void
+    {
+        $campaign = $delivery->campaign;
+        if (! $campaign) {
+            return;
+        }
+
+        $query = $campaign->deliveries();
+        $delivered = (clone $query)->where('status', 'delivered')->count();
+        $failed = (clone $query)->where('status', 'failed')->count();
+        $queued = (clone $query)->whereIn('status', ['queued', 'processing'])->count();
+        $campaign->forceFill([
+            'status' => match (true) {
+                $queued > 0 && ($delivered > 0 || $failed > 0) => 'partial',
+                $queued > 0 => 'queued',
+                $failed > 0 && $delivered > 0 => 'partial',
+                $failed > 0 => 'failed',
+                default => 'sent',
+            },
+            'sent_count' => $delivered + $failed,
+            'delivered_count' => $delivered,
+            'failed_count' => $failed,
+        ])->save();
     }
 }

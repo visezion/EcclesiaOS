@@ -325,6 +325,10 @@
                                     @endforeach
                                 </select>
                             </label>
+                            <label class="text-xs text-slate-500 sm:col-span-2">Push Device Token
+                                <input name="push_token" value="{{ $selected?->push_token }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Firebase device registration token">
+                                <span class="mt-1 block text-[11px] text-slate-400">Saved securely for this person’s push notifications.</span>
+                            </label>
                             <label class="text-xs text-slate-500">Quiet Start
                                 <input name="quiet_hours_start" value="{{ $selected?->quiet_hours_start ? substr((string) $selected->quiet_hours_start, 0, 5) : '22:00' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                             </label>

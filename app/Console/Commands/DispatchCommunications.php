@@ -32,7 +32,6 @@ final class DispatchCommunications extends Command
         CommunicationDelivery::query()
             ->where('status', 'queued')
             ->where(fn ($query) => $query->whereNull('available_at')->orWhere('available_at', '<=', now()))
-            ->whereNull('communication_campaign_id')
             ->orderBy('id')
             ->limit($limit)
             ->get()

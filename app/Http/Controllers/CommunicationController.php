@@ -866,6 +866,7 @@ final class CommunicationController extends Controller
             'quiet_hours_start' => ['nullable', 'date_format:H:i'],
             'quiet_hours_end' => ['nullable', 'date_format:H:i'],
             'language' => ['required', 'string', 'max:20'],
+            'push_token' => ['nullable', 'string', 'max:4096'],
             'critical_alerts' => ['nullable', 'boolean'],
             'opted_out' => ['nullable', 'boolean'],
             'person_name' => ['nullable', 'string', 'max:255'],
@@ -889,6 +890,7 @@ final class CommunicationController extends Controller
             'quiet_hours_start' => $validated['quiet_hours_start'] ?? null,
             'quiet_hours_end' => $validated['quiet_hours_end'] ?? null,
             'language' => $validated['language'],
+            'push_token' => filled($validated['push_token'] ?? null) ? trim((string) $validated['push_token']) : null,
             'critical_alerts' => (bool) ($validated['critical_alerts'] ?? false),
             'opted_out_at' => $request->boolean('opted_out') ? now() : null,
         ]);
@@ -1931,6 +1933,7 @@ final class CommunicationController extends Controller
             'quiet_hours_start' => $preference->quiet_hours_start,
             'quiet_hours_end' => $preference->quiet_hours_end,
             'language' => $preference->language,
+            'push_token' => $preference->push_token,
             'critical_alerts' => $preference->critical_alerts,
             'opted_out_at' => $preference->opted_out_at?->toISOString(),
         ];

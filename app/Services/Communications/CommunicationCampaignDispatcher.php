@@ -13,7 +13,10 @@ use Illuminate\Support\Str;
 
 final class CommunicationCampaignDispatcher
 {
-    public function __construct(private readonly CommunicationDeliveryDispatcher $deliveries) {}
+    public function __construct(
+        private readonly CommunicationDeliveryDispatcher $deliveries,
+        private readonly NotificationPreferenceResolver $preferences,
+    ) {}
 
     public function dispatch(CommunicationCampaign $campaign): CommunicationCampaign
     {
@@ -22,7 +25,7 @@ final class CommunicationCampaignDispatcher
             ->where('church_id', $campaign->church_id)
             ->get()
             ->keyBy('channel');
-        $sent = $delivered = $failed = 0;
+        $sent = $delivered = $failed = $deferred = 0;
 
         foreach ($campaign->recipients as $recipient) {
             $recipientFailed = false;
@@ -37,8 +40,15 @@ final class CommunicationCampaignDispatcher
                     channel: $channel,
                     provider: $settings[$channel]?->provider ?? ($channel === 'in_app' ? 'EcclesiaOS' : Str::headline($channel)),
                 );
+                if ($delivery->status === 'skipped') {
+                    continue;
+                }
                 $sent++;
-                $delivery = $this->deliveries->dispatch($delivery);
+                if ($delivery->available_at === null) {
+                    $delivery = $this->deliveries->dispatch($delivery);
+                } else {
+                    $deferred++;
+                }
                 $delivered += $delivery->status === 'delivered' ? 1 : 0;
                 $failed += $delivery->status === 'failed' ? 1 : 0;
                 $recipientFailed = $recipientFailed || $delivery->status === 'failed';
@@ -74,7 +84,13 @@ final class CommunicationCampaignDispatcher
         }
 
         $campaign->update([
-            'status' => $failed > 0 && $delivered > 0 ? 'partial' : ($failed > 0 ? 'failed' : 'sent'),
+            'status' => match (true) {
+                $deferred > 0 && ($delivered > 0 || $failed > 0) => 'partial',
+                $deferred > 0 => 'queued',
+                $failed > 0 && $delivered > 0 => 'partial',
+                $failed > 0 => 'failed',
+                default => 'sent',
+            },
             'sent_count' => $sent,
             'delivered_count' => $delivered,
             'failed_count' => $failed,
@@ -88,6 +104,15 @@ final class CommunicationCampaignDispatcher
     private function newDelivery(CommunicationCampaign $campaign, CommunicationRecipient $recipient, string $channel, string $provider): CommunicationDelivery
     {
         $user = $recipient->user ?? $recipient->member?->userAccount;
+        $preference = $this->preferences->resolve(
+            (int) $campaign->church_id,
+            $user?->id ?? $recipient->user_id,
+            $recipient->member_id,
+            $channel,
+            $campaign->template?->category,
+            false,
+            $recipient->preferences,
+        );
 
         return CommunicationDelivery::query()->create([
             'church_id' => $campaign->church_id,
@@ -100,7 +125,7 @@ final class CommunicationCampaignDispatcher
             'recipient_name' => $recipient->name,
             'recipient_contact' => match ($channel) {
                 'sms', 'whatsapp' => $recipient->phone,
-                'push' => data_get($recipient->preferences, 'push_token'),
+                'push' => $preference['contact'] ?? data_get($recipient->preferences, 'push_token'),
                 default => $recipient->email,
             },
             'subject' => $campaign->subject,
@@ -108,9 +133,11 @@ final class CommunicationCampaignDispatcher
             'body' => $campaign->body,
             'event_type' => $campaign->template?->trigger_event ?? 'BulkCampaign',
             'category' => $campaign->template?->category,
-            'status' => 'queued',
-            'retry_status' => 'queued',
+            'available_at' => $preference['available_at'],
+            'status' => $preference['allowed'] ? 'queued' : 'skipped',
+            'retry_status' => $preference['allowed'] ? 'queued' : 'none',
             'attempt' => 1,
+            'error' => $preference['reason'],
         ]);
     }
 

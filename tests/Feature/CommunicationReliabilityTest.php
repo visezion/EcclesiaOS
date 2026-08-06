@@ -10,8 +10,10 @@ use App\Models\CommunicationCampaign;
 use App\Models\CommunicationDelivery;
 use App\Models\CommunicationProviderSetting;
 use App\Models\User;
+use App\Models\UserNotificationPreference;
 use App\Notifications\CommunicationDeliveryNotification;
 use App\Services\Communications\CommunicationDeliveryDispatcher;
+use App\Services\Communications\DomainNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -161,5 +163,58 @@ final class CommunicationReliabilityTest extends TestCase
         $this->assertSame('projects/ecclesia/messages/123', $delivery->provider_message_id);
         Http::assertSent(fn ($request): bool => $request->hasHeader('Authorization', 'Bearer fcm-access-token')
             && $request['message']['token'] === 'device-token-123');
+    }
+
+    public function test_preferences_skip_disabled_channels_and_defer_quiet_hour_digests(): void
+    {
+        Notification::fake();
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id, 'status' => 'active']);
+        UserNotificationPreference::query()->create([
+            'church_id' => $church->id,
+            'user_id' => $user->id,
+            'channels' => ['email'],
+            'categories' => ['events'],
+            'category_channels' => ['events' => ['email']],
+            'digest_mode' => 'daily',
+            'quiet_hours_start' => now()->subHour()->format('H:i'),
+            'quiet_hours_end' => now()->addHour()->format('H:i'),
+            'language' => 'en',
+            'critical_alerts' => false,
+        ]);
+
+        $service = app(DomainNotificationService::class);
+        $skipped = $service->user($user, 'EventSessionCreated', 'events', 'Session created', 'A session was created.', ['in_app'])->first();
+        $deferred = $service->user($user, 'EventSessionCreated', 'events', 'Session created', 'A session was created.', ['email'])->first();
+
+        $this->assertSame('skipped', $skipped->status);
+        $this->assertSame('queued', $deferred->status);
+        $this->assertTrue($deferred->available_at->isFuture());
+        Notification::assertNothingSent();
+    }
+
+    public function test_explicit_critical_alerts_bypass_quiet_hours_and_digest_delay(): void
+    {
+        Notification::fake();
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id, 'status' => 'active']);
+        UserNotificationPreference::query()->create([
+            'church_id' => $church->id,
+            'user_id' => $user->id,
+            'channels' => ['in_app'],
+            'categories' => ['system'],
+            'digest_mode' => 'weekly',
+            'quiet_hours_start' => now()->subHour()->format('H:i'),
+            'quiet_hours_end' => now()->addHour()->format('H:i'),
+            'language' => 'en',
+            'critical_alerts' => true,
+        ]);
+
+        $delivery = app(DomainNotificationService::class)
+            ->user($user, 'ApprovalRequested', 'system', 'Approval required', 'Review this request.', ['in_app'], [], true)
+            ->first();
+
+        $this->assertSame('delivered', $delivery->status);
+        Notification::assertSentTo($user, CommunicationDeliveryNotification::class);
     }
 }
