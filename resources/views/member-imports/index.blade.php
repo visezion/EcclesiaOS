@@ -41,12 +41,12 @@
         <section class="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
             <form method="POST" action="{{ route('member-imports.files.store') }}" enctype="multipart/form-data" class="dashboard-card self-start">
                 @csrf
-                <div class="flex items-center gap-3"><span class="grid size-9 place-items-center rounded-lg bg-violet-50 text-violet-600"><i data-lucide="upload" class="size-4"></i></span><div><h2 class="font-black text-slate-950">Start a file import</h2><p class="text-xs text-slate-500">CSV, XLSX or XLS up to 50 MB</p></div></div>
+                <div class="flex items-center gap-3"><span class="grid size-9 place-items-center rounded-lg bg-violet-50 text-violet-600"><i data-lucide="upload" class="size-4"></i></span><div><h2 class="font-black text-slate-950">Start a file import</h2><p class="text-xs text-slate-500">CSV, Excel, JSON, XML, or ZIP up to 50 MB</p></div></div>
                 <div class="mt-4 space-y-3">
                     <label class="block text-xs font-bold text-slate-700">Import name<input name="name" value="{{ old('name') }}" class="mt-1.5 h-10 w-full rounded-lg border-slate-200 text-sm" placeholder="Example: Legacy database export"></label>
                     <label class="block text-xs font-bold text-slate-700">Default campus *<select name="default_campus_id" required class="mt-1.5 h-10 w-full rounded-lg border-slate-200 text-sm"><option value="">Select campus</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected((string) old('default_campus_id', auth()->user()->campus_id) === (string) $campus->id)>{{ $campus->name }}</option>@endforeach</select></label>
                     <label class="block text-xs font-bold text-slate-700">Saved mapping profile<select name="profile_id" class="mt-1.5 h-10 w-full rounded-lg border-slate-200 text-sm"><option value="">Use automatic mapping</option>@foreach($profiles as $profile)<option value="{{ $profile->id }}" @selected((string) old('profile_id') === (string) $profile->id)>{{ $profile->name }}</option>@endforeach</select></label>
-                    <label class="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-center hover:border-violet-400 hover:bg-violet-50/30"><span class="grid size-10 place-items-center rounded-full bg-white text-violet-600 shadow-sm"><i data-lucide="file-up" class="size-5"></i></span><span class="mt-2 text-xs font-black text-slate-800">Choose a member data file</span><span class="mt-1 text-[10px] text-slate-400">CSV, Excel workbook, or tabular text</span><input name="members_file" type="file" accept=".csv,.txt,.xlsx,.xls" required class="mt-3 max-w-full text-[10px] text-slate-500"></label>
+                    <label class="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-center hover:border-violet-400 hover:bg-violet-50/30"><span class="grid size-10 place-items-center rounded-full bg-white text-violet-600 shadow-sm"><i data-lucide="file-up" class="size-5"></i></span><span class="mt-2 text-xs font-black text-slate-800">Choose a member data file</span><span class="mt-1 text-[10px] text-slate-400">ZIP may include one data file and member profile images</span><input name="members_file" type="file" accept=".csv,.txt,.xlsx,.xls,.json,.xml,.zip" required class="mt-3 max-w-full text-[10px] text-slate-500"></label>
                     <button class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 text-xs font-bold text-white hover:bg-violet-700"><i data-lucide="scan-search" class="size-4"></i>Analyze and preview</button>
                 </div>
             </form>
@@ -60,11 +60,27 @@
                             <div class="grid grid-cols-4 gap-3 text-center text-[10px]"><div><strong class="block text-sm text-emerald-600">{{ $import->created_rows }}</strong>Created</div><div><strong class="block text-sm text-blue-600">{{ $import->updated_rows }}</strong>Updated</div><div><strong class="block text-sm text-slate-600">{{ $import->skipped_rows }}</strong>Skipped</div><div><strong class="block text-sm text-rose-600">{{ $import->failed_rows }}</strong>Failed</div></div>
                         </a>
                     @empty
-                        <x-empty-state icon="database-zap" title="No member imports yet" message="Upload a CSV or Excel file to begin a reviewed import." />
+                        <x-empty-state icon="database-zap" title="No member imports yet" message="Upload a supported member data file to begin a reviewed import." />
                     @endforelse
                 </div>
                 @if($imports->hasPages())<div class="border-t border-slate-100 p-4">{{ $imports->links() }}</div>@endif
             </section>
         </section>
+
+        @if($profiles->isNotEmpty())
+            <section class="dashboard-card">
+                <div class="mb-3"><h2 class="font-black text-slate-950">Saved mapping profiles</h2><p class="text-xs text-slate-500">Reuse trusted mappings for repeated exports from the same system.</p></div>
+                <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    @foreach($profiles as $profile)
+                        <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5">
+                            <div class="min-w-0"><strong class="block truncate text-xs text-slate-900">{{ $profile->name }}</strong><span class="text-[10px] text-slate-400">{{ Str::upper($profile->source_type) }} · {{ count($profile->mapping ?? []) }} mapped fields{{ $profile->is_shared ? ' · Shared' : '' }}</span></div>
+                            @if(auth()->user()->isSuperAdministrator() || $profile->created_by === auth()->id() || $profile->is_shared)
+                                <form method="POST" action="{{ route('member-imports.profiles.destroy', $profile) }}" onsubmit="return confirm('Remove this saved mapping profile?')">@csrf @method('DELETE')<button class="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label="Delete {{ $profile->name }}"><i data-lucide="trash-2" class="size-4"></i></button></form>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </section>
+        @endif
     </div>
 </x-app-layout>

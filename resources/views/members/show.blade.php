@@ -153,8 +153,8 @@
                 <div class="p-5">
                     <div class="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,.9fr)]">
                         <div class="flex items-center gap-5">
-                            <div class="relative grid size-32 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-100 via-sky-100 to-emerald-100 text-3xl font-semibold text-violet-700 ring-8 ring-slate-50">
-                                {{ $avatarInitials }}
+                            <div class="relative grid size-32 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-violet-100 via-sky-100 to-emerald-100 text-3xl font-semibold text-violet-700 ring-8 ring-slate-50">
+                                @if($member->profile_photo_path)<img src="{{ asset('storage/'.$member->profile_photo_path) }}" alt="{{ $fullName }}" class="size-full object-cover">@else{{ $avatarInitials }}@endif
                                 <span class="absolute bottom-3 right-3 size-5 rounded-full border-4 border-white bg-emerald-500"></span>
                             </div>
                             <div class="min-w-0">

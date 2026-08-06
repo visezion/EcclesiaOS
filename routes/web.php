@@ -250,6 +250,8 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('members/imports/files', [MemberImportController::class, 'storeFile'])->name('member-imports.files.store');
     Route::get('members/imports/{memberImport}', [MemberImportController::class, 'show'])->name('member-imports.show');
     Route::put('members/imports/{memberImport}/mapping', [MemberImportController::class, 'updateMapping'])->name('member-imports.mapping.update');
+    Route::post('members/imports/{memberImport}/profiles', [MemberImportController::class, 'storeProfile'])->name('member-imports.profiles.store');
+    Route::delete('members/import-profiles/{profile}', [MemberImportController::class, 'destroyProfile'])->name('member-imports.profiles.destroy');
     Route::put('members/imports/{memberImport}/rows/{row}', [MemberImportController::class, 'updateRow'])->name('member-imports.rows.update');
     Route::post('members/imports/{memberImport}/start', [MemberImportController::class, 'start'])->name('member-imports.start');
     Route::get('members/imports/{memberImport}/progress', [MemberImportController::class, 'progress'])->name('member-imports.progress');

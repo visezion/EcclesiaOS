@@ -50,7 +50,7 @@ final class MemberImportMapper
         'external_id' => ['external_id', 'member_id', 'old_member_id', 'legacy_id', 'contact_id', 'person_id'],
         'full_name' => ['full_name', 'name', 'member_name', 'display_name'],
         'first_name' => ['first_name', 'firstname', 'first', 'fname', 'given_name', 'givenname'],
-        'last_name' => ['last_name', 'lastname', 'last', 'lname', 'surname', 'family_name'],
+        'last_name' => ['last_name', 'lastname', 'last', 'lname', 'surname'],
         'email' => ['email', 'email_address', 'primary_email', 'e_mail'],
         'phone' => ['phone', 'phone_number', 'mobile', 'mobile_phone', 'cell', 'telephone'],
         'status' => ['status', 'member_status', 'membership_status'],
@@ -94,10 +94,14 @@ final class MemberImportMapper
     public function autoMap(array $headers): array
     {
         $mapping = [];
+        $used = [];
         foreach (self::ALIASES as $field => $aliases) {
-            $match = collect($aliases)->first(fn (string $alias): bool => in_array($alias, $headers, true));
+            $match = in_array($field, $headers, true)
+                ? $field
+                : collect($aliases)->first(fn (string $alias): bool => in_array($alias, $headers, true) && ! in_array($alias, $used, true));
             if ($match) {
                 $mapping[$field] = $match;
+                $used[] = $match;
             }
         }
 

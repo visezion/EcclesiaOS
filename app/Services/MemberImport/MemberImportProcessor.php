@@ -11,6 +11,7 @@ use App\Models\MemberExternalIdentity;
 use App\Models\MemberImport;
 use App\Models\MemberImportRow;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -76,6 +77,7 @@ final class MemberImportProcessor
             }
             DB::transaction(function () use ($row, $member): void {
                 $snapshot = $row->rollback_snapshot ?? [];
+                $importedPhotoPath = $member->profile_photo_path;
                 if ($snapshot['created'] ?? false) {
                     $member->delete();
                 } else {
@@ -87,6 +89,12 @@ final class MemberImportProcessor
                     } else {
                         $member->memberProfile()?->delete();
                     }
+                }
+                if ($importedPhotoPath && $importedPhotoPath !== data_get($snapshot, 'member.profile_photo_path')) {
+                    Storage::disk('public')->delete($importedPhotoPath);
+                }
+                if (filled($snapshot['created_family_id'] ?? null)) {
+                    Family::query()->find($snapshot['created_family_id'])?->delete();
                 }
                 $row->update(['status' => 'rolled_back']);
             });
@@ -127,13 +135,21 @@ final class MemberImportProcessor
                 'profile' => $member->memberProfile()->withTrashed()->first()?->only(self::PROFILE_FIELDS) ?? [],
             ];
             $campusId = $this->campusId($import, $data);
-            $familyId = $this->familyId($import, $data, $campusId);
+            [$familyId, $familyCreated] = $this->familyResolution($import, $data, $campusId);
+            if ($familyCreated) {
+                $snapshot['created_family_id'] = $familyId;
+            }
             $memberValues = collect(self::MEMBER_FIELDS)->mapWithKeys(fn (string $field) => [$field => $data[$field] ?? null])->all();
             $memberValues['status'] = $data['status'] ?? 'active';
             $memberValues['joined_at'] = $data['joined_at'] ?? now()->toDateString();
             $memberValues['campus_id'] = $campusId;
             $memberValues['family_id'] = $familyId;
             $memberValues['church_id'] = $import->church_id;
+            $canImportPhoto = $creating || $row->duplicate_action !== 'merge' || blank($member->profile_photo_path);
+            $photoPath = $canImportPhoto ? $this->profilePhotoPath($import, $data) : null;
+            if ($photoPath) {
+                $memberValues['profile_photo_path'] = $photoPath;
+            }
             if (! $creating && $row->duplicate_action === 'merge') {
                 $memberValues = collect($memberValues)->filter(fn ($value, string $field) => filled($value) && blank($member->{$field}))->all();
             }
@@ -181,17 +197,52 @@ final class MemberImportProcessor
             ?: Campus::query()->where('church_id', $import->church_id)->where('status', 'active')->value('id'));
     }
 
-    private function familyId(MemberImport $import, array $data, int $campusId): ?int
+    /**
+     * @return array{0: ?int, 1: bool}
+     */
+    private function familyResolution(MemberImport $import, array $data, int $campusId): array
     {
         if (blank($data['family_name'] ?? null) || ! data_get($import->options, 'create_families', true)) {
-            return null;
+            return [null, false];
         }
 
-        return Family::query()->firstOrCreate([
+        $family = Family::query()->firstOrCreate([
             'church_id' => $import->church_id,
             'campus_id' => $campusId,
             'name' => trim((string) $data['family_name']),
-        ])->id;
+        ]);
+
+        return [$family->id, $family->wasRecentlyCreated];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function profilePhotoPath(MemberImport $import, array $data): ?string
+    {
+        if (blank($data['profile_photo'] ?? null)) {
+            return null;
+        }
+        $assets = (array) data_get($import->source_options, 'assets', []);
+        $asset = $assets[Str::lower(basename((string) $data['profile_photo']))] ?? null;
+        if (! is_string($asset) || ! Storage::disk('local')->exists($asset)) {
+            return null;
+        }
+        $contents = Storage::disk('local')->get($asset);
+        $image = @getimagesizefromstring($contents);
+        $extension = match ($image['mime'] ?? null) {
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            default => null,
+        };
+        if (! $extension) {
+            return null;
+        }
+        $path = 'member-profile-photos/'.$import->church_id.'/'.Str::uuid().'.'.$extension;
+        Storage::disk('public')->put($path, $contents);
+
+        return $path;
     }
 
     private function checksum(Member $member): string

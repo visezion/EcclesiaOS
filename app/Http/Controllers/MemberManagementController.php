@@ -704,6 +704,7 @@ final class MemberManagementController extends Controller
             'name' => trim($member->first_name.' '.$member->last_name),
             'firstName' => $member->first_name,
             'lastName' => $member->last_name,
+            'profilePhoto' => $member->profile_photo_path ? asset('storage/'.$member->profile_photo_path) : null,
             'preferredName' => $details?->preferred_name ?? $member->first_name,
             'email' => $member->email ?? 'No email',
             'phone' => $member->phone ?? 'No phone',

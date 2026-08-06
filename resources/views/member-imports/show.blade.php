@@ -76,6 +76,22 @@
                     <label class="flex items-center justify-between gap-3 self-end rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700">Create missing families<input type="checkbox" name="create_families" value="1" @checked(data_get($import->options, 'create_families', true)) class="rounded border-slate-300 text-violet-600"></label>
                 </div>
             </form>
+
+            <section class="dashboard-card">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div><h2 class="font-black text-slate-950">Reusable mapping profile</h2><p class="mt-1 text-xs text-slate-500">Save this confirmed column mapping and duplicate policy for future files from the same source.</p></div>
+                    @if($import->profile)
+                        <div class="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700"><i data-lucide="bookmark" class="size-4"></i>{{ $import->profile->name }}</div>
+                    @else
+                        <form method="POST" action="{{ route('member-imports.profiles.store', $import) }}" class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            @csrf
+                            <input name="name" required maxlength="100" class="h-10 rounded-lg border-slate-200 text-sm" placeholder="Profile name">
+                            <label class="flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600"><input type="checkbox" name="is_shared" value="1" class="rounded border-slate-300 text-violet-600">Share with admins</label>
+                            <button class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-bold text-white"><i data-lucide="save" class="size-4"></i>Save profile</button>
+                        </form>
+                    @endif
+                </div>
+            </section>
         @endif
 
         <section class="dashboard-card overflow-hidden p-0">

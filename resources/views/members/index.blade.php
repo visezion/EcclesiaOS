@@ -173,7 +173,7 @@
                                 <article class="rounded-lg border border-slate-200 p-4">
                                     <div class="flex items-start justify-between gap-3">
                                         <div class="flex items-center gap-3">
-                                            <div class="grid size-11 place-items-center rounded-full bg-violet-100 text-sm font-semibold text-violet-700">{{ Str::substr($member['firstName'], 0, 1) }}{{ Str::substr($member['lastName'], 0, 1) }}</div>
+                                            <div class="grid size-11 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-100 text-sm font-semibold text-violet-700">@if($member['profilePhoto'])<img src="{{ $member['profilePhoto'] }}" alt="" class="size-full object-cover">@else{{ Str::substr($member['firstName'], 0, 1) }}{{ Str::substr($member['lastName'], 0, 1) }}@endif</div>
                                             <div>
                                                 <div class="font-semibold text-slate-950">{{ $member['name'] }}</div>
                                                 <div class="text-xs text-slate-500">{{ $member['code'] }} · {{ $member['campus'] }}</div>
@@ -221,7 +221,7 @@
                                             <td class="font-medium text-slate-700">{{ $member['code'] }}</td>
                                             <td>
                                                 <div class="flex items-center gap-3">
-                                                    <div class="grid size-9 place-items-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">{{ Str::substr($member['firstName'], 0, 1) }}{{ Str::substr($member['lastName'], 0, 1) }}</div>
+                                                    <div class="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-100 text-xs font-semibold text-violet-700">@if($member['profilePhoto'])<img src="{{ $member['profilePhoto'] }}" alt="" class="size-full object-cover">@else{{ Str::substr($member['firstName'], 0, 1) }}{{ Str::substr($member['lastName'], 0, 1) }}@endif</div>
                                                     <span class="font-semibold text-slate-950">{{ $member['name'] }}</span>
                                                 </div>
                                             </td>
@@ -339,7 +339,7 @@
                     <div class="space-y-4">
                         <div class="rounded-lg border border-slate-200 p-4">
                             <div class="flex items-center gap-4">
-                                <div class="grid size-16 place-items-center rounded-full bg-violet-100 text-lg font-semibold text-violet-700">{{ Str::substr($selectedMember['firstName'], 0, 1) }}{{ Str::substr($selectedMember['lastName'], 0, 1) }}</div>
+                                <div class="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-100 text-lg font-semibold text-violet-700">@if($selectedMember['profilePhoto'])<img src="{{ $selectedMember['profilePhoto'] }}" alt="" class="size-full object-cover">@else{{ Str::substr($selectedMember['firstName'], 0, 1) }}{{ Str::substr($selectedMember['lastName'], 0, 1) }}@endif</div>
                                 <div>
                                     <h3 class="text-xl font-semibold text-slate-950">{{ $selectedMember['name'] }}</h3>
                                     <p class="text-sm text-slate-500">{{ $selectedMember['ministry'] }}</p>

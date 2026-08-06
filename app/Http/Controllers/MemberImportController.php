@@ -62,7 +62,7 @@ final class MemberImportController extends Controller
         $this->authorizeImport($request);
         $churchId = $this->churchId($request);
         $validated = $request->validate([
-            'members_file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:51200'],
+            'members_file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls,json,xml,zip', 'max:51200'],
             'name' => ['nullable', 'string', 'max:150'],
             'profile_id' => [
                 'nullable',
@@ -104,7 +104,11 @@ final class MemberImportController extends Controller
             $mapping = $profile?->mapping ?: $this->mapper->autoMap($parsed['headers']);
             $import->update([
                 'mapping' => $mapping,
-                'source_options' => [...($import->source_options ?? []), 'headers' => $parsed['headers']],
+                'source_options' => [
+                    ...($import->source_options ?? []),
+                    ...($parsed['metadata'] ?? []),
+                    'headers' => $parsed['headers'],
+                ],
                 'total_rows' => count($parsed['rows']),
                 'status' => 'draft',
             ]);
@@ -127,6 +131,7 @@ final class MemberImportController extends Controller
         } catch (Throwable $exception) {
             report($exception);
             Storage::disk('local')->delete($path);
+            Storage::disk('local')->deleteDirectory('member-imports/'.$churchId.'/assets/'.$import->id);
             $import->forceDelete();
             throw ValidationException::withMessages(['members_file' => 'The file could not be analyzed: '.$exception->getMessage()]);
         }
@@ -212,6 +217,37 @@ final class MemberImportController extends Controller
         $importRow->update(['duplicate_action' => $validated['duplicate_action']]);
 
         return back()->with('status', 'Duplicate action updated.');
+    }
+
+    public function storeProfile(Request $request, MemberImport $memberImport): RedirectResponse
+    {
+        $this->authorizeRecord($request, $memberImport);
+        abort_unless(in_array($memberImport->status, ['draft', 'ready'], true), 409);
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100', Rule::unique('member_import_profiles')->where(fn ($query) => $query->where('church_id', $memberImport->church_id))],
+            'is_shared' => ['nullable', 'boolean'],
+        ]);
+        $profile = MemberImportProfile::query()->create([
+            'church_id' => $memberImport->church_id,
+            'created_by' => $request->user()->id,
+            'name' => trim($validated['name']),
+            'source_type' => $memberImport->source_type,
+            'mapping' => $memberImport->mapping,
+            'options' => $memberImport->options,
+            'is_shared' => $request->boolean('is_shared'),
+        ]);
+        $memberImport->update(['profile_id' => $profile->id]);
+
+        return back()->with('status', 'Mapping profile saved for future imports.');
+    }
+
+    public function destroyProfile(Request $request, MemberImportProfile $profile): RedirectResponse
+    {
+        $this->authorizeImport($request);
+        abort_unless($request->user()->isSuperAdministrator() || ($profile->church_id === $request->user()->church_id && ($profile->created_by === $request->user()->id || $profile->is_shared)), 404);
+        $profile->delete();
+
+        return back()->with('status', 'Mapping profile removed.');
     }
 
     public function start(Request $request, MemberImport $memberImport, ActivityLogger $logger): RedirectResponse
