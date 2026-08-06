@@ -22,6 +22,7 @@ final class FinancialAssistanceRequest extends Model
         'amount', 'approved_amount', 'currency', 'needed_by', 'urgency',
         'preferred_payment_method', 'payee_name', 'status', 'current_stage',
         'decision_notes', 'disbursement_notes', 'disbursement_reference',
+        'fund_id', 'finance_transaction_id',
         'approved_by', 'disbursed_by', 'submitted_at', 'approved_at', 'rejected_at', 'disbursed_at',
     ];
 
@@ -66,6 +67,16 @@ final class FinancialAssistanceRequest extends Model
     public function disburser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'disbursed_by');
+    }
+
+    public function fund(): BelongsTo
+    {
+        return $this->belongsTo(Fund::class);
+    }
+
+    public function financeTransaction(): BelongsTo
+    {
+        return $this->belongsTo(FinanceTransaction::class);
     }
 
     public function approval(): MorphOne

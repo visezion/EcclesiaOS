@@ -6,7 +6,9 @@ namespace Tests\Feature;
 
 use App\Models\Campus;
 use App\Models\Church;
+use App\Models\FinanceTransaction;
 use App\Models\FinancialAssistanceRequest;
+use App\Models\Fund;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -82,6 +84,7 @@ final class FinancialAssistanceTest extends TestCase
         $headquarters = Campus::query()->where('church_id', $pastor->church_id)->where('slug', 'headquarters')->firstOrFail();
         $campusApprover = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
         $financeOfficer = User::query()->where('email', 'michael.thompson@klgc.org')->firstOrFail();
+        $fund = Fund::query()->where('church_id', $pastor->church_id)->where('is_active', true)->firstOrFail();
 
         $this->actingAs($pastor)->post(route('financial-assistance.store'), $this->validPayload($headquarters->id))->assertRedirect();
         $assistance = FinancialAssistanceRequest::query()->where('requester_id', $pastor->id)->sole();
@@ -113,6 +116,7 @@ final class FinancialAssistanceTest extends TestCase
 
         $this->actingAs($financeOfficer)
             ->post(route('financial-assistance.disburse', $assistance), [
+                'fund_id' => $fund->id,
                 'disbursement_reference' => 'BANK-20260806-1042',
                 'disbursement_notes' => 'Paid directly to the service provider.',
                 'disbursed_at' => now()->format('Y-m-d H:i:s'),
@@ -122,6 +126,15 @@ final class FinancialAssistanceTest extends TestCase
         $assistance->refresh();
         $this->assertSame('disbursed', $assistance->status);
         $this->assertSame('BANK-20260806-1042', $assistance->disbursement_reference);
+        $this->assertSame($fund->id, $assistance->fund_id);
+        $expense = FinanceTransaction::query()->findOrFail($assistance->finance_transaction_id);
+        $this->assertSame('expense', $expense->type);
+        $this->assertSame('benevolence', $expense->category);
+        $this->assertSame('posted', $expense->status);
+        $this->assertSame('1450.00', $expense->amount);
+        $this->assertSame($fund->id, $expense->fund_id);
+        $this->assertSame($headquarters->id, $expense->campus_id);
+        $this->assertSame('BANK-20260806-1042', $expense->reference);
         $this->assertDatabaseHas('financial_assistance_activities', [
             'financial_assistance_request_id' => $assistance->id,
             'type' => 'disbursed',
@@ -131,6 +144,16 @@ final class FinancialAssistanceTest extends TestCase
             'event_type' => 'FinancialAssistanceStatusChanged',
             'channel' => 'whatsapp',
         ]);
+
+        $this->actingAs($financeOfficer)
+            ->post(route('financial-assistance.disburse', $assistance), [
+                'fund_id' => $fund->id,
+                'disbursement_reference' => 'BANK-DUPLICATE',
+                'disbursed_at' => now()->format('Y-m-d H:i:s'),
+            ])
+            ->assertStatus(403);
+        $this->assertDatabaseMissing('finance_transactions', ['reference' => 'BANK-DUPLICATE']);
+        $this->assertSame($expense->id, $assistance->fresh()->finance_transaction_id);
     }
 
     public function test_requester_cannot_approve_own_request_and_other_church_cannot_view_it(): void

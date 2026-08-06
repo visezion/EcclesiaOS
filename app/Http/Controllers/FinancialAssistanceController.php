@@ -6,8 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Approval;
 use App\Models\Campus;
+use App\Models\FinanceTransaction;
 use App\Models\FinancialAssistanceAttachment;
 use App\Models\FinancialAssistanceRequest;
+use App\Models\Fund;
 use App\Models\User;
 use App\Models\Workflow;
 use App\Services\ActivityLogger;
@@ -210,7 +212,7 @@ final class FinancialAssistanceController extends Controller
     {
         $this->authorizeVisible($request, $assistance);
         $assistance->load([
-            'requester', 'sourceCampus', 'targetCampus', 'approver', 'disburser',
+            'requester', 'sourceCampus', 'targetCampus', 'approver', 'disburser', 'fund', 'financeTransaction',
             'approval.workflow', 'attachments.uploader',
             'activities' => fn ($query) => $query->with('user')->oldest(),
         ]);
@@ -223,6 +225,11 @@ final class FinancialAssistanceController extends Controller
             'urgencies' => self::URGENCIES,
             'canDecide' => $this->canDecide($request, $assistance),
             'canDisburse' => $this->canDisburse($request, $assistance),
+            'funds' => Fund::query()
+                ->where('church_id', $assistance->church_id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(),
             'canResubmit' => $assistance->requester_id === $request->user()->id && $assistance->status === 'changes_requested',
             'canCancel' => $assistance->requester_id === $request->user()->id && in_array($assistance->status, ['submitted', 'under_review', 'changes_requested'], true),
             'breadcrumbs' => [
@@ -363,21 +370,84 @@ final class FinancialAssistanceController extends Controller
     {
         abort_unless($this->canDisburse($request, $assistance), 403);
         $validated = $request->validate([
+            'fund_id' => [
+                'required',
+                'integer',
+                Rule::exists('funds', 'id')->where(fn ($query) => $query
+                    ->where('church_id', $assistance->church_id)
+                    ->where('is_active', true)),
+            ],
             'disbursement_reference' => ['required', 'string', 'max:120'],
             'disbursement_notes' => ['nullable', 'string', 'max:5000'],
             'disbursed_at' => ['required', 'date', 'before_or_equal:now'],
         ]);
-        $assistance->update([
-            ...$validated,
-            'status' => 'disbursed',
-            'current_stage' => 'complete',
-            'disbursed_by' => $request->user()->id,
-        ]);
-        $this->activity($assistance, $request->user()->id, 'disbursed', 'Approved assistance was marked as disbursed.', ['reference' => $validated['disbursement_reference']]);
-        $activityLogger->log('Financial Assistance', 'assistance_disbursed', $assistance->reference.' was disbursed.', $assistance, ['status' => 'success', 'risk' => 'medium'], $request);
+        $financeTransaction = DB::transaction(function () use ($request, $assistance, $validated): FinanceTransaction {
+            $lockedAssistance = FinancialAssistanceRequest::query()->lockForUpdate()->findOrFail($assistance->id);
+            abort_unless($this->canDisburse($request, $lockedAssistance), 409, 'This request has already been disbursed or is no longer ready for payment.');
+
+            $fund = Fund::query()
+                ->where('church_id', $lockedAssistance->church_id)
+                ->where('is_active', true)
+                ->findOrFail($validated['fund_id']);
+            $amount = (float) ($lockedAssistance->approved_amount ?? $lockedAssistance->amount);
+            $method = match ($lockedAssistance->preferred_payment_method) {
+                'bank_transfer', 'vendor_payment' => 'bank',
+                'cash' => 'cash',
+                'cheque' => 'check',
+                'mobile_money' => 'mobile',
+                default => null,
+            };
+
+            $transaction = FinanceTransaction::query()->create([
+                'church_id' => $lockedAssistance->church_id,
+                'campus_id' => $lockedAssistance->target_campus_id,
+                'fund_id' => $fund->id,
+                'created_by_user_id' => $request->user()->id,
+                'type' => 'expense',
+                'category' => 'benevolence',
+                'amount' => $amount,
+                'currency' => $lockedAssistance->currency,
+                'method' => $method,
+                'frequency' => 'one_time',
+                'occurred_at' => $validated['disbursed_at'],
+                'reference' => $validated['disbursement_reference'],
+                'vendor_or_source' => $lockedAssistance->payee_name ?: $lockedAssistance->beneficiary_name,
+                'description' => 'Financial assistance '.$lockedAssistance->reference.': '.$lockedAssistance->title
+                    .(filled($validated['disbursement_notes'] ?? null) ? ' — '.$validated['disbursement_notes'] : ''),
+                'status' => 'posted',
+            ]);
+
+            $lockedAssistance->update([
+                ...$validated,
+                'finance_transaction_id' => $transaction->id,
+                'status' => 'disbursed',
+                'current_stage' => 'complete',
+                'disbursed_by' => $request->user()->id,
+            ]);
+            $this->activity($lockedAssistance, $request->user()->id, 'disbursed', 'Approved assistance was disbursed and posted to the finance ledger.', [
+                'reference' => $validated['disbursement_reference'],
+                'fund_id' => $fund->id,
+                'fund' => $fund->name,
+                'finance_transaction_id' => $transaction->id,
+                'amount' => $amount,
+                'currency' => $lockedAssistance->currency,
+            ]);
+
+            return $transaction;
+        });
+
+        $assistance->refresh();
+        $activityLogger->log('Financial Assistance', 'assistance_disbursed', $assistance->reference.' was disbursed and posted as expense '.$financeTransaction->reference.'.', $assistance, [
+            'status' => 'success',
+            'risk' => 'medium',
+            'finance_transaction_id' => $financeTransaction->id,
+            'fund_id' => $financeTransaction->fund_id,
+            'amount' => $financeTransaction->amount,
+            'currency' => $financeTransaction->currency,
+        ], $request);
         $this->notifyRequester($assistance, 'Financial assistance disbursed', $this->statusMessage($assistance), true);
 
-        return back()->with('status', 'Disbursement recorded and the requester was notified.');
+        return back()->with('status', 'Disbursement recorded, posted as a finance expense, and the requester was notified.');
     }
 
     public function cancel(Request $request, FinancialAssistanceRequest $assistance, ActivityLogger $activityLogger): RedirectResponse

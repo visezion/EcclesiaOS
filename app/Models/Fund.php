@@ -29,4 +29,14 @@ final class Fund extends Model
     {
         return $this->belongsTo(Church::class);
     }
+
+    public function financeTransactions(): HasMany
+    {
+        return $this->hasMany(FinanceTransaction::class);
+    }
+
+    public function financialAssistanceRequests(): HasMany
+    {
+        return $this->hasMany(FinancialAssistanceRequest::class);
+    }
 }
