@@ -38,6 +38,10 @@
             @endforeach
         </section>
 
+        <div class="flex justify-end">
+            <a href="{{ route('member-import-connections.index') }}" class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 text-xs font-bold text-violet-700 hover:bg-violet-100"><i data-lucide="database" class="size-4"></i>Manage database sources</a>
+        </div>
+
         <section class="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
             <form method="POST" action="{{ route('member-imports.files.store') }}" enctype="multipart/form-data" class="dashboard-card self-start">
                 @csrf

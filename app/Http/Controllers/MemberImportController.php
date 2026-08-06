@@ -13,6 +13,7 @@ use App\Services\ActivityLogger;
 use App\Services\MemberImport\MemberImportFileReader;
 use App\Services\MemberImport\MemberImportMapper;
 use App\Services\MemberImport\MemberImportProcessor;
+use App\Services\MemberImport\MemberImportStager;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -30,6 +31,7 @@ final class MemberImportController extends Controller
         private readonly MemberImportFileReader $reader,
         private readonly MemberImportMapper $mapper,
         private readonly MemberImportProcessor $processor,
+        private readonly MemberImportStager $stager,
     ) {}
 
     public function index(Request $request): View
@@ -112,22 +114,7 @@ final class MemberImportController extends Controller
                 'total_rows' => count($parsed['rows']),
                 'status' => 'draft',
             ]);
-            foreach (array_chunk($parsed['rows'], 500) as $chunkOffset => $rows) {
-                $inserts = [];
-                foreach ($rows as $index => $row) {
-                    $inserts[] = [
-                        'member_import_id' => $import->id,
-                        'row_number' => ($chunkOffset * 500) + $index + 2,
-                        'source_data' => json_encode($row, JSON_THROW_ON_ERROR),
-                        'status' => 'staged',
-                        'duplicate_action' => 'skip',
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }
-                DB::table('member_import_rows')->insert($inserts);
-            }
-            $this->analyze($import, $mapping, 'skip');
+            $this->stager->stage($import, $parsed['rows'], $mapping);
         } catch (Throwable $exception) {
             report($exception);
             Storage::disk('local')->delete($path);
@@ -202,7 +189,7 @@ final class MemberImportController extends Controller
             ],
             'status' => 'draft',
         ]);
-        $this->analyze($memberImport, $mapping, $validated['duplicate_strategy']);
+        $this->stager->analyze($memberImport, $mapping, $validated['duplicate_strategy']);
 
         return back()->with('status', 'Mapping applied and every row was re-analyzed.');
     }
@@ -294,12 +281,6 @@ final class MemberImportController extends Controller
         ], $request);
 
         return back()->with('status', $result['restored'].' member changes rolled back'.($result['conflicts'] ? '; '.$result['conflicts'].' changed records were safely left untouched.' : '.'));
-    }
-
-    private function analyze(MemberImport $import, array $mapping, string $duplicateAction): void
-    {
-        $import->rows()->orderBy('id')->lazyById(200)->each(fn ($row) => $this->mapper->analyze($import, $row, $mapping, $duplicateAction));
-        $import->update(['status' => 'ready']);
     }
 
     private function authorizeImport(Request $request): void
