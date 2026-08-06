@@ -98,29 +98,63 @@
                     @csrf
                     @method('PUT')
                     <input type="hidden" name="section" value="notifications">
-                    <div class="mb-5 flex items-center justify-between gap-3">
-                        <div><h2 class="text-base font-semibold text-slate-950">Notification Preferences</h2><p class="text-sm text-slate-500">Choose delivery channels and the account activity you want to hear about.</p></div>
-                        <button class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white"><i data-lucide="save" class="size-4"></i>Save Notifications</button>
+                    <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div><h2 class="text-base font-semibold text-slate-950">Notification Preferences</h2><p class="text-sm text-slate-500">Control how EcclesiaOS contacts you and which activity reaches your account.</p></div>
+                        <button class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-700"><i data-lucide="save" class="size-4"></i>Save Notifications</button>
                     </div>
-                    <div class="grid gap-4 lg:grid-cols-2">
+
+                    <div class="grid gap-4 xl:grid-cols-[.9fr_1.35fr]">
+                        <div class="space-y-4">
+                            <section class="rounded-lg border border-slate-200 p-4">
+                                <div class="mb-3"><h3 class="text-sm font-semibold text-slate-950">Delivery channels</h3><p class="mt-1 text-xs text-slate-500">Only configured channels with valid contact details can deliver.</p></div>
+                                <div class="space-y-2 text-sm">
+                                    @foreach([
+                                        'in_app_notifications' => ['In-app', 'Alerts in EcclesiaOS', 'bell', 'bg-violet-50 text-violet-600'],
+                                        'email_notifications' => ['Email', $user->email ?: 'No email address', 'mail', 'bg-blue-50 text-blue-600'],
+                                        'sms_notifications' => ['SMS', $user->phone ?: 'No phone number', 'phone', 'bg-emerald-50 text-emerald-600'],
+                                        'whatsapp_notifications' => ['WhatsApp', $user->phone ?: 'No phone number', 'message-circle', 'bg-green-50 text-green-600'],
+                                        'push_notifications' => ['Browser push', 'This registered browser', 'monitor', 'bg-amber-50 text-amber-600'],
+                                    ] as $field => [$label, $help, $icon, $tone])
+                                        <label class="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2.5">
+                                            <span class="grid size-9 shrink-0 place-items-center rounded-lg {{ $tone }}"><i data-lucide="{{ $icon }}" class="size-4"></i></span>
+                                            <span class="min-w-0 flex-1"><span class="block font-semibold text-slate-700">{{ $label }}</span><span class="block truncate text-[10px] text-slate-400">{{ $help }}</span></span>
+                                            <input type="checkbox" name="{{ $field }}" value="1" @checked(old($field, $notifications[$field])) class="rounded border-slate-300 text-violet-600">
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </section>
+
+                            <section class="rounded-lg border border-slate-200 p-4">
+                                <h3 class="text-sm font-semibold text-slate-950">Timing and priority</h3>
+                                <label class="mt-3 block text-xs font-medium text-slate-600">Delivery frequency<select name="notification_frequency" class="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm">@foreach(['instant' => 'Instant', 'daily_digest' => 'Daily digest', 'weekly_summary' => 'Weekly summary', 'priority_only' => 'Critical alerts only'] as $value => $label)<option value="{{ $value }}" @selected(old('notification_frequency', $notifications['notification_frequency']) === $value)>{{ $label }}</option>@endforeach</select></label>
+                                <label class="mt-3 flex items-start gap-3 rounded-lg border border-rose-100 bg-rose-50/60 p-3"><input type="checkbox" name="critical_alerts" value="1" @checked(old('critical_alerts', $notifications['critical_alerts'])) class="mt-0.5 rounded border-rose-300 text-rose-600"><span><span class="block text-xs font-bold text-rose-800">Critical alerts</span><span class="mt-1 block text-[10px] leading-4 text-rose-600">Allow urgent operational alerts to bypass digest timing and quiet hours.</span></span></label>
+                            </section>
+                        </div>
+
                         <section class="rounded-lg border border-slate-200 p-4">
-                            <h3 class="mb-3 text-sm font-semibold text-slate-950">Delivery Channels</h3>
-                            <div class="space-y-3 text-sm">
-                                @foreach(['email_notifications' => ['Email notifications', 'mail'], 'sms_notifications' => ['SMS notifications', 'phone'], 'in_app_notifications' => ['In-app notifications', 'bell'], 'push_notifications' => ['Browser push alerts', 'monitor']] as $field => [$label, $icon])
-                                    <label class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-slate-700"><span class="inline-flex items-center gap-2"><i data-lucide="{{ $icon }}" class="size-4 text-violet-600"></i>{{ $label }}</span><input type="checkbox" name="{{ $field }}" value="1" @checked(old($field, $notifications[$field])) class="rounded border-slate-300 text-violet-600"></label>
+                            <div class="mb-3"><h3 class="text-sm font-semibold text-slate-950">Notification topics</h3><p class="mt-1 text-xs text-slate-500">Turn off topics you do not need. Your permissions still control which records you can open.</p></div>
+                            <div class="grid gap-2 sm:grid-cols-2">
+                                @foreach([
+                                    'notify_approvals' => ['Approval tasks', 'Requests waiting for your decision', 'badge-check', 'bg-violet-50 text-violet-600'],
+                                    'notify_financial_assistance' => ['Financial assistance', 'Changes, approval and disbursement', 'hand-coins', 'bg-emerald-50 text-emerald-600'],
+                                    'notify_events' => ['Events and programs', 'Schedules, updates and cancellations', 'calendar-days', 'bg-blue-50 text-blue-600'],
+                                    'notify_attendance' => ['Attendance', 'Sessions, check-ins and exceptions', 'clipboard-check', 'bg-cyan-50 text-cyan-600'],
+                                    'notify_members' => ['Member care', 'Member and pastoral-care updates', 'heart-handshake', 'bg-rose-50 text-rose-600'],
+                                    'notify_volunteers' => ['Volunteers', 'Assignments and team updates', 'users', 'bg-orange-50 text-orange-600'],
+                                    'notify_registration' => ['Registrations', 'Confirmations and follow-up', 'list-checks', 'bg-indigo-50 text-indigo-600'],
+                                    'notify_reports' => ['Reports and analytics', 'Scheduled reports and insights', 'chart-no-axes-combined', 'bg-fuchsia-50 text-fuchsia-600'],
+                                    'notify_security' => ['Security and system', 'Sign-ins, account and system alerts', 'shield-check', 'bg-slate-100 text-slate-600'],
+                                ] as $field => [$label, $help, $icon, $tone])
+                                    <label class="flex min-h-20 items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50">
+                                        <span class="grid size-9 shrink-0 place-items-center rounded-lg {{ $tone }}"><i data-lucide="{{ $icon }}" class="size-4"></i></span>
+                                        <span class="min-w-0 flex-1"><span class="block text-xs font-bold text-slate-700">{{ $label }}</span><span class="mt-1 block text-[10px] leading-4 text-slate-400">{{ $help }}</span></span>
+                                        <input type="checkbox" name="{{ $field }}" value="1" @checked(old($field, $notifications[$field])) class="rounded border-slate-300 text-violet-600">
+                                    </label>
                                 @endforeach
                             </div>
                         </section>
-                        <section class="rounded-lg border border-slate-200 p-4">
-                            <h3 class="mb-3 text-sm font-semibold text-slate-950">Topics</h3>
-                            <label class="mb-3 block text-sm text-slate-600">Frequency<select name="notification_frequency" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">@foreach(['instant' => 'Instant', 'daily_digest' => 'Daily digest', 'weekly_summary' => 'Weekly summary', 'priority_only' => 'Priority only'] as $value => $label)<option value="{{ $value }}" @selected(old('notification_frequency', $notifications['notification_frequency']) === $value)>{{ $label }}</option>@endforeach</select></label>
-                            <div class="space-y-3 text-sm">
-                                @foreach(['notify_security' => 'Security activity', 'notify_members' => 'Member updates', 'notify_events' => 'Events and programs', 'notify_reports' => 'Reports and analytics'] as $field => $label)
-                                    <label class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-slate-700">{{ $label }}<input type="checkbox" name="{{ $field }}" value="1" @checked(old($field, $notifications[$field])) class="rounded border-slate-300 text-violet-600"></label>
-                                @endforeach
-                            </div>
-                        </section>
                     </div>
+                    <div class="mt-4 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-[10px] text-blue-700"><i data-lucide="info" class="size-4 shrink-0"></i>These settings synchronize directly with the Communications delivery engine and apply to future notifications.</div>
                 </form>
 
                 <form id="security" method="POST" action="{{ route('account.settings.update') }}" class="dashboard-card scroll-mt-24">

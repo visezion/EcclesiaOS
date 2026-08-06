@@ -609,7 +609,7 @@ final class FinancialAssistanceController extends Controller
         $this->notifications->users(
             $approvers,
             'FinancialAssistanceApprovalRequired',
-            'system',
+            'approvals',
             'Approval needed: '.$assistance->reference,
             $assistance->requester?->name.' requests '.$assistance->currency.' '.number_format((float) $assistance->amount, 2).' for '.$assistance->title.'. '.$stage.' is required.',
             ['in_app', 'email', 'sms', 'whatsapp'],
@@ -627,7 +627,7 @@ final class FinancialAssistanceController extends Controller
         $this->notifications->user(
             $assistance->requester,
             'FinancialAssistanceStatusChanged',
-            'system',
+            'financial_assistance',
             $subject,
             $message,
             ['in_app', 'email', 'sms', 'whatsapp'],

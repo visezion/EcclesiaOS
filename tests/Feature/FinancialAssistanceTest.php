@@ -62,6 +62,7 @@ final class FinancialAssistanceTest extends TestCase
         $this->actingAs($leader)->get(route('financial-assistance.attachments.download', $attachment))->assertOk();
         $this->assertDatabaseHas('communication_deliveries', [
             'event_type' => 'FinancialAssistanceApprovalRequired',
+            'category' => 'approvals',
             'channel' => 'in_app',
         ]);
     }
@@ -142,6 +143,7 @@ final class FinancialAssistanceTest extends TestCase
         $this->assertDatabaseHas('communication_deliveries', [
             'user_id' => $pastor->id,
             'event_type' => 'FinancialAssistanceStatusChanged',
+            'category' => 'financial_assistance',
             'channel' => 'whatsapp',
         ]);
 

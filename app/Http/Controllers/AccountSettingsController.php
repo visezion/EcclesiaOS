@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+use App\Models\UserNotificationPreference;
 use App\Services\ActivityLogger;
 use App\Services\TotpService;
 use Illuminate\Contracts\View\View;
@@ -46,13 +48,20 @@ final class AccountSettingsController extends Controller
             'compact_tables' => ['nullable', 'boolean'],
             'email_notifications' => ['nullable', 'boolean'],
             'sms_notifications' => ['nullable', 'boolean'],
+            'whatsapp_notifications' => ['nullable', 'boolean'],
             'in_app_notifications' => ['nullable', 'boolean'],
             'push_notifications' => ['nullable', 'boolean'],
             'notification_frequency' => ['nullable', Rule::in(['instant', 'daily_digest', 'weekly_summary', 'priority_only'])],
+            'critical_alerts' => ['nullable', 'boolean'],
             'notify_security' => ['nullable', 'boolean'],
             'notify_members' => ['nullable', 'boolean'],
             'notify_events' => ['nullable', 'boolean'],
+            'notify_attendance' => ['nullable', 'boolean'],
+            'notify_volunteers' => ['nullable', 'boolean'],
+            'notify_registration' => ['nullable', 'boolean'],
             'notify_reports' => ['nullable', 'boolean'],
+            'notify_financial_assistance' => ['nullable', 'boolean'],
+            'notify_approvals' => ['nullable', 'boolean'],
             'mfa_enabled' => ['nullable', 'boolean'],
             'mfa_method' => ['nullable', Rule::in(['authenticator', 'email', 'sms'])],
             'login_notifications' => ['nullable', 'boolean'],
@@ -77,14 +86,22 @@ final class AccountSettingsController extends Controller
             $current['notifications'] = [
                 'email_notifications' => $request->boolean('email_notifications'),
                 'sms_notifications' => $request->boolean('sms_notifications'),
+                'whatsapp_notifications' => $request->boolean('whatsapp_notifications'),
                 'in_app_notifications' => $request->boolean('in_app_notifications'),
                 'push_notifications' => $request->boolean('push_notifications'),
                 'notification_frequency' => $validated['notification_frequency'] ?? $current['notifications']['notification_frequency'],
+                'critical_alerts' => $request->boolean('critical_alerts'),
                 'notify_security' => $request->boolean('notify_security'),
                 'notify_members' => $request->boolean('notify_members'),
                 'notify_events' => $request->boolean('notify_events'),
+                'notify_attendance' => $request->boolean('notify_attendance'),
+                'notify_volunteers' => $request->boolean('notify_volunteers'),
+                'notify_registration' => $request->boolean('notify_registration'),
                 'notify_reports' => $request->boolean('notify_reports'),
+                'notify_financial_assistance' => $request->boolean('notify_financial_assistance'),
+                'notify_approvals' => $request->boolean('notify_approvals'),
             ];
+            $this->syncNotificationPreference($user, $current['notifications']);
         }
 
         if ($section === 'security') {
@@ -252,13 +269,20 @@ final class AccountSettingsController extends Controller
             'notifications' => [
                 'email_notifications' => true,
                 'sms_notifications' => false,
+                'whatsapp_notifications' => false,
                 'in_app_notifications' => true,
                 'push_notifications' => false,
                 'notification_frequency' => 'instant',
+                'critical_alerts' => true,
                 'notify_security' => true,
                 'notify_members' => true,
                 'notify_events' => true,
+                'notify_attendance' => true,
+                'notify_volunteers' => true,
+                'notify_registration' => true,
                 'notify_reports' => false,
+                'notify_financial_assistance' => true,
+                'notify_approvals' => true,
             ],
             'security' => [
                 'mfa_method' => 'authenticator',
@@ -267,5 +291,84 @@ final class AccountSettingsController extends Controller
                 'session_timeout_minutes' => 60,
             ],
         ], $settings);
+    }
+
+    /**
+     * @param  array<string, mixed>  $notifications
+     */
+    private function syncNotificationPreference(User $user, array $notifications): void
+    {
+        if ($user->church_id === null) {
+            return;
+        }
+
+        $channelFields = [
+            'in_app_notifications' => 'in_app',
+            'email_notifications' => 'email',
+            'sms_notifications' => 'sms',
+            'whatsapp_notifications' => 'whatsapp',
+            'push_notifications' => 'push',
+        ];
+        $categoryFields = [
+            'notify_events' => 'events',
+            'notify_attendance' => 'attendance',
+            'notify_members' => 'care',
+            'notify_volunteers' => 'volunteers',
+            'notify_registration' => 'registration',
+            'notify_security' => 'system',
+            'notify_reports' => 'reports',
+            'notify_financial_assistance' => 'financial_assistance',
+            'notify_approvals' => 'approvals',
+        ];
+        $channels = collect($channelFields)
+            ->filter(fn (string $channel, string $field): bool => (bool) ($notifications[$field] ?? false))
+            ->values()
+            ->all();
+        $categories = collect($categoryFields)
+            ->filter(fn (string $category, string $field): bool => (bool) ($notifications[$field] ?? false))
+            ->values()
+            ->all();
+        $frequency = (string) ($notifications['notification_frequency'] ?? 'instant');
+        $digestMode = match ($frequency) {
+            'daily_digest' => 'daily',
+            'weekly_summary' => 'weekly',
+            'priority_only' => 'off',
+            default => 'instant',
+        };
+        if ($channels === [] || $categories === []) {
+            $digestMode = 'off';
+        }
+        $existing = UserNotificationPreference::query()
+            ->where('church_id', $user->church_id)
+            ->where(fn ($query) => $query
+                ->where('user_id', $user->id)
+                ->when($user->member_id !== null, fn ($scope) => $scope->orWhere('member_id', $user->member_id)))
+            ->orderByRaw('user_id IS NULL')
+            ->first();
+        $values = [
+            'channels' => $channels,
+            'categories' => $categories,
+            'category_channels' => collect($categories)->mapWithKeys(fn (string $category): array => [$category => $channels])->all(),
+            'digest_mode' => $digestMode,
+            'quiet_hours_start' => $existing?->quiet_hours_start,
+            'quiet_hours_end' => $existing?->quiet_hours_end,
+            'language' => (string) data_get($user->account_settings, 'preferences.language', 'en'),
+            'push_token' => $existing?->push_token,
+            'critical_alerts' => (bool) ($notifications['critical_alerts'] ?? true),
+            'opted_out_at' => null,
+        ];
+
+        if ($existing) {
+            $existing->update($values);
+
+            return;
+        }
+
+        UserNotificationPreference::query()->create([
+            'church_id' => $user->church_id,
+            'user_id' => $user->id,
+            'member_id' => null,
+            ...$values,
+        ]);
     }
 }

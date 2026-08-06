@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Church;
 use App\Models\User;
+use App\Models\UserNotificationPreference;
 use App\Services\TotpService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -146,7 +148,11 @@ class ProfileSecurityTest extends TestCase
 
     public function test_account_settings_preferences_notifications_and_security_are_persistent(): void
     {
-        $user = User::factory()->create(['timezone' => 'UTC', 'mfa_enabled' => false]);
+        $user = User::factory()->create([
+            'church_id' => Church::factory(),
+            'timezone' => 'UTC',
+            'mfa_enabled' => false,
+        ]);
 
         $this->actingAs($user)
             ->get(route('account.settings'))
@@ -182,9 +188,13 @@ class ProfileSecurityTest extends TestCase
                 'section' => 'notifications',
                 'email_notifications' => '1',
                 'in_app_notifications' => '1',
+                'whatsapp_notifications' => '1',
                 'notification_frequency' => 'daily_digest',
+                'critical_alerts' => '1',
                 'notify_security' => '1',
                 'notify_events' => '1',
+                'notify_financial_assistance' => '1',
+                'notify_approvals' => '1',
             ])
             ->assertRedirect();
 
@@ -192,6 +202,14 @@ class ProfileSecurityTest extends TestCase
         $this->assertSame('daily_digest', $user->account_settings['notifications']['notification_frequency']);
         $this->assertTrue($user->account_settings['notifications']['email_notifications']);
         $this->assertFalse($user->account_settings['notifications']['sms_notifications']);
+        $this->assertTrue($user->account_settings['notifications']['whatsapp_notifications']);
+        $preference = UserNotificationPreference::query()->where('user_id', $user->id)->sole();
+        $this->assertSame(['in_app', 'email', 'whatsapp'], $preference->channels);
+        $this->assertSame(['events', 'system', 'financial_assistance', 'approvals'], $preference->categories);
+        $this->assertSame('daily', $preference->digest_mode);
+        $this->assertTrue($preference->critical_alerts);
+        $this->assertSame(['in_app', 'email', 'whatsapp'], $preference->category_channels['financial_assistance']);
+        $this->assertSame(['in_app', 'email', 'whatsapp'], $preference->category_channels['approvals']);
 
         $this->actingAs($user)
             ->put(route('account.settings.update'), [
