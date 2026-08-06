@@ -102,7 +102,10 @@ final class MemberImportProcessor
                     Storage::disk('public')->delete($importedPhotoPath);
                 }
                 if (filled($snapshot['created_family_id'] ?? null)) {
-                    Family::query()->find($snapshot['created_family_id'])?->delete();
+                    $family = Family::query()->find($snapshot['created_family_id']);
+                    if ($family && $family->members()->doesntExist()) {
+                        $family->delete();
+                    }
                 }
                 $row->update(['status' => 'rolled_back']);
             });
@@ -264,7 +267,7 @@ final class MemberImportProcessor
             if (! is_array($event) || blank($event['event_type'] ?? null)) {
                 continue;
             }
-            MemberHistoryEntry::query()->updateOrCreate([
+            MemberHistoryEntry::query()->firstOrCreate([
                 'church_id' => $import->church_id,
                 'member_id' => $member->id,
                 'event_type' => Str::limit((string) $event['event_type'], 80, ''),
