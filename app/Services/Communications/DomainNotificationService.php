@@ -7,6 +7,7 @@ namespace App\Services\Communications;
 use App\Models\CommunicationDelivery;
 use App\Models\CommunicationProviderSetting;
 use App\Models\Member;
+use App\Models\NotificationAutomationRule;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -34,21 +35,17 @@ final class DomainNotificationService
         array $metadata = [],
         bool $critical = false,
     ): Collection {
-        return $this->createDeliveries(
-            churchId: (int) $user->church_id,
-            name: $user->name,
-            email: $user->email,
-            phone: $user->phone,
-            eventType: $eventType,
-            category: $category,
-            subject: $subject,
-            message: $message,
-            channels: $channels,
-            metadata: $metadata,
-            critical: $critical,
-            userId: $user->id,
-            memberId: $user->member_id,
-        );
+        $rule = $this->rule((int) $user->church_id, $eventType);
+        if ($this->isDisabled($rule, $metadata)) {
+            $this->recordRun($rule, 0, 'skipped');
+
+            return collect();
+        }
+        [$subject, $message, $channels, $critical] = $this->applyRule($rule, $subject, $message, $channels, $critical, $metadata);
+        $deliveries = $this->createDeliveriesForUser($user, $eventType, $category, $subject, $message, $channels, $metadata, $critical);
+        $this->recordRun($rule, 1, $this->deliveryStatus($deliveries), $this->deliveryError($deliveries));
+
+        return $deliveries;
     }
 
     /**
@@ -66,23 +63,17 @@ final class DomainNotificationService
         array $metadata = [],
         bool $critical = false,
     ): Collection {
-        $member->loadMissing('userAccount');
+        $rule = $this->rule((int) $member->church_id, $eventType);
+        if ($this->isDisabled($rule, $metadata)) {
+            $this->recordRun($rule, 0, 'skipped');
 
-        return $this->createDeliveries(
-            churchId: (int) $member->church_id,
-            name: trim($member->first_name.' '.$member->last_name),
-            email: $member->email,
-            phone: $member->phone,
-            eventType: $eventType,
-            category: $category,
-            subject: $subject,
-            message: $message,
-            channels: $channels,
-            metadata: $metadata,
-            critical: $critical,
-            userId: $member->userAccount?->id,
-            memberId: $member->id,
-        );
+            return collect();
+        }
+        [$subject, $message, $channels, $critical] = $this->applyRule($rule, $subject, $message, $channels, $critical, $metadata);
+        $deliveries = $this->createDeliveriesForMember($member, $eventType, $category, $subject, $message, $channels, $metadata, $critical);
+        $this->recordRun($rule, 1, $this->deliveryStatus($deliveries), $this->deliveryError($deliveries));
+
+        return $deliveries;
     }
 
     /**
@@ -102,6 +93,15 @@ final class DomainNotificationService
         array $metadata = [],
         bool $critical = false,
     ): int {
+        $rule = $this->rule($churchId, $eventType);
+        if ($this->isDisabled($rule, $metadata)) {
+            $this->recordRun($rule, 0, 'skipped');
+
+            return 0;
+        }
+
+        [$subject, $message, $channels, $critical] = $this->applyRule($rule, $subject, $message, $channels, $critical, $metadata);
+
         $users = User::query()
             ->where('church_id', $churchId)
             ->where('status', 'active')
@@ -115,10 +115,30 @@ final class DomainNotificationService
             ->whereDoesntHave('userAccount')
             ->get();
 
-        $users->each(fn (User $user) => $this->user($user, $eventType, $category, $subject, $message, $channels, $metadata, $critical));
-        $members->each(fn (Member $member) => $this->member($member, $eventType, $category, $subject, $message, $channels, $metadata, $critical));
+        if ($rule?->audience === 'all_users') {
+            $users = User::query()->where('church_id', $churchId)->where('status', 'active')->get();
+            $members = new EloquentCollection;
+        } elseif ($rule?->audience === 'all_members') {
+            $users = new EloquentCollection;
+            $members = Member::query()->where('church_id', $churchId)->where('status', 'active')->get();
+        } elseif ($rule?->audience === 'administrators') {
+            $users = User::query()
+                ->where('church_id', $churchId)
+                ->where('status', 'active')
+                ->whereHas('roles', fn ($query) => $query
+                    ->where('name', 'Super Administrator')
+                    ->orWhereHas('permissions', fn ($permissions) => $permissions->where('name', 'manage communications')))
+                ->get();
+            $members = new EloquentCollection;
+        }
 
-        return $users->count() + $members->count();
+        $deliveries = collect();
+        $users->each(fn (User $user) => $deliveries->push(...$this->createDeliveriesForUser($user, $eventType, $category, $subject, $message, $channels, $metadata, $critical)));
+        $members->each(fn (Member $member) => $deliveries->push(...$this->createDeliveriesForMember($member, $eventType, $category, $subject, $message, $channels, $metadata, $critical)));
+        $recipientCount = $users->count() + $members->count();
+        $this->recordRun($rule, $recipientCount, $this->deliveryStatus($deliveries), $this->deliveryError($deliveries));
+
+        return $recipientCount;
     }
 
     /**
@@ -136,11 +156,26 @@ final class DomainNotificationService
         array $metadata = [],
         bool $critical = false,
     ): int {
+        $users = collect($users);
+        $first = $users->first();
+        if (! $first instanceof User) {
+            return 0;
+        }
+        $rule = $this->rule((int) $first->church_id, $eventType);
+        if ($this->isDisabled($rule, $metadata)) {
+            $this->recordRun($rule, 0, 'skipped');
+
+            return 0;
+        }
+        [$subject, $message, $channels, $critical] = $this->applyRule($rule, $subject, $message, $channels, $critical, $metadata);
+
         $count = 0;
+        $deliveries = collect();
         foreach ($users as $user) {
-            $this->user($user, $eventType, $category, $subject, $message, $channels, $metadata, $critical);
+            $deliveries->push(...$this->createDeliveriesForUser($user, $eventType, $category, $subject, $message, $channels, $metadata, $critical));
             $count++;
         }
+        $this->recordRun($rule, $count, $this->deliveryStatus($deliveries), $this->deliveryError($deliveries));
 
         return $count;
     }
@@ -163,7 +198,91 @@ final class DomainNotificationService
         array $metadata = [],
         bool $critical = false,
     ): Collection {
-        return $this->createDeliveries($churchId, $name, $email, $phone, $eventType, $category, $subject, $message, $channels, $metadata, $critical, null, null);
+        $rule = $this->rule($churchId, $eventType);
+        if ($this->isDisabled($rule, $metadata)) {
+            $this->recordRun($rule, 0, 'skipped');
+
+            return collect();
+        }
+        [$subject, $message, $channels, $critical] = $this->applyRule($rule, $subject, $message, $channels, $critical, $metadata);
+        $deliveries = $this->createDeliveries($churchId, $name, $email, $phone, $eventType, $category, $subject, $message, $channels, $metadata, $critical, null, null);
+        $this->recordRun($rule, 1, $this->deliveryStatus($deliveries), $this->deliveryError($deliveries));
+
+        return $deliveries;
+    }
+
+    private function createDeliveriesForUser(User $user, string $eventType, string $category, string $subject, string $message, array $channels, array $metadata, bool $critical): Collection
+    {
+        return $this->createDeliveries((int) $user->church_id, $user->name, $user->email, $user->phone, $eventType, $category, $subject, $message, $channels, $metadata, $critical, $user->id, $user->member_id);
+    }
+
+    private function createDeliveriesForMember(Member $member, string $eventType, string $category, string $subject, string $message, array $channels, array $metadata, bool $critical): Collection
+    {
+        $member->loadMissing('userAccount');
+
+        return $this->createDeliveries((int) $member->church_id, trim($member->first_name.' '.$member->last_name), $member->email, $member->phone, $eventType, $category, $subject, $message, $channels, $metadata, $critical, $member->userAccount?->id, $member->id);
+    }
+
+    private function rule(int $churchId, string $eventType): ?NotificationAutomationRule
+    {
+        return NotificationAutomationRule::query()
+            ->with('template')
+            ->where('church_id', $churchId)
+            ->where('event_type', $eventType)
+            ->first();
+    }
+
+    private function isDisabled(?NotificationAutomationRule $rule, array $metadata): bool
+    {
+        return $rule !== null && ! $rule->enabled && ! ($metadata['_automation_test'] ?? false);
+    }
+
+    /**
+     * @return array{string, string, array<int, string>, bool}
+     */
+    private function applyRule(?NotificationAutomationRule $rule, string $subject, string $message, array $channels, bool $critical, array $metadata): array
+    {
+        if ($rule === null) {
+            return [$subject, $message, $channels, $critical];
+        }
+
+        $variables = collect($metadata)
+            ->mapWithKeys(fn ($value, $key) => ['{{'.$key.'}}' => is_scalar($value) ? (string) $value : ''])
+            ->all();
+        if ($rule->template !== null) {
+            $subject = strtr($rule->template->subject ?: $subject, $variables);
+            $message = strtr($rule->template->body ?: $message, $variables);
+            $rule->template->increment('usage_count');
+            $rule->template->forceFill(['last_used_at' => now()])->save();
+        }
+
+        return [$subject, $message, $rule->channels ?: $channels, $critical || $rule->critical];
+    }
+
+    private function deliveryStatus(Collection $deliveries): string
+    {
+        if ($deliveries->isEmpty() || $deliveries->every(fn (CommunicationDelivery $delivery): bool => $delivery->status === 'skipped')) {
+            return 'skipped';
+        }
+
+        return $deliveries->contains('status', 'failed') ? 'failed' : 'success';
+    }
+
+    private function deliveryError(Collection $deliveries): ?string
+    {
+        $error = $deliveries->pluck('error')->filter()->unique()->join('; ');
+
+        return $error !== '' ? $error : null;
+    }
+
+    private function recordRun(?NotificationAutomationRule $rule, int $recipients, string $status, ?string $error = null): void
+    {
+        $rule?->update([
+            'last_run_at' => now(),
+            'last_status' => $status,
+            'last_recipient_count' => $recipients,
+            'last_error' => $error,
+        ]);
     }
 
     /**
@@ -186,6 +305,7 @@ final class DomainNotificationService
         ?int $userId,
         ?int $memberId,
     ): Collection {
+        unset($metadata['_automation_test']);
         $settings = CommunicationProviderSetting::query()
             ->where('church_id', $churchId)
             ->whereIn('channel', $channels)

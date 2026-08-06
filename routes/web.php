@@ -32,6 +32,7 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MinistryController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\ModuleManagementController;
+use App\Http\Controllers\NotificationAutomationController;
 use App\Http\Controllers\PastoralCareController;
 use App\Http\Controllers\PaymentGatewaySettingsController;
 use App\Http\Controllers\ProfileController;
@@ -366,6 +367,10 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('communications/preferences/reminders', [CommunicationController::class, 'sendPreferenceReminder'])->name('communications.preferences.reminders');
     Route::post('communications/preferences/import', [CommunicationController::class, 'importPreferences'])->name('communications.preferences.import');
     Route::put('communications/preferences/{preference}', [CommunicationController::class, 'updatePreference'])->name('communications.preferences.update');
+    Route::get('communications/automation', [NotificationAutomationController::class, 'index'])->name('communications.automation');
+    Route::put('communications/automation/{automationRule}', [NotificationAutomationController::class, 'update'])->name('communications.automation.update');
+    Route::post('communications/automation/{automationRule}/test', [NotificationAutomationController::class, 'test'])->name('communications.automation.test');
+    Route::post('communications/automation/retry-failed', [NotificationAutomationController::class, 'retryFailed'])->name('communications.automation.retry-failed');
     Route::get('communications/integrations', fn () => redirect()->route('communications.integrations'));
     Route::get('administration/communication-integrations', [CommunicationController::class, 'integrations'])->name('communications.integrations');
     Route::put('administration/communication-integrations', [CommunicationController::class, 'updateIntegrations'])->name('communications.integrations.update');
@@ -419,7 +424,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index'], true)) {
             continue;
         }
 

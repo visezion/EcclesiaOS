@@ -98,6 +98,7 @@ return [
             ['label' => 'Bulk Messaging', 'route' => 'communications.bulk', 'icon' => 'send', 'permission' => 'manage communications'],
             ['label' => 'Delivery Logs', 'route' => 'communications.delivery-logs', 'icon' => 'clipboard-list', 'permission' => 'manage communications'],
             ['label' => 'Preferences', 'route' => 'communications.preferences', 'icon' => 'sliders-horizontal', 'permission' => 'manage communications'],
+            ['label' => 'Automation', 'route' => 'communications.automation', 'icon' => 'git-branch', 'permission' => 'manage communications'],
         ],
     ],
     ['label' => 'Volunteer Management', 'route' => 'volunteers.index', 'icon' => 'network', 'section' => 'Ministry Operations', 'permission' => 'manage volunteers', 'planned' => $planned['volunteers.index']],
