@@ -10,9 +10,21 @@
             + (filled($user->recovery_email) ? 9 : 0);
         $securityScore = min(100, $securityScore);
         $mfaConfirmed = (bool) data_get($security, 'mfa_confirmed');
+        $initialTab = in_array(old('section'), ['preferences', 'notifications', 'security'], true) ? old('section') : 'preferences';
     @endphp
 
-    <div class="space-y-5">
+    <div
+        x-data="{ tab: @js($initialTab), allowedTabs: ['preferences', 'notifications', 'security'] }"
+        x-init="
+            const syncTabFromHash = () => {
+                const requestedTab = window.location.hash.replace('#', '');
+                if (allowedTabs.includes(requestedTab)) tab = requestedTab;
+            };
+            syncTabFromHash();
+            window.addEventListener('hashchange', syncTabFromHash);
+        "
+        class="space-y-5"
+    >
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div class="flex items-center gap-4">
                 <div class="grid size-14 place-items-center rounded-lg bg-violet-100 text-violet-600">
@@ -60,11 +72,30 @@
             </article>
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-[280px_1fr]">
+        <section class="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
             <aside class="space-y-3">
-                <a href="#preferences" class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 hover:bg-violet-50"><i data-lucide="sliders-horizontal" class="size-4 text-violet-600"></i>Preferences</a>
-                <a href="#notifications" class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 hover:bg-violet-50"><i data-lucide="bell" class="size-4 text-violet-600"></i>Notifications</a>
-                <a href="#security" class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 hover:bg-violet-50"><i data-lucide="lock" class="size-4 text-violet-600"></i>Security & MFA</a>
+                <nav aria-label="Account settings sections" role="tablist" class="grid grid-cols-3 gap-2 xl:block xl:space-y-2">
+                    @foreach([
+                        ['preferences', 'Preferences', 'sliders-horizontal'],
+                        ['notifications', 'Notifications', 'bell'],
+                        ['security', 'Security & MFA', 'lock'],
+                    ] as [$tabId, $tabLabel, $tabIcon])
+                        <a
+                            id="{{ $tabId }}-tab"
+                            href="#{{ $tabId }}"
+                            role="tab"
+                            :aria-selected="tab === '{{ $tabId }}'"
+                            aria-controls="{{ $tabId }}"
+                            @click="tab = '{{ $tabId }}'"
+                            class="flex min-w-0 flex-col items-center justify-center gap-2 rounded-lg border px-3 py-3 text-center text-xs font-semibold transition xl:flex-row xl:justify-start xl:px-4 xl:text-left xl:text-sm"
+                            :class="tab === '{{ $tabId }}' ? 'border-violet-200 bg-violet-50 text-violet-700 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
+                        >
+                            <i data-lucide="{{ $tabIcon }}" class="size-4 shrink-0" :class="tab === '{{ $tabId }}' ? 'text-violet-600' : 'text-slate-400'"></i>
+                            <span class="truncate">{{ $tabLabel }}</span>
+                            <i x-show="tab === '{{ $tabId }}'" data-lucide="chevron-right" class="ml-auto hidden size-4 xl:block"></i>
+                        </a>
+                    @endforeach
+                </nav>
                 <section class="dashboard-card">
                     <h2 class="text-base font-semibold text-slate-950">Account</h2>
                     <dl class="mt-4 space-y-3 text-sm">
@@ -76,7 +107,7 @@
             </aside>
 
             <main class="space-y-4">
-                <form id="preferences" method="POST" action="{{ route('account.settings.update') }}" class="dashboard-card scroll-mt-24">
+                <form id="preferences" x-show="tab === 'preferences'" x-cloak role="tabpanel" aria-labelledby="preferences-tab" method="POST" action="{{ route('account.settings.update') }}" class="dashboard-card">
                     @csrf
                     @method('PUT')
                     <input type="hidden" name="section" value="preferences">
@@ -94,7 +125,7 @@
                     </div>
                 </form>
 
-                <form id="notifications" method="POST" action="{{ route('account.settings.update') }}" class="dashboard-card scroll-mt-24">
+                <form id="notifications" x-show="tab === 'notifications'" x-cloak role="tabpanel" aria-labelledby="notifications-tab" method="POST" action="{{ route('account.settings.update') }}" class="dashboard-card">
                     @csrf
                     @method('PUT')
                     <input type="hidden" name="section" value="notifications">
@@ -157,7 +188,7 @@
                     <div class="mt-4 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-[10px] text-blue-700"><i data-lucide="info" class="size-4 shrink-0"></i>These settings synchronize directly with the Communications delivery engine and apply to future notifications.</div>
                 </form>
 
-                <form id="security" method="POST" action="{{ route('account.settings.update') }}" class="dashboard-card scroll-mt-24">
+                <form id="security" x-show="tab === 'security'" x-cloak role="tabpanel" aria-labelledby="security-tab" method="POST" action="{{ route('account.settings.update') }}" class="dashboard-card">
                     @csrf
                     @method('PUT')
                     <input type="hidden" name="section" value="security">

@@ -121,7 +121,8 @@ final class AccountSettingsController extends Controller
 
         $activityLogger->log('Account Settings', 'account_'.$section.'_updated', Str::headline($section).' settings were updated.', $user, ['resource' => 'Account Settings', 'risk' => $section === 'security' ? 'medium' : 'low', 'status' => 'success'], $request);
 
-        return back()->with('status', Str::headline($section).' settings saved.');
+        return redirect()->to(route('account.settings').'#'.$section)
+            ->with('status', Str::headline($section).' settings saved.');
     }
 
     public function testNotification(Request $request, ActivityLogger $activityLogger): RedirectResponse
@@ -145,7 +146,8 @@ final class AccountSettingsController extends Controller
 
         $activityLogger->log('Account Settings', 'test_notification_sent', 'User sent a test account notification.', $user, ['resource' => 'Notifications', 'risk' => 'low', 'status' => 'success'], $request);
 
-        return back()->with('status', 'Test notification created.');
+        return redirect()->to(route('account.settings').'#notifications')
+            ->with('status', 'Test notification created.');
     }
 
     public function openNotification(Request $request, string $notification): RedirectResponse

@@ -159,7 +159,11 @@ class ProfileSecurityTest extends TestCase
             ->assertOk()
             ->assertSee('Account Settings')
             ->assertSee('Notification Preferences')
-            ->assertSee('Security & MFA', false);
+            ->assertSee('Security & MFA', false)
+            ->assertSee('role="tablist"', false)
+            ->assertSee('x-show="tab === \'preferences\'"', false)
+            ->assertSee('x-show="tab === \'notifications\'"', false)
+            ->assertSee('x-show="tab === \'security\'"', false);
 
         $this->actingAs($user)
             ->put(route('account.settings.update'), [
@@ -171,7 +175,7 @@ class ProfileSecurityTest extends TestCase
                 'default_landing_page' => 'programs.index',
                 'compact_tables' => '1',
             ])
-            ->assertRedirect();
+            ->assertRedirect(route('account.settings').'#preferences');
 
         $user->refresh();
         $this->assertSame('Asia/Nicosia', $user->timezone);
@@ -196,7 +200,7 @@ class ProfileSecurityTest extends TestCase
                 'notify_financial_assistance' => '1',
                 'notify_approvals' => '1',
             ])
-            ->assertRedirect();
+            ->assertRedirect(route('account.settings').'#notifications');
 
         $user->refresh();
         $this->assertSame('daily_digest', $user->account_settings['notifications']['notification_frequency']);
@@ -221,7 +225,7 @@ class ProfileSecurityTest extends TestCase
                 'session_timeout_minutes' => 120,
                 'recovery_email' => 'recovery@example.org',
             ])
-            ->assertRedirect();
+            ->assertRedirect(route('account.settings').'#security');
 
         $user->refresh();
         $this->assertTrue($user->mfa_enabled);
@@ -237,7 +241,7 @@ class ProfileSecurityTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('account.settings.test-notification'))
-            ->assertRedirect();
+            ->assertRedirect(route('account.settings').'#notifications');
 
         $this->assertSame(1, $user->fresh()->unreadNotifications()->count());
         $this->assertDatabaseHas('activity_logs', ['action' => 'test_notification_sent']);
