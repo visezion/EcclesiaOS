@@ -129,8 +129,8 @@
                             @foreach($queuedListeners as $listener)
                                 <div class="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 text-sm">
                                     <span class="truncate font-medium text-slate-700">{{ $listener['listener'] }}</span>
-                                    <span class="rounded-full px-2.5 py-1 text-xs {{ $listener['status'] === 'Healthy' ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700' }}">{{ $listener['status'] }}</span>
-                                    <span class="text-xs font-semibold text-slate-700">{{ number_format($listener['throughput'], 1) }}</span>
+                                    <span class="rounded-full px-2.5 py-1 text-xs {{ $listener['status'] === 'Healthy' ? 'bg-emerald-50 text-emerald-700' : ($listener['status'] === 'Idle' ? 'bg-slate-100 text-slate-600' : 'bg-orange-50 text-orange-700') }}">{{ $listener['status'] }}</span>
+                                    <span class="text-xs font-semibold text-slate-700">{{ number_format($listener['throughput']) }}</span>
                                 </div>
                             @endforeach
                         </div>

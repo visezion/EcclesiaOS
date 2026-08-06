@@ -261,8 +261,8 @@
                                         <div class="font-medium text-slate-800">{{ $rule['listener'] }}</div>
                                         <div class="text-xs text-slate-500">{{ $rule['templates'] }} templates configured</div>
                                     </td>
-                                    <td class="px-4 py-3"><span class="rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-700">Active</span></td>
-                                    <td class="px-4 py-3 text-slate-600">{{ $rule['next_run']->format('M d, Y h:i A') }}</td>
+                                    <td class="px-4 py-3"><span class="rounded-full px-3 py-1 text-xs {{ $rule['active'] ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">{{ $rule['active'] ? 'Active' : 'Inactive' }}</span></td>
+                                    <td class="px-4 py-3 text-slate-600">{{ $rule['next_run'] ? \Illuminate\Support\Carbon::parse($rule['next_run'])->format('M d, Y h:i A') : 'No run scheduled' }}</td>
                                     <td class="px-4 py-3 text-right"><a href="{{ route('communications.templates', ['trigger' => $rule['event']]) }}" class="inline-grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:text-violet-700"><i data-lucide="ellipsis" class="size-4"></i></a></td>
                                 </tr>
                             @endforeach

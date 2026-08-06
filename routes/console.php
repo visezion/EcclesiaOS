@@ -24,6 +24,11 @@ Schedule::command('messages:dispatch-scheduled')
     ->withoutOverlapping()
     ->onOneServer();
 
+Schedule::command('communications:dispatch --limit=250')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->onOneServer();
+
 Schedule::command('messages:enforce-retention')
     ->dailyAt('02:30')
     ->withoutOverlapping()

@@ -20,6 +20,8 @@ use App\Models\User;
 use App\Models\UserNotificationPreference;
 use App\Rules\PublicHttpsUrl;
 use App\Services\ActivityLogger;
+use App\Services\Communications\CommunicationCampaignDispatcher;
+use App\Services\Communications\CommunicationDeliveryDispatcher;
 use App\Support\Csv;
 use App\Support\OpaqueId;
 use App\Support\SafeOutboundUrl;
@@ -317,7 +319,7 @@ final class CommunicationController extends Controller
         return back()->with('status', 'Template cloned.');
     }
 
-    public function testSendTemplate(Request $request, CommunicationTemplate $template, ActivityLogger $activityLogger): RedirectResponse
+    public function testSendTemplate(Request $request, CommunicationTemplate $template, ActivityLogger $activityLogger, CommunicationDeliveryDispatcher $dispatcher): RedirectResponse
     {
         $this->authorizeCommunicationRecord($request, $template);
         $settings = $this->providerSettings($request)->keyBy('channel');
@@ -330,28 +332,24 @@ final class CommunicationController extends Controller
             }
 
             $setting = $settings[$channel] ?? null;
-            $enabled = $channel === 'in_app' || (bool) $setting?->enabled;
-
-            CommunicationDelivery::query()->create([
+            $delivery = CommunicationDelivery::query()->create([
                 'church_id' => $template->church_id,
                 'communication_template_id' => $template->id,
+                'user_id' => $request->user()?->id,
                 'channel' => $channel,
                 'provider' => $setting?->provider ?? ($channel === 'in_app' ? 'Internal' : Str::headline($channel)),
                 'recipient_name' => $recipientName,
                 'recipient_contact' => $recipientContact,
                 'subject' => $template->subject,
                 'body_excerpt' => Str::limit(strip_tags($template->body), 180),
+                'body' => $template->body,
                 'event_type' => $template->trigger_event ?? 'TemplateTest',
-                'status' => $enabled ? 'delivered' : 'failed',
-                'retry_status' => $enabled ? 'none' : 'queued',
+                'category' => $template->category,
+                'status' => 'queued',
+                'retry_status' => 'queued',
                 'attempt' => 1,
-                'latency_ms' => $enabled ? random_int(90, 650) : null,
-                'provider_message_id' => Str::upper($channel).'-TEST-'.Str::upper(Str::random(8)),
-                'response_code' => $enabled ? '200 OK' : 'Provider disabled',
-                'error' => $enabled ? null : 'Enable the channel before sending template tests.',
-                'sent_at' => now(),
-                'delivered_at' => $enabled ? now() : null,
             ]);
+            $dispatcher->dispatch($delivery);
         }
 
         $template->increment('usage_count');
@@ -440,7 +438,7 @@ final class CommunicationController extends Controller
         ]);
     }
 
-    public function storeCampaign(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    public function storeCampaign(Request $request, ActivityLogger $activityLogger, CommunicationCampaignDispatcher $dispatcher): RedirectResponse
     {
         $this->authorizeCommunications($request);
         $validated = $request->validate([
@@ -538,12 +536,12 @@ final class CommunicationController extends Controller
                 ]);
             }
 
-            if ($campaign->send_mode === 'immediate') {
-                $this->sendCampaign($campaign->fresh(['recipients.member']));
-            }
-
             return $campaign->fresh();
         });
+
+        if ($campaign->send_mode === 'immediate') {
+            $campaign = $dispatcher->dispatch($campaign);
+        }
 
         if ($campaign->template_id) {
             CommunicationTemplate::query()->whereKey($campaign->template_id)->increment('usage_count');
@@ -555,10 +553,10 @@ final class CommunicationController extends Controller
         return back()->with('status', $campaign->send_mode === 'scheduled' ? 'Campaign scheduled.' : 'Campaign sent.');
     }
 
-    public function sendCampaignNow(Request $request, CommunicationCampaign $campaign, ActivityLogger $activityLogger): RedirectResponse
+    public function sendCampaignNow(Request $request, CommunicationCampaign $campaign, ActivityLogger $activityLogger, CommunicationCampaignDispatcher $dispatcher): RedirectResponse
     {
         $this->authorizeCommunicationRecord($request, $campaign);
-        $this->sendCampaign($campaign->load('recipients.member'));
+        $dispatcher->dispatch($campaign);
         $activityLogger->log('Communications', 'campaign_sent', $campaign->name.' campaign was sent.', $campaign, ['resource' => 'Communication Campaign', 'status' => 'success'], $request);
 
         return back()->with('status', 'Campaign sent.');
@@ -2216,18 +2214,18 @@ final class CommunicationController extends Controller
     private function queuedListeners(Request $request): array
     {
         return collect([
-            ['listener' => 'SendEventNotification', 'events' => ['EventSessionCreated', 'EventSessionUpdated', 'RegistrationConfirmed']],
-            ['listener' => 'SendAttendanceConfirmation', 'events' => ['AttendanceSessionOpened', 'AttendanceRecorded']],
-            ['listener' => 'SendVolunteerAssignment', 'events' => ['VolunteerAssigned']],
-            ['listener' => 'SendCancellationNotice', 'events' => ['EventSessionCancelled']],
+            ['listener' => 'Event notifications', 'events' => ['EventSessionCreated', 'EventSessionUpdated', 'RegistrationConfirmed']],
+            ['listener' => 'Attendance notifications', 'events' => ['AttendanceSessionOpened', 'AttendanceRecorded']],
+            ['listener' => 'Volunteer assignments', 'events' => ['VolunteerAssigned']],
+            ['listener' => 'Cancellation notices', 'events' => ['EventSessionCancelled']],
         ])->map(function (array $row) use ($request): array {
             $throughput = $this->deliveries($request)->whereIn('event_type', $row['events'])->where('status', 'delivered')->count();
             $failed = $this->deliveries($request)->whereIn('event_type', $row['events'])->where('status', 'failed')->count();
 
             return [
                 'listener' => $row['listener'],
-                'status' => $failed > 6 ? 'Warning' : 'Healthy',
-                'throughput' => round(max($throughput, 1) / 4.8, 1),
+                'status' => $failed > 0 ? 'Warning' : ($throughput > 0 ? 'Healthy' : 'Idle'),
+                'throughput' => $throughput,
             ];
         })->all();
     }
@@ -2236,14 +2234,14 @@ final class CommunicationController extends Controller
     {
         return collect(self::TRIGGERS)->map(fn (string $trigger): array => [
             'event' => $trigger,
-            'listener' => match ($trigger) {
-                'AttendanceRecorded' => 'SendAttendanceConfirmation',
-                'EventSessionCancelled' => 'SendCancellationNotice',
-                'VolunteerAssigned' => 'SendVolunteerAssignment',
-                default => 'SendEventNotification',
-            },
+            'listener' => 'Communication dispatcher',
             'templates' => $this->templatesQuery($request)->where('trigger_event', $trigger)->count(),
-            'next_run' => now()->addMinutes(random_int(15, 360)),
+            'active' => $this->templatesQuery($request)->where('trigger_event', $trigger)->where('status', 'active')->where('approval_state', 'approved')->exists(),
+            'next_run' => $this->campaigns($request)
+                ->where('status', 'scheduled')
+                ->where('scheduled_at', '>=', now())
+                ->whereHas('template', fn (Builder $query) => $query->where('trigger_event', $trigger))
+                ->min('scheduled_at'),
         ])->all();
     }
 
