@@ -8,12 +8,12 @@ use App\Models\ActivityLog;
 use App\Models\Approval;
 use App\Models\BookstoreLibraryLoan;
 use App\Models\BookstoreProduct;
-use App\Models\CommunicationDelivery;
 use App\Models\EventRecurrenceRule;
 use App\Models\ProgramSectionAssignment;
 use App\Models\Role;
 use App\Models\Workflow;
 use App\Services\ActivityLogger;
+use App\Services\Communications\DomainNotificationService;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,6 +26,8 @@ use Illuminate\Validation\Rule;
 
 final class WorkflowController extends Controller
 {
+    public function __construct(private readonly DomainNotificationService $domainNotifications) {}
+
     public function index(Request $request): View
     {
         $this->authorizeWorkflow($request);
@@ -265,6 +267,7 @@ final class WorkflowController extends Controller
             ]);
 
             $activityLogger->log('Workflow & Approvals', 'approval_step_approved', 'Approval '.$approval->opaqueId().' advanced to '.($nextStep['label'] ?? 'next step').'.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
+            $this->notifyRequester($approval, 'Approval advanced', 'Your request passed one approval step and is awaiting the next approver.');
 
             return back()->with('status', 'Approval step approved and moved to the next approver.');
         }
@@ -276,6 +279,7 @@ final class WorkflowController extends Controller
             $this->approveLibraryLoan($request, $approval, $resource, $payload);
 
             $activityLogger->log('Workflow & Approvals', 'approval_approved', 'Approval '.$approval->opaqueId().' was approved.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
+            $this->notifyRequester($approval, 'Request approved', 'Your library request was approved.');
 
             return back()->with('status', 'Approval approved and library loan activated.');
         }
@@ -302,6 +306,7 @@ final class WorkflowController extends Controller
         }
 
         $activityLogger->log('Workflow & Approvals', 'approval_approved', 'Approval '.$approval->opaqueId().' was approved.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
+        $this->notifyRequester($approval, 'Request approved', 'Your workflow request was approved.');
 
         return back()->with('status', 'Approval approved and resource updated.');
     }
@@ -336,6 +341,7 @@ final class WorkflowController extends Controller
         }
 
         $activityLogger->log('Workflow & Approvals', 'approval_rejected', 'Approval '.$approval->opaqueId().' was rejected.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
+        $this->notifyRequester($approval, 'Request rejected', 'Your workflow request was rejected. Review the approval notes for details.');
 
         return back()->with('status', 'Approval rejected.');
     }
@@ -366,22 +372,12 @@ final class WorkflowController extends Controller
     {
         $assignment->loadMissing(['section.event', 'user', 'member']);
 
-        $name = $assignment->user?->name
-            ?? trim(($assignment->member?->first_name ?? '').' '.($assignment->member?->last_name ?? ''))
-            ?: 'Assigned Person';
-
-        CommunicationDelivery::query()->create([
-            'church_id' => $assignment->church_id,
-            'member_id' => $assignment->member_id,
-            'channel' => 'in_app',
-            'provider' => 'ecclesiaos',
-            'recipient_name' => $name,
-            'recipient_contact' => $assignment->user?->email ?? $assignment->member?->email,
-            'subject' => 'Program responsibility approved',
-            'body_excerpt' => 'You are assigned to '.$assignment->section->title.' as '.$assignment->role_title.'. '.Str::limit((string) $assignment->responsibility_notes, 140),
-            'event_type' => 'ProgramSectionAssigned',
-            'status' => 'queued',
-        ]);
+        $message = 'You are assigned to '.$assignment->section->title.' as '.$assignment->role_title.'. '.Str::limit((string) $assignment->responsibility_notes, 140);
+        if ($assignment->user) {
+            $this->domainNotifications->user($assignment->user, 'ProgramSectionAssigned', 'volunteers', 'Program responsibility approved', $message, ['in_app'], ['url' => route('events.index')]);
+        } elseif ($assignment->member) {
+            $this->domainNotifications->member($assignment->member, 'ProgramSectionAssigned', 'volunteers', 'Program responsibility approved', $message, ['in_app'], ['url' => route('events.index')]);
+        }
     }
 
     /**
@@ -431,34 +427,20 @@ final class WorkflowController extends Controller
         $loan->loadMissing(['handledBy', 'member', 'product']);
 
         if ($loan->handledBy) {
-            foreach (['in_app', 'email'] as $channel) {
-                $this->queueLibraryMessage($loan->church_id, $channel, $loan->handledBy->name, $loan->handledBy->email, $subject, $message, 'LibraryLoanNotification');
-            }
+            $this->domainNotifications->user($loan->handledBy, 'LibraryLoanNotification', 'system', $subject, $message, ['in_app', 'email'], ['url' => route('bookstore.index')]);
         }
 
         if ($loan->member) {
-            $name = trim(($loan->member->first_name ?? '').' '.($loan->member->last_name ?? '')) ?: 'Member';
-            foreach (['in_app', 'email'] as $channel) {
-                $this->queueLibraryMessage($loan->church_id, $channel, $name, $loan->member->email, $subject, $message, 'LibraryLoanMemberNotification', $loan->member_id);
-            }
+            $this->domainNotifications->member($loan->member, 'LibraryLoanMemberNotification', 'system', $subject, $message, ['in_app', 'email'], ['url' => route('bookstore.index')]);
         }
     }
 
-    private function queueLibraryMessage(int $churchId, string $channel, string $recipientName, ?string $recipientContact, string $subject, string $message, string $eventType, ?int $memberId = null): void
+    private function notifyRequester(Approval $approval, string $subject, string $message): void
     {
-        CommunicationDelivery::query()->create([
-            'church_id' => $churchId,
-            'member_id' => $memberId,
-            'channel' => $channel,
-            'provider' => 'ecclesiaos',
-            'recipient_name' => $recipientName,
-            'recipient_contact' => $recipientContact,
-            'subject' => $subject,
-            'body_excerpt' => Str::limit($message, 240),
-            'event_type' => $eventType,
-            'status' => 'queued',
-            'sent_at' => now(),
-        ]);
+        $approval->loadMissing('requester');
+        if ($approval->requester) {
+            $this->domainNotifications->user($approval->requester, 'ApprovalDecision', 'system', $subject, $message, ['in_app'], ['url' => route('workflows.index')], true);
+        }
     }
 
     /**

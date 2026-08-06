@@ -13,6 +13,7 @@ use App\Models\Ministry;
 use App\Models\User;
 use App\Models\Volunteer;
 use App\Services\ActivityLogger;
+use App\Services\Communications\DomainNotificationService;
 use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
@@ -28,6 +29,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class MemberManagementController extends Controller
 {
+    public function __construct(private readonly DomainNotificationService $domainNotifications) {}
+
     private const STATUSES = ['active', 'new', 'inactive', 'follow-up', 'archived'];
 
     private const PROFILE_INPUTS = [
@@ -184,6 +187,7 @@ final class MemberManagementController extends Controller
             'risk' => 'low',
             'status' => 'success',
         ], $request);
+        $this->domainNotifications->member($member, 'MemberCreated', 'registration', 'Welcome to the church family', 'Your member profile has been created successfully.', ['in_app'], ['url' => route('account.settings')]);
 
         return redirect()->route('members.index', ['view' => OpaqueId::encode($member->id, Member::class)])->with('status', 'Member created.');
     }
@@ -237,6 +241,7 @@ final class MemberManagementController extends Controller
         );
 
         $activityLogger->log('Members', 'member_checked_in', $member->first_name.' '.$member->last_name.' was checked in.', $member, ['resource' => 'Attendance', 'risk' => 'low', 'status' => 'success'], $request);
+        $this->domainNotifications->member($member, 'AttendanceRecorded', 'attendance', 'Attendance confirmed', 'Your attendance for today was recorded successfully.', ['in_app'], ['url' => route('account.settings')]);
 
         return back()->with('status', 'Member checked in.');
     }
@@ -249,8 +254,10 @@ final class MemberManagementController extends Controller
         $validated = $request->validate(['ministry_id' => ['required', 'exists:ministries,id']]);
         abort_unless($this->visibleMinistries($request)->where('id', $validated['ministry_id'])->exists(), 403);
         $this->syncMinistry($member, $validated['ministry_id']);
+        $ministry = Ministry::query()->find($validated['ministry_id']);
 
         $activityLogger->log('Members', 'member_ministry_assigned', $member->first_name.' '.$member->last_name.' was assigned to a ministry.', $member, ['resource' => 'Ministry Assignment', 'risk' => 'low', 'status' => 'success'], $request);
+        $this->domainNotifications->member($member, 'VolunteerAssigned', 'volunteers', 'Ministry assignment', 'You were assigned to '.($ministry?->name ?? 'a ministry').'.', ['in_app'], ['url' => route('members.index')]);
 
         return back()->with('status', 'Ministry assigned.');
     }

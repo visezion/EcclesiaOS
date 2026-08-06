@@ -10,10 +10,10 @@ use App\Models\BookstoreLibraryLoan;
 use App\Models\BookstoreOrder;
 use App\Models\BookstoreOrderItem;
 use App\Models\BookstoreProduct;
-use App\Models\CommunicationDelivery;
 use App\Models\User;
 use App\Models\Workflow;
 use App\Services\ActivityLogger;
+use App\Services\Communications\DomainNotificationService;
 use App\Support\Csv;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,6 +28,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 final class BookstoreController extends Controller
 {
     use ScopesOperationalRecords;
+
+    public function __construct(private readonly DomainNotificationService $domainNotifications) {}
 
     private const PRODUCT_STATUSES = ['active', 'inactive', 'out_of_stock'];
 
@@ -814,19 +816,16 @@ final class BookstoreController extends Controller
                     ->orWhereHas('roles.permissions', fn (Builder $permissions) => $permissions->whereIn('name', ['manage workflows', 'manage bookstore']));
             })
             ->get()
-            ->each(function (User $user) use ($approval, $subject, $message): void {
-                foreach (['in_app', 'email'] as $channel) {
-                    $this->queueLibraryMessage(
-                        churchId: $approval->church_id,
-                        channel: $channel,
-                        recipientName: $user->name,
-                        recipientContact: $user->email,
-                        subject: $subject,
-                        message: $message,
-                        eventType: 'LibraryLoanApprovalRequested',
-                    );
-                }
-            });
+            ->each(fn (User $user) => $this->domainNotifications->user(
+                $user,
+                'LibraryLoanApprovalRequested',
+                'system',
+                $subject,
+                $message,
+                ['in_app', 'email'],
+                ['url' => route('workflows.index')],
+                true,
+            ));
     }
 
     private function notifyLibraryLoanRequester(BookstoreLibraryLoan $loan, string $subject, string $message): void
@@ -834,50 +833,12 @@ final class BookstoreController extends Controller
         $loan->loadMissing(['handledBy', 'member']);
 
         if ($loan->handledBy) {
-            foreach (['in_app', 'email'] as $channel) {
-                $this->queueLibraryMessage(
-                    churchId: $loan->church_id,
-                    channel: $channel,
-                    recipientName: $loan->handledBy->name,
-                    recipientContact: $loan->handledBy->email,
-                    subject: $subject,
-                    message: $message,
-                    eventType: 'LibraryLoanNotification',
-                );
-            }
+            $this->domainNotifications->user($loan->handledBy, 'LibraryLoanNotification', 'system', $subject, $message, ['in_app', 'email'], ['url' => route('bookstore.index')]);
         }
 
         if ($loan->member) {
-            foreach (['in_app', 'email'] as $channel) {
-                $this->queueLibraryMessage(
-                    churchId: $loan->church_id,
-                    memberId: $loan->member_id,
-                    channel: $channel,
-                    recipientName: trim(($loan->member->first_name ?? '').' '.($loan->member->last_name ?? '')) ?: 'Member',
-                    recipientContact: $loan->member->email,
-                    subject: $subject,
-                    message: $message,
-                    eventType: 'LibraryLoanMemberNotification',
-                );
-            }
+            $this->domainNotifications->member($loan->member, 'LibraryLoanMemberNotification', 'system', $subject, $message, ['in_app', 'email'], ['url' => route('bookstore.index')]);
         }
-    }
-
-    private function queueLibraryMessage(int $churchId, string $channel, string $recipientName, ?string $recipientContact, string $subject, string $message, string $eventType, ?int $memberId = null): void
-    {
-        CommunicationDelivery::query()->create([
-            'church_id' => $churchId,
-            'member_id' => $memberId,
-            'channel' => $channel,
-            'provider' => 'ecclesiaos',
-            'recipient_name' => $recipientName,
-            'recipient_contact' => $recipientContact,
-            'subject' => $subject,
-            'body_excerpt' => Str::limit($message, 240),
-            'event_type' => $eventType,
-            'status' => 'queued',
-            'sent_at' => now(),
-        ]);
     }
 
     private function restoreLibraryStock(BookstoreLibraryLoan $loan): void

@@ -80,6 +80,11 @@ final class OnlineGivingPaymentTest extends TestCase
             'donation_id' => $donation->id,
             'provider_payment_id' => 'pi_test_ecclesia',
         ]);
+        $this->assertDatabaseHas('communication_deliveries', [
+            'recipient_contact' => 'sandbox@example.test',
+            'event_type' => 'PaymentStatusChanged',
+            'channel' => 'email',
+        ]);
     }
 
     public function test_amount_mismatch_never_records_a_donation(): void

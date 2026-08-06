@@ -12,6 +12,7 @@ use App\Models\Member;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Communications\DomainNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +25,8 @@ use Illuminate\Validation\Rules\Password;
 
 final class PublicMemberRegistrationController extends Controller
 {
+    public function __construct(private readonly DomainNotificationService $domainNotifications) {}
+
     private const INTERESTS = [
         'membership' => 'Church membership',
         'small_groups' => 'Small groups',
@@ -129,8 +132,10 @@ final class PublicMemberRegistrationController extends Controller
         $reference = Str::upper(Str::random(10));
         $isReturning = $existingMember !== null;
         $accountCreated = false;
+        $registeredMember = null;
+        $registeredUser = null;
 
-        DB::transaction(function () use ($request, $church, $campus, $validated, $existingMember, $reference, $isReturning, &$accountCreated): void {
+        DB::transaction(function () use ($request, $church, $campus, $validated, $existingMember, $reference, $isReturning, &$accountCreated, &$registeredMember, &$registeredUser): void {
             $member = $existingMember ?? Member::query()->create([
                 'church_id' => $church->id,
                 'campus_id' => $campus?->id,
@@ -167,6 +172,7 @@ final class PublicMemberRegistrationController extends Controller
 
                 $user->roles()->syncWithoutDetaching([$this->memberRole()->id]);
                 $accountCreated = true;
+                $registeredUser = $user;
             }
 
             if ($request->boolean('check_in_today')) {
@@ -212,7 +218,45 @@ final class PublicMemberRegistrationController extends Controller
                     'privacy_consent_at' => now()->toIso8601String(),
                 ],
             ]);
+            $registeredMember = $member;
         });
+
+        if ($registeredMember) {
+            $this->domainNotifications->member(
+                $registeredMember,
+                'RegistrationConfirmed',
+                'registration',
+                $isReturning ? 'Welcome back' : 'Registration confirmed',
+                'Your church registration is complete. Reference: '.$reference.'.',
+                ['in_app'],
+                ['url' => route('account.settings')],
+            );
+        }
+        if ($registeredUser) {
+            $this->domainNotifications->user(
+                $registeredUser,
+                'MemberAccountCreated',
+                'registration',
+                'Your member account is ready',
+                'You can now sign in and use your member account.',
+                ['in_app'],
+                ['url' => route('dashboard')],
+            );
+        }
+        $registrationManagers = User::query()
+            ->where('church_id', $church->id)
+            ->where('status', 'active')
+            ->whereHas('roles.permissions', fn ($query) => $query->where('name', 'manage members'))
+            ->get();
+        $this->domainNotifications->users(
+            $registrationManagers,
+            'MemberRegistrationReceived',
+            'registration',
+            ($isReturning ? 'Returning' : 'New').' member registration',
+            trim($registeredMember?->first_name.' '.$registeredMember?->last_name).' completed self-registration.',
+            ['in_app'],
+            ['url' => route('members.index')],
+        );
 
         return redirect()->route('members.self-register')->with('registration_complete', [
             'reference' => $reference,

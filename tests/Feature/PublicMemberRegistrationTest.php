@@ -72,6 +72,11 @@ class PublicMemberRegistrationTest extends TestCase
             'subject_id' => $member->id,
             'action' => 'member_self_registered',
         ]);
+        $this->assertDatabaseHas('communication_deliveries', [
+            'member_id' => $member->id,
+            'event_type' => 'RegistrationConfirmed',
+            'status' => 'delivered',
+        ]);
     }
 
     public function test_returning_member_is_matched_without_creating_a_duplicate(): void

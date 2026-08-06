@@ -323,7 +323,7 @@ class ModuleRoutesTest extends TestCase
         $this->assertDatabaseHas('communication_deliveries', [
             'recipient_contact' => $assignee->email,
             'event_type' => 'ProgramSectionAssigned',
-            'status' => 'queued',
+            'status' => 'delivered',
         ]);
 
         $this->actingAs($assignee)

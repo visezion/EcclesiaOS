@@ -10,7 +10,6 @@ use App\Models\AttendanceSession;
 use App\Models\AttendanceVerification;
 use App\Models\Campus;
 use App\Models\Church;
-use App\Models\CommunicationDelivery;
 use App\Models\Event;
 use App\Models\EventRecurrenceRule;
 use App\Models\EventSession;
@@ -28,6 +27,7 @@ use App\Models\ProgramSectionAssignment;
 use App\Models\User;
 use App\Models\Workflow;
 use App\Services\ActivityLogger;
+use App\Services\Communications\DomainNotificationService;
 use App\Services\Communications\ZenderWhatsAppNotifier;
 use App\Support\OpaqueId;
 use App\Support\SecretHash;
@@ -48,6 +48,8 @@ use Illuminate\Validation\ValidationException;
 
 final class EventFlowController extends Controller
 {
+    public function __construct(private readonly DomainNotificationService $domainNotifications) {}
+
     private const PHYSICAL_METHODS = ['manual', 'qr', 'geolocation', 'kiosk', 'face'];
 
     private const ONLINE_METHODS = ['zoom', 'google_meet', 'jitsi', 'livekit'];
@@ -199,6 +201,16 @@ final class EventFlowController extends Controller
             null,
             "Event created: {$event->title}",
         );
+        $this->domainNotifications->audience(
+            (int) $event->church_id,
+            $event->campus_id ? (int) $event->campus_id : null,
+            'EventCreated',
+            'events',
+            "New event: {$event->title}",
+            "{$event->title} is scheduled for ".$event->starts_at?->format('M d, Y H:i').'.',
+            ['in_app'],
+            ['url' => route('event-sessions.index', [$program, $event])],
+        );
 
         return redirect()->route('event-sessions.index', [$program, $event])->with('status', 'Event created.');
     }
@@ -277,6 +289,16 @@ final class EventFlowController extends Controller
         $this->syncAttendanceMethods($session);
 
         $activityLogger->log('Event Sessions', 'event_session_created', $session->title.' was created.', $session, ['resource' => 'Event Session', 'risk' => 'low', 'status' => 'success'], $request);
+        $this->domainNotifications->audience(
+            (int) $session->church_id,
+            $session->campus_id ? (int) $session->campus_id : null,
+            'EventSessionCreated',
+            'events',
+            "New session: {$session->title}",
+            "{$session->title} has been scheduled for ".$session->session_date?->format('M d, Y').'.',
+            ['in_app'],
+            ['url' => route('event-sessions.meeting', $session)],
+        );
 
         return redirect()->route('event-sessions.meeting', $session)->with('status', 'Event session created.');
     }
@@ -375,6 +397,18 @@ final class EventFlowController extends Controller
         });
 
         $activityLogger->log('Event Sessions', 'recurring_sessions_created', $rule->title.' recurrence generated '.$rule->sessions()->count().' session(s).', $rule, ['resource' => 'Event Recurrence Rule', 'risk' => $requiresApproval ? 'medium' : 'low', 'status' => 'success'], $request);
+        if (! $requiresApproval) {
+            $this->domainNotifications->audience(
+                (int) $rule->church_id,
+                $rule->campus_id ? (int) $rule->campus_id : null,
+                'EventSessionCreated',
+                'events',
+                "Recurring sessions: {$rule->title}",
+                $rule->sessions()->count().' recurring sessions were added.',
+                ['in_app'],
+                ['url' => route('event-sessions.index', [$program, $event])],
+            );
+        }
 
         return redirect()->route('event-sessions.index', [$program, $event])->with('status', $rule->sessions()->count().' recurring session(s) generated. '.($requiresApproval ? 'Approval request created.' : ''));
     }
@@ -566,6 +600,16 @@ final class EventFlowController extends Controller
             (int) $eventSession->campus_id,
             null,
             "Meeting updated: {$eventSession->title}",
+        );
+        $this->domainNotifications->audience(
+            (int) $eventSession->church_id,
+            $eventSession->campus_id ? (int) $eventSession->campus_id : null,
+            'EventSessionUpdated',
+            'events',
+            "Meeting updated: {$eventSession->title}",
+            "The meeting details for {$eventSession->title} were updated.",
+            ['in_app'],
+            ['url' => route('event-sessions.meeting', $eventSession)],
         );
 
         return back()->with('status', 'Meeting updated.');
@@ -1490,7 +1534,9 @@ final class EventFlowController extends Controller
             'status' => ['required', Rule::in(['scheduled', 'open', 'closed'])],
         ]);
 
-        $this->ensureAttendanceSession($eventSession)->update([
+        $attendanceSession = $this->ensureAttendanceSession($eventSession);
+        $wasOpen = $attendanceSession->status === 'open';
+        $attendanceSession->update([
             ...$validated,
             'methods' => $this->allowedRequestedMethods($eventSession, $validated['methods'] ?? $this->attendanceMethodsForSession($eventSession)),
             'require_authenticated' => (bool) ($validated['require_authenticated'] ?? false),
@@ -1499,6 +1545,18 @@ final class EventFlowController extends Controller
         ]);
 
         $activityLogger->log('Attendance', 'attendance_session_updated', $eventSession->title.' attendance policy was updated.', $eventSession, ['resource' => 'Attendance Session', 'risk' => 'low', 'status' => 'success'], $request);
+        if (! $wasOpen && $attendanceSession->status === 'open') {
+            $this->domainNotifications->audience(
+                (int) $attendanceSession->church_id,
+                $eventSession->campus_id ? (int) $eventSession->campus_id : null,
+                'AttendanceSessionOpened',
+                'attendance',
+                "Check-in open: {$eventSession->title}",
+                "Attendance check-in is now open for {$eventSession->title}.",
+                ['in_app'],
+                ['url' => route('attendance.methods', $attendanceSession)],
+            );
+        }
 
         return back()->with('status', 'Attendance session updated.');
     }
@@ -1598,6 +1656,17 @@ final class EventFlowController extends Controller
         );
 
         $activityLogger->log('Attendance', 'attendance_marked', ($member?->first_name ?? 'Guest').' attendance was marked by '.$method['method'].'.', $record, ['resource' => 'Attendance Record', 'risk' => 'low', 'status' => 'success'], $request);
+        if ($member) {
+            $this->domainNotifications->member(
+                $member,
+                'AttendanceRecorded',
+                'attendance',
+                'Attendance confirmed',
+                "Your attendance for {$eventSession->title} was recorded successfully.",
+                ['in_app'],
+                ['url' => route('attendance.records.show', [$attendanceSession, $member->opaqueId()])],
+            );
+        }
 
         return redirect()->route('attendance.records.show', [$attendanceSession, $member?->opaqueId() ?? 'guest'])->with('status', 'Attendance marked.');
     }
@@ -2135,40 +2204,25 @@ final class EventFlowController extends Controller
             ->where(fn (Builder $query) => $query->where('church_id', $approval->church_id)->orWhereNull('church_id'))
             ->whereHas('roles', fn (Builder $query) => $query->whereIn('name', ['Super Administrator', 'Church Administrator', 'Senior Pastor']))
             ->get()
-            ->each(function (User $user) use ($approval): void {
-                CommunicationDelivery::query()->create([
-                    'church_id' => $approval->church_id,
-                    'channel' => 'in_app',
-                    'provider' => 'ecclesiaos',
-                    'recipient_name' => $user->name,
-                    'recipient_contact' => $user->email,
-                    'subject' => 'Approval required: '.Str::headline((string) $approval->action),
-                    'body_excerpt' => 'Review the pending workflow request in Workflow & Approvals.',
-                    'event_type' => 'ApprovalRequested',
-                    'status' => 'queued',
-                ]);
-            });
+            ->each(fn (User $user) => $this->domainNotifications->user(
+                $user,
+                'ApprovalRequested',
+                'system',
+                'Approval required: '.Str::headline((string) $approval->action),
+                'Review the pending workflow request in Workflow & Approvals.',
+                ['in_app'],
+                ['url' => route('workflows.index')],
+                true,
+            ));
     }
 
     private function notifyAssignment(ProgramSectionAssignment $assignment, string $subject, string $message): void
     {
-        $name = $assignment->user?->name
-            ?? trim(($assignment->member?->first_name ?? '').' '.($assignment->member?->last_name ?? ''))
-            ?: 'Assigned Person';
-        $contact = $assignment->user?->email ?? $assignment->member?->email;
-
-        CommunicationDelivery::query()->create([
-            'church_id' => $assignment->church_id,
-            'member_id' => $assignment->member_id,
-            'channel' => 'in_app',
-            'provider' => 'ecclesiaos',
-            'recipient_name' => $name,
-            'recipient_contact' => $contact,
-            'subject' => $subject,
-            'body_excerpt' => $message,
-            'event_type' => 'ProgramSectionAssigned',
-            'status' => 'queued',
-        ]);
+        if ($assignment->user) {
+            $this->domainNotifications->user($assignment->user, 'ProgramSectionAssigned', 'volunteers', $subject, $message, ['in_app'], ['url' => route('events.index')]);
+        } elseif ($assignment->member) {
+            $this->domainNotifications->member($assignment->member, 'ProgramSectionAssigned', 'volunteers', $subject, $message, ['in_app'], ['url' => route('events.index')]);
+        }
     }
 
     private function enabledProviderKeys(Request $request): array
