@@ -25,6 +25,7 @@ use App\Http\Controllers\DeveloperHubController;
 use App\Http\Controllers\EventFlowController;
 use App\Http\Controllers\FamilyManagementController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\FinancialAssistanceController;
 use App\Http\Controllers\InstallerController;
 use App\Http\Controllers\LeadershipReportController;
 use App\Http\Controllers\MemberManagementController;
@@ -280,6 +281,15 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('finance/funds/{fund}', [FinanceController::class, 'updateFund'])->name('finance.funds.update');
     Route::delete('finance/funds/{fund}', [FinanceController::class, 'destroyFund'])->name('finance.funds.destroy');
     Route::get('finance/export', [FinanceController::class, 'export'])->name('finance.export');
+    Route::get('financial-assistance', [FinancialAssistanceController::class, 'index'])->name('financial-assistance.index');
+    Route::get('financial-assistance/new', [FinancialAssistanceController::class, 'create'])->name('financial-assistance.create');
+    Route::post('financial-assistance', [FinancialAssistanceController::class, 'store'])->name('financial-assistance.store');
+    Route::get('financial-assistance/evidence/{attachment}/download', [FinancialAssistanceController::class, 'download'])->name('financial-assistance.attachments.download');
+    Route::get('financial-assistance/{assistance}', [FinancialAssistanceController::class, 'show'])->name('financial-assistance.show');
+    Route::post('financial-assistance/{assistance}/decision', [FinancialAssistanceController::class, 'decide'])->name('financial-assistance.decide');
+    Route::post('financial-assistance/{assistance}/resubmit', [FinancialAssistanceController::class, 'resubmit'])->name('financial-assistance.resubmit');
+    Route::post('financial-assistance/{assistance}/disburse', [FinancialAssistanceController::class, 'disburse'])->name('financial-assistance.disburse');
+    Route::delete('financial-assistance/{assistance}', [FinancialAssistanceController::class, 'cancel'])->name('financial-assistance.cancel');
     Route::get('assets', [AssetInventoryController::class, 'index'])->name('assets.index');
     Route::get('assets/overview', [AssetInventoryController::class, 'overview'])->name('assets.overview');
     Route::get('assets/create', [AssetInventoryController::class, 'create'])->name('assets.create');
@@ -424,7 +434,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index'], true)) {
             continue;
         }
 

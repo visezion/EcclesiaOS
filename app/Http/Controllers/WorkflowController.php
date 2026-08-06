@@ -9,6 +9,7 @@ use App\Models\Approval;
 use App\Models\BookstoreLibraryLoan;
 use App\Models\BookstoreProduct;
 use App\Models\EventRecurrenceRule;
+use App\Models\FinancialAssistanceRequest;
 use App\Models\ProgramSectionAssignment;
 use App\Models\Role;
 use App\Models\Workflow;
@@ -238,6 +239,7 @@ final class WorkflowController extends Controller
         $requiredSteps = $this->requiredApprovalSteps($approval->workflow);
         $currentStepIndex = max(0, (int) data_get($payload, '_workflow.required_step_index', 0));
         $currentStep = $requiredSteps->get($currentStepIndex);
+        $resource = $approval->approvable;
         $history = collect(data_get($payload, '_workflow.history', []))
             ->push([
                 'step_position' => $currentStep['position'] ?? null,
@@ -265,6 +267,18 @@ final class WorkflowController extends Controller
                 'notes' => 'Approved step: '.($currentStep['label'] ?? 'Approval').'. Awaiting '.($nextStep['role'] ?? 'next approver').'.',
                 'payload' => $payload,
             ]);
+            if ($resource instanceof FinancialAssistanceRequest) {
+                $resource->update([
+                    'status' => 'under_review',
+                    'current_stage' => 'finance_review',
+                    'decision_notes' => $request->input('notes'),
+                ]);
+                $resource->activities()->create([
+                    'user_id' => $request->user()?->id,
+                    'type' => 'campus_approved',
+                    'description' => 'Campus review approved in Workflow & Approvals; request moved to finance authorization.',
+                ]);
+            }
 
             $activityLogger->log('Workflow & Approvals', 'approval_step_approved', 'Approval '.$approval->opaqueId().' advanced to '.($nextStep['label'] ?? 'next step').'.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
             $this->notifyRequester($approval, 'Approval advanced', 'Your request passed one approval step and is awaiting the next approver.');
@@ -274,7 +288,6 @@ final class WorkflowController extends Controller
 
         data_set($payload, '_workflow.history', $history);
 
-        $resource = $approval->approvable;
         if ($resource instanceof BookstoreLibraryLoan) {
             $this->approveLibraryLoan($request, $approval, $resource, $payload);
 
@@ -303,6 +316,21 @@ final class WorkflowController extends Controller
                 'approved_at' => now(),
             ]);
             $this->notifyAssignment($resource);
+        }
+        if ($resource instanceof FinancialAssistanceRequest) {
+            $resource->update([
+                'status' => 'approved',
+                'current_stage' => 'disbursement',
+                'approved_amount' => $resource->amount,
+                'decision_notes' => $request->input('notes'),
+                'approved_by' => $request->user()?->id,
+                'approved_at' => now(),
+            ]);
+            $resource->activities()->create([
+                'user_id' => $request->user()?->id,
+                'type' => 'approved',
+                'description' => 'Finance authorization completed in Workflow & Approvals.',
+            ]);
         }
 
         $activityLogger->log('Workflow & Approvals', 'approval_approved', 'Approval '.$approval->opaqueId().' was approved.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
@@ -338,6 +366,19 @@ final class WorkflowController extends Controller
                 'returned_at' => now(),
             ]);
             $this->notifyLibraryLoan($resource, 'Library request rejected', 'The '.$resource->loan_type.' request for '.$resource->product?->name.' was rejected.');
+        }
+        if ($resource instanceof FinancialAssistanceRequest) {
+            $resource->update([
+                'status' => 'rejected',
+                'current_stage' => 'complete',
+                'decision_notes' => $request->input('notes', 'Rejected by approver.'),
+                'rejected_at' => now(),
+            ]);
+            $resource->activities()->create([
+                'user_id' => $request->user()?->id,
+                'type' => 'rejected',
+                'description' => 'Request rejected in Workflow & Approvals.',
+            ]);
         }
 
         $activityLogger->log('Workflow & Approvals', 'approval_rejected', 'Approval '.$approval->opaqueId().' was rejected.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
@@ -437,9 +478,19 @@ final class WorkflowController extends Controller
 
     private function notifyRequester(Approval $approval, string $subject, string $message): void
     {
-        $approval->loadMissing('requester');
+        $approval->loadMissing(['requester', 'approvable']);
         if ($approval->requester) {
-            $this->domainNotifications->user($approval->requester, 'ApprovalDecision', 'system', $subject, $message, ['in_app'], ['url' => route('workflows.index')], true);
+            $financialAssistance = $approval->approvable instanceof FinancialAssistanceRequest;
+            $this->domainNotifications->user(
+                $approval->requester,
+                $financialAssistance ? 'FinancialAssistanceStatusChanged' : 'ApprovalDecision',
+                'system',
+                $subject,
+                $message,
+                $financialAssistance ? ['in_app', 'email', 'sms', 'whatsapp'] : ['in_app'],
+                ['url' => $financialAssistance ? route('financial-assistance.show', $approval->approvable) : route('workflows.index')],
+                true,
+            );
         }
     }
 
