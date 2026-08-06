@@ -18,7 +18,7 @@ final class Member extends Model
     use SoftDeletes;
     use UsesOpaqueRouteKeys;
 
-    protected $fillable = ['church_id', 'campus_id', 'family_id', 'first_name', 'last_name', 'email', 'phone', 'status', 'joined_at'];
+    protected $fillable = ['church_id', 'campus_id', 'family_id', 'first_name', 'last_name', 'email', 'phone', 'profile_photo_path', 'status', 'joined_at'];
 
     protected function casts(): array
     {

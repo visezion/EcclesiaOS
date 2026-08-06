@@ -30,7 +30,6 @@
             selected: [],
             more: {{ request()->hasAny(['family_id', 'ministry_id', 'engagement', 'per_page']) ? 'true' : 'false' }},
             addOpen: false,
-            importOpen: false,
             detailOpen: {{ $selectedMember ? 'true' : 'false' }},
             detailMode: @js($selectedMode),
             toggleAll(event) {
@@ -51,10 +50,10 @@
                 </div>
             </div>
             <div class="flex flex-wrap gap-2">
-                <button type="button" @click="importOpen = true" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                <a href="{{ route('member-imports.index') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
                     <i data-lucide="upload" class="size-4"></i>
                     Import Members
-                </button>
+                </a>
                 <a href="{{ route('members.export', $currentQuery) }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
                     <i data-lucide="download" class="size-4"></i>
                     Export
@@ -317,7 +316,7 @@
             </aside>
         </div>
 
-        <div x-show="addOpen || importOpen || detailOpen" x-transition.opacity class="fixed inset-0 z-40 bg-slate-950/40" @click="addOpen = false; importOpen = false; detailOpen = false"></div>
+        <div x-show="addOpen || detailOpen" x-transition.opacity class="fixed inset-0 z-40 bg-slate-950/40" @click="addOpen = false; detailOpen = false"></div>
 
         <aside x-show="addOpen" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
             <div class="mb-5 flex items-start justify-between gap-4">
@@ -325,18 +324,6 @@
                 <button type="button" @click="addOpen = false" class="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-500"><i data-lucide="x" class="size-4"></i></button>
             </div>
             @include('members.partials.form', ['action' => route('members.store'), 'method' => 'POST', 'member' => null])
-        </aside>
-
-        <aside x-show="importOpen" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
-            <div class="mb-5 flex items-start justify-between gap-4">
-                <div><h2 class="text-lg font-semibold text-slate-950">Import Members</h2><p class="mt-1 text-sm text-slate-500">Upload a CSV with first_name, last_name, email, phone, campus, status, joined_at.</p></div>
-                <button type="button" @click="importOpen = false" class="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-500"><i data-lucide="x" class="size-4"></i></button>
-            </div>
-            <form method="POST" action="{{ route('members.import') }}" enctype="multipart/form-data" class="space-y-4">
-                @csrf
-                <label class="block space-y-2 text-sm font-medium text-slate-600">CSV File<input name="members_file" type="file" accept=".csv,text/csv,text/plain" required class="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-violet-50 file:px-3 file:py-1 file:text-xs file:font-medium file:text-violet-700"></label>
-                <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-700"><i data-lucide="upload" class="size-4"></i> Import Members</button>
-            </form>
         </aside>
 
         @if ($selectedMember)
