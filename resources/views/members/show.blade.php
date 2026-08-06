@@ -488,6 +488,17 @@
             </article>
         </section>
 
+        @if($importedHistory->isNotEmpty())
+            <section class="rounded-lg border border-amber-200 bg-white p-4 shadow-sm">
+                <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><h2 class="flex items-center gap-2 text-base text-slate-950"><i data-lucide="history" class="size-4 text-amber-600"></i>Imported Member History</h2><p class="mt-1 text-xs text-slate-500">Historical records preserved from an older EcclesiaOS installation.</p></div><span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{{ number_format($member->history_entries_count) }} records</span></div>
+                <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    @foreach($importedHistory as $history)
+                        <article class="rounded-lg border border-slate-100 p-3"><div class="flex items-center justify-between gap-2"><span class="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-700">{{ Str::headline($history->event_type) }}</span><span class="text-[10px] text-slate-400">{{ $history->occurred_at?->format('M d, Y') ?? 'Date unavailable' }}</span></div><p class="mt-2 text-xs leading-5 text-slate-700">{{ $history->description ?: 'Imported historical record' }}</p>@if($history->status)<p class="mt-1 text-[10px] font-semibold text-violet-600">{{ Str::headline($history->status) }}</p>@endif</article>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
         <section id="activity-timeline" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="flex items-center gap-2 text-base text-slate-950"><i data-lucide="history" class="size-4 text-violet-600"></i>Activity Timeline</h2>

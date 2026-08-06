@@ -9,6 +9,7 @@ use App\Models\Church;
 use App\Models\MemberImport;
 use App\Models\MemberImportConnection;
 use App\Services\ActivityLogger;
+use App\Services\MemberImport\LegacyEcclesiaMigrationReader;
 use App\Services\MemberImport\MemberImportDatabaseReader;
 use App\Services\MemberImport\MemberImportMapper;
 use App\Services\MemberImport\MemberImportStager;
@@ -28,6 +29,7 @@ final class MemberImportConnectionController extends Controller
         private readonly MemberImportDatabaseReader $reader,
         private readonly MemberImportMapper $mapper,
         private readonly MemberImportStager $stager,
+        private readonly LegacyEcclesiaMigrationReader $legacyReader,
     ) {}
 
     public function index(Request $request): View
@@ -152,6 +154,47 @@ final class MemberImportConnectionController extends Controller
         ], $request);
 
         return redirect()->route('member-imports.show', $import)->with('status', 'Database rows copied into a safe review area. The source database was not changed.');
+    }
+
+    public function stageLegacy(Request $request, MemberImportConnection $connection, ActivityLogger $logger): RedirectResponse
+    {
+        $this->authorizeConnection($request, $connection);
+        $validated = $request->validate([
+            'name' => ['nullable', 'string', 'max:150'],
+            'default_campus_id' => ['required', Rule::exists('campuses', 'id')->where(fn ($query) => $query->where('church_id', $connection->church_id)->where('status', 'active'))],
+        ]);
+        try {
+            $parsed = $this->legacyReader->read($connection);
+        } catch (Throwable $exception) {
+            throw ValidationException::withMessages(['legacy' => 'The EcclesiaOS migration could not be prepared: '.$exception->getMessage()]);
+        }
+        $mapping = $this->mapper->autoMap($parsed['headers']);
+        $import = MemberImport::query()->create([
+            'reference' => 'MIM-'.now()->format('Ymd').'-'.Str::upper(Str::random(6)),
+            'church_id' => $connection->church_id,
+            'created_by' => $request->user()->id,
+            'connection_id' => $connection->id,
+            'name' => filled($validated['name'] ?? null) ? trim($validated['name']) : 'Legacy EcclesiaOS migration · '.$connection->name,
+            'source_type' => 'ecclesiaos',
+            'source_table' => 'members',
+            'status' => 'analyzing',
+            'source_options' => [
+                'source_name' => 'legacy_'.$connection->name,
+                'driver' => $connection->driver,
+                'headers' => $parsed['headers'],
+                'legacy_summary' => $parsed['summary'],
+            ],
+            'mapping' => $mapping,
+            'options' => ['default_campus_id' => (int) $validated['default_campus_id'], 'duplicate_strategy' => 'skip', 'create_families' => true],
+            'total_rows' => count($parsed['rows']),
+            'summary' => ['legacy_scan' => $parsed['summary']],
+        ]);
+        $this->stager->stage($import, $parsed['rows'], $mapping);
+        $logger->log('Members', 'legacy_ecclesiaos_migration_staged', $import->reference.' was prepared from an older EcclesiaOS database.', $import, [
+            'resource' => 'Member Import', 'connection' => $connection->name, 'members' => count($parsed['rows']), 'history' => array_sum($parsed['summary']['history']), 'status' => 'success', 'risk' => 'high',
+        ], $request);
+
+        return redirect()->route('member-imports.show', $import)->with('status', 'Legacy members, profiles, families, campuses, and history are ready for review.');
     }
 
     public function destroy(Request $request, MemberImportConnection $connection): RedirectResponse

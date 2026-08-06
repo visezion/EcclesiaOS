@@ -8,6 +8,7 @@ use App\Models\Campus;
 use App\Models\Family;
 use App\Models\Member;
 use App\Models\MemberExternalIdentity;
+use App\Models\MemberHistoryEntry;
 use App\Models\MemberImport;
 use App\Models\MemberImportRow;
 use Illuminate\Support\Facades\DB;
@@ -21,9 +22,10 @@ final class MemberImportProcessor
 
     private const PROFILE_FIELDS = [
         'preferred_name', 'date_of_birth', 'gender', 'marital_status', 'anniversary_date',
-        'occupation', 'employer', 'address_line', 'city', 'state', 'postal_code', 'country',
-        'alternate_email', 'home_phone', 'emergency_contact_name', 'emergency_contact_phone',
-        'care_level', 'care_notes', 'skills',
+        'occupation', 'employer', 'place_of_birth', 'nationality', 'address_line', 'city', 'state', 'postal_code', 'country',
+        'alternate_email', 'home_phone', 'emergency_contact_name', 'emergency_contact_relationship',
+        'emergency_contact_phone', 'emergency_contact_alt_phone', 'care_level', 'care_notes',
+        'communication_preferences', 'spiritual_journey', 'skills', 'documents', 'volunteer_hours',
     ];
 
     public function __construct(private readonly MemberImportMapper $mapper) {}
@@ -59,7 +61,12 @@ final class MemberImportProcessor
             'processed_rows' => array_sum($counts),
             'status' => $counts['failed_rows'] > 0 ? 'completed_with_errors' : 'completed',
             'completed_at' => now(),
-            'summary' => ['message' => 'Member import finished.', 'rollback_available' => true],
+            'summary' => [
+                ...($import->summary ?? []),
+                'message' => 'Member import finished.',
+                'rollback_available' => true,
+                'history_entries' => MemberHistoryEntry::query()->where('member_import_id', $import->id)->count(),
+            ],
         ]);
     }
 
@@ -78,6 +85,7 @@ final class MemberImportProcessor
             DB::transaction(function () use ($row, $member): void {
                 $snapshot = $row->rollback_snapshot ?? [];
                 $importedPhotoPath = $member->profile_photo_path;
+                MemberHistoryEntry::query()->where('member_import_id', $row->member_import_id)->where('member_id', $member->id)->delete();
                 if ($snapshot['created'] ?? false) {
                     $member->delete();
                 } else {
@@ -172,6 +180,7 @@ final class MemberImportProcessor
                     'external_id' => (string) $data['external_id'],
                 ], ['member_id' => $member->id, 'member_import_id' => $import->id]);
             }
+            $this->importHistory($import, $row, $member);
             $row->update([
                 'status' => $creating ? 'created' : 'updated',
                 'imported_member_id' => $member->id,
@@ -243,6 +252,31 @@ final class MemberImportProcessor
         Storage::disk('public')->put($path, $contents);
 
         return $path;
+    }
+
+    private function importHistory(MemberImport $import, MemberImportRow $row, Member $member): void
+    {
+        $history = $row->source_data['_legacy_history'] ?? [];
+        if (! is_array($history)) {
+            return;
+        }
+        foreach ($history as $event) {
+            if (! is_array($event) || blank($event['event_type'] ?? null)) {
+                continue;
+            }
+            MemberHistoryEntry::query()->updateOrCreate([
+                'church_id' => $import->church_id,
+                'member_id' => $member->id,
+                'event_type' => Str::limit((string) $event['event_type'], 80, ''),
+                'source_reference' => filled($event['source_reference'] ?? null) ? Str::limit((string) $event['source_reference'], 255, '') : null,
+            ], [
+                'member_import_id' => $import->id,
+                'status' => filled($event['status'] ?? null) ? Str::limit((string) $event['status'], 60, '') : null,
+                'occurred_at' => $event['occurred_at'] ?? null,
+                'description' => filled($event['description'] ?? null) ? Str::limit((string) $event['description'], 4000, '') : null,
+                'metadata' => $event['metadata'] ?? null,
+            ]);
+        }
     }
 
     private function checksum(Member $member): string

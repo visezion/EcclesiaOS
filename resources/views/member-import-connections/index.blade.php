@@ -1,4 +1,5 @@
 <x-app-layout title="Database Import Sources" :breadcrumbs="$breadcrumbs">
+    @php($legacyDetected = collect($tables)->contains(fn ($table) => $table === 'members' || Str::endsWith($table, '.members')))
     <div class="space-y-4">
         @if(session('status'))<x-alert type="success">{{ session('status') }}</x-alert>@endif
         @if($errors->any())<x-alert type="error">{{ $errors->first() }}</x-alert>@endif
@@ -51,6 +52,14 @@
                                 <label class="text-xs font-bold text-slate-700">Default campus<select name="default_campus_id" required class="mt-1.5 h-10 w-full rounded-lg border-slate-200 text-sm">@foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected(auth()->user()->campus_id === $campus->id)>{{ $campus->name }}</option>@endforeach</select></label>
                                 <label class="text-xs font-bold text-slate-700 sm:col-span-2">Import name<input name="name" class="mt-1.5 h-10 w-full rounded-lg border-slate-200 text-sm" placeholder="{{ $selected->name }} member migration"></label>
                                 <button class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 text-xs font-bold text-white sm:col-span-2"><i data-lucide="scan-search" class="size-4"></i>Copy rows to review area</button>
+                            </form>
+                        @endif
+                        @if($legacyDetected)
+                            <form method="POST" action="{{ route('member-import-connections.legacy', $selected) }}" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                @csrf
+                                <div class="flex items-start gap-3"><span class="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-amber-600"><i data-lucide="history" class="size-4"></i></span><div><h3 class="text-sm font-black text-slate-900">Old EcclesiaOS installation detected</h3><p class="mt-1 text-[10px] leading-5 text-slate-600">Migrate members together with available profiles, families, campuses, attendance, giving, care, and volunteer history.</p></div></div>
+                                <div class="mt-3 grid gap-3 sm:grid-cols-2"><label class="text-xs font-bold text-slate-700">Migration name<input name="name" class="mt-1.5 h-10 w-full rounded-lg border-amber-200 text-sm" placeholder="Legacy EcclesiaOS migration"></label><label class="text-xs font-bold text-slate-700">Fallback campus<select name="default_campus_id" required class="mt-1.5 h-10 w-full rounded-lg border-amber-200 text-sm">@foreach($campuses as $campus)<option value="{{ $campus->id }}" @selected(auth()->user()->campus_id === $campus->id)>{{ $campus->name }}</option>@endforeach</select></label></div>
+                                <button class="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 text-xs font-bold text-white hover:bg-amber-700"><i data-lucide="history" class="size-4"></i>Scan full EcclesiaOS history</button>
                             </form>
                         @endif
                     </section>

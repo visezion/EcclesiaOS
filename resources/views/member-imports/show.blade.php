@@ -61,6 +61,13 @@
             @endforeach
         </section>
 
+        @if($import->source_type === 'ecclesiaos')
+            @php($legacy = data_get($import->source_options, 'legacy_summary', []))
+            <section class="dashboard-card border-amber-200 bg-amber-50/40">
+                <div class="flex items-start gap-3"><span class="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700"><i data-lucide="history" class="size-5"></i></span><div class="min-w-0 flex-1"><h2 class="font-black text-slate-950">Legacy EcclesiaOS migration scope</h2><p class="mt-1 text-xs text-slate-600">Related records were linked by old member ID and will be kept in each member’s imported history timeline.</p><div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">@foreach(['members' => 'Members', 'profiles' => 'Profiles', 'families' => 'Families', 'campuses' => 'Campuses'] as $key => $label)<div class="rounded-lg bg-white px-3 py-2"><strong class="block text-base text-slate-900">{{ number_format((int) data_get($legacy, $key, 0)) }}</strong><span class="text-[10px] text-slate-500">{{ $label }}</span></div>@endforeach @foreach((array) data_get($legacy, 'history', []) as $type => $count)<div class="rounded-lg bg-white px-3 py-2"><strong class="block text-base text-amber-700">{{ number_format((int) $count) }}</strong><span class="text-[10px] text-slate-500">{{ Str::headline($type) }}</span></div>@endforeach</div></div></div>
+            </section>
+        @endif
+
         @if($editable)
             <form method="POST" action="{{ route('member-imports.mapping.update', $import) }}" class="dashboard-card">
                 @csrf @method('PUT')

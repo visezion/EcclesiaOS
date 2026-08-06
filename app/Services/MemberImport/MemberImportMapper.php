@@ -32,6 +32,8 @@ final class MemberImportMapper
         'anniversary_date' => 'Anniversary date',
         'occupation' => 'Occupation',
         'employer' => 'Employer',
+        'place_of_birth' => 'Place of birth',
+        'nationality' => 'Nationality',
         'address_line' => 'Street address',
         'city' => 'City',
         'state' => 'State / province',
@@ -40,10 +42,16 @@ final class MemberImportMapper
         'alternate_email' => 'Alternate email',
         'home_phone' => 'Home phone',
         'emergency_contact_name' => 'Emergency contact',
+        'emergency_contact_relationship' => 'Emergency relationship',
         'emergency_contact_phone' => 'Emergency contact phone',
+        'emergency_contact_alt_phone' => 'Emergency alternate phone',
         'care_level' => 'Care level',
         'care_notes' => 'Care notes',
+        'communication_preferences' => 'Communication preferences',
+        'spiritual_journey' => 'Spiritual journey',
         'skills' => 'Skills',
+        'documents' => 'Profile documents',
+        'volunteer_hours' => 'Volunteer hours',
     ];
 
     private const ALIASES = [
@@ -65,6 +73,8 @@ final class MemberImportMapper
         'anniversary_date' => ['anniversary_date', 'wedding_anniversary', 'anniversary'],
         'occupation' => ['occupation', 'job_title', 'profession'],
         'employer' => ['employer', 'company', 'organization'],
+        'place_of_birth' => ['place_of_birth', 'birth_place', 'birthplace'],
+        'nationality' => ['nationality', 'citizenship'],
         'address_line' => ['address_line', 'address', 'street', 'street_address'],
         'city' => ['city', 'town'],
         'state' => ['state', 'province', 'region'],
@@ -73,10 +83,16 @@ final class MemberImportMapper
         'alternate_email' => ['alternate_email', 'secondary_email'],
         'home_phone' => ['home_phone', 'telephone_home'],
         'emergency_contact_name' => ['emergency_contact_name', 'emergency_contact'],
+        'emergency_contact_relationship' => ['emergency_contact_relationship', 'emergency_relationship'],
         'emergency_contact_phone' => ['emergency_contact_phone', 'emergency_phone'],
+        'emergency_contact_alt_phone' => ['emergency_contact_alt_phone', 'emergency_alternate_phone'],
         'care_level' => ['care_level', 'pastoral_care_level'],
         'care_notes' => ['care_notes', 'pastoral_notes'],
+        'communication_preferences' => ['communication_preferences', 'contact_preferences'],
+        'spiritual_journey' => ['spiritual_journey', 'faith_journey'],
         'skills' => ['skills', 'talents'],
+        'documents' => ['documents', 'profile_documents'],
+        'volunteer_hours' => ['volunteer_hours', 'service_hours'],
     ];
 
     /**
@@ -148,6 +164,15 @@ final class MemberImportMapper
         }
         if (filled($data['skills'] ?? null) && ! is_array($data['skills'])) {
             $data['skills'] = collect(preg_split('/[,;|]/', (string) $data['skills']))->map(fn ($value) => trim((string) $value))->filter()->values()->all();
+        }
+        foreach (['communication_preferences', 'spiritual_journey', 'documents'] as $jsonField) {
+            if (filled($data[$jsonField] ?? null) && is_string($data[$jsonField])) {
+                $decoded = json_decode($data[$jsonField], true);
+                $data[$jsonField] = json_last_error() === JSON_ERROR_NONE ? $decoded : [$data[$jsonField]];
+            }
+        }
+        if (isset($data['volunteer_hours'])) {
+            $data['volunteer_hours'] = max(0, (int) $data['volunteer_hours']);
         }
 
         return $data;

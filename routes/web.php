@@ -253,6 +253,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('members/import-connections/{connection}', [MemberImportConnectionController::class, 'show'])->name('member-import-connections.show');
     Route::post('members/import-connections/{connection}/test', [MemberImportConnectionController::class, 'test'])->name('member-import-connections.test');
     Route::post('members/import-connections/{connection}/stage', [MemberImportConnectionController::class, 'stage'])->name('member-import-connections.stage');
+    Route::post('members/import-connections/{connection}/legacy', [MemberImportConnectionController::class, 'stageLegacy'])->name('member-import-connections.legacy');
     Route::delete('members/import-connections/{connection}', [MemberImportConnectionController::class, 'destroy'])->name('member-import-connections.destroy');
     Route::post('members/imports/files', [MemberImportController::class, 'storeFile'])->name('member-imports.files.store');
     Route::get('members/imports/{memberImport}', [MemberImportController::class, 'show'])->name('member-imports.show');

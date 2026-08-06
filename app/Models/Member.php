@@ -85,6 +85,11 @@ final class Member extends Model
         return $this->hasOne(MemberProfile::class);
     }
 
+    public function historyEntries(): HasMany
+    {
+        return $this->hasMany(MemberHistoryEntry::class);
+    }
+
     public function userAccount(): HasOne
     {
         return $this->hasOne(User::class);

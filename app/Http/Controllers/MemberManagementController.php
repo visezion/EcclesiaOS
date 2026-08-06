@@ -149,6 +149,7 @@ final class MemberManagementController extends Controller
         $this->authorizeMemberRecord($request, $member);
 
         $member->load(['church', 'campus', 'family.members', 'memberProfile', 'volunteers.ministry', 'attendanceRecords', 'donations', 'prayerRequests', 'careTasks.assignedUser']);
+        $member->loadCount('historyEntries');
 
         return view('members.show', [
             'member' => $member,
@@ -161,6 +162,7 @@ final class MemberManagementController extends Controller
             'givingTotal' => Donation::query()->where('member_id', $member->id)->sum('amount'),
             'attendanceHistory' => AttendanceRecord::query()->where('member_id', $member->id)->latest('service_date')->limit(12)->get(),
             'recentActivity' => ActivityLog::query()->where('subject_type', $member->getMorphClass())->where('subject_id', $member->id)->latest()->limit(8)->get(),
+            'importedHistory' => $member->historyEntries()->latest('occurred_at')->limit(50)->get(),
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
                 ['label' => 'Members', 'url' => route('members.index')],
