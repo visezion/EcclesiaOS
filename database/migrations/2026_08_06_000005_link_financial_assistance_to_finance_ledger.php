@@ -12,13 +12,13 @@ return new class extends Migration
             $table->foreignId('fund_id')
                 ->nullable()
                 ->after('disbursement_reference')
-                ->constrained()
+                ->constrained('funds', 'id', 'fin_assist_fund_fk')
                 ->nullOnDelete();
             $table->foreignId('finance_transaction_id')
                 ->nullable()
-                ->unique()
+                ->unique('fin_assist_finance_tx_unique')
                 ->after('fund_id')
-                ->constrained('finance_transactions')
+                ->constrained('finance_transactions', 'id', 'fin_assist_finance_tx_fk')
                 ->nullOnDelete();
         });
     }
@@ -26,8 +26,10 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('financial_assistance_requests', function (Blueprint $table): void {
-            $table->dropConstrainedForeignId('finance_transaction_id');
-            $table->dropConstrainedForeignId('fund_id');
+            $table->dropForeign('fin_assist_finance_tx_fk');
+            $table->dropUnique('fin_assist_finance_tx_unique');
+            $table->dropForeign('fin_assist_fund_fk');
+            $table->dropColumn(['finance_transaction_id', 'fund_id']);
         });
     }
 };

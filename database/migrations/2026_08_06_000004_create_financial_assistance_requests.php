@@ -55,7 +55,7 @@ return new class extends Migration
 
         Schema::create('financial_assistance_attachments', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('financial_assistance_request_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('financial_assistance_request_id')->constrained('financial_assistance_requests', 'id', 'fin_assist_attach_request_fk')->cascadeOnDelete();
             $table->foreignId('uploaded_by')->nullable()->constrained('users')->nullOnDelete();
             $table->string('kind', 30)->default('evidence');
             $table->string('disk', 40)->default('local');
@@ -69,7 +69,7 @@ return new class extends Migration
 
         Schema::create('financial_assistance_activities', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('financial_assistance_request_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('financial_assistance_request_id')->constrained('financial_assistance_requests', 'id', 'fin_assist_activity_request_fk')->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->string('type', 50);
             $table->text('description');
