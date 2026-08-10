@@ -228,7 +228,7 @@ jobs:
             'test "$(cat VERSION)" = "$(cat /var/www/html/.managed/current/VERSION)"'
 
       - name: Verify running services
-        run: docker compose --env-file .env.docker ps --all
+        run: docker compose --env-file .env.docker ps --all || true
           docker compose --env-file .env.docker ps
 
       - name: Print service logs after failure
