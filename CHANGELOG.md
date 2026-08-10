@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.26 - 2026-08-10
+
+### Fixed
+
+- Hardened communication and bookstore dashboard metrics against database aggregate type differences.
+- Fixed Apache handling of `/public` and `/public/` so both requests enter Laravel correctly.
+- Added the administration URL aliases for celebration automation.
+- Updated celebration automation presentation and Zender demo configuration.
+- Removed the first-time installer prompt from the production login page.
+
 ## 1.0.25 - 2026-08-10
 
 ### Fixed

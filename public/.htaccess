@@ -5,6 +5,10 @@
 
     RewriteEngine On
 
+    # Route the public directory root through Laravel before Apache treats it
+    # as a directory index request. This keeps /public and /public/ working.
+    RewriteRule ^$ index.php [END]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

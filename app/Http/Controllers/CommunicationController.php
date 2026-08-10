@@ -2112,7 +2112,7 @@ final class CommunicationController extends Controller
             'delivered' => $delivered,
             'failed' => $failed,
             'retry_queue' => (clone $base)->where('retry_status', 'queued')->count(),
-            'avg_latency' => round((clone $base)->whereNotNull('latency_ms')->avg('latency_ms') ?? 0),
+            'avg_latency' => round((float) ((clone $base)->whereNotNull('latency_ms')->avg('latency_ms') ?? 0)),
             'webhooks' => (clone $base)->whereNotNull('provider_message_id')->count(),
             'delivery_rate' => $total > 0 ? round(($delivered / $total) * 100, 2) : 0,
         ];
@@ -2453,7 +2453,7 @@ final class CommunicationController extends Controller
                 'workers' => (int) ($settings['workers'] ?? 4),
                 'processed' => $processed,
                 'failed' => $failed,
-                'latency' => (int) round($this->deliveries($request)->where('channel', $setting->channel)->whereNotNull('latency_ms')->avg('latency_ms') ?? 0),
+                'latency' => (int) round((float) ($this->deliveries($request)->where('channel', $setting->channel)->whereNotNull('latency_ms')->avg('latency_ms') ?? 0)),
                 'status' => $setting->enabled && $configurationError === null && $testedSuccessfully ? 'Healthy' : 'Review',
             ];
         })->all();
@@ -2525,7 +2525,7 @@ final class CommunicationController extends Controller
         $deliveries = $this->deliveries($request);
         $retryQueue = (clone $deliveries)->where('retry_status', 'queued')->count();
         $oldestQueued = (clone $deliveries)->where('status', 'queued')->oldest()->value('created_at');
-        $avgLatency = round((clone $deliveries)->whereNotNull('latency_ms')->avg('latency_ms') ?? 0);
+        $avgLatency = round((float) ((clone $deliveries)->whereNotNull('latency_ms')->avg('latency_ms') ?? 0));
         $channelMeta = $this->channelMeta();
         $enabledProviders = $this->providerSettings($request)->where('enabled', true)->map(fn (CommunicationProviderSetting $setting): array => [
             'label' => $setting->provider,
@@ -2544,7 +2544,7 @@ final class CommunicationController extends Controller
             'oldest_queue' => $oldestQueued ? Carbon::parse($oldestQueued)->diffForHumans(['parts' => 2, 'short' => true]) : 'Clear',
             'avg_send_time' => $avgLatency > 0 ? round($avgLatency / 1000, 2) : 0,
             'retry_trend' => collect(range(11, 0))->map(fn (int $days): int => $this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->where('retry_status', 'queued')->count())->all(),
-            'latency_trend' => collect(range(11, 0))->map(fn (int $days): int => (int) round($this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->avg('latency_ms') ?? 0))->all(),
+            'latency_trend' => collect(range(11, 0))->map(fn (int $days): int => (int) round((float) ($this->deliveries($request)->whereDate('created_at', now()->subDays($days)->toDateString())->avg('latency_ms') ?? 0)))->all(),
             'providers' => $enabledProviders,
             'automation_readiness' => min(100, $readiness),
         ];

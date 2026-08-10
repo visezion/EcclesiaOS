@@ -227,9 +227,6 @@
                             </div>
                         @endif
 
-                        <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
-                            For first-time deployments, visit <a href="{{ route('install') }}" class="font-semibold text-violet-700 hover:text-violet-800">/install</a> to create the first administrator.
-                        </div>
                     </div>
                 </section>
             </div>

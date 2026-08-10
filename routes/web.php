@@ -69,7 +69,7 @@ Route::get('m/{code}/{provider}/state', [EventFlowController::class, 'publicStud
 Route::post('m/{code}/{provider}/qna', [EventFlowController::class, 'storePublicQuestion'])->where('code', '[A-Za-z0-9-]+')->middleware(['module.enabled', 'throttle:20,1'])->name('meetings.rooms.short.qna.store');
 Route::post('m/{code}/{provider}/polls/{poll}/vote', [EventFlowController::class, 'storePublicPollVote'])->where('code', '[A-Za-z0-9-]+')->middleware(['module.enabled', 'throttle:60,1'])->name('meetings.rooms.short.polls.vote');
 
-Route::view('/', 'landing')->name('home');
+Route::get('/', fn () => view('landing'))->name('home');
 Route::view('features', 'features')->name('features');
 Route::get('member-registration', [PublicMemberRegistrationController::class, 'create'])->name('members.self-register');
 Route::post('member-registration', [PublicMemberRegistrationController::class, 'store'])->middleware('throttle:10,1')->name('members.self-register.store');
@@ -399,6 +399,8 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('communications/automation', [NotificationAutomationController::class, 'index'])->name('communications.automation');
     Route::get('communications/celebrations', [NotificationAutomationController::class, 'celebrations'])->name('communications.celebrations');
     Route::put('communications/celebrations', [NotificationAutomationController::class, 'updateCelebrations'])->name('communications.celebrations.update');
+    Route::get('administration/communications/celebrations', [NotificationAutomationController::class, 'celebrations'])->name('administration.communications.celebrations');
+    Route::put('administration/communications/celebrations', [NotificationAutomationController::class, 'updateCelebrations'])->name('administration.communications.celebrations.update');
     Route::put('communications/automation/{automationRule}', [NotificationAutomationController::class, 'update'])->name('communications.automation.update');
     Route::post('communications/automation/{automationRule}/test', [NotificationAutomationController::class, 'test'])->name('communications.automation.test');
     Route::post('communications/automation/retry-failed', [NotificationAutomationController::class, 'retryFailed'])->name('communications.automation.retry-failed');

@@ -165,11 +165,8 @@
                     <a href="{{ route('giving.create') }}" class="hover:text-violet-600">Give</a>
                     <a href="{{ route('members.self-register') }}" class="hover:text-violet-600">Member Registration</a>
                     <a href="{{ route('features') }}" class="hover:text-violet-600">Features</a>
-                    <a href="#solutions" class="hover:text-violet-600">Solutions</a>
-                    <a href="#resources" class="hover:text-violet-600">Resources</a>
                     <a href="{{ $downloadUrl }}" class="hover:text-violet-600">Download</a>
                     <a href="{{ $documentationUrl }}" target="_blank" rel="noopener noreferrer" class="hover:text-violet-600">Documentation</a>
-                    <a href="#about" class="hover:text-violet-600">About Us</a>
                 </div>
 
                 <div class="hidden items-center gap-3 sm:flex">
@@ -189,10 +186,8 @@
                     <a href="{{ route('giving.create') }}" class="rounded-lg px-3 py-2">Give</a>
                     <a href="{{ route('members.self-register') }}" class="rounded-lg px-3 py-2">Member Registration</a>
                     <a href="{{ route('features') }}" class="rounded-lg px-3 py-2">Features</a>
-                    <a href="#solutions" @click="mobileMenu = false" class="rounded-lg px-3 py-2">Solutions</a>
                     <a href="{{ $downloadUrl }}" class="rounded-lg px-3 py-2">Download</a>
                     <a href="{{ $documentationUrl }}" target="_blank" rel="noopener noreferrer" class="rounded-lg px-3 py-2">Documentation</a>
-                    <a href="#about" @click="mobileMenu = false" class="rounded-lg px-3 py-2">About Us</a>
                     <a href="{{ route('login') }}" class="rounded-lg border border-slate-200 px-3 py-2">Login</a>
                     <a href="{{ $primaryHref }}" class="landing-primary rounded-lg px-3 py-3 text-center text-white">{{ $primaryLabel }}</a>
                 </div>

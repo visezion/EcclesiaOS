@@ -191,9 +191,9 @@ final class DashboardService
 
         return [
             'totals' => [
-                ['label' => 'Total Inventory', 'value' => Number::format($inventory), 'note' => 'Books & Items', 'icon' => 'library'],
-                ['label' => 'Low Stock Items', 'value' => Number::format($lowStock), 'note' => 'Reorder Needed', 'icon' => 'bell-ring'],
-                ['label' => 'Orders (This Month)', 'value' => Number::format($orders), 'note' => $this->growth($this->query(BookstoreOrder::class), 'ordered_at'), 'icon' => 'receipt'],
+                ['label' => 'Total Inventory', 'value' => Number::format((int) $inventory), 'note' => 'Books & Items', 'icon' => 'library'],
+                ['label' => 'Low Stock Items', 'value' => Number::format((int) $lowStock), 'note' => 'Reorder Needed', 'icon' => 'bell-ring'],
+                ['label' => 'Orders (This Month)', 'value' => Number::format((int) $orders), 'note' => $this->growth($this->query(BookstoreOrder::class), 'ordered_at'), 'icon' => 'receipt'],
                 ['label' => 'Revenue (This Month)', 'value' => Number::currency((float) $revenue, $currency), 'note' => $this->moneyGrowth($this->query(BookstoreOrder::class), 'ordered_at', 'total_amount'), 'icon' => 'wallet'],
             ],
             'topBooks' => $topBooks->map(fn ($book): array => [
