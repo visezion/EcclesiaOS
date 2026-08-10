@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.25 - 2026-08-10
+
+### Fixed
+
+- Prevented the browser installer from reappearing when an existing user is missing the administrator role relationship.
+- Kept the installer available for incomplete non-production setups while disabling it by default in production.
+
 EcclesiaOS uses GitHub Releases as the authoritative changelog for deployed application versions.
 
 ## 1.0.24 - 2026-08-10

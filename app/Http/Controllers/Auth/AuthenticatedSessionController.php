@@ -19,7 +19,7 @@ final class AuthenticatedSessionController extends Controller
 {
     public function create(): View|RedirectResponse
     {
-        if (! User::query()->whereHas('roles', fn ($query) => $query->where('name', 'Super Administrator'))->exists()) {
+        if (! User::query()->exists() && (bool) config('installer.enabled')) {
             return redirect()->route('install');
         }
 

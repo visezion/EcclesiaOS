@@ -23,6 +23,8 @@ final class InstallerController extends Controller
 {
     public function create(): View|RedirectResponse
     {
+        abort_unless((bool) config('installer.enabled'), 404);
+
         if ($this->installationComplete()) {
             return redirect()->route('login');
         }
@@ -45,6 +47,8 @@ final class InstallerController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        abort_unless((bool) config('installer.enabled'), 404);
+
         if ($this->installationComplete()) {
             return redirect()->route('login');
         }
@@ -145,8 +149,6 @@ final class InstallerController extends Controller
 
     private function installationComplete(): bool
     {
-        return User::query()
-            ->whereHas('roles', fn ($query) => $query->where('name', 'Super Administrator'))
-            ->exists();
+        return User::query()->exists();
     }
 }

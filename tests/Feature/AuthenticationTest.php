@@ -62,6 +62,37 @@ class AuthenticationTest extends TestCase
         $this->get(route('dashboard'))->assertRedirect(route('login'));
     }
 
+    public function test_installer_is_available_until_a_user_account_exists(): void
+    {
+        $this->get(route('install'))->assertOk();
+
+        Church::factory()->create();
+
+        $this->get(route('install'))->assertOk();
+
+        User::factory()->create();
+
+        $this->get(route('install'))->assertRedirect(route('login'));
+        $this->get(route('login'))->assertOk();
+    }
+
+    public function test_installer_does_not_reappear_when_the_administrator_role_is_missing(): void
+    {
+        $user = User::factory()->create();
+
+        $this->assertDatabaseMissing('role_user', ['user_id' => $user->id]);
+        $this->get(route('install'))->assertRedirect(route('login'));
+        $this->get(route('login'))->assertOk();
+    }
+
+    public function test_browser_installer_is_disabled_in_production(): void
+    {
+        config()->set('installer.enabled', false);
+
+        $this->get(route('install'))->assertNotFound();
+        $this->post(route('install.store'), [])->assertNotFound();
+    }
+
     public function test_security_headers_and_sensitive_route_throttles_are_enabled(): void
     {
         $this->seed();
