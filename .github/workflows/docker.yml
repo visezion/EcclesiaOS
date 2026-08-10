@@ -194,7 +194,17 @@ jobs:
           exit 1
 
       - name: Run database migrations
-        run: docker compose --env-file .env.docker exec -T app php artisan migrate --force
+        shell: bash
+        run: |
+          set +e
+          migration_output="$(docker compose --env-file .env.docker exec -T app php artisan migrate --force 2>&1)"
+          migration_status=$?
+          printf '%s\n' "$migration_output"
+          if [[ "$migration_status" -ne 0 ]]; then
+            message="$(printf '%s' "$migration_output" | tr '\r\n' '  ' | sed 's/%/%25/g; s/:/%3A/g')"
+            echo "::error title=Database migration failed::$message"
+            exit "$migration_status"
+          fi
 
       - name: Verify migration status
         run: docker compose --env-file .env.docker exec -T app php artisan migrate:status
