@@ -193,19 +193,32 @@ jobs:
           done
           exit 1
 
-      - name: Verify migrations, administration bootstrap, and queues
+      - name: Run database migrations
+        run: docker compose --env-file .env.docker exec -T app php artisan migrate --force --isolated
+
+      - name: Verify migration status
+        run: docker compose --env-file .env.docker exec -T app php artisan migrate:status
+
+      - name: Bootstrap deployment administrator
         run: |
-          docker compose --env-file .env.docker exec -T app php artisan migrate --force --isolated
-          docker compose --env-file .env.docker exec -T app php artisan migrate:status
           docker compose --env-file .env.docker exec -T \
             -e BOOTSTRAP_ADMIN_NAME="CI Administrator" \
             -e BOOTSTRAP_ADMIN_EMAIL="ci-admin@example.org" \
             -e BOOTSTRAP_ADMIN_PASSWORD="ContainerPassword123" \
             app php artisan app:bootstrap-admin --no-interaction
+
+      - name: Verify deployment administrator
+        run: |
           docker compose --env-file .env.docker exec -T app \
             php artisan app:bootstrap-admin --check --no-interaction
+
+      - name: Verify managed release layout
+        run: |
           docker compose --env-file .env.docker exec -T app sh -ec \
             'test "$(cat VERSION)" = "$(cat /var/www/html/.managed/current/VERSION)"'
+
+      - name: Verify running services
+        run: docker compose --env-file .env.docker ps
           docker compose --env-file .env.docker ps
 
       - name: Print service logs after failure
