@@ -45,7 +45,7 @@ final class CommunicationController extends Controller
 {
     private const CHANNELS = ['in_app', 'email', 'sms', 'whatsapp', 'push'];
 
-    private const CATEGORIES = ['events', 'attendance', 'care', 'volunteers', 'registration', 'system', 'reports', 'financial_assistance', 'approvals'];
+    private const CATEGORIES = ['events', 'attendance', 'care', 'volunteers', 'registration', 'system', 'reports', 'financial_assistance', 'approvals', 'celebrations'];
 
     private const TRIGGERS = [
         'EventSessionCreated',

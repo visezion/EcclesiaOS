@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\CelebrationDispatch;
 use App\Models\CommunicationDelivery;
 use App\Models\CommunicationTemplate;
 use App\Models\NotificationAutomationRule;
 use App\Services\ActivityLogger;
+use App\Services\Communications\CelebrationService;
 use App\Services\Communications\DomainNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -71,6 +73,63 @@ final class NotificationAutomationController extends Controller
                 ['label' => 'Notification Automation', 'url' => null],
             ],
         ]);
+    }
+
+    public function celebrations(Request $request, CelebrationService $celebrations): View
+    {
+        $this->authorizeAutomation($request);
+        $setting = $celebrations->settings((int) $request->user()->church_id);
+        $dispatches = CelebrationDispatch::query()
+            ->where('church_id', $request->user()->church_id);
+
+        return view('communications.celebrations', [
+            'setting' => $setting,
+            'stats' => [
+                'birthday' => (clone $dispatches)->where('occasion_type', 'birthday')->whereDate('occasion_date', today())->count(),
+                'anniversary' => (clone $dispatches)->where('occasion_type', 'anniversary')->whereDate('occasion_date', today())->count(),
+                'sent' => (clone $dispatches)->where('status', 'sent')->whereDate('created_at', today())->count(),
+                'failed' => (clone $dispatches)->where('status', 'failed')->whereDate('created_at', today())->count(),
+            ],
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Communications', 'url' => route('communications.index')],
+                ['label' => 'Celebrations', 'url' => null],
+            ],
+        ]);
+    }
+
+    public function updateCelebrations(Request $request, CelebrationService $celebrations, ActivityLogger $logger): RedirectResponse
+    {
+        $this->authorizeAutomation($request);
+        $validated = $request->validate([
+            'enabled' => ['nullable', 'boolean'],
+            'birthdays_enabled' => ['nullable', 'boolean'],
+            'anniversaries_enabled' => ['nullable', 'boolean'],
+            'celebrant_channels' => ['required', 'array', 'min:1'],
+            'celebrant_channels.*' => [Rule::in(self::CHANNELS)],
+            'send_time' => ['required', 'date_format:H:i'],
+            'birthday_subject' => ['required', 'string', 'max:180'],
+            'birthday_message' => ['required', 'string', 'max:5000'],
+            'birthday_group_message' => ['required', 'string', 'max:5000'],
+            'anniversary_subject' => ['required', 'string', 'max:180'],
+            'anniversary_message' => ['required', 'string', 'max:5000'],
+            'anniversary_group_message' => ['required', 'string', 'max:5000'],
+            'design.frame' => ['required', Rule::in(['sunrise', 'elegant', 'botanical', 'royal'])],
+            'design.accent' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'design.background' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'design.footer' => ['required', 'string', 'max:120'],
+        ]);
+        $setting = $celebrations->settings((int) $request->user()->church_id);
+        $setting->update([
+            ...$validated,
+            'enabled' => $request->boolean('enabled'),
+            'birthdays_enabled' => $request->boolean('birthdays_enabled'),
+            'anniversaries_enabled' => $request->boolean('anniversaries_enabled'),
+            'design' => $validated['design'],
+        ]);
+        $logger->log('Communications', 'celebration_settings_updated', 'Birthday and anniversary celebration automation was updated.', $setting, ['resource' => 'Celebration Settings', 'status' => 'success'], $request);
+
+        return back()->with('status', 'Celebration automation saved.');
     }
 
     public function update(Request $request, NotificationAutomationRule $automationRule, ActivityLogger $logger): RedirectResponse

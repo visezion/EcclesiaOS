@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Models\CommunicationCampaign;
 use App\Models\CommunicationDelivery;
+use App\Services\Communications\CelebrationService;
 use App\Services\Communications\CommunicationCampaignDispatcher;
 use App\Services\Communications\CommunicationDeliveryDispatcher;
 use App\Services\Communications\NotificationAutomationRunner;
@@ -17,10 +18,11 @@ final class DispatchCommunications extends Command
 
     protected $description = 'Dispatch due communication campaigns and queued delivery retries';
 
-    public function handle(CommunicationCampaignDispatcher $campaigns, CommunicationDeliveryDispatcher $deliveries, NotificationAutomationRunner $automation): int
+    public function handle(CommunicationCampaignDispatcher $campaigns, CommunicationDeliveryDispatcher $deliveries, NotificationAutomationRunner $automation, CelebrationService $celebrations): int
     {
         $limit = max(1, min(1000, (int) $this->option('limit')));
         $automation->runDueReminders($limit);
+        $celebrations->dispatchDue();
 
         CommunicationCampaign::query()
             ->where('status', 'scheduled')

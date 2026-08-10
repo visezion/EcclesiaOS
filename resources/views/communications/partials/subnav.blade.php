@@ -8,6 +8,7 @@
         ['Delivery Logs', 'communications.delivery-logs', 'clipboard-list'],
         ['Preferences', 'communications.preferences', 'sliders-horizontal'],
         ['Automation', 'communications.automation', 'git-branch'],
+        ['Celebrations', 'communications.celebrations', 'cake'],
     ];
 @endphp
 

@@ -62,6 +62,7 @@ final class AccountSettingsController extends Controller
             'notify_reports' => ['nullable', 'boolean'],
             'notify_financial_assistance' => ['nullable', 'boolean'],
             'notify_approvals' => ['nullable', 'boolean'],
+            'notify_celebrations' => ['nullable', 'boolean'],
             'mfa_enabled' => ['nullable', 'boolean'],
             'mfa_method' => ['nullable', Rule::in(['authenticator', 'email', 'sms'])],
             'login_notifications' => ['nullable', 'boolean'],
@@ -100,6 +101,7 @@ final class AccountSettingsController extends Controller
                 'notify_reports' => $request->boolean('notify_reports'),
                 'notify_financial_assistance' => $request->boolean('notify_financial_assistance'),
                 'notify_approvals' => $request->boolean('notify_approvals'),
+                'notify_celebrations' => $request->boolean('notify_celebrations'),
             ];
             $this->syncNotificationPreference($user, $current['notifications']);
         }
@@ -285,6 +287,7 @@ final class AccountSettingsController extends Controller
                 'notify_reports' => false,
                 'notify_financial_assistance' => true,
                 'notify_approvals' => true,
+                'notify_celebrations' => true,
             ],
             'security' => [
                 'mfa_method' => 'authenticator',
@@ -321,6 +324,7 @@ final class AccountSettingsController extends Controller
             'notify_reports' => 'reports',
             'notify_financial_assistance' => 'financial_assistance',
             'notify_approvals' => 'approvals',
+            'notify_celebrations' => 'celebrations',
         ];
         $channels = collect($channelFields)
             ->filter(fn (string $channel, string $field): bool => (bool) ($notifications[$field] ?? false))

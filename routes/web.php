@@ -397,6 +397,8 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('communications/preferences/import', [CommunicationController::class, 'importPreferences'])->name('communications.preferences.import');
     Route::put('communications/preferences/{preference}', [CommunicationController::class, 'updatePreference'])->name('communications.preferences.update');
     Route::get('communications/automation', [NotificationAutomationController::class, 'index'])->name('communications.automation');
+    Route::get('communications/celebrations', [NotificationAutomationController::class, 'celebrations'])->name('communications.celebrations');
+    Route::put('communications/celebrations', [NotificationAutomationController::class, 'updateCelebrations'])->name('communications.celebrations.update');
     Route::put('communications/automation/{automationRule}', [NotificationAutomationController::class, 'update'])->name('communications.automation.update');
     Route::post('communications/automation/{automationRule}/test', [NotificationAutomationController::class, 'test'])->name('communications.automation.test');
     Route::post('communications/automation/retry-failed', [NotificationAutomationController::class, 'retryFailed'])->name('communications.automation.retry-failed');
@@ -461,6 +463,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     }
 
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::post('profile/family-celebration-photo', [ProfileController::class, 'uploadFamilyCelebrationPhoto'])->name('profile.family-celebration-photo');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('profile/password', [ProfileController::class, 'password'])->name('profile.password');
     Route::post('profile/impersonate', [ProfileController::class, 'impersonate'])->name('profile.impersonate');

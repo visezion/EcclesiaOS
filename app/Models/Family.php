@@ -17,7 +17,7 @@ final class Family extends Model
     use SoftDeletes;
     use UsesOpaqueRouteKeys;
 
-    protected $fillable = ['church_id', 'campus_id', 'name', 'primary_contact_id', 'address'];
+    protected $fillable = ['church_id', 'campus_id', 'name', 'primary_contact_id', 'address', 'celebration_photo_path'];
 
     public function members(): HasMany
     {

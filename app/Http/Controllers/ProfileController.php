@@ -15,7 +15,7 @@ final class ProfileController extends Controller
     public function edit(Request $request): View
     {
         return view('profile.edit', [
-            'user' => $request->user()->load('church', 'campus', 'roles.permissions'),
+            'user' => $request->user()->load('church', 'campus', 'member.family', 'roles.permissions'),
             'activityLogs' => $request->user()->activityLogs()->latest()->limit(5)->get(),
             'activeSessions' => DB::table('sessions')->where('user_id', $request->user()->id)->latest('last_activity')->limit(3)->get(),
             'breadcrumbs' => [
@@ -23,6 +23,19 @@ final class ProfileController extends Controller
                 ['label' => 'Profile', 'url' => null],
             ],
         ]);
+    }
+
+    public function uploadFamilyCelebrationPhoto(Request $request, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $request->validate(['family_photo' => ['required', 'image', 'max:5120']]);
+        $family = $request->user()->load('member.family')->member?->family;
+
+        abort_unless($family, 404);
+
+        $family->update(['celebration_photo_path' => $request->file('family_photo')->store('celebrations/families', 'public')]);
+        $activityLogger->log('Profile', 'family_celebration_photo_updated', 'User updated the family anniversary photo.', $family, ['resource' => 'Family', 'risk' => 'low', 'status' => 'success'], $request);
+
+        return back()->with('status', 'Family celebration photo saved.');
     }
 
     public function update(Request $request, ActivityLogger $activityLogger): RedirectResponse

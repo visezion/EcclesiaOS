@@ -70,6 +70,7 @@
         $adminRoles = collect($roles ?? []);
         $adminChurches = collect($churches ?? []);
         $adminCampuses = collect($campuses ?? []);
+        $family = $user->member?->family;
     @endphp
 
     <div x-data="profilePage(@js(request()->boolean('edit')), @js($errors->has('password') || $errors->has('password_confirmation') || $errors->has('current_password')))" class="space-y-4">
@@ -156,6 +157,23 @@
                     </div>
                 </div>
             </section>
+
+            @if ($family)
+                <section class="dashboard-card">
+                    <div class="mb-4 flex items-center gap-3">
+                        <span class="grid size-10 place-items-center rounded-lg bg-pink-50 text-pink-600"><i data-lucide="heart" class="size-5"></i></span>
+                        <div><h2 class="text-base font-black text-slate-950">Family celebration photo</h2><p class="text-xs text-slate-500">Share a photo for your wedding anniversary card.</p></div>
+                    </div>
+                    @if ($family->celebration_photo_path)
+                        <img src="{{ asset('storage/'.$family->celebration_photo_path) }}" alt="{{ $family->name }}" class="mb-3 h-32 w-full rounded-lg object-cover">
+                    @endif
+                    <form method="POST" action="{{ route('profile.family-celebration-photo') }}" enctype="multipart/form-data" class="flex items-center gap-2">
+                        @csrf
+                        <input type="file" name="family_photo" accept="image/*" class="min-w-0 flex-1 text-xs text-slate-500" required>
+                        <button class="rounded-lg bg-pink-600 px-3 py-2 text-xs font-bold text-white hover:bg-pink-700">Save photo</button>
+                    </form>
+                </section>
+            @endif
 
             <section class="dashboard-card grid min-h-[180px] place-items-center text-center">
                 <div class="grid size-12 place-items-center rounded-full bg-orange-50 text-orange-500"><i data-lucide="star" class="size-6"></i></div>

@@ -164,6 +164,7 @@
                                     'notify_registration' => ['Registrations', 'Confirmations and follow-up', 'list-checks', 'bg-indigo-50 text-indigo-600'],
                                     'notify_reports' => ['Reports and analytics', 'Scheduled reports and insights', 'chart-no-axes-combined', 'bg-fuchsia-50 text-fuchsia-600'],
                                     'notify_security' => ['Security and system', 'Sign-ins, account and system alerts', 'shield-check', 'bg-slate-100 text-slate-600'],
+                                    'notify_celebrations' => ['Celebrations', 'Birthdays and wedding anniversaries', 'party-popper', 'bg-pink-50 text-pink-600'],
                                 ] as $field => [$label, $help, $icon, $tone])
                                     <label class="flex min-h-20 items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50">
                                         <span class="grid size-9 shrink-0 place-items-center rounded-lg {{ $tone }}"><i data-lucide="{{ $icon }}" class="size-4"></i></span>
