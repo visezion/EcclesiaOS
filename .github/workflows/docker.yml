@@ -194,7 +194,7 @@ jobs:
           exit 1
 
       - name: Run database migrations
-        run: docker compose --env-file .env.docker exec -T app php artisan migrate --force --isolated
+        run: docker compose --env-file .env.docker exec -T app php artisan migrate --force
 
       - name: Verify migration status
         run: docker compose --env-file .env.docker exec -T app php artisan migrate:status
