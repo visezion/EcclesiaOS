@@ -2,6 +2,20 @@
 
 EcclesiaOS uses GitHub Releases as the authoritative changelog for deployed application versions.
 
+## 1.0.23 - 2026-08-10
+
+### Fixed
+
+- Fixed the Docker Composer vendor stage failing because the Composer image does not provide PHP GD, while PhpSpreadsheet requires it.
+- Fixed the GitHub release workflow PHP setup missing the GD extension required by Composer and PhpSpreadsheet.
+- Fixed SMS and WhatsApp provider enable switches being overwritten by the shared Zender settings form.
+
+### Deployment and compatibility
+
+- Docker runtime images continue to install and enable GD for PhpSpreadsheet support.
+- SMS and WhatsApp channels can now be enabled or disabled independently.
+- Direct upgrades remain supported from `1.0.0` and later.
+
 ## 1.0.21 - 2026-08-04
 
 ### Highlights
