@@ -2,6 +2,18 @@
 
 EcclesiaOS uses GitHub Releases as the authoritative changelog for deployed application versions.
 
+## 1.0.24 - 2026-08-10
+
+### Fixed
+
+- Updated `league/commonmark` from `2.8.3` to `2.9.1`, resolving the security advisories that blocked the container vulnerability scan.
+- Corrected the route import order so the release formatting gate passes.
+
+### Deployment and compatibility
+
+- `composer audit --locked` reports no security advisories.
+- Direct upgrades remain supported from `1.0.0` and later.
+
 ## 1.0.23 - 2026-08-10
 
 ### Fixed
