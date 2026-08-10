@@ -8,6 +8,7 @@ use App\Models\CelebrationDispatch;
 use App\Models\CelebrationSetting;
 use App\Models\Family;
 use App\Models\Member;
+use App\Support\Branding;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -223,6 +224,8 @@ final class CelebrationService
         $photo = $family?->celebration_photo_path ?: $member?->profile_photo_path;
         $photoUrl = $photo ? $this->imageUrl($photo) : ($member?->userAccount?->avatar_src ?? null);
         $design = array_replace(self::DEFAULTS['design'], $settings->design ?? []);
+        $branding = new Branding($settings->church, is_array($settings->church?->settings) ? $settings->church->settings : []);
+        $brandName = htmlspecialchars($branding->churchName(), ENT_QUOTES, 'UTF-8');
         $accent = htmlspecialchars((string) $design['accent'], ENT_QUOTES, 'UTF-8');
         $background = htmlspecialchars((string) $design['background'], ENT_QUOTES, 'UTF-8');
         $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
@@ -231,7 +234,7 @@ final class CelebrationService
         $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
         $yearsText = $years ? '<text x="600" y="450" text-anchor="middle" font-family="Arial,sans-serif" font-size="30" fill="'.$accent.'">'.(int) $years.' beautiful years</text>' : '';
         $image = $photoUrl ? '<image href="'.htmlspecialchars($photoUrl, ENT_QUOTES, 'UTF-8').'" x="450" y="95" width="300" height="300" preserveAspectRatio="xMidYMid slice" clip-path="url(#circle)" />' : '<circle cx="600" cy="245" r="150" fill="#f5e8ff"/><text x="600" y="260" text-anchor="middle" font-family="Arial,sans-serif" font-size="80" font-weight="700" fill="'.$accent.'">'.htmlspecialchars(Str::upper(Str::substr($name, 0, 1)), ENT_QUOTES, 'UTF-8').'</text>';
-        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><defs><clipPath id="circle"><circle cx="600" cy="245" r="150"/></clipPath><linearGradient id="wash" x1="0" y1="0" x2="1" y2="1"><stop stop-color="'.$background.'"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs><rect width="1200" height="630" rx="48" fill="url(#wash)"/><circle cx="80" cy="80" r="130" fill="'.$accent.'" opacity=".10"/><circle cx="1120" cy="570" r="190" fill="'.$accent.'" opacity=".10"/><rect x="24" y="24" width="1152" height="582" rx="36" fill="none" stroke="'.$accent.'" stroke-width="6" opacity=".55"/>'.$image.'<text x="600" y="535" text-anchor="middle" font-family="Arial,sans-serif" font-size="44" font-weight="800" fill="#172033">'.$safeLabel.'</text><text x="600" y="580" text-anchor="middle" font-family="Arial,sans-serif" font-size="26" fill="#475569">'.$safeName.'</text>'.$yearsText.'<text x="600" y="610" text-anchor="middle" font-family="Arial,sans-serif" font-size="16" fill="#64748b">'.$safeFooter.'</text></svg>';
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><defs><clipPath id="circle"><circle cx="600" cy="245" r="150"/></clipPath><linearGradient id="wash" x1="0" y1="0" x2="1" y2="1"><stop stop-color="'.$background.'"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs><rect width="1200" height="630" rx="48" fill="url(#wash)"/><circle cx="80" cy="80" r="130" fill="'.$accent.'" opacity=".10"/><circle cx="1120" cy="570" r="190" fill="'.$accent.'" opacity=".10"/><rect x="24" y="24" width="1152" height="582" rx="36" fill="none" stroke="'.$accent.'" stroke-width="6" opacity=".55"/><text x="600" y="62" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" font-weight="700" letter-spacing="3" fill="'.$accent.'">'.$brandName.'</text>'.$image.'<text x="600" y="535" text-anchor="middle" font-family="Arial,sans-serif" font-size="44" font-weight="800" fill="#172033">'.$safeLabel.'</text><text x="600" y="580" text-anchor="middle" font-family="Arial,sans-serif" font-size="26" fill="#475569">'.$safeName.'</text>'.$yearsText.'<text x="600" y="610" text-anchor="middle" font-family="Arial,sans-serif" font-size="16" fill="#64748b">'.$safeFooter.'</text></svg>';
         $path = 'celebrations/'.$date->format('Y').'/'.Str::slug($occasion).'-'.($member?->id ?? $family?->id).'-'.$date->format('md').'.svg';
         Storage::disk('public')->put($path, $svg);
 

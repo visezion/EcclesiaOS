@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\CelebrationDispatch;
 use App\Models\CelebrationSetting;
 use App\Models\Church;
 use App\Models\Member;
@@ -13,6 +14,7 @@ use App\Models\UserNotificationPreference;
 use App\Notifications\CommunicationDeliveryNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 final class CelebrationAutomationTest extends TestCase
@@ -71,6 +73,8 @@ final class CelebrationAutomationTest extends TestCase
             'category' => 'celebrations',
             'subject' => 'Happy Birthday, Grace Adams!',
         ]);
+        $card = (string) CelebrationDispatch::query()->where('member_id', $member->id)->where('occasion_type', 'birthday')->value('image_path');
+        $this->assertStringContainsString($church->name, Storage::disk('public')->get($card));
         Notification::assertSentTo($user, CommunicationDeliveryNotification::class);
     }
 }
