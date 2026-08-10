@@ -1000,7 +1000,11 @@ final class CommunicationController extends Controller
             );
         }
 
-        $this->applyZenderSettings($request, $validated['zender'] ?? []);
+        $this->applyZenderSettings(
+            $request,
+            $validated['zender'] ?? [],
+            $validated['providers'] ?? [],
+        );
         $this->updateZenderGroupAssignments($request, $validated['zender_groups'] ?? []);
 
         $activityLogger->log('Communications', 'integrations_updated', 'Communication channel integrations were updated.', null, ['resource' => 'Communication Settings', 'status' => 'success'], $request);
@@ -1637,9 +1641,13 @@ final class CommunicationController extends Controller
     }
 
     /**
+     * Apply the shared Zender credentials without overriding explicit
+     * per-channel enable/disable switches from the provider cards.
+     *
      * @param  array<string, mixed>  $zender
+     * @param  array<string, array<string, mixed>>  $providers
      */
-    private function applyZenderSettings(Request $request, array $zender): void
+    private function applyZenderSettings(Request $request, array $zender, array $providers = []): void
     {
         if ($zender === []) {
             return;
@@ -1650,12 +1658,21 @@ final class CommunicationController extends Controller
         $service = (string) ($zender['service'] ?? 'whatsapp');
         $enabled = (bool) ($zender['enabled'] ?? false);
         $apiKey = (string) ($zender['api_key'] ?? '');
+        $smsProvider = $providers['sms'] ?? [];
+        $whatsappProvider = $providers['whatsapp'] ?? [];
+
+        $smsEnabled = array_key_exists('enabled', $smsProvider)
+            ? (bool) $smsProvider['enabled']
+            : $enabled && ($service === 'sms' || filled($zender['device_unique_id'] ?? null) || filled($zender['gateway_unique_id'] ?? null));
+        $whatsappEnabled = array_key_exists('enabled', $whatsappProvider)
+            ? (bool) $whatsappProvider['enabled']
+            : $enabled && ($service === 'whatsapp' || filled($zender['whatsapp_account_id'] ?? null));
 
         $this->upsertZenderChannelSetting(
             $churchId,
             'sms',
             'Zender SMS Gateway',
-            $enabled && ($service === 'sms' || filled($zender['device_unique_id'] ?? null) || filled($zender['gateway_unique_id'] ?? null)),
+            $smsEnabled,
             [
                 'endpoint_url' => $siteUrl,
                 'provider_url' => $siteUrl,
@@ -1675,7 +1692,7 @@ final class CommunicationController extends Controller
             $churchId,
             'whatsapp',
             'Zender WhatsApp Gateway',
-            $enabled && ($service === 'whatsapp' || filled($zender['whatsapp_account_id'] ?? null)),
+            $whatsappEnabled,
             [
                 'endpoint_url' => $siteUrl,
                 'provider_url' => $siteUrl,

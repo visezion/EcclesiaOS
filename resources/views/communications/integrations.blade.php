@@ -320,6 +320,7 @@
                             <div class="flex items-center gap-3">
                                 <button type="submit" form="test-{{ $setting->channel }}" class="rounded-lg border border-violet-200 px-4 py-2.5 text-sm text-violet-700 hover:bg-violet-50">Test Connection</button>
                                 <label class="relative inline-flex cursor-pointer items-center">
+                                    <input type="hidden" name="providers[{{ $setting->channel }}][enabled]" value="0">
                                     <input type="checkbox" name="providers[{{ $setting->channel }}][enabled]" value="1" @checked($setting->enabled) class="peer sr-only">
                                     <span class="h-6 w-11 rounded-full bg-slate-200 transition peer-checked:bg-emerald-500"></span>
                                     <span class="absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
