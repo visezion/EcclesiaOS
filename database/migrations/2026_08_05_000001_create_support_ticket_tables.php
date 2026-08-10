@@ -67,7 +67,7 @@ return new class extends Migration
             $table->unsignedBigInteger('size')->default(0);
             $table->string('sha256', 64);
             $table->timestamps();
-            $table->index(['support_ticket_id', 'support_ticket_reply_id']);
+            $table->index(['support_ticket_id', 'support_ticket_reply_id'], 'support_attach_ticket_reply_idx');
         });
     }
 

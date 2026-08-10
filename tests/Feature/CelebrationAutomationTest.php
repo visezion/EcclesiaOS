@@ -74,7 +74,7 @@ final class CelebrationAutomationTest extends TestCase
             'subject' => 'Happy Birthday, Grace Adams!',
         ]);
         $card = (string) CelebrationDispatch::query()->where('member_id', $member->id)->where('occasion_type', 'birthday')->value('image_path');
-        $this->assertStringContainsString($church->name, Storage::disk('public')->get($card));
+        $this->assertStringContainsString(htmlspecialchars($church->name, ENT_QUOTES, 'UTF-8'), Storage::disk('public')->get($card));
         Notification::assertSentTo($user, CommunicationDeliveryNotification::class);
     }
 }
