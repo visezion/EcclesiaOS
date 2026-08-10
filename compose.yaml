@@ -79,7 +79,7 @@ services:
       REDIS_QUEUE_RETRY_AFTER: "3600"
       WAIT_FOR_DATABASE: "true"
       WAIT_FOR_REDIS: "true"
-      RUN_MIGRATIONS: "true"
+      RUN_MIGRATIONS: "${RUN_MIGRATIONS:-true}"
       RUN_OPTIMIZATIONS: "true"
     depends_on:
       db:

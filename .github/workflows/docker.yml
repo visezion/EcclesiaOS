@@ -55,6 +55,7 @@ jobs:
             -e "s|^MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=${ROOT_PASSWORD}|" \
             -e "s|^APP_PORT=.*|APP_PORT=18080|" \
             .env.docker
+          printf '\nRUN_MIGRATIONS=false\n' >> .env.docker
 
       - name: Validate Compose configuration
         run: |
@@ -194,6 +195,7 @@ jobs:
 
       - name: Verify migrations, administration bootstrap, and queues
         run: |
+          docker compose --env-file .env.docker exec -T app php artisan migrate --force --isolated
           docker compose --env-file .env.docker exec -T app php artisan migrate:status
           docker compose --env-file .env.docker exec -T \
             -e BOOTSTRAP_ADMIN_NAME="CI Administrator" \
