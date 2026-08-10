@@ -26,7 +26,8 @@ RUN --mount=type=cache,target=/tmp/cache \
         --no-progress \
         --no-scripts \
         --optimize-autoloader \
-        --prefer-dist
+        --prefer-dist \
+        --ignore-platform-req=ext-gd
 
 FROM php:${PHP_VERSION}-fpm-bookworm AS app
 
