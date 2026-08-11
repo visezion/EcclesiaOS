@@ -16,7 +16,7 @@
         $selectedEvent = $events->getCollection()->first();
     @endphp
 
-    <div x-data="{ createOpen: {{ $errors->any() ? 'true' : 'false' }} }" class="space-y-5">
+    <div x-data="{ createOpen: {{ $errors->any() ? 'true' : 'false' }}, cloneOpen: false, templateOpen: false, cloneAction: '', templateAction: '', cloneTitle: '', templateName: '' }" class="space-y-5">
         <div class="responsive-page-header">
             <div class="responsive-page-title">
                 <div class="grid size-12 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-600 sm:size-14">
@@ -41,12 +41,10 @@
                     <i data-lucide="video" class="size-4"></i>
                     Meetings
                 </a>
-                @if($program)
-                    <button type="button" @click="createOpen = true" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white hover:bg-violet-700">
-                        <i data-lucide="plus" class="size-4"></i>
-                        New Event
-                    </button>
-                @endif
+                <button type="button" @click="createOpen = true" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white hover:bg-violet-700">
+                    <i data-lucide="plus" class="size-4"></i>
+                    New Event
+                </button>
             </div>
         </div>
 
@@ -145,10 +143,10 @@
                                 @forelse($events as $event)
                                     <tr class="hover:bg-slate-50/70">
                                         <td class="max-w-sm px-5 py-4">
-                                            <a href="{{ $event->program ? route('event-sessions.index', [$event->program, $event]) : route('events.index') }}" class="font-medium text-slate-950 hover:text-violet-600">{{ $event->title }}</a>
+                                            <a href="{{ $event->program ? route('event-sessions.index', [$event->program, $event]) : ($event->sessions->first() ? route('event-sessions.meeting', $event->sessions->first()) : route('events.index')) }}" class="font-medium text-slate-950 hover:text-violet-600">{{ $event->title }}</a>
                                             <div class="mt-1 line-clamp-2 text-xs text-slate-500">{{ $event->description ?: ($event->venue ?: 'No description recorded.') }}</div>
                                         </td>
-                                        <td class="px-5 py-4">{{ $event->program?->name ?? 'Unassigned' }}</td>
+                                        <td class="px-5 py-4">{{ $event->program?->name ?? 'Standalone event' }}</td>
                                         <td class="px-5 py-4">
                                             <div class="text-slate-900">{{ $event->starts_at?->format('M d, Y') ?? 'Not set' }}</div>
                                             <div class="text-xs text-slate-500">{{ $event->starts_at?->format('h:i A') }}{{ $event->ends_at ? ' - '.$event->ends_at->format('h:i A') : '' }}</div>
@@ -160,6 +158,10 @@
                                             @if($event->program)
                                                 <a href="{{ route('event-sessions.index', [$event->program, $event]) }}" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="View sessions"><i data-lucide="eye" class="size-4"></i></a>
                                                 <a href="{{ route('event-sessions.index', [$event->program, $event]) }}#new-session" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Add session"><i data-lucide="plus" class="size-4"></i></a>
+                                                <button type="button" @click="cloneAction = '{{ route('programs.events.clone', [$event->program, $event]) }}'; cloneTitle = @js($event->title.' (Copy)'); cloneOpen = true" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Clone event"><i data-lucide="copy" class="size-4"></i></button>
+                                                <button type="button" @click="templateAction = '{{ route('programs.events.template.store', [$event->program, $event]) }}'; templateName = @js($event->title.' Template'); templateOpen = true" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Save as template"><i data-lucide="bookmark-plus" class="size-4"></i></button>
+                                            @elseif($event->sessions->first())
+                                                <a href="{{ route('event-sessions.meeting', $event->sessions->first()) }}" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Open meeting"><i data-lucide="eye" class="size-4"></i></a>
                                             @endif
                                         </td>
                                     </tr>
@@ -207,23 +209,49 @@
                         <p class="mt-3 text-sm text-slate-500">No event is available for the current filters.</p>
                     @endif
                 </section>
+                <section class="dashboard-card">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-base font-semibold text-slate-950">Event Templates</h2>
+                            <p class="mt-1 text-xs text-slate-500">Reuse saved event agendas.</p>
+                        </div>
+                        <i data-lucide="bookmark" class="size-5 text-violet-600"></i>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        @forelse($eventTemplates as $template)
+                            <div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                                <span class="truncate text-slate-700">{{ $template->name }}</span>
+                                <span class="shrink-0 text-xs text-slate-400">{{ count($template->agenda ?? []) }} agenda items</span>
+                            </div>
+                        @empty
+                            <p class="text-sm text-slate-500">Save an event as a template to reuse it later.</p>
+                        @endforelse
+                    </div>
+                </section>
             </aside>
         </section>
 
-        @if($program)
             <div x-cloak x-show="createOpen" x-transition.opacity class="fixed inset-0 z-40 bg-slate-950/40" @click="createOpen = false"></div>
             <aside x-cloak x-show="createOpen" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
                 <div class="mb-5 flex items-center justify-between gap-3">
                     <div>
                         <h2 class="text-lg font-semibold text-slate-950">New Event</h2>
-                        <p class="text-sm text-slate-500">Create a specific activity under {{ $program->name }}.</p>
+                        <p class="text-sm text-slate-500">Create an event{{ $program ? ' under '.$program->name : ' without a program' }}.</p>
                     </div>
                     <button type="button" @click="createOpen = false" class="rounded-lg p-2 hover:bg-slate-100" aria-label="Close"><i data-lucide="x" class="size-5"></i></button>
                 </div>
-                <form method="POST" action="{{ route('programs.events.store', $program) }}" class="space-y-4">
+                <form method="POST" action="{{ $program ? route('programs.events.store', $program) : route('events.store') }}" class="space-y-4">
                     @csrf
                     <label class="block text-sm text-slate-600">Event Name
                         <input name="title" required value="{{ old('title') }}" placeholder="Opening Service" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                    </label>
+                    <label class="block text-sm text-slate-600">Use Event Template <span class="text-xs text-slate-400">(optional)</span>
+                        <select name="template_id" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                            <option value="">Start from blank event</option>
+                            @foreach($eventTemplates as $template)
+                                <option value="{{ $template->id }}" @selected((string) old('template_id') === (string) $template->id)>{{ $template->name }} ({{ count($template->agenda ?? []) }} agenda items)</option>
+                            @endforeach
+                        </select>
                     </label>
                     <label class="block text-sm text-slate-600">Description
                         <textarea name="description" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Purpose and expected outcome">{{ old('description') }}</textarea>
@@ -254,6 +282,30 @@
                     </button>
                 </form>
             </aside>
-        @endif
+
+        <div x-cloak x-show="cloneOpen" x-transition.opacity class="fixed inset-0 z-40 bg-slate-950/40" @click="cloneOpen = false"></div>
+        <aside x-cloak x-show="cloneOpen" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
+            <div class="mb-5 flex items-center justify-between gap-3"><div><h2 class="text-lg font-semibold text-slate-950">Clone Event</h2><p class="text-sm text-slate-500">Copies sessions, agenda items, and responsibilities as a draft.</p></div><button type="button" @click="cloneOpen = false" class="rounded-lg p-2 hover:bg-slate-100"><i data-lucide="x" class="size-5"></i></button></div>
+            <form method="POST" x-bind:action="cloneAction" class="space-y-4">
+                @csrf
+                <label class="block text-sm text-slate-600">New Event Name
+                    <input name="title" x-model="cloneTitle" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                </label>
+                <p class="rounded-lg bg-violet-50 p-3 text-xs text-violet-700">After cloning, open the new event to adjust its agenda and meeting details.</p>
+                <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white"><i data-lucide="copy" class="size-4"></i>Clone as Draft</button>
+            </form>
+        </aside>
+
+        <div x-cloak x-show="templateOpen" x-transition.opacity class="fixed inset-0 z-40 bg-slate-950/40" @click="templateOpen = false"></div>
+        <aside x-cloak x-show="templateOpen" x-transition class="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
+            <div class="mb-5 flex items-center justify-between gap-3"><div><h2 class="text-lg font-semibold text-slate-950">Save Event Template</h2><p class="text-sm text-slate-500">Save this event’s agenda for future events.</p></div><button type="button" @click="templateOpen = false" class="rounded-lg p-2 hover:bg-slate-100"><i data-lucide="x" class="size-5"></i></button></div>
+            <form method="POST" x-bind:action="templateAction" class="space-y-4">
+                @csrf
+                <label class="block text-sm text-slate-600">Template Name
+                    <input name="name" x-model="templateName" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                </label>
+                <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white"><i data-lucide="bookmark-plus" class="size-4"></i>Save Template</button>
+            </form>
+        </aside>
     </div>
 </x-app-layout>

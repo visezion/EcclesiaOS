@@ -58,6 +58,64 @@ final class CommunicationModuleTest extends TestCase
             ->assertSee('Scheduled Messages', false);
     }
 
+    public function test_provider_forms_explain_each_provider_and_switching_provider_drops_old_credentials(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('communications.integrations'))
+            ->assertOk()
+            ->assertSee('SendGrid API key', false)
+            ->assertSee('SMTP host', false)
+            ->assertSee('Twilio Account SID', false)
+            ->assertSee('Phone number ID', false)
+            ->assertSee('Firebase project ID', false)
+            ->assertSee('VAPID private key', false);
+
+        $this->actingAs($user)
+            ->put(route('communications.integrations.update'), [
+                'providers' => [
+                    'email' => [
+                        'enabled' => '1',
+                        'provider' => 'SendGrid',
+                        'sender_identity' => 'Kingdom Hub',
+                        'rate_limit_per_minute' => 120,
+                        'retry_policy' => 'exponential',
+                        'api_key' => 'sendgrid-secret',
+                        'endpoint_url' => 'https://api.sendgrid.com/v3/mail/send',
+                        'sender_number' => 'mail@example.org',
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($user)
+            ->put(route('communications.integrations.update'), [
+                'providers' => [
+                    'email' => [
+                        'enabled' => '1',
+                        'provider' => 'SMTP / Mailer',
+                        'sender_identity' => 'Kingdom Hub',
+                        'rate_limit_per_minute' => 120,
+                        'retry_policy' => 'exponential',
+                        'endpoint_url' => 'smtp.example.org',
+                        'account_id' => 'smtp-user',
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $email = CommunicationProviderSetting::query()
+            ->where('church_id', $user->church_id)
+            ->where('channel', 'email')
+            ->firstOrFail();
+
+        $this->assertSame('SMTP / Mailer', $email->provider);
+        $this->assertArrayNotHasKey('api_key_encrypted', $email->settings);
+        $this->assertSame('smtp.example.org', $email->settings['endpoint_url']);
+    }
+
     public function test_unread_database_notifications_appear_in_topbar_and_center(): void
     {
         $this->seed();

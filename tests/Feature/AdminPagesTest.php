@@ -365,7 +365,6 @@ class AdminPagesTest extends TestCase
                 'system_name' => 'EcclesiaOS Live',
                 'church_name' => 'Kingdom Life Updated',
                 'primary_email' => 'info@updated.test',
-                'smtp_server' => 'smtp.updated.test',
                 'default_user_role' => 'Staff',
                 'primary_color' => '#0EA5E9',
                 'secondary_color' => '#14B8A6',
@@ -392,7 +391,6 @@ class AdminPagesTest extends TestCase
         $church = Church::query()->firstOrFail()->refresh();
         $this->assertSame('Kingdom Life Updated', $church->name);
         $this->assertSame('EcclesiaOS Live', data_get($church->settings, 'system_name'));
-        $this->assertSame('smtp.updated.test', data_get($church->settings, 'smtp_server'));
         $this->assertSame('#0EA5E9', data_get($church->settings, 'primary_color'));
         $this->assertSame('dark', data_get($church->settings, 'theme_mode'));
         $this->assertSame('Roboto', data_get($church->settings, 'font_family'));
@@ -501,7 +499,7 @@ class AdminPagesTest extends TestCase
             ->assertSee('Manage church branches, departments, and user assignments', false);
 
         $this->actingAs($admin)
-            ->post(route('settings.system.test-connection'), ['service' => 'smtp'])
+            ->post(route('settings.system.test-connection'), ['service' => 'storage'])
             ->assertRedirect()
             ->assertSessionHas('status');
 
@@ -1335,10 +1333,6 @@ class AdminPagesTest extends TestCase
             'campus_plural_label' => 'Campuses',
             'ministry_singular_label' => 'Ministry',
             'ministry_plural_label' => 'Ministries',
-            'smtp_server' => 'smtp.klgc.org',
-            'sms_provider' => 'Twilio',
-            'whatsapp_integration' => '360dialog',
-            'notification_preferences' => 'Standard (Recommended)',
             'receipt_numbering' => 'Auto Increment',
             'giving_categories' => '10 Categories',
             'tax_handling' => 'Tax Exempt',

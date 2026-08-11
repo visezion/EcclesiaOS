@@ -9,6 +9,7 @@ use App\Models\CommunicationDelivery;
 use App\Models\Event;
 use App\Models\EventSession;
 use App\Models\NotificationAutomationRule;
+use App\Models\Program;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Communications\DomainNotificationService;
@@ -31,7 +32,11 @@ final class NotificationAutomationTest extends TestCase
             ->assertSee('Upcoming event reminder')
             ->assertSee('Retry failed');
 
-        $this->assertDatabaseCount('notification_automation_rules', 17);
+        $this->assertDatabaseCount('notification_automation_rules', 18);
+        $this->assertDatabaseHas('notification_automation_rules', [
+            'event_type' => 'MeetingAgendaAssigned',
+            'name' => 'Meeting agenda responsibility assigned',
+        ]);
         $rule = NotificationAutomationRule::query()->where('church_id', $admin->church_id)->where('event_type', 'EventCreated')->firstOrFail();
 
         $this->actingAs($admin)
@@ -124,6 +129,69 @@ final class NotificationAutomationTest extends TestCase
             'event_type' => 'EventReminderDue',
             'last_status' => 'success',
             'last_recipient_count' => 1,
+        ]);
+    }
+
+    public function test_meeting_agenda_item_notifies_the_responsible_person(): void
+    {
+        $admin = $this->administrator();
+        NotificationAutomationRule::query()->create([
+            'church_id' => $admin->church_id,
+            'event_type' => 'MeetingAgendaAssigned',
+            'name' => 'Meeting agenda responsibility assigned',
+            'category' => 'events',
+            'enabled' => true,
+            'channels' => ['in_app'],
+            'audience' => 'event_recipients',
+            'critical' => false,
+        ]);
+        $program = Program::query()->create([
+            'church_id' => $admin->church_id,
+            'name' => 'Sunday Worship',
+            'status' => 'ongoing',
+        ]);
+        $event = Event::query()->create([
+            'church_id' => $admin->church_id,
+            'program_id' => $program->id,
+            'title' => 'Sunday Service',
+            'starts_at' => now()->addDay(),
+            'status' => 'scheduled',
+        ]);
+        $session = EventSession::query()->create([
+            'church_id' => $admin->church_id,
+            'event_id' => $event->id,
+            'title' => 'Sunday Service - Main Meeting',
+            'session_date' => now()->addDay()->toDateString(),
+            'starts_at' => '09:00',
+            'meeting_type' => 'physical',
+            'status' => 'scheduled',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('event-sessions.agenda.store', $session), [
+                'title' => 'Opening Prayer',
+                'section_type' => 'prayer',
+                'position' => 1,
+                'planned_start_time' => '09:00',
+                'planned_duration_minutes' => 10,
+                'description' => 'Welcome and opening prayer.',
+                'resource_reference' => 'Psalm 100',
+                'assignee_type' => 'user',
+                'user_id' => $admin->id,
+                'role_title' => 'Prayer leader',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('program_sections', [
+            'event_session_id' => $session->id,
+            'title' => 'Opening Prayer',
+            'resource_reference' => 'Psalm 100',
+        ]);
+        $this->assertDatabaseHas('communication_deliveries', [
+            'user_id' => $admin->id,
+            'event_type' => 'MeetingAgendaAssigned',
+            'category' => 'events',
+            'status' => 'delivered',
         ]);
     }
 

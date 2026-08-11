@@ -97,10 +97,6 @@ final class SystemSettingsController extends Controller
             'campus_plural_label' => ['required', 'string', 'max:40'],
             'ministry_singular_label' => ['required', 'string', 'max:40'],
             'ministry_plural_label' => ['required', 'string', 'max:40'],
-            'smtp_server' => ['nullable', 'string', 'max:120'],
-            'sms_provider' => ['nullable', 'string', 'max:80'],
-            'whatsapp_integration' => ['nullable', 'string', 'max:80'],
-            'notification_preferences' => ['required', 'string', 'max:80'],
             'receipt_numbering' => ['required', 'string', 'max:80'],
             'giving_categories' => ['required', 'string', 'max:80'],
             'tax_handling' => ['required', 'string', 'max:80'],
@@ -136,6 +132,10 @@ final class SystemSettingsController extends Controller
             } else {
                 unset($validated[$fileKey]);
             }
+        }
+
+        foreach (['smtp_server', 'sms_provider', 'whatsapp_integration', 'notification_preferences'] as $legacyKey) {
+            unset($settings[$legacyKey]);
         }
 
         $newSettings = array_merge($settings, [
@@ -207,15 +207,12 @@ final class SystemSettingsController extends Controller
         $this->authorizeSettings($request);
 
         $validated = $request->validate([
-            'service' => ['required', 'in:smtp,sms,whatsapp,backup,storage'],
+            'service' => ['required', 'in:backup,storage'],
         ]);
 
         $church = $this->settingsChurch();
         $settings = $this->settings($church);
         $configured = match ($validated['service']) {
-            'smtp' => filled($settings['smtp_server']),
-            'sms' => filled($settings['sms_provider']),
-            'whatsapp' => filled($settings['whatsapp_integration']),
             'backup' => true,
             'storage' => is_writable(storage_path()),
         };
@@ -316,10 +313,6 @@ final class SystemSettingsController extends Controller
             'campus_plural_label' => 'Campuses',
             'ministry_singular_label' => 'Ministry',
             'ministry_plural_label' => 'Ministries',
-            'smtp_server' => 'smtp.klgc.org',
-            'sms_provider' => 'Twilio',
-            'whatsapp_integration' => '360dialog',
-            'notification_preferences' => 'Standard (Recommended)',
             'receipt_numbering' => 'Auto Increment',
             'giving_categories' => '10 Categories',
             'tax_handling' => 'Tax Exempt',
@@ -376,14 +369,12 @@ final class SystemSettingsController extends Controller
         $items = $this->moduleSettings($settings)['modules'];
         $implemented = $items->where('disabled', false)->count();
         $total = max($items->count(), 1);
-        $connected = collect(['smtp_server', 'sms_provider', 'whatsapp_integration'])->filter(fn (string $key): bool => filled($settings[$key] ?? null))->count();
         $storageBytes = $this->directorySize(storage_path('app/public'));
         $storageGb = round($storageBytes / 1024 / 1024 / 1024, 1);
 
         return [
             ['label' => 'Active Modules', 'value' => $implemented.' / '.$total, 'sub' => 'Modules enabled', 'icon' => 'layout-grid', 'tone' => 'violet'],
             ['label' => 'Security Score', 'value' => $this->securityScore($settings).'%', 'sub' => 'Excellent', 'icon' => 'shield-check', 'tone' => 'emerald'],
-            ['label' => 'Integrations Connected', 'value' => (string) $connected, 'sub' => 'Active services', 'icon' => 'link', 'tone' => 'blue'],
             ['label' => 'Backup Status', 'value' => 'Healthy', 'sub' => 'Last backup: '.($settings['last_backup_at'] ?? 'not recorded'), 'icon' => 'cloud-check', 'tone' => 'emerald'],
             ['label' => 'Storage Usage', 'value' => $storageGb.' GB', 'sub' => 'Local public storage', 'icon' => 'hard-drive', 'tone' => 'orange'],
             ['label' => 'Pending Updates', 'value' => (string) ActivityLog::query()->where('module', 'Settings')->whereDate('created_at', today())->count(), 'sub' => 'Changed today', 'icon' => 'bell-ring', 'tone' => 'rose'],

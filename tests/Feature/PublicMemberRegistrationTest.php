@@ -25,6 +25,8 @@ class PublicMemberRegistrationTest extends TestCase
             ->assertSee('I’m new here')
             ->assertSee('I’m already a member')
             ->assertSee('Create my member login')
+            ->assertSee('Securing your registration')
+            ->assertSee('Please wait while we safely save your details', false)
             ->assertSee('Central Campus');
     }
 

@@ -15,7 +15,7 @@ final class ProgramSection extends Model
     use SoftDeletes;
     use UsesOpaqueRouteKeys;
 
-    protected $fillable = ['church_id', 'campus_id', 'program_id', 'event_id', 'title', 'description', 'section_type', 'position', 'planned_start_time', 'planned_duration_minutes', 'status'];
+    protected $fillable = ['church_id', 'campus_id', 'program_id', 'event_id', 'event_session_id', 'title', 'description', 'resource_reference', 'attachment_path', 'attachment_name', 'section_type', 'position', 'planned_start_time', 'planned_duration_minutes', 'status'];
 
     public function program(): BelongsTo
     {
@@ -25,6 +25,11 @@ final class ProgramSection extends Model
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);
+    }
+
+    public function eventSession(): BelongsTo
+    {
+        return $this->belongsTo(EventSession::class);
     }
 
     public function assignments(): HasMany

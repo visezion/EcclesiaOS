@@ -39,6 +39,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 final class CommunicationController extends Controller
@@ -929,7 +930,7 @@ final class CommunicationController extends Controller
             'providers.*.rate_limit_per_minute' => ['required', 'integer', 'min:1', 'max:100000'],
             'providers.*.retry_policy' => ['required', Rule::in(['linear', 'exponential', 'manual'])],
             'providers.*.webhook_secret' => ['nullable', 'string', 'max:255'],
-            'providers.*.endpoint_url' => ['nullable', 'max:255', new PublicHttpsUrl],
+            'providers.*.endpoint_url' => ['nullable', 'string', 'max:255'],
             'providers.*.api_key' => ['nullable', 'string', 'max:1000'],
             'providers.*.account_id' => ['nullable', 'string', 'max:180'],
             'providers.*.device_id' => ['nullable', 'string', 'max:180'],
@@ -956,6 +957,7 @@ final class CommunicationController extends Controller
             'zender_groups.*.campus_id' => ['nullable', 'exists:campuses,id'],
             'zender_groups.*.ministry_id' => ['nullable', 'exists:ministries,id'],
         ]);
+        $this->validateProviderEndpoints($validated['providers'] ?? []);
 
         foreach (self::CHANNELS as $channel) {
             $input = ($validated['providers'] ?? [])[$channel] ?? [];
@@ -963,18 +965,24 @@ final class CommunicationController extends Controller
                 continue;
             }
             $existing = CommunicationProviderSetting::query()->where('church_id', $this->churchId($request))->where('channel', $channel)->first();
+            $providerChanged = $existing !== null && $existing->provider !== $input['provider'];
             $webhookSecretHash = filled($input['webhook_secret'] ?? null)
                 ? SecretHash::make((string) $input['webhook_secret'])
                 : $existing?->webhook_secret_hash;
             $settings = $existing?->settings ?? [];
+            if ($providerChanged) {
+                foreach (['endpoint_url', 'account_id', 'device_id', 'gateway_id', 'sim_slot', 'sender_number', 'webhook_url', 'provider_url', 'api_key_encrypted', 'api_key_last_four'] as $key) {
+                    unset($settings[$key]);
+                }
+            }
             $settings = array_merge($settings, [
-                'endpoint_url' => $input['endpoint_url'] ?? null,
-                'account_id' => $input['account_id'] ?? null,
-                'device_id' => $input['device_id'] ?? null,
-                'sender_number' => $input['sender_number'] ?? null,
+                'endpoint_url' => $input['endpoint_url'] ?? ($settings['endpoint_url'] ?? null),
+                'account_id' => $input['account_id'] ?? ($settings['account_id'] ?? null),
+                'device_id' => $input['device_id'] ?? ($settings['device_id'] ?? null),
+                'sender_number' => $input['sender_number'] ?? ($settings['sender_number'] ?? null),
                 'gateway_id' => $input['gateway_id'] ?? ($settings['gateway_id'] ?? null),
                 'sim_slot' => $input['sim_slot'] ?? ($settings['sim_slot'] ?? null),
-                'webhook_url' => $input['webhook_url'] ?? null,
+                'webhook_url' => $input['webhook_url'] ?? ($settings['webhook_url'] ?? null),
                 'queue' => $input['queue'] ?? $channel.'_queue',
                 'workers' => (int) ($input['workers'] ?? ($settings['workers'] ?? 4)),
                 'daily_limit' => (int) ($input['daily_limit'] ?? ($settings['daily_limit'] ?? 100000)),
@@ -1010,6 +1018,39 @@ final class CommunicationController extends Controller
         $activityLogger->log('Communications', 'integrations_updated', 'Communication channel integrations were updated.', null, ['resource' => 'Communication Settings', 'status' => 'success'], $request);
 
         return back()->with('status', 'Communication integrations saved.');
+    }
+
+    /**
+     * SMTP uses a host name; HTTP-based providers must use a public HTTPS URL.
+     *
+     * @param  array<string, array<string, mixed>>  $providers
+     */
+    private function validateProviderEndpoints(array $providers): void
+    {
+        foreach ($providers as $channel => $input) {
+            $endpoint = trim((string) ($input['endpoint_url'] ?? ''));
+            if ($endpoint === '') {
+                continue;
+            }
+
+            if ($channel === 'email' && ($input['provider'] ?? null) === 'SMTP / Mailer') {
+                if (filter_var($endpoint, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+                    throw ValidationException::withMessages([
+                        "providers.{$channel}.endpoint_url" => 'SMTP host must be a valid hostname such as smtp.example.com.',
+                    ]);
+                }
+
+                continue;
+            }
+
+            try {
+                SafeOutboundUrl::normalize($endpoint);
+            } catch (\InvalidArgumentException $exception) {
+                throw ValidationException::withMessages([
+                    "providers.{$channel}.endpoint_url" => $exception->getMessage(),
+                ]);
+            }
+        }
     }
 
     public function syncZenderWhatsAppGroups(Request $request, ActivityLogger $activityLogger): RedirectResponse

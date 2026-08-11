@@ -153,12 +153,25 @@
                         x-data="{
                             registrationType: @js(old('registration_type', 'new')),
                             createAccount: @js((string) old('create_account', '1') === '1'),
-                            showPassword: false
+                            showPassword: false,
+                            submitting: false
                         }"
+                        @submit="submitting = true"
                         class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60"
                     >
                         @csrf
                         <input name="website" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">
+
+                        <div x-cloak x-show="submitting" x-transition.opacity class="fixed inset-0 z-[100] grid place-items-center bg-slate-950/45 p-5 backdrop-blur-sm" role="alertdialog" aria-modal="true" aria-labelledby="registration-progress-title" aria-describedby="registration-progress-copy">
+                            <div class="w-full max-w-sm rounded-3xl border border-white/60 bg-white p-7 text-center shadow-2xl shadow-slate-950/25">
+                                <span class="mx-auto grid size-16 place-items-center rounded-full bg-violet-100 text-violet-600">
+                                    <span class="size-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" aria-hidden="true"></span>
+                                </span>
+                                <h2 id="registration-progress-title" class="mt-5 text-xl font-black text-slate-950">Securing your registration</h2>
+                                <p id="registration-progress-copy" class="mt-2 text-sm leading-6 text-slate-600">Please wait while we safely save your details and prepare your member account. This may take a moment.</p>
+                                <div class="mt-5 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700"><i data-lucide="shield-check" class="size-4"></i>Your information is protected</div>
+                            </div>
+                        </div>
 
                         <div class="border-b border-slate-100 px-5 py-6 sm:px-8">
                             <p class="text-xs font-black uppercase tracking-[0.18em] text-violet-600">Let’s get connected</p>
@@ -353,8 +366,9 @@
 
                         <div class="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
                             <span class="inline-flex items-center gap-2 text-xs font-medium text-slate-500"><i data-lucide="shield-check" class="size-4 text-emerald-600"></i>Securely submitted to {{ $church->name }}</span>
-                            <button class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-violet-200 transition hover:bg-violet-700 focus:ring-4 focus:ring-violet-200 sm:w-auto">
-                                Complete registration <i data-lucide="arrow-right" class="size-4"></i>
+                            <button type="submit" x-bind:disabled="submitting" x-bind:aria-busy="submitting.toString()" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-violet-200 transition hover:bg-violet-700 focus:ring-4 focus:ring-violet-200 disabled:cursor-wait disabled:opacity-70 sm:w-auto">
+                                <span x-show="!submitting">Complete registration <i data-lucide="arrow-right" class="size-4"></i></span>
+                                <span x-cloak x-show="submitting" class="inline-flex items-center gap-2"><span class="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>Saving securely...</span>
                             </button>
                         </div>
                     </form>

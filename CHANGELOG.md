@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.27 - 2026-08-11
+
+### Added
+
+- Added simple standalone event creation without requiring a Program.
+- Added reusable event templates and event cloning with sessions and agendas.
+- Added meeting-session agendas with responsible-person assignments and automation notifications.
+
+### Improved
+
+- Updated the Meeting Session page with the shared EcclesiaOS responsive branding and layout.
+- Updated the Docker example to use SMTP for application email delivery.
+
+### Fixed
+
+- Removed legacy Communications Settings backend data and UI duplication.
+- Fixed communication provider form fields and endpoint validation behavior.
+- Added session-safe agenda storage and notification handling for production migrations.
+
 ## 1.0.26 - 2026-08-10
 
 ### Fixed

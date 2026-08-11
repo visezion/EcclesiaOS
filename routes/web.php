@@ -196,7 +196,10 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::delete('programs/{program}', [EventFlowController::class, 'destroyProgram'])->name('programs.destroy');
     Route::get('programs/{program}/events', [EventFlowController::class, 'events'])->name('programs.events');
     Route::post('programs/{program}/events', [EventFlowController::class, 'storeEvent'])->name('programs.events.store');
+    Route::post('programs/{program}/events/{event}/clone', [EventFlowController::class, 'cloneEvent'])->name('programs.events.clone');
+    Route::post('programs/{program}/events/{event}/template', [EventFlowController::class, 'storeEventTemplate'])->name('programs.events.template.store');
     Route::get('events', [EventFlowController::class, 'events'])->name('events.index');
+    Route::post('events', [EventFlowController::class, 'storeEvent'])->name('events.store');
     Route::get('programs/{program}/events/{event}/sessions', [EventFlowController::class, 'sessions'])->name('event-sessions.index');
     Route::post('programs/{program}/events/{event}/sessions', [EventFlowController::class, 'storeSession'])->name('event-sessions.store');
     Route::post('programs/{program}/events/{event}/recurrences', [EventFlowController::class, 'storeRecurringSessions'])->name('event-sessions.recurrences.store');
@@ -206,6 +209,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('meetings', [EventFlowController::class, 'meetings'])->name('meetings.index');
     Route::get('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'meeting'])->name('event-sessions.meeting');
     Route::put('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'updateMeeting'])->name('event-sessions.meeting.update');
+    Route::post('event-sessions/{eventSession}/agenda', [EventFlowController::class, 'storeMeetingAgenda'])->name('event-sessions.agenda.store');
     Route::get('meetings/rooms/{eventSession}/{provider}', [EventFlowController::class, 'room'])->name('meetings.rooms.show');
     Route::get('meetings/rooms/{eventSession}/{provider}/studio', [EventFlowController::class, 'studio'])->name('meetings.rooms.studio');
     Route::post('meetings/rooms/{eventSession}/{provider}/studio/scenes', [EventFlowController::class, 'storeStudioScene'])->name('meetings.rooms.studio.scenes.store');
@@ -457,7 +461,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index', 'support.tickets.index', 'support.community', 'support.knowledge', 'support.live', 'central-support.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.celebrations', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index', 'support.tickets.index', 'support.community', 'support.knowledge', 'support.live', 'central-support.index'], true)) {
             continue;
         }
 

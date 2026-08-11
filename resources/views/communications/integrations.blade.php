@@ -22,6 +22,30 @@
             ['label' => 'Security', 'note' => 'Secrets, encryption and compliance', 'icon' => 'shield-check'],
             ['label' => 'Audit', 'note' => 'Activity logs and change history', 'icon' => 'history'],
         ];
+        $providerFormConfig = [
+            'in_app' => [
+                'System Channel' => ['fields' => [], 'sender' => 'Channel name'],
+            ],
+            'email' => [
+                'SendGrid' => ['fields' => ['endpoint_url' => ['label' => 'SendGrid API endpoint', 'placeholder' => 'https://api.sendgrid.com/v3/mail/send'], 'api_key' => ['label' => 'SendGrid API key', 'placeholder' => 'Paste SendGrid API key', 'required' => true], 'account_id' => ['label' => 'Sender domain / account ID'], 'device_id' => ['label' => 'Template / app ID'], 'sender_number' => ['label' => 'From email address', 'required' => true], 'webhook_url' => ['label' => 'Event webhook URL']], 'sender' => 'From name'],
+                'SMTP / Mailer' => ['fields' => ['endpoint_url' => ['label' => 'SMTP host', 'placeholder' => 'smtp.example.com', 'required' => true], 'api_key' => ['label' => 'SMTP password', 'placeholder' => 'Paste SMTP password', 'required' => true], 'account_id' => ['label' => 'SMTP username', 'required' => true], 'device_id' => ['label' => 'SMTP port', 'placeholder' => '587'], 'sender_number' => ['label' => 'From email address', 'required' => true], 'webhook_url' => ['label' => 'Webhook URL']], 'sender' => 'From name'],
+                'Mailgun' => ['fields' => ['endpoint_url' => ['label' => 'Mailgun API URL', 'placeholder' => 'https://api.mailgun.net/v3'], 'api_key' => ['label' => 'Mailgun API key', 'placeholder' => 'Paste Mailgun API key', 'required' => true], 'account_id' => ['label' => 'Mailgun domain', 'placeholder' => 'mg.example.org', 'required' => true], 'device_id' => ['label' => 'Region / app ID'], 'sender_number' => ['label' => 'From email address', 'required' => true], 'webhook_url' => ['label' => 'Webhook URL']], 'sender' => 'From name'],
+            ],
+            'sms' => [
+                'Zender SMS Gateway' => ['fields' => ['endpoint_url' => ['label' => 'Zender site URL', 'placeholder' => 'https://zender.example.com', 'required' => true], 'api_key' => ['label' => 'Zender API key', 'placeholder' => 'Paste Zender API key', 'required' => true], 'account_id' => ['label' => 'Gateway account ID'], 'device_id' => ['label' => 'Device unique ID'], 'sender_number' => ['label' => 'Sender number'], 'webhook_url' => ['label' => 'Delivery webhook URL']], 'sender' => 'Sender name'],
+                'Twilio' => ['fields' => ['endpoint_url' => ['label' => 'Twilio API base URL', 'placeholder' => 'https://api.twilio.com'], 'api_key' => ['label' => 'Twilio Auth token', 'placeholder' => 'Paste Twilio Auth token', 'required' => true], 'account_id' => ['label' => 'Twilio Account SID', 'required' => true], 'device_id' => ['label' => 'Messaging Service SID'], 'sender_number' => ['label' => 'From phone number', 'required' => true], 'webhook_url' => ['label' => 'Status callback URL']], 'sender' => 'Sender name'],
+                'Custom SMS Gateway' => ['fields' => ['endpoint_url' => ['label' => 'Gateway API URL', 'placeholder' => 'https://sms.example.com', 'required' => true], 'api_key' => ['label' => 'Gateway API key', 'placeholder' => 'Paste gateway API key', 'required' => true], 'account_id' => ['label' => 'Account / gateway ID'], 'device_id' => ['label' => 'Device / app ID'], 'sender_number' => ['label' => 'Sender number', 'required' => true], 'webhook_url' => ['label' => 'Delivery webhook URL']], 'sender' => 'Sender name'],
+            ],
+            'whatsapp' => [
+                'Meta WhatsApp' => ['fields' => ['endpoint_url' => ['label' => 'Graph API URL', 'placeholder' => 'https://graph.facebook.com/v20.0'], 'api_key' => ['label' => 'Access token', 'placeholder' => 'Paste Meta access token', 'required' => true], 'account_id' => ['label' => 'Phone number ID', 'required' => true], 'device_id' => ['label' => 'WhatsApp Business Account ID', 'required' => true], 'sender_number' => ['label' => 'WhatsApp number'], 'webhook_url' => ['label' => 'Webhook callback URL']], 'sender' => 'Business display name'],
+                'Zender WhatsApp Gateway' => ['fields' => ['endpoint_url' => ['label' => 'Zender site URL', 'placeholder' => 'https://zender.example.com', 'required' => true], 'api_key' => ['label' => 'Zender API key', 'placeholder' => 'Paste Zender API key', 'required' => true], 'account_id' => ['label' => 'WhatsApp account ID', 'required' => true], 'device_id' => ['label' => 'Device unique ID'], 'sender_number' => ['label' => 'WhatsApp number'], 'webhook_url' => ['label' => 'Delivery webhook URL']], 'sender' => 'Business display name'],
+                'Twilio WhatsApp' => ['fields' => ['endpoint_url' => ['label' => 'Twilio API base URL', 'placeholder' => 'https://api.twilio.com'], 'api_key' => ['label' => 'Twilio Auth token', 'placeholder' => 'Paste Twilio Auth token', 'required' => true], 'account_id' => ['label' => 'Twilio Account SID', 'required' => true], 'device_id' => ['label' => 'Messaging Service SID'], 'sender_number' => ['label' => 'WhatsApp sender', 'required' => true], 'webhook_url' => ['label' => 'Status callback URL']], 'sender' => 'Business display name'],
+            ],
+            'push' => [
+                'Firebase Cloud Messaging' => ['fields' => ['endpoint_url' => ['label' => 'FCM endpoint URL', 'placeholder' => 'https://fcm.googleapis.com'], 'api_key' => ['label' => 'Firebase server key / token', 'placeholder' => 'Paste Firebase credential', 'required' => true], 'account_id' => ['label' => 'Firebase project ID', 'required' => true], 'device_id' => ['label' => 'Firebase app ID'], 'sender_number' => ['label' => 'App display name'], 'webhook_url' => ['label' => 'Delivery webhook URL']], 'sender' => 'App name'],
+                'Web Push' => ['fields' => ['endpoint_url' => ['label' => 'Push service URL', 'placeholder' => 'https://updates.push.services.mozilla.com'], 'api_key' => ['label' => 'VAPID private key', 'placeholder' => 'Paste VAPID private key', 'required' => true], 'account_id' => ['label' => 'VAPID public key', 'required' => true], 'device_id' => ['label' => 'Subject / app ID'], 'sender_number' => ['label' => 'App display name'], 'webhook_url' => ['label' => 'Delivery webhook URL']], 'sender' => 'App name'],
+            ],
+        ];
         $dataTables = [
             ['table' => 'notification_templates', 'note' => 'Stores message templates', 'icon' => 'file-text'],
             ['table' => 'notifications', 'note' => 'Master notification records', 'icon' => 'bell'],
@@ -287,7 +311,7 @@
                         $dailyLimit = $config['daily_limit'] ?? 100000;
                         $providerLink = $config['provider_url'] ?? null;
                     @endphp
-                    <article id="{{ Str::slug($meta['label']) }}" class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <article id="{{ Str::slug($meta['label']) }}" data-provider-card data-channel="{{ $setting->channel }}" data-has-api-key="{{ filled($config['api_key_last_four'] ?? null) ? 'true' : 'false' }}" class="rounded-lg border border-slate-200 bg-white shadow-sm">
                         <div class="grid gap-4 border-b border-slate-100 p-4 lg:grid-cols-[minmax(220px,280px)_1fr_auto] lg:items-start">
                             <div class="flex items-start gap-3">
                                 <span class="grid size-14 shrink-0 place-items-center rounded-lg ring-1 {{ $meta['tone'] }}">
@@ -304,13 +328,13 @@
                             </div>
                             <div class="grid gap-3 sm:grid-cols-3">
                                 <label class="text-xs text-slate-500">Provider
-                                    <select name="providers[{{ $setting->channel }}][provider]" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                                    <select data-provider-selector name="providers[{{ $setting->channel }}][provider]" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                                         @foreach($catalog as $provider)
                                             <option value="{{ $provider['value'] }}" @selected($setting->provider === $provider['value'])>{{ $provider['label'] }}</option>
                                         @endforeach
                                     </select>
                                 </label>
-                                <label class="text-xs text-slate-500">Sender
+                                <label class="text-xs text-slate-500"><span data-provider-sender-label>Sender</span>
                                     <input name="providers[{{ $setting->channel }}][sender_identity]" value="{{ $setting->sender_identity }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                                 </label>
                                 <label class="text-xs text-slate-500">Webhook Secret
@@ -329,22 +353,22 @@
                         </div>
 
                         <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                            <label class="text-xs text-slate-500">API / Base URL
+                            <label data-provider-field="endpoint_url" class="text-xs text-slate-500"><span data-provider-field-label>API / Base URL</span>
                                 <input name="providers[{{ $setting->channel }}][endpoint_url]" value="{{ $config['endpoint_url'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="{{ $setting->channel === 'sms' ? 'https://zender.example.com' : 'https://api.provider.com' }}">
                             </label>
-                            <label class="text-xs text-slate-500">API Token
+                            <label data-provider-field="api_key" class="text-xs text-slate-500"><span data-provider-field-label>API Token</span>
                                 <input name="providers[{{ $setting->channel }}][api_key]" type="password" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="{{ filled($config['api_key_last_four'] ?? null) ? 'Saved token ending '.$config['api_key_last_four'] : 'Paste API token' }}">
                             </label>
-                            <label class="text-xs text-slate-500">Account / Project ID
+                            <label data-provider-field="account_id" class="text-xs text-slate-500"><span data-provider-field-label>Account / Project ID</span>
                                 <input name="providers[{{ $setting->channel }}][account_id]" value="{{ $config['account_id'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                             </label>
-                            <label class="text-xs text-slate-500">Device ID / App ID
+                            <label data-provider-field="device_id" class="text-xs text-slate-500"><span data-provider-field-label>Device ID / App ID</span>
                                 <input name="providers[{{ $setting->channel }}][device_id]" value="{{ $config['device_id'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                             </label>
-                            <label class="text-xs text-slate-500">Sender Number
+                            <label data-provider-field="sender_number" class="text-xs text-slate-500"><span data-provider-field-label>Sender Number</span>
                                 <input name="providers[{{ $setting->channel }}][sender_number]" value="{{ $config['sender_number'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                             </label>
-                            <label class="text-xs text-slate-500">Webhook URL
+                            <label data-provider-field="webhook_url" class="text-xs text-slate-500"><span data-provider-field-label>Webhook URL</span>
                                 <input name="providers[{{ $setting->channel }}][webhook_url]" value="{{ $config['webhook_url'] ?? '' }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="{{ route('communications.delivery-logs') }}">
                             </label>
                             <label class="text-xs text-slate-500">Rate Limit
@@ -485,3 +509,44 @@
         </section>
     </div>
 </x-app-layout>
+
+<script>
+    (() => {
+        const providerConfig = @js($providerFormConfig);
+
+        const updateProviderFields = (card) => {
+            const channel = card.dataset.channel;
+            const selector = card.querySelector('[data-provider-selector]');
+            const enabled = card.querySelector('input[type="checkbox"][name$="[enabled]"]')?.checked ?? false;
+            const config = providerConfig[channel]?.[selector?.value] ?? {fields: [], sender: 'Sender'};
+            const fields = config.fields ?? {};
+
+            card.querySelector('[data-provider-sender-label]').textContent = config.sender ?? 'Sender';
+            card.querySelectorAll('[data-provider-field]').forEach((wrapper) => {
+                const key = wrapper.dataset.providerField;
+                const field = fields[key] ?? null;
+                const input = wrapper.querySelector('input');
+                const label = wrapper.querySelector('[data-provider-field-label]');
+                const visible = field !== null;
+
+                wrapper.hidden = !visible;
+                input.disabled = !visible;
+                const savedCredential = key === 'api_key' && card.dataset.hasApiKey === 'true';
+                input.required = visible && Boolean(field.required) && enabled && !savedCredential;
+                if (visible) {
+                    label.textContent = field.label ?? key;
+                    input.placeholder = field.placeholder ?? '';
+                }
+            });
+        };
+
+        document.querySelectorAll('[data-provider-card]').forEach((card) => {
+            card.querySelector('[data-provider-selector]')?.addEventListener('change', () => {
+                card.dataset.hasApiKey = 'false';
+                updateProviderFields(card);
+            });
+            card.querySelector('input[type="checkbox"][name$="[enabled]"]')?.addEventListener('change', () => updateProviderFields(card));
+            updateProviderFields(card);
+        });
+    })();
+</script>

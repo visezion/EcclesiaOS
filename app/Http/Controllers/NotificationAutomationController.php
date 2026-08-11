@@ -28,6 +28,7 @@ final class NotificationAutomationController extends Controller
         'AttendanceRecorded' => ['Attendance recorded', 'attendance'],
         'VolunteerAssigned' => ['Volunteer assigned', 'volunteers'],
         'ProgramSectionAssigned' => ['Program responsibility assigned', 'volunteers'],
+        'MeetingAgendaAssigned' => ['Meeting agenda responsibility assigned', 'events'],
         'RegistrationConfirmed' => ['Registration confirmed', 'registration'],
         'MemberAccountCreated' => ['Member account created', 'registration'],
         'ApprovalRequested' => ['Approval requested', 'system'],

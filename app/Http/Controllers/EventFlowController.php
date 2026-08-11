@@ -13,6 +13,7 @@ use App\Models\Church;
 use App\Models\Event;
 use App\Models\EventRecurrenceRule;
 use App\Models\EventSession;
+use App\Models\EventTemplate;
 use App\Models\MeetingIntegration;
 use App\Models\MeetingPoll;
 use App\Models\MeetingPollOption;
@@ -130,11 +131,9 @@ final class EventFlowController extends Controller
             $this->authorizeProgram($request, $program);
         }
 
-        $program ??= $this->scopePrograms(Program::query(), $request)->latest('starts_on')->first();
-
         $eventQuery = Event::query()
             ->withCount('sessions')
-            ->with('program')
+            ->with(['program', 'sessions' => fn ($query) => $query->orderBy('session_date')->limit(1)])
             ->when($program, fn (Builder $query) => $query->where('program_id', $program->id))
             ->where(fn (Builder $query) => $this->scopeEventQuery($query, $request))
             ->when(filled($request->query('q')), function (Builder $query) use ($request): void {
@@ -164,15 +163,25 @@ final class EventFlowController extends Controller
         return view('events.events', [
             'program' => $program,
             'programs' => $this->scopePrograms(Program::query(), $request)->orderBy('name')->get(),
+            'eventTemplates' => EventTemplate::query()
+                ->where('church_id', $request->user()->church_id)
+                ->when($program?->campus_id, fn (Builder $query) => $query->where(fn (Builder $scope) => $scope->whereNull('campus_id')->orWhere('campus_id', $program->campus_id)))
+                ->orderBy('name')
+                ->get(),
             'events' => $events,
             'stats' => $eventStats,
             'breadcrumbs' => $this->breadcrumbs([['Programs', route('programs.index')], [$program?->name ?? 'Events', null]]),
         ]);
     }
 
-    public function storeEvent(Request $request, Program $program, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
+    public function storeEvent(Request $request, ?Program $program, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
     {
-        $this->authorizeProgram($request, $program);
+        $program = $program?->exists ? $program : null;
+        if ($program) {
+            $this->authorizeProgram($request, $program);
+        } else {
+            $this->authorizeEvents($request);
+        }
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:160'],
@@ -182,20 +191,38 @@ final class EventFlowController extends Controller
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'venue' => ['nullable', 'string', 'max:160'],
             'status' => ['required', Rule::in(['scheduled', 'draft', 'completed', 'cancelled'])],
+            'template_id' => ['nullable', 'exists:event_templates,id'],
         ]);
 
-        $event = $program->events()->create([
+        $template = null;
+        if (filled($validated['template_id'] ?? null)) {
+            $template = EventTemplate::query()
+                ->where('church_id', $program?->church_id ?? $request->user()->church_id)
+                ->findOrFail($validated['template_id']);
+            $validated['description'] = $validated['description'] ?? $template->description;
+            $validated['event_type'] = $validated['event_type'] ?? $template->event_type;
+            $validated['venue'] = $validated['venue'] ?? $template->venue;
+        }
+        unset($validated['template_id']);
+
+        $churchId = $program?->church_id ?? $request->user()->church_id ?? Church::query()->value('id');
+        $campusId = $program?->campus_id ?? $request->user()->campus_id;
+        $event = Event::query()->create([
             ...$validated,
-            'church_id' => $program->church_id,
-            'campus_id' => $program->campus_id,
+            'church_id' => $churchId,
+            'campus_id' => $campusId,
+            'program_id' => $program?->id,
             'category' => $validated['event_type'] ?? 'Event',
         ]);
 
-        $this->createDefaultSession($event);
+        $session = $this->createDefaultSession($event);
+        if ($template) {
+            $this->copyTemplateAgenda($template, $event);
+        }
         $activityLogger->log('Events', 'event_created', $event->title.' was created.', $event, ['resource' => 'Program Event', 'risk' => 'low', 'status' => 'success'], $request);
         $notifier->notify(
             (int) $event->church_id,
-            "Event update: {$event->title} was created for {$program->name}.\n\nDate: ".$event->starts_at?->format('M d, Y H:i')."\nStatus: {$event->status}",
+            "Event update: {$event->title} was created".($program ? " for {$program->name}" : '').".\n\nDate: ".$event->starts_at?->format('M d, Y H:i')."\nStatus: {$event->status}",
             'EventCreated',
             (int) $event->campus_id,
             null,
@@ -209,10 +236,106 @@ final class EventFlowController extends Controller
             "New event: {$event->title}",
             "{$event->title} is scheduled for ".$event->starts_at?->format('M d, Y H:i').'.',
             ['in_app'],
-            ['url' => route('event-sessions.index', [$program, $event])],
+            ['url' => $program ? route('event-sessions.index', [$program, $event]) : route('event-sessions.meeting', $session)],
         );
 
-        return redirect()->route('event-sessions.index', [$program, $event])->with('status', 'Event created.');
+        return $program
+            ? redirect()->route('event-sessions.index', [$program, $event])->with('status', 'Event created.')
+            : redirect()->route('event-sessions.meeting', $session)->with('status', 'Event created.');
+    }
+
+    public function cloneEvent(Request $request, Program $program, Event $event, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeProgram($request, $program);
+        abort_unless((int) $event->program_id === (int) $program->id, 404);
+        $validated = $request->validate(['title' => ['required', 'string', 'max:160']]);
+
+        $clone = DB::transaction(function () use ($event, $program, $validated): Event {
+            $clone = $event->replicate(['id', 'created_at', 'updated_at', 'deleted_at']);
+            $clone->program_id = $program->id;
+            $clone->title = $validated['title'];
+            $clone->status = 'draft';
+            $clone->save();
+
+            $sessionMap = [];
+            foreach ($event->sessions()->get() as $session) {
+                $newSession = $session->replicate(['id', 'created_at', 'updated_at', 'deleted_at']);
+                $newSession->event_id = $clone->id;
+                $newSession->recurrence_rule_id = null;
+                $newSession->status = 'draft';
+                $newSession->save();
+                $sessionMap[$session->id] = $newSession;
+                $this->ensureAttendanceSession($newSession);
+            }
+
+            ProgramSection::query()
+                ->with('assignments')
+                ->where('event_id', $event->id)
+                ->get()
+                ->each(function (ProgramSection $section) use ($clone, $sessionMap): void {
+                    $newSection = $section->replicate(['id', 'created_at', 'updated_at', 'deleted_at']);
+                    $newSection->event_id = $clone->id;
+                    $newSection->program_id = $clone->program_id;
+                    $newSection->event_session_id = $section->event_session_id ? $sessionMap[$section->event_session_id]?->id : null;
+                    $newSection->save();
+                    foreach ($section->assignments as $assignment) {
+                        $newAssignment = $assignment->replicate(['id', 'created_at', 'updated_at', 'deleted_at']);
+                        $newAssignment->program_section_id = $newSection->id;
+                        $newAssignment->status = 'assigned';
+                        $newAssignment->save();
+                    }
+                });
+
+            return $clone;
+        });
+
+        $activityLogger->log('Events', 'event_cloned', $clone->title.' was cloned from '.$event->title.'.', $clone, ['resource' => 'Program Event', 'risk' => 'low', 'status' => 'success'], $request);
+
+        return redirect()->route('event-sessions.index', [$program, $clone])->with('status', 'Event cloned as a draft. You can now adjust its agenda.');
+    }
+
+    public function storeEventTemplate(Request $request, Program $program, Event $event, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeProgram($request, $program);
+        abort_unless((int) $event->program_id === (int) $program->id, 404);
+        $validated = $request->validate(['name' => ['required', 'string', 'max:160']]);
+
+        $agenda = ProgramSection::query()
+            ->with('assignments')
+            ->where('event_id', $event->id)
+            ->orderBy('position')
+            ->get()
+            ->map(fn (ProgramSection $section): array => [
+                'title' => $section->title,
+                'description' => $section->description,
+                'resource_reference' => $section->resource_reference,
+                'attachment_path' => $section->attachment_path,
+                'attachment_name' => $section->attachment_name,
+                'section_type' => $section->section_type,
+                'position' => $section->position,
+                'planned_start_time' => $section->planned_start_time,
+                'planned_duration_minutes' => $section->planned_duration_minutes,
+                'assignments' => $section->assignments->map(fn (ProgramSectionAssignment $assignment): array => [
+                    'user_id' => $assignment->user_id,
+                    'member_id' => $assignment->member_id,
+                    'role_title' => $assignment->role_title,
+                    'responsibility_notes' => $assignment->responsibility_notes,
+                ])->all(),
+            ])->all();
+
+        EventTemplate::query()->create([
+            'church_id' => $event->church_id,
+            'campus_id' => $event->campus_id,
+            'created_by' => $request->user()->id,
+            'name' => $validated['name'],
+            'description' => $event->description,
+            'event_type' => $event->event_type ?? $event->category,
+            'venue' => $event->venue,
+            'agenda' => $agenda,
+        ]);
+        $activityLogger->log('Events', 'event_template_created', $validated['name'].' template was created.', null, ['resource' => 'Event Template', 'risk' => 'low', 'status' => 'success'], $request);
+
+        return back()->with('status', 'Event template saved. It is now available when creating an event.');
     }
 
     public function sessions(Request $request, Program $program, Event $event): View
@@ -565,6 +688,9 @@ final class EventFlowController extends Controller
 
         return view('events.meeting', [
             'session' => $eventSession,
+            'agendaSections' => $this->agendaSectionsForSession($eventSession),
+            'assignableUsers' => $this->scopeUsers(User::query()->orderBy('name'), $request)->get(),
+            'assignableMembers' => $this->scopeMemberQueryReturn(Member::query()->orderBy('last_name')->orderBy('first_name'), $request)->get(),
             'integrations' => $this->providerIntegrations($request),
             'enabledMeetingProviders' => $this->enabledMeetingProviders($request),
             'breadcrumbs' => $this->breadcrumbs([
@@ -573,6 +699,72 @@ final class EventFlowController extends Controller
                 ['Meeting', null],
             ]),
         ]);
+    }
+
+    public function storeMeetingAgenda(Request $request, EventSession $eventSession, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeSession($request, $eventSession);
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'section_type' => ['required', Rule::in(['worship', 'prayer', 'sermon', 'offering', 'announcement', 'media', 'hospitality', 'custom'])],
+            'position' => ['required', 'integer', 'min:1', 'max:500'],
+            'planned_start_time' => ['nullable', 'date_format:H:i'],
+            'planned_duration_minutes' => ['nullable', 'integer', 'min:1', 'max:720'],
+            'assignee_type' => ['nullable', Rule::in(['user', 'member'])],
+            'user_id' => ['nullable', 'exists:users,id'],
+            'member_id' => ['nullable', 'exists:members,id'],
+            'role_title' => ['nullable', 'string', 'max:120'],
+            'responsibility_notes' => ['nullable', 'string', 'max:1200'],
+            'resource_reference' => ['nullable', 'string', 'max:500'],
+            'attachment' => ['nullable', 'file', 'max:10240', 'mimes:pdf,doc,docx,ppt,pptx,txt,jpg,jpeg,png'],
+        ]);
+
+        $assigneeType = $validated['assignee_type'] ?? null;
+        if ($assigneeType === 'user' && empty($validated['user_id'])) {
+            throw ValidationException::withMessages(['user_id' => 'Choose a responsible user.']);
+        }
+        if ($assigneeType === 'member' && empty($validated['member_id'])) {
+            throw ValidationException::withMessages(['member_id' => 'Choose a responsible member.']);
+        }
+
+        $attachmentPath = $request->file('attachment')?->store('meeting-agendas/'.$eventSession->church_id, 'public');
+        $section = ProgramSection::query()->create([
+            'church_id' => $eventSession->church_id,
+            'campus_id' => $eventSession->campus_id,
+            'program_id' => $eventSession->event->program_id,
+            'event_id' => $eventSession->event_id,
+            'event_session_id' => $eventSession->id,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'resource_reference' => $validated['resource_reference'] ?? null,
+            'attachment_path' => $attachmentPath,
+            'attachment_name' => $request->file('attachment')?->getClientOriginalName(),
+            'section_type' => $validated['section_type'],
+            'position' => $validated['position'],
+            'planned_start_time' => $validated['planned_start_time'] ?? null,
+            'planned_duration_minutes' => $validated['planned_duration_minutes'] ?? null,
+            'status' => 'active',
+        ]);
+
+        if ($assigneeType) {
+            $assignment = ProgramSectionAssignment::query()->create([
+                'church_id' => $section->church_id,
+                'campus_id' => $section->campus_id,
+                'program_section_id' => $section->id,
+                'user_id' => $assigneeType === 'user' ? $validated['user_id'] : null,
+                'member_id' => $assigneeType === 'member' ? $validated['member_id'] : null,
+                'role_title' => $validated['role_title'] ?? 'Responsible person',
+                'responsibility_notes' => $validated['responsibility_notes'] ?? null,
+                'call_time' => null,
+                'status' => 'assigned',
+            ]);
+            $this->notifyMeetingAgendaAssignment($assignment, $eventSession);
+        }
+
+        $activityLogger->log('Meetings', 'meeting_agenda_item_created', $section->title.' was added to the meeting agenda.', $section, ['resource' => 'Meeting Agenda', 'risk' => 'low', 'status' => 'success'], $request);
+
+        return back()->with('status', 'Agenda item added to the meeting.');
     }
 
     public function updateMeeting(Request $request, EventSession $eventSession, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
@@ -1290,10 +1482,32 @@ final class EventFlowController extends Controller
         return ProgramSection::query()
             ->with(['assignments.user', 'assignments.member'])
             ->where('program_id', $eventSession->event->program_id)
-            ->where(fn (Builder $query) => $query->whereNull('event_id')->orWhere('event_id', $eventSession->event_id))
+            ->where(fn (Builder $query) => $query
+                ->whereNull('event_session_id')
+                ->where(fn (Builder $scope) => $scope->whereNull('event_id')->orWhere('event_id', $eventSession->event_id))
+                ->orWhere('event_session_id', $eventSession->id))
             ->orderBy('position')
             ->orderBy('planned_start_time')
             ->get();
+    }
+
+    private function notifyMeetingAgendaAssignment(ProgramSectionAssignment $assignment, EventSession $eventSession): void
+    {
+        $subject = 'Meeting agenda responsibility assigned';
+        $message = 'You are responsible for "'.$assignment->section->title.'" in '.$eventSession->title.' on '.$eventSession->session_date?->format('M d, Y').'.';
+        $metadata = [
+            'url' => route('event-sessions.meeting', $eventSession),
+            'event_session_id' => $eventSession->id,
+            'event_title' => $eventSession->title,
+            'agenda_item' => $assignment->section->title,
+            'responsible_role' => $assignment->role_title,
+        ];
+
+        if ($assignment->user) {
+            $this->domainNotifications->user($assignment->user, 'MeetingAgendaAssigned', 'events', $subject, $message, ['in_app', 'email'], $metadata);
+        } elseif ($assignment->member) {
+            $this->domainNotifications->member($assignment->member, 'MeetingAgendaAssigned', 'events', $subject, $message, ['in_app', 'email'], $metadata);
+        }
     }
 
     private function lowerThirdBackgroundPresets(): array
@@ -2014,7 +2228,7 @@ final class EventFlowController extends Controller
         ]);
     }
 
-    private function createDefaultSession(Event $event): void
+    private function createDefaultSession(Event $event): EventSession
     {
         $session = $event->sessions()->firstOrCreate(
             ['title' => $event->title, 'session_date' => $event->starts_at->toDateString()],
@@ -2030,6 +2244,44 @@ final class EventFlowController extends Controller
             ],
         );
         $this->ensureAttendanceSession($session);
+
+        return $session;
+    }
+
+    private function copyTemplateAgenda(EventTemplate $template, Event $event): void
+    {
+        foreach ($template->agenda ?? [] as $item) {
+            $section = ProgramSection::query()->create([
+                'church_id' => $event->church_id,
+                'campus_id' => $event->campus_id,
+                'program_id' => $event->program_id,
+                'event_id' => $event->id,
+                'event_session_id' => null,
+                'title' => $item['title'],
+                'description' => $item['description'] ?? null,
+                'resource_reference' => $item['resource_reference'] ?? null,
+                'attachment_path' => $item['attachment_path'] ?? null,
+                'attachment_name' => $item['attachment_name'] ?? null,
+                'section_type' => $item['section_type'] ?? 'custom',
+                'position' => $item['position'] ?? 1,
+                'planned_start_time' => $item['planned_start_time'] ?? null,
+                'planned_duration_minutes' => $item['planned_duration_minutes'] ?? null,
+                'status' => 'active',
+            ]);
+
+            foreach ($item['assignments'] ?? [] as $assignment) {
+                ProgramSectionAssignment::query()->create([
+                    'church_id' => $section->church_id,
+                    'campus_id' => $section->campus_id,
+                    'program_section_id' => $section->id,
+                    'user_id' => $assignment['user_id'] ?? null,
+                    'member_id' => $assignment['member_id'] ?? null,
+                    'role_title' => $assignment['role_title'] ?? 'Responsible person',
+                    'responsibility_notes' => $assignment['responsibility_notes'] ?? null,
+                    'status' => 'assigned',
+                ]);
+            }
+        }
     }
 
     private function ensureAttendanceSession(EventSession $session): AttendanceSession

@@ -9,9 +9,11 @@ use App\Models\Church;
 use App\Models\CommunicationCampaign;
 use App\Models\CommunicationDelivery;
 use App\Models\CommunicationProviderSetting;
+use App\Models\MessageThread;
 use App\Models\User;
 use App\Models\UserNotificationPreference;
 use App\Notifications\CommunicationDeliveryNotification;
+use App\Notifications\NewMessageNotification;
 use App\Services\Communications\CommunicationDeliveryDispatcher;
 use App\Services\Communications\DomainNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -119,6 +121,32 @@ final class CommunicationReliabilityTest extends TestCase
 
         $this->assertSame('delivered', $delivery->fresh()->status);
         Mail::assertSent(CommunicationMail::class, fn (CommunicationMail $mail): bool => $mail->hasTo('recipient@example.test'));
+    }
+
+    public function test_new_message_notification_uses_email_when_the_recipient_opted_in(): void
+    {
+        $church = Church::factory()->create();
+        $sender = User::factory()->create(['church_id' => $church->id]);
+        $recipient = User::factory()->create(['church_id' => $church->id, 'email' => 'recipient@example.test']);
+        $thread = MessageThread::query()->create([
+            'church_id' => $church->id,
+            'created_by' => $sender->id,
+            'subject' => 'Sunday service planning',
+        ]);
+        UserNotificationPreference::query()->create([
+            'church_id' => $church->id,
+            'user_id' => $recipient->id,
+            'channels' => ['email'],
+            'categories' => ['messages'],
+            'category_channels' => ['messages' => ['email']],
+        ]);
+
+        $notification = new NewMessageNotification($thread, $sender->name);
+
+        $this->assertSame(['database', 'mail'], $notification->via($recipient));
+        $mail = $notification->toMail($recipient);
+        $this->assertSame('New internal message', $mail->subject);
+        $this->assertSame(route('messages.show', $thread), $mail->actionUrl);
     }
 
     public function test_push_delivery_uses_fcm_http_v1_and_records_provider_id(): void
