@@ -24,6 +24,12 @@
                     </div>
                 </div>
                 <div class="responsive-page-actions">
+                    @if($session->status === 'draft')
+                        <form method="POST" action="{{ route('event-sessions.submit-approval', $session) }}">
+                            @csrf
+                            <button class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700"><i data-lucide="send" class="size-4"></i>Submit for approval</button>
+                        </form>
+                    @endif
                     <a href="{{ route('event-sessions.attendance', $session) }}" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700"><i data-lucide="clipboard-check" class="size-4"></i>Attendance</a>
                     @if($session->event->program)
                         <a href="{{ route('event-sessions.index', [$session->event->program, $session->event]) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50"><i data-lucide="arrow-left" class="size-4"></i>Sessions</a>

@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.28 - 2026-08-12
+
+### Added
+
+- Connected Event, Meeting, and post-publication agenda changes to Workflow & Approvals.
+- Added explicit Submit for approval actions for Events and Meetings.
+- Added approval handling that publishes approved events and meetings and sends the correct agenda responsibility notifications.
+
+### Improved
+
+- New events and meetings are always created as drafts until an approver publishes them.
+- Active workflows configured for the `events` module are now used instead of bypassing the central approval system.
+- Rejected event and meeting requests return to draft for correction and resubmission.
+
+### Fixed
+
+- Prevented event-created and agenda-responsibility notifications from being sent before approval.
+- Preserved `MeetingAgendaAssigned` automation events after a meeting is approved.
+
 ## 1.0.27 - 2026-08-11
 
 ### Added

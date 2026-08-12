@@ -8,8 +8,11 @@ use App\Models\ActivityLog;
 use App\Models\Approval;
 use App\Models\BookstoreLibraryLoan;
 use App\Models\BookstoreProduct;
+use App\Models\Event;
 use App\Models\EventRecurrenceRule;
+use App\Models\EventSession;
 use App\Models\FinancialAssistanceRequest;
+use App\Models\ProgramSection;
 use App\Models\ProgramSectionAssignment;
 use App\Models\Role;
 use App\Models\Workflow;
@@ -309,6 +312,15 @@ final class WorkflowController extends Controller
             $resource->update(['status' => 'active']);
             $resource->sessions()->where('status', 'draft')->update(['status' => 'scheduled']);
         }
+        if ($resource instanceof Event) {
+            $resource->update(['status' => 'scheduled']);
+            $resource->sessions()->where('status', 'draft')->update(['status' => 'scheduled']);
+            $this->notifyEventPublished($resource);
+        }
+        if ($resource instanceof EventSession) {
+            $resource->update(['status' => 'scheduled']);
+            $this->notifyMeetingAssignments($resource);
+        }
         if ($resource instanceof ProgramSectionAssignment) {
             $resource->update([
                 'status' => 'assigned',
@@ -355,6 +367,13 @@ final class WorkflowController extends Controller
         if ($resource instanceof EventRecurrenceRule) {
             $resource->update(['status' => 'rejected']);
             $resource->sessions()->where('status', 'draft')->update(['status' => 'cancelled']);
+        }
+        if ($resource instanceof Event) {
+            $resource->update(['status' => 'draft']);
+            $resource->sessions()->where('status', 'draft')->update(['status' => 'draft']);
+        }
+        if ($resource instanceof EventSession) {
+            $resource->update(['status' => 'draft']);
         }
         if ($resource instanceof ProgramSectionAssignment) {
             $resource->update(['status' => 'rejected']);
@@ -419,6 +438,50 @@ final class WorkflowController extends Controller
         } elseif ($assignment->member) {
             $this->domainNotifications->member($assignment->member, 'ProgramSectionAssigned', 'volunteers', 'Program responsibility approved', $message, ['in_app'], ['url' => route('events.index')]);
         }
+    }
+
+    private function notifyEventPublished(Event $event): void
+    {
+        $event->loadMissing('program');
+        $session = $event->sessions()->oldest('session_date')->first();
+        $url = $event->program_id && $event->program
+            ? route('event-sessions.index', [$event->program, $event])
+            : ($session ? route('event-sessions.meeting', $session) : route('events.index'));
+
+        $this->domainNotifications->audience(
+            (int) $event->church_id,
+            $event->campus_id ? (int) $event->campus_id : null,
+            'EventCreated',
+            'events',
+            "New event: {$event->title}",
+            "{$event->title} has been approved and published for ".($event->starts_at?->format('M d, Y H:i') ?? 'the scheduled date').'.',
+            ['in_app'],
+            ['url' => $url],
+        );
+    }
+
+    private function notifyMeetingAssignments(EventSession $session): void
+    {
+        ProgramSection::query()
+            ->where('event_session_id', $session->id)
+            ->with(['assignments.user', 'assignments.member'])
+            ->get()
+            ->flatMap(fn (ProgramSection $section) => $section->assignments)
+            ->each(function (ProgramSectionAssignment $assignment) use ($session): void {
+                $message = 'You are responsible for "'.$assignment->section->title.'" in '.$session->title.' on '.$session->session_date?->format('M d, Y').'.';
+                $metadata = [
+                    'url' => route('event-sessions.meeting', $session),
+                    'event_session_id' => $session->id,
+                    'event_title' => $session->title,
+                    'agenda_item' => $assignment->section->title,
+                    'responsible_role' => $assignment->role_title,
+                ];
+                if ($assignment->user) {
+                    $this->domainNotifications->user($assignment->user, 'MeetingAgendaAssigned', 'events', 'Meeting agenda responsibility assigned', $message, ['in_app', 'email'], $metadata);
+                } elseif ($assignment->member) {
+                    $this->domainNotifications->member($assignment->member, 'MeetingAgendaAssigned', 'events', 'Meeting agenda responsibility assigned', $message, ['in_app', 'email'], $metadata);
+                }
+            });
     }
 
     /**

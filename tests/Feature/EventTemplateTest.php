@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\Approval;
 use App\Models\Church;
 use App\Models\Event;
 use App\Models\EventSession;
@@ -13,6 +14,7 @@ use App\Models\ProgramSection;
 use App\Models\ProgramSectionAssignment;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\Workflow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -116,6 +118,47 @@ final class EventTemplateTest extends TestCase
         $this->assertNull($event->program_id);
         $this->assertSame(1, $event->sessions()->count());
         $response->assertRedirect(route('event-sessions.meeting', $session));
+    }
+
+    public function test_event_and_meeting_follow_workflow_approval_before_publishing(): void
+    {
+        $admin = $this->administrator();
+        Workflow::query()->create([
+            'church_id' => $admin->church_id,
+            'name' => 'Configured Event Approval',
+            'module' => 'events',
+            'status' => 'active',
+            'steps' => [
+                'approval_type' => 'sequential',
+                'steps' => [['position' => 1, 'label' => 'Administrator Review', 'role' => 'Super Administrator', 'mode' => 'required', 'required' => true]],
+            ],
+        ]);
+
+        $this->actingAs($admin)->post(route('events.store'), [
+            'title' => 'Approval Required Event',
+            'starts_at' => now()->addDays(3)->format('Y-m-d\\TH:i'),
+            'status' => 'scheduled',
+        ])->assertRedirect();
+
+        $event = Event::query()->where('title', 'Approval Required Event')->firstOrFail();
+        $session = $event->sessions()->firstOrFail();
+        $this->assertSame('draft', $event->status);
+        $this->assertSame('draft', $session->status);
+
+        $this->actingAs($admin)
+            ->post(route('event-sessions.submit-approval', $session))
+            ->assertRedirect();
+
+        $approval = Approval::query()->where('approvable_type', EventSession::class)->where('approvable_id', $session->id)->firstOrFail();
+        $this->assertSame('pending', $approval->status);
+
+        $this->actingAs($admin)
+            ->post(route('workflows.approvals.approve', $approval), ['notes' => 'Ready to publish.'])
+            ->assertRedirect();
+
+        $this->assertSame('scheduled', $session->fresh()->status);
+        $this->assertSame('draft', $event->fresh()->status);
+        $this->assertSame('approved', $approval->fresh()->status);
     }
 
     private function administrator(): User

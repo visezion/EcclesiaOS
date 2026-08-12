@@ -190,7 +190,7 @@ final class EventFlowController extends Controller
             'starts_at' => ['required', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'venue' => ['nullable', 'string', 'max:160'],
-            'status' => ['required', Rule::in(['scheduled', 'draft', 'completed', 'cancelled'])],
+            'status' => ['nullable', Rule::in(['scheduled', 'draft', 'completed', 'cancelled'])],
             'template_id' => ['nullable', 'exists:event_templates,id'],
         ]);
 
@@ -213,6 +213,7 @@ final class EventFlowController extends Controller
             'campus_id' => $campusId,
             'program_id' => $program?->id,
             'category' => $validated['event_type'] ?? 'Event',
+            'status' => 'draft',
         ]);
 
         $session = $this->createDefaultSession($event);
@@ -220,28 +221,52 @@ final class EventFlowController extends Controller
             $this->copyTemplateAgenda($template, $event);
         }
         $activityLogger->log('Events', 'event_created', $event->title.' was created.', $event, ['resource' => 'Program Event', 'risk' => 'low', 'status' => 'success'], $request);
-        $notifier->notify(
-            (int) $event->church_id,
-            "Event update: {$event->title} was created".($program ? " for {$program->name}" : '').".\n\nDate: ".$event->starts_at?->format('M d, Y H:i')."\nStatus: {$event->status}",
-            'EventCreated',
-            (int) $event->campus_id,
-            null,
-            "Event created: {$event->title}",
-        );
-        $this->domainNotifications->audience(
-            (int) $event->church_id,
-            $event->campus_id ? (int) $event->campus_id : null,
-            'EventCreated',
-            'events',
-            "New event: {$event->title}",
-            "{$event->title} is scheduled for ".$event->starts_at?->format('M d, Y H:i').'.',
-            ['in_app'],
-            ['url' => $program ? route('event-sessions.index', [$program, $event]) : route('event-sessions.meeting', $session)],
-        );
 
         return $program
             ? redirect()->route('event-sessions.index', [$program, $event])->with('status', 'Event created.')
             : redirect()->route('event-sessions.meeting', $session)->with('status', 'Event created.');
+    }
+
+    public function submitEventForApproval(Request $request, Event $event, ActivityLogger $activityLogger, ?Program $program = null): RedirectResponse
+    {
+        $this->authorizeEvents($request);
+        if ($program) {
+            $this->authorizeProgram($request, $program);
+            abort_unless((int) $event->program_id === (int) $program->id, 404);
+        } else {
+            abort_unless($request->user()?->canAccessChurch($event->church_id) && $request->user()?->canAccessCampus($event->campus_id), 403);
+        }
+
+        abort_unless(in_array($event->status, ['draft', 'scheduled'], true), 422, 'Only a draft or scheduled event can be submitted for approval.');
+        $approval = $this->requestApproval($request, $event, 'publish_event', [
+            'title' => $event->title,
+            'event_type' => $event->event_type ?? $event->category,
+            'starts_at' => $event->starts_at?->toIso8601String(),
+            'sessions' => $event->sessions()->count(),
+            'agenda_items' => ProgramSection::query()->where('event_id', $event->id)->count(),
+        ]);
+        $event->update(['status' => 'draft']);
+        $activityLogger->log('Events', 'event_submitted_for_approval', $event->title.' was submitted for approval.', $event, ['resource' => 'Event', 'risk' => 'medium', 'status' => 'pending'], $request);
+
+        return back()->with('status', $approval->wasRecentlyCreated ? 'Event submitted for approval.' : 'This event is already awaiting approval.');
+    }
+
+    public function submitMeetingForApproval(Request $request, EventSession $eventSession, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeSession($request, $eventSession);
+        abort_unless(in_array($eventSession->status, ['draft', 'scheduled'], true), 422, 'Only a draft or scheduled meeting can be submitted for approval.');
+
+        $approval = $this->requestApproval($request, $eventSession, 'publish_meeting', [
+            'title' => $eventSession->title,
+            'event' => $eventSession->event?->title,
+            'session_date' => $eventSession->session_date?->toDateString(),
+            'starts_at' => $eventSession->starts_at,
+            'agenda_items' => ProgramSection::query()->where('event_session_id', $eventSession->id)->count(),
+        ]);
+        $eventSession->update(['status' => 'draft']);
+        $activityLogger->log('Meetings', 'meeting_submitted_for_approval', $eventSession->title.' was submitted for approval.', $eventSession, ['resource' => 'Event Session', 'risk' => 'medium', 'status' => 'pending'], $request);
+
+        return back()->with('status', $approval->wasRecentlyCreated ? 'Meeting submitted for approval.' : 'This meeting is already awaiting approval.');
     }
 
     public function cloneEvent(Request $request, Program $program, Event $event, ActivityLogger $activityLogger): RedirectResponse
@@ -408,6 +433,7 @@ final class EventFlowController extends Controller
             'campus_id' => ($validated['campus_id'] ?? null) ?: $event->campus_id,
             'timezone' => ($validated['timezone'] ?? null) ?: config('app.timezone'),
             'meeting_links' => $this->meetingLinksFromRequest($request),
+            'status' => 'draft',
         ]);
         $this->syncAttendanceMethods($session);
 
@@ -704,6 +730,7 @@ final class EventFlowController extends Controller
     public function storeMeetingAgenda(Request $request, EventSession $eventSession, ActivityLogger $activityLogger): RedirectResponse
     {
         $this->authorizeSession($request, $eventSession);
+        $wasScheduled = $eventSession->status === 'scheduled';
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:160'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -759,17 +786,30 @@ final class EventFlowController extends Controller
                 'call_time' => null,
                 'status' => 'assigned',
             ]);
-            $this->notifyMeetingAgendaAssignment($assignment, $eventSession);
+        }
+
+        if ($wasScheduled) {
+            $eventSession->update(['status' => 'draft']);
         }
 
         $activityLogger->log('Meetings', 'meeting_agenda_item_created', $section->title.' was added to the meeting agenda.', $section, ['resource' => 'Meeting Agenda', 'risk' => 'low', 'status' => 'success'], $request);
 
-        return back()->with('status', 'Agenda item added to the meeting.');
+        if ($wasScheduled) {
+            $this->requestApproval($request, $eventSession, 'publish_meeting', [
+                'title' => $eventSession->title,
+                'event' => $eventSession->event?->title,
+                'agenda_items' => ProgramSection::query()->where('event_session_id', $eventSession->id)->count(),
+                'reason' => 'Agenda updated',
+            ]);
+        }
+
+        return back()->with('status', 'Agenda item added to the meeting. Submit the meeting for approval before publishing.');
     }
 
     public function updateMeeting(Request $request, EventSession $eventSession, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
     {
         $this->authorizeSession($request, $eventSession);
+        $wasScheduled = $eventSession->status === 'scheduled';
 
         $validated = $request->validate([
             'meeting_type' => ['required', Rule::in(['physical', 'online', 'hybrid'])],
@@ -782,6 +822,14 @@ final class EventFlowController extends Controller
             ...$validated,
             'meeting_links' => $this->meetingLinksFromRequest($request),
         ]);
+        if ($wasScheduled) {
+            $eventSession->update(['status' => 'draft']);
+            $this->requestApproval($request, $eventSession, 'publish_meeting', [
+                'title' => $eventSession->title,
+                'event' => $eventSession->event?->title,
+                'reason' => 'Meeting details updated',
+            ]);
+        }
         $this->syncAttendanceMethods($eventSession->fresh());
 
         $activityLogger->log('Meetings', 'meeting_updated', $eventSession->title.' meeting settings were updated.', $eventSession, ['resource' => 'Meeting', 'risk' => 'low', 'status' => 'success'], $request);
@@ -2415,22 +2463,42 @@ final class EventFlowController extends Controller
         return $dates;
     }
 
-    private function requestApproval(Request $request, EventRecurrenceRule|ProgramSectionAssignment $resource, string $action, array $payload): Approval
+    private function requestApproval(Request $request, Event|EventSession|EventRecurrenceRule|ProgramSectionAssignment $resource, string $action, array $payload): Approval
     {
-        $workflow = Workflow::query()->firstOrCreate(
-            [
+        $workflow = Workflow::query()
+            ->where('church_id', $resource->church_id)
+            ->where('module', 'events')
+            ->where('status', 'active')
+            ->latest('updated_at')
+            ->first();
+
+        if (! $workflow) {
+            $workflow = Workflow::query()->create([
                 'church_id' => $resource->church_id,
-                'module' => 'programs',
-                'name' => 'Program Planning Approval',
-            ],
-            [
+                'module' => 'events',
+                'name' => 'Event & Meeting Approval',
                 'status' => 'active',
                 'steps' => [
-                    ['position' => 1, 'role' => 'Senior Pastor', 'required' => true],
-                    ['position' => 2, 'role' => 'Church Administrator', 'required' => false],
+                    'description' => 'Review and publish events and meetings.',
+                    'approval_type' => 'sequential',
+                    'timeout_hours' => 72,
+                    'steps' => [
+                        ['position' => 1, 'label' => 'Final Approval', 'role' => 'Church Administrator', 'mode' => 'required', 'required' => true],
+                    ],
                 ],
-            ],
-        );
+            ]);
+        }
+
+        $existing = Approval::query()
+            ->where('approvable_type', $resource::class)
+            ->where('approvable_id', $resource->id)
+            ->where('action', $action)
+            ->where('status', 'pending')
+            ->latest()
+            ->first();
+        if ($existing) {
+            return $existing;
+        }
 
         $approval = Approval::query()->create([
             'church_id' => $resource->church_id,

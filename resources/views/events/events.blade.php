@@ -204,6 +204,12 @@
                             @if($selectedEvent->program)
                                 <a href="{{ route('event-sessions.index', [$selectedEvent->program, $selectedEvent]) }}" class="mt-4 inline-flex items-center gap-2 text-sm font-medium text-violet-600">Open sessions <i data-lucide="arrow-right" class="size-4"></i></a>
                             @endif
+                            @if($selectedEvent->status === 'draft')
+                                <form method="POST" action="{{ $selectedEvent->program ? route('programs.events.submit-approval', [$selectedEvent->program, $selectedEvent]) : route('events.submit-approval', $selectedEvent) }}" class="mt-3">
+                                    @csrf
+                                    <button class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700"><i data-lucide="send" class="size-3.5"></i>Submit for approval</button>
+                                </form>
+                            @endif
                         </div>
                     @else
                         <p class="mt-3 text-sm text-slate-500">No event is available for the current filters.</p>
@@ -260,12 +266,7 @@
                         <label class="block text-sm text-slate-600">Event Type
                             <input name="event_type" value="{{ old('event_type') }}" placeholder="Service, Workshop..." class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                         </label>
-                        <label class="block text-sm text-slate-600">Status
-                            <select name="status" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                                <option value="scheduled">Scheduled</option>
-                                <option value="draft">Draft</option>
-                            </select>
-                        </label>
+                        <div class="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 sm:col-span-2">New events are saved as drafts. After adding the meeting details and agenda, submit the event for approval through Workflow &amp; Approvals.</div>
                     </div>
                     <label class="block text-sm text-slate-600">Starts At
                         <input name="starts_at" type="datetime-local" required value="{{ old('starts_at') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">

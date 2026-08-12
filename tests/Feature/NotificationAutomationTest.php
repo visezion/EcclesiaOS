@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\Approval;
 use App\Models\Church;
 use App\Models\CommunicationDelivery;
 use App\Models\Event;
@@ -180,6 +181,14 @@ final class NotificationAutomationTest extends TestCase
                 'user_id' => $admin->id,
                 'role_title' => 'Prayer leader',
             ])
+            ->assertRedirect();
+
+        $this->actingAs($admin)
+            ->post(route('event-sessions.submit-approval', $session))
+            ->assertRedirect();
+        $approval = Approval::query()->where('approvable_type', EventSession::class)->where('approvable_id', $session->id)->firstOrFail();
+        $this->actingAs($admin)
+            ->post(route('workflows.approvals.approve', $approval))
             ->assertRedirect();
 
         $this->assertDatabaseHas('program_sections', [

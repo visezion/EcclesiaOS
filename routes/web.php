@@ -196,10 +196,12 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::delete('programs/{program}', [EventFlowController::class, 'destroyProgram'])->name('programs.destroy');
     Route::get('programs/{program}/events', [EventFlowController::class, 'events'])->name('programs.events');
     Route::post('programs/{program}/events', [EventFlowController::class, 'storeEvent'])->name('programs.events.store');
+    Route::post('programs/{program}/events/{event}/submit-approval', [EventFlowController::class, 'submitEventForApproval'])->name('programs.events.submit-approval');
     Route::post('programs/{program}/events/{event}/clone', [EventFlowController::class, 'cloneEvent'])->name('programs.events.clone');
     Route::post('programs/{program}/events/{event}/template', [EventFlowController::class, 'storeEventTemplate'])->name('programs.events.template.store');
     Route::get('events', [EventFlowController::class, 'events'])->name('events.index');
     Route::post('events', [EventFlowController::class, 'storeEvent'])->name('events.store');
+    Route::post('events/{event}/submit-approval', [EventFlowController::class, 'submitEventForApproval'])->name('events.submit-approval');
     Route::get('programs/{program}/events/{event}/sessions', [EventFlowController::class, 'sessions'])->name('event-sessions.index');
     Route::post('programs/{program}/events/{event}/sessions', [EventFlowController::class, 'storeSession'])->name('event-sessions.store');
     Route::post('programs/{program}/events/{event}/recurrences', [EventFlowController::class, 'storeRecurringSessions'])->name('event-sessions.recurrences.store');
@@ -210,6 +212,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'meeting'])->name('event-sessions.meeting');
     Route::put('event-sessions/{eventSession}/meeting', [EventFlowController::class, 'updateMeeting'])->name('event-sessions.meeting.update');
     Route::post('event-sessions/{eventSession}/agenda', [EventFlowController::class, 'storeMeetingAgenda'])->name('event-sessions.agenda.store');
+    Route::post('event-sessions/{eventSession}/submit-approval', [EventFlowController::class, 'submitMeetingForApproval'])->name('event-sessions.submit-approval');
     Route::get('meetings/rooms/{eventSession}/{provider}', [EventFlowController::class, 'room'])->name('meetings.rooms.show');
     Route::get('meetings/rooms/{eventSession}/{provider}/studio', [EventFlowController::class, 'studio'])->name('meetings.rooms.studio');
     Route::post('meetings/rooms/{eventSession}/{provider}/studio/scenes', [EventFlowController::class, 'storeStudioScene'])->name('meetings.rooms.studio.scenes.store');
