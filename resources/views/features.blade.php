@@ -386,8 +386,8 @@
 
         <footer class="border-t border-slate-200 bg-white/70">
             <div class="features-shell flex flex-col gap-3 py-6 text-center text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:text-left">
-                <span>© {{ now()->year }} {{ $churchName }}. All rights reserved.</span>
-                <span>{{ $subtitle }}</span>
+                <span>&copy; {{ now()->year }} {{ config('church.product_name', 'EcclesiaOS') }} &middot; v{{ ltrim((string) config('updater.current_version', '0.0.0'), 'vV') }}. All rights reserved.</span>
+                <span><strong>{{ config('church.product_name', 'EcclesiaOS') }}</strong> · {{ config('church.product_vision', 'Equipping churches to connect people, steward ministry, and serve with clarity.') }}</span>
             </div>
         </footer>
     </body>

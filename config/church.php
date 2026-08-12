@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'product_name' => 'EcclesiaOS',
+    'product_vision' => 'Equipping churches to connect people, steward ministry, and serve with clarity.',
     'name' => env('CHURCH_NAME', 'Kingdom Life Global Church'),
     'subtitle' => env('APP_SUBTITLE', 'Enterprise Church Management System'),
     'logo' => env('CHURCH_LOGO', null),

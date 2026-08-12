@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping improve KingdomHub.
+Thank you for helping improve EcclesiaOS.
 
 ## Workflow
 

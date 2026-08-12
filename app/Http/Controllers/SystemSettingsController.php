@@ -51,7 +51,6 @@ final class SystemSettingsController extends Controller
         $this->authorizeSettings($request);
 
         $validated = $request->validate([
-            'system_name' => ['required', 'string', 'max:120'],
             'church_name' => ['required', 'string', 'max:120'],
             'primary_email' => ['required', 'email', 'max:120'],
             'support_email' => ['required', 'email', 'max:120'],
@@ -140,6 +139,7 @@ final class SystemSettingsController extends Controller
 
         $newSettings = array_merge($settings, [
             ...$validated,
+            'system_name' => config('church.product_name', 'EcclesiaOS'),
             'mfa_required' => $request->boolean('mfa_required'),
             'login_notifications' => $request->boolean('login_notifications'),
             'low_stock_alerts' => $request->boolean('low_stock_alerts'),
@@ -264,7 +264,7 @@ final class SystemSettingsController extends Controller
     private function defaultSettings(Church $church): array
     {
         return [
-            'system_name' => config('app.name', 'KingdomHub'),
+            'system_name' => config('church.product_name', 'EcclesiaOS'),
             'church_name' => $church->name ?: config('church.name'),
             'primary_email' => $church->email ?: config('church.contact_email'),
             'support_email' => config('mail.from.address', 'support@klgc.org'),

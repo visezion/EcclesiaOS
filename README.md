@@ -1,6 +1,6 @@
-# KingdomHub
+# EcclesiaOS
 
-KingdomHub is a lightweight Laravel church management system foundation with an enterprise-style dashboard, reusable Blade layout, permission-ready navigation, module placeholders, baseline database schema, seed data, and tests.
+EcclesiaOS is a lightweight Laravel church management system foundation with an enterprise-style dashboard, reusable Blade layout, permission-ready navigation, module placeholders, baseline database schema, seed data, and tests.
 
 ## Features
 
@@ -63,7 +63,7 @@ Then verify the tools and deploy EcclesiaOS:
 docker --version
 docker compose version
 git --version
-git clone https://github.com/visezion/EcclesiaOS.git
+git clone --branch v1.0.30 --depth 1 https://github.com/visezion/EcclesiaOS.git
 cd EcclesiaOS
 sh docker/setup.sh
 ```
@@ -82,6 +82,17 @@ Linux or WSL:
 ```bash
 sh docker/setup.sh
 ```
+
+The first-time deployment commands above intentionally use the immutable
+stable release tag. For development, keep that same stable baseline and make
+your changes in a separate branch:
+
+```bash
+git switch -c feature/your-change
+```
+
+Do not develop directly from `main` for a production deployment. Move to a
+new stable tag only after the release workflow has passed.
 
 The setup script will:
 
@@ -300,7 +311,7 @@ Replace arrays in `DashboardService` with database-backed queries or read models
 
 ## Security Notes
 
-KingdomHub uses Laravel CSRF protection, password hashing, validation, Eloquent/query builder protections, middleware-ready authorization, and branded error pages. Do not render raw user input, commit secrets, or enable debug mode in production.
+EcclesiaOS uses Laravel CSRF protection, password hashing, validation, Eloquent/query builder protections, middleware-ready authorization, and branded error pages. Do not render raw user input, commit secrets, or enable debug mode in production.
 
 ## License
 

@@ -382,7 +382,7 @@
         </div>
 
         <footer class="flex flex-col gap-2 py-2 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-            <span>&copy; {{ now()->year }} {{ $branding->systemName() }}. All rights reserved.</span>
+            <span>&copy; {{ now()->year }} {{ config('church.product_name', 'EcclesiaOS') }} &middot; v{{ ltrim((string) config('updater.current_version', '0.0.0'), 'vV') }}. All rights reserved.</span>
             <span class="flex gap-8"><span>Version 2.4.0</span><span>Privacy Policy</span><span>Terms of Service</span></span>
         </footer>
 

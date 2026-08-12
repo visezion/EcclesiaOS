@@ -1,10 +1,10 @@
-# KingdomHub Developer Hub
+# EcclesiaOS Developer Hub
 
-This document is the contributor guide for KingdomHub. It explains the application architecture, layout system, module process, security rules, quality checks, and release expectations.
+This document is the contributor guide for EcclesiaOS. It explains the application architecture, layout system, module process, security rules, quality checks, and release expectations.
 
 ## 1. Project Purpose
 
-KingdomHub is an enterprise-style church management system built with Laravel. It is organized as a modular monolith: one Laravel application, shared authentication and permissions, reusable layout components, and separate feature modules for members, attendance, programs, communications, workflows, administration, and future church operations.
+EcclesiaOS is an enterprise-style church management system built with Laravel. It is organized as a modular monolith: one Laravel application, shared authentication and permissions, reusable layout components, and separate feature modules for members, attendance, programs, communications, workflows, administration, and future church operations.
 
 The current goal is to keep every implemented module database-backed, permission-aware, test-covered, and consistent with the established UI.
 
@@ -64,7 +64,7 @@ refuses to run the demo seeder in production.
 
 ## 4. Architecture Design
 
-KingdomHub follows this request flow:
+EcclesiaOS follows this request flow:
 
 ```text
 Browser
@@ -355,10 +355,20 @@ reconnect so Docker group access takes effect. Deploy after reconnecting:
 docker --version
 docker compose version
 git --version
-git clone https://github.com/visezion/EcclesiaOS.git
+git clone --branch v1.0.30 --depth 1 https://github.com/visezion/EcclesiaOS.git
 cd EcclesiaOS
 sh docker/setup.sh
 ```
+
+This first-time path uses the immutable stable release tag. Create a separate
+branch before developing:
+
+```bash
+git switch -c feature/your-change
+```
+
+Use a newer release tag only after its GitHub release workflow has completed
+successfully. Do not use the moving `main` branch for a production deployment.
 
 The same copyable instructions are available in Administration > Developer
 Hub > New Server Deploy. See `docs/DOCKER.md` for environment configuration,

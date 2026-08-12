@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.30 - 2026-08-13
+
+### Improved
+
+- Standardized EcclesiaOS product branding and versioned copyright footers across the application.
+- Improved login branding spacing and readability on desktop and mobile layouts.
+- Updated first-time deployment and developer documentation to use an immutable stable release tag.
+- Kept Composer and npm dependency policies on stable packages and verified current dependency advisories are clear.
+
 ## 1.0.29 - 2026-08-12
 
 ### Fixed

@@ -101,6 +101,7 @@
                         @endif
 
                         {{ $slot }}
+                        <x-brand-footer />
                     </main>
                 </div>
             </div>

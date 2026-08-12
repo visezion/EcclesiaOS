@@ -221,7 +221,8 @@ class AuthenticationTest extends TestCase
 
         $this->get(route('login'))
             ->assertOk()
-            ->assertSee('Custom Ministry OS', false)
+            ->assertSee('EcclesiaOS', false)
+            ->assertSee('Equipping churches to connect people, steward ministry, and serve with clarity.', false)
             ->assertSee('Custom ministry platform', false)
             ->assertSee('data-theme="dark"', false)
             ->assertSee('--brand-primary: #123456', false)

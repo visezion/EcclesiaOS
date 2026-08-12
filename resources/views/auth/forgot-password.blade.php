@@ -33,6 +33,7 @@
                     <a href="{{ route('login') }}" class="block text-center text-sm font-semibold text-slate-600 hover:text-violet-700">Return to login</a>
                 </form>
             </section>
+            <x-brand-footer class="mx-auto mt-8 w-full max-w-6xl border-slate-200/80 px-6" />
         </main>
     </body>
 </html>

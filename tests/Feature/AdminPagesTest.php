@@ -390,7 +390,7 @@ class AdminPagesTest extends TestCase
 
         $church = Church::query()->firstOrFail()->refresh();
         $this->assertSame('Kingdom Life Updated', $church->name);
-        $this->assertSame('EcclesiaOS Live', data_get($church->settings, 'system_name'));
+        $this->assertSame('EcclesiaOS', data_get($church->settings, 'system_name'));
         $this->assertSame('#0EA5E9', data_get($church->settings, 'primary_color'));
         $this->assertSame('dark', data_get($church->settings, 'theme_mode'));
         $this->assertSame('Roboto', data_get($church->settings, 'font_family'));
@@ -508,7 +508,7 @@ class AdminPagesTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('status', 'System settings reset to defaults.');
 
-        $this->assertSame(config('app.name'), data_get(Church::query()->firstOrFail()->refresh()->settings, 'system_name'));
+        $this->assertSame('EcclesiaOS', data_get(Church::query()->firstOrFail()->refresh()->settings, 'system_name'));
         $this->assertDatabaseHas('activity_logs', ['action' => 'system_settings_reset']);
     }
 

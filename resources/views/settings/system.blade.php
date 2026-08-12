@@ -146,7 +146,7 @@
                                 <button type="button" @click="edit('#organization')" class="text-xs font-medium text-violet-600">Edit</button>
                             </div>
                             <div class="grid gap-3">
-                                <label class="space-y-1 text-xs font-medium text-slate-500">System Name<input name="system_name" value="{{ old('system_name', $settings['system_name']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"></label>
+                                <div class="space-y-1 text-xs font-medium text-slate-500">Application Name<div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-900">{{ config('church.product_name', 'EcclesiaOS') }}</div><p class="text-[11px] font-normal text-slate-400">Fixed product identity.</p></div>
                                 <label class="space-y-1 text-xs font-medium text-slate-500">Church Name<input name="church_name" value="{{ old('church_name', $settings['church_name']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"></label>
                                 <div class="grid gap-3 md:grid-cols-2">
                                     <label class="space-y-1 text-xs font-medium text-slate-500">Primary Email<input name="primary_email" type="email" value="{{ old('primary_email', $settings['primary_email']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"></label>

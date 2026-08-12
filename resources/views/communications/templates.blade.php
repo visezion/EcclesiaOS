@@ -378,7 +378,7 @@
         </section>
 
         <footer class="flex flex-col gap-2 py-2 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-            <span>Copyright 2024 Kingdom Life Global Church. All rights reserved.</span>
+            <span>&copy; {{ now()->year }} {{ config('church.product_name', 'EcclesiaOS') }} &middot; v{{ ltrim((string) config('updater.current_version', '0.0.0'), 'vV') }}. All rights reserved.</span>
             <span class="flex items-center gap-8">
                 <span>Version 2.4.0</span>
                 <a href="#" class="hover:text-violet-600">Privacy Policy</a>

@@ -43,9 +43,16 @@ After reconnecting, verify the installation and deploy the application:
 docker --version
 docker compose version
 git --version
-git clone https://github.com/visezion/EcclesiaOS.git
+git clone --branch v1.0.30 --depth 1 https://github.com/visezion/EcclesiaOS.git
 cd EcclesiaOS
 sh docker/setup.sh
+```
+
+The first-time deployment uses the immutable stable release tag. For
+development, create a feature branch from that tag before making changes:
+
+```bash
+git switch -c feature/your-change
 ```
 
 The setup script creates the deployment environment, generates secrets, starts

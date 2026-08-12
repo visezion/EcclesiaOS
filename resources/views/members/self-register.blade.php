@@ -375,7 +375,7 @@
                 @endif
 
                 <footer class="px-4 py-6 text-center text-xs leading-5 text-slate-500">
-                    &copy; {{ now()->year }} {{ $branding->churchName() }}. Your information is handled with care and is never shown in this public form.
+                    &copy; {{ now()->year }} {{ config('church.product_name', 'EcclesiaOS') }} &middot; v{{ ltrim((string) config('updater.current_version', '0.0.0'), 'vV') }}. All rights reserved. {{ config('church.product_vision', 'Equipping churches to connect people, steward ministry, and serve with clarity.') }}
                 </footer>
             </section>
         </main>

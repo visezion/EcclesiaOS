@@ -38,6 +38,7 @@
                     <button class="w-full rounded-lg bg-violet-600 px-4 py-3 text-sm font-bold text-white hover:bg-violet-700">Reset Password</button>
                 </form>
             </section>
+            <x-brand-footer class="mx-auto mt-8 w-full max-w-6xl border-slate-200/80 px-6" />
         </main>
     </body>
 </html>

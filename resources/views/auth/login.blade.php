@@ -68,6 +68,18 @@
             .login-card {
                 box-shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
             }
+            .login-shell {
+                box-shadow: 0 30px 90px rgba(15, 23, 42, 0.12);
+            }
+            .login-grid {
+                grid-template-columns: 1fr;
+            }
+            @media (min-width: 1280px) {
+                .login-grid {
+                    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+                    min-height: 680px;
+                }
+            }
             .brand-bar {
                 background: linear-gradient(90deg, var(--brand-primary), var(--brand-secondary));
             }
@@ -79,10 +91,10 @@
         </style>
     </head>
     <body class="min-h-screen text-slate-900 antialiased" style="{{ $cssStyle }}">
-        <main class="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
-            <div class="grid w-full overflow-hidden rounded-[28px] border border-slate-200 bg-white/90 backdrop-blur xl:grid-cols-[1.1fr_0.9fr]">
+        <main class="mx-auto flex min-h-screen w-full max-w-6xl flex-col items-center justify-center gap-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+            <div class="login-shell login-grid grid w-full max-w-5xl overflow-hidden rounded-[28px] border border-slate-200 bg-white/90 backdrop-blur">
                 <section
-                    class="relative hidden overflow-hidden bg-slate-950 p-10 text-white xl:flex xl:flex-col xl:justify-between"
+                    class="relative hidden overflow-hidden bg-slate-950 p-10 text-white xl:flex xl:flex-col xl:justify-between xl:p-12"
                     @if ($sidebarBackgroundUrl)
                         style="background-image: url('{{ $sidebarBackgroundUrl }}'); background-position: center; background-size: cover;"
                     @endif
@@ -97,16 +109,17 @@
                                     <i data-lucide="shield-check" class="size-8"></i>
                                 @endif
                             </div>
-                            <div>
-                                <div class="text-3xl font-black tracking-tight">{{ $systemName }}</div>
-                                <div class="mt-1 text-sm text-white/70">{{ $subtitle }}</div>
+                            <div class="space-y-1.5">
+                                <div class="text-2xl font-black leading-tight tracking-tight">{{ $systemName }}</div>
+                                <div class="text-sm leading-5 text-white/70">{{ $subtitle }}</div>
                             </div>
                         </div>
 
-                        <div class="mt-16 max-w-lg">
-                            <p class="text-sm font-semibold uppercase tracking-[0.28em] text-white/60">Secure church management</p>
-                            <h1 class="mt-4 text-5xl font-black leading-[1.05] text-white">A simple login for your team.</h1>
+                        <div class="mt-14 max-w-lg">
+                            <div class="mb-6 mt-16 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/75"><i data-lucide="shield-check" class="size-3.5 text-emerald-300"></i>Secure church management</div>
+                            <h1 class="text-4xl font-black leading-[1.05] text-white 2xl:text-5xl">A simple login for your team.</h1>
                             <p class="mt-5 max-w-md text-base leading-7 text-white/75">Sign in to manage members, communications, services, reports, and church operations from one place.</p>
+                            <p class="mt-5 max-w-md text-sm leading-6 text-white/55">{{ config('church.product_vision') }}</p>
                         </div>
                     </div>
 
@@ -126,8 +139,8 @@
                     </div>
                 </section>
 
-                <section class="flex items-center justify-center p-6 sm:p-10 lg:p-12">
-                    <div class="login-card w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 sm:p-8">
+                <section class="flex items-center justify-center p-5 sm:p-10 lg:p-12">
+                    <div class="login-card w-full max-w-[390px] rounded-[24px] border border-slate-200 bg-white p-6 sm:p-8">
                         <div class="flex items-center gap-3 xl:hidden">
                             @if ($logoUrl)
                                 <img src="{{ $logoUrl }}" alt="{{ $churchName }} logo" class="size-12 rounded-xl object-contain">
@@ -136,9 +149,9 @@
                                     <i data-lucide="shield-check" class="size-7"></i>
                                 </div>
                             @endif
-                            <div>
-                                <div class="text-xl font-black text-slate-950">{{ $systemName }}</div>
-                                <div class="text-sm text-slate-500">{{ $subtitle }}</div>
+                            <div class="space-y-1">
+                                <div class="text-xl font-black leading-tight text-slate-950">{{ $systemName }}</div>
+                                <div class="text-sm leading-5 text-slate-500">{{ $subtitle }}</div>
                             </div>
                         </div>
 
@@ -230,6 +243,7 @@
                     </div>
                 </section>
             </div>
+            <x-brand-footer class="w-full max-w-5xl border-slate-200/80 px-2" />
         </main>
     </body>
 </html>
