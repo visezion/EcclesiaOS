@@ -313,6 +313,22 @@ final class DomainNotificationService
             ->keyBy('channel');
 
         return collect($channels)->unique()->map(function (string $channel) use ($churchId, $name, $email, $phone, $eventType, $category, $subject, $message, $metadata, $critical, $userId, $memberId, $settings): CommunicationDelivery {
+            if (is_string($metadata['_dedupe_key'] ?? null) && $metadata['_dedupe_key'] !== '') {
+                $duplicate = CommunicationDelivery::query()
+                    ->where('church_id', $churchId)
+                    ->where('event_type', $eventType)
+                    ->where('channel', $channel)
+                    ->whereIn('status', ['queued', 'sent', 'delivered', 'skipped'])
+                    ->whereJsonContains('metadata->'.'_dedupe_key', $metadata['_dedupe_key'])
+                    ->when($userId !== null, fn ($query) => $query->where('user_id', $userId))
+                    ->when($memberId !== null, fn ($query) => $query->where('member_id', $memberId))
+                    ->first();
+
+                if ($duplicate) {
+                    return $duplicate;
+                }
+            }
+
             $preference = $this->preferences->resolve($churchId, $userId, $memberId, $channel, $category, $critical);
             $contact = match ($channel) {
                 'sms', 'whatsapp' => $phone,

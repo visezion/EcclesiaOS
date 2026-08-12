@@ -29,7 +29,6 @@ use App\Models\User;
 use App\Models\Workflow;
 use App\Services\ActivityLogger;
 use App\Services\Communications\DomainNotificationService;
-use App\Services\Communications\ZenderWhatsAppNotifier;
 use App\Support\OpaqueId;
 use App\Support\SecretHash;
 use Illuminate\Contracts\View\View;
@@ -174,7 +173,7 @@ final class EventFlowController extends Controller
         ]);
     }
 
-    public function storeEvent(Request $request, ?Program $program, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
+    public function storeEvent(Request $request, ?Program $program, ActivityLogger $activityLogger): RedirectResponse
     {
         $program = $program?->exists ? $program : null;
         if ($program) {
@@ -438,16 +437,6 @@ final class EventFlowController extends Controller
         $this->syncAttendanceMethods($session);
 
         $activityLogger->log('Event Sessions', 'event_session_created', $session->title.' was created.', $session, ['resource' => 'Event Session', 'risk' => 'low', 'status' => 'success'], $request);
-        $this->domainNotifications->audience(
-            (int) $session->church_id,
-            $session->campus_id ? (int) $session->campus_id : null,
-            'EventSessionCreated',
-            'events',
-            "New session: {$session->title}",
-            "{$session->title} has been scheduled for ".$session->session_date?->format('M d, Y').'.',
-            ['in_app'],
-            ['url' => route('event-sessions.meeting', $session)],
-        );
 
         return redirect()->route('event-sessions.meeting', $session)->with('status', 'Event session created.');
     }
@@ -481,8 +470,9 @@ final class EventFlowController extends Controller
             throw ValidationException::withMessages(['days_of_week' => 'Choose at least one weekday for a weekly recurrence.']);
         }
 
-        $requiresApproval = $request->boolean('requires_approval', true);
-        $sessionStatus = $requiresApproval ? 'draft' : 'scheduled';
+        // Events and meetings are always approval-gated; the workflow is the source of truth.
+        $requiresApproval = true;
+        $sessionStatus = 'draft';
 
         $rule = DB::transaction(function () use ($request, $event, $validated, $requiresApproval, $sessionStatus): EventRecurrenceRule {
             $rule = EventRecurrenceRule::query()->create([
@@ -546,18 +536,6 @@ final class EventFlowController extends Controller
         });
 
         $activityLogger->log('Event Sessions', 'recurring_sessions_created', $rule->title.' recurrence generated '.$rule->sessions()->count().' session(s).', $rule, ['resource' => 'Event Recurrence Rule', 'risk' => $requiresApproval ? 'medium' : 'low', 'status' => 'success'], $request);
-        if (! $requiresApproval) {
-            $this->domainNotifications->audience(
-                (int) $rule->church_id,
-                $rule->campus_id ? (int) $rule->campus_id : null,
-                'EventSessionCreated',
-                'events',
-                "Recurring sessions: {$rule->title}",
-                $rule->sessions()->count().' recurring sessions were added.',
-                ['in_app'],
-                ['url' => route('event-sessions.index', [$program, $event])],
-            );
-        }
 
         return redirect()->route('event-sessions.index', [$program, $event])->with('status', $rule->sessions()->count().' recurring session(s) generated. '.($requiresApproval ? 'Approval request created.' : ''));
     }
@@ -806,7 +784,7 @@ final class EventFlowController extends Controller
         return back()->with('status', 'Agenda item added to the meeting. Submit the meeting for approval before publishing.');
     }
 
-    public function updateMeeting(Request $request, EventSession $eventSession, ActivityLogger $activityLogger, ZenderWhatsAppNotifier $notifier): RedirectResponse
+    public function updateMeeting(Request $request, EventSession $eventSession, ActivityLogger $activityLogger): RedirectResponse
     {
         $this->authorizeSession($request, $eventSession);
         $wasScheduled = $eventSession->status === 'scheduled';
@@ -833,24 +811,6 @@ final class EventFlowController extends Controller
         $this->syncAttendanceMethods($eventSession->fresh());
 
         $activityLogger->log('Meetings', 'meeting_updated', $eventSession->title.' meeting settings were updated.', $eventSession, ['resource' => 'Meeting', 'risk' => 'low', 'status' => 'success'], $request);
-        $notifier->notify(
-            (int) $eventSession->church_id,
-            "Meeting update: {$eventSession->title} was updated.\n\nEvent: {$eventSession->event?->title}\nDate: ".$eventSession->session_date?->format('M d, Y')."\nType: {$eventSession->meeting_type}",
-            'MeetingUpdated',
-            (int) $eventSession->campus_id,
-            null,
-            "Meeting updated: {$eventSession->title}",
-        );
-        $this->domainNotifications->audience(
-            (int) $eventSession->church_id,
-            $eventSession->campus_id ? (int) $eventSession->campus_id : null,
-            'EventSessionUpdated',
-            'events',
-            "Meeting updated: {$eventSession->title}",
-            "The meeting details for {$eventSession->title} were updated.",
-            ['in_app'],
-            ['url' => route('event-sessions.meeting', $eventSession)],
-        );
 
         return back()->with('status', 'Meeting updated.');
     }

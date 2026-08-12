@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\Approval;
 use App\Models\Church;
+use App\Models\CommunicationDelivery;
 use App\Models\Event;
 use App\Models\EventSession;
 use App\Models\EventTemplate;
@@ -118,6 +119,7 @@ final class EventTemplateTest extends TestCase
         $this->assertNull($event->program_id);
         $this->assertSame(1, $event->sessions()->count());
         $response->assertRedirect(route('event-sessions.meeting', $session));
+        $this->assertDatabaseCount('communication_deliveries', 0);
     }
 
     public function test_event_and_meeting_follow_workflow_approval_before_publishing(): void
@@ -159,6 +161,12 @@ final class EventTemplateTest extends TestCase
         $this->assertSame('scheduled', $session->fresh()->status);
         $this->assertSame('draft', $event->fresh()->status);
         $this->assertSame('approved', $approval->fresh()->status);
+
+        $publishedDeliveries = CommunicationDelivery::query()->count();
+        $this->actingAs($admin)
+            ->post(route('workflows.approvals.approve', $approval))
+            ->assertStatus(422);
+        $this->assertSame($publishedDeliveries, CommunicationDelivery::query()->count());
     }
 
     private function administrator(): User

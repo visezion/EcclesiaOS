@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.29 - 2026-08-12
+
+### Fixed
+
+- Prevented Event and Meeting notifications from being sent while records are still drafts or awaiting approval.
+- Removed premature session-created and meeting-updated WhatsApp/in-app notifications.
+- Added idempotent approved-event delivery keys so repeated approvals cannot duplicate WhatsApp or other channel deliveries.
+- Added approved publication notifications for recurring meetings.
+
 ## 1.0.28 - 2026-08-12
 
 ### Added

@@ -236,6 +236,7 @@ final class WorkflowController extends Controller
     {
         $this->authorizeWorkflow($request);
         abort_unless($request->user()?->canAccessChurch($approval->church_id), 403);
+        abort_if($approval->status !== 'pending', 422, 'This approval request has already been completed.');
 
         $approval->loadMissing('workflow');
         $payload = $approval->payload ?? [];
@@ -311,6 +312,7 @@ final class WorkflowController extends Controller
         if ($resource instanceof EventRecurrenceRule) {
             $resource->update(['status' => 'active']);
             $resource->sessions()->where('status', 'draft')->update(['status' => 'scheduled']);
+            $this->notifyRecurringPublished($resource);
         }
         if ($resource instanceof Event) {
             $resource->update(['status' => 'scheduled']);
@@ -319,7 +321,7 @@ final class WorkflowController extends Controller
         }
         if ($resource instanceof EventSession) {
             $resource->update(['status' => 'scheduled']);
-            $this->notifyMeetingAssignments($resource);
+            $this->notifyMeetingPublished($resource, $approval);
         }
         if ($resource instanceof ProgramSectionAssignment) {
             $resource->update([
@@ -455,19 +457,44 @@ final class WorkflowController extends Controller
             'events',
             "New event: {$event->title}",
             "{$event->title} has been approved and published for ".($event->starts_at?->format('M d, Y H:i') ?? 'the scheduled date').'.',
-            ['in_app'],
-            ['url' => $url],
+            ['in_app', 'email', 'whatsapp'],
+            ['url' => $url, 'event_id' => $event->id, '_dedupe_key' => 'event-published:'.$event->id],
         );
     }
 
-    private function notifyMeetingAssignments(EventSession $session): void
+    private function notifyRecurringPublished(EventRecurrenceRule $rule): void
     {
+        $this->domainNotifications->audience(
+            (int) $rule->church_id,
+            $rule->campus_id ? (int) $rule->campus_id : null,
+            'EventSessionCreated',
+            'events',
+            "Recurring meetings published: {$rule->title}",
+            $rule->sessions()->count().' recurring meetings have been approved and published.',
+            ['in_app', 'email', 'whatsapp'],
+            ['url' => route('events.index'), 'recurrence_rule_id' => $rule->id, '_dedupe_key' => 'recurring-published:'.$rule->id],
+        );
+    }
+
+    private function notifyMeetingPublished(EventSession $session, Approval $approval): void
+    {
+        $this->domainNotifications->audience(
+            (int) $session->church_id,
+            $session->campus_id ? (int) $session->campus_id : null,
+            'EventSessionCreated',
+            'events',
+            "Meeting published: {$session->title}",
+            "{$session->title} has been approved and published for ".($session->session_date?->format('M d, Y') ?? 'the scheduled date').'.',
+            ['in_app', 'email', 'whatsapp'],
+            ['url' => route('event-sessions.meeting', $session), 'event_session_id' => $session->id, 'approval_id' => $approval->id, '_dedupe_key' => 'meeting-published:'.$session->id.':'.$approval->id],
+        );
+
         ProgramSection::query()
             ->where('event_session_id', $session->id)
             ->with(['assignments.user', 'assignments.member'])
             ->get()
             ->flatMap(fn (ProgramSection $section) => $section->assignments)
-            ->each(function (ProgramSectionAssignment $assignment) use ($session): void {
+            ->each(function (ProgramSectionAssignment $assignment) use ($session, $approval): void {
                 $message = 'You are responsible for "'.$assignment->section->title.'" in '.$session->title.' on '.$session->session_date?->format('M d, Y').'.';
                 $metadata = [
                     'url' => route('event-sessions.meeting', $session),
@@ -475,6 +502,8 @@ final class WorkflowController extends Controller
                     'event_title' => $session->title,
                     'agenda_item' => $assignment->section->title,
                     'responsible_role' => $assignment->role_title,
+                    'approval_id' => $approval->id,
+                    '_dedupe_key' => 'agenda-assignment:'.$assignment->id.':'.$approval->id,
                 ];
                 if ($assignment->user) {
                     $this->domainNotifications->user($assignment->user, 'MeetingAgendaAssigned', 'events', 'Meeting agenda responsibility assigned', $message, ['in_app', 'email'], $metadata);
