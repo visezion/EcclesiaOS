@@ -2,6 +2,11 @@
 
 EcclesiaOS is a lightweight Laravel church management system foundation with an enterprise-style dashboard, reusable Blade layout, permission-ready navigation, module placeholders, baseline database schema, seed data, and tests.
 
+The standalone [EcclesiaOS Central Support](https://github.com/visezion/EcclesiaOS-Central-Support)
+backend contains the centralized support API used by connected EcclesiaOS
+installations. It is maintained and deployed separately from each church
+installation.
+
 ## Features
 
 - Dashboard modeled after the supplied reference: summary metrics, charts, bookstore snapshot, assets, leadership reports, feedback, events, ministries, campuses, insights, activity feed, and quick actions.
