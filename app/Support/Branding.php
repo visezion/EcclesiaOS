@@ -37,7 +37,7 @@ final class Branding
 
     public function systemName(): string
     {
-        return (string) config('church.product_name', 'EcclesiaOS');
+        return (string) (data_get($this->settings, 'system_name') ?: config('church.product_name', 'EcclesiaOS'));
     }
 
     public function churchName(): string

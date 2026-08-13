@@ -51,6 +51,7 @@ final class SystemSettingsController extends Controller
         $this->authorizeSettings($request);
 
         $validated = $request->validate([
+            'system_name' => ['required', 'string', 'max:120'],
             'church_name' => ['required', 'string', 'max:120'],
             'primary_email' => ['required', 'email', 'max:120'],
             'support_email' => ['required', 'email', 'max:120'],
@@ -139,7 +140,6 @@ final class SystemSettingsController extends Controller
 
         $newSettings = array_merge($settings, [
             ...$validated,
-            'system_name' => config('church.product_name', 'EcclesiaOS'),
             'mfa_required' => $request->boolean('mfa_required'),
             'login_notifications' => $request->boolean('login_notifications'),
             'low_stock_alerts' => $request->boolean('low_stock_alerts'),
