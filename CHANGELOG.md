@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.31 - 2026-08-13
+
+### Improved
+
+- Made the church-facing application name editable from System Settings.
+- Kept the EcclesiaOS product name and version in all legal footers.
+- Restored EcclesiaOS as the default when system settings are reset.
+
 ## 1.0.30 - 2026-08-13
 
 ### Improved

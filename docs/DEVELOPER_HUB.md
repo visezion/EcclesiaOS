@@ -355,7 +355,7 @@ reconnect so Docker group access takes effect. Deploy after reconnecting:
 docker --version
 docker compose version
 git --version
-git clone --branch v1.0.30 --depth 1 https://github.com/visezion/EcclesiaOS.git
+git clone --branch v1.0.31 --depth 1 https://github.com/visezion/EcclesiaOS.git
 cd EcclesiaOS
 sh docker/setup.sh
 ```
