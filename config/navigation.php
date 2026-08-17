@@ -38,6 +38,7 @@ return [
         'implemented' => true,
     ],
     ['label' => 'Members', 'route' => 'members.index', 'icon' => 'users', 'section' => 'People', 'permission' => 'manage members', 'planned' => $planned['members.index']],
+    ['label' => 'AI Copilot', 'route' => 'ai-copilot.index', 'icon' => 'sparkles', 'section' => 'Leadership & Insights', 'permissions_any' => ['use ai copilot', 'manage members', 'manage attendance', 'view finance', 'manage finance', 'view leadership reports', 'view reports', 'manage communications'], 'implemented' => true, 'description' => 'Permission-aware operational questions and verified follow-up lists.'],
     ['label' => 'Families', 'route' => 'families.index', 'icon' => 'users-round', 'section' => 'People', 'permission' => 'manage members', 'planned' => $planned['families.index']],
     [
         'label' => 'Programs & Attendance',
@@ -126,6 +127,7 @@ return [
             ['label' => 'User Management', 'route' => 'users.index', 'icon' => 'users', 'permission' => 'manage users'],
             ['label' => 'Roles & Permissions', 'route' => 'roles.index', 'icon' => 'shield-check', 'permission' => 'manage roles'],
             ['label' => 'System Settings', 'route' => 'settings.index', 'icon' => 'settings', 'permission' => 'manage settings'],
+            ['label' => 'AI Copilot', 'route' => 'ai-copilot.settings', 'icon' => 'bot', 'permission' => 'manage settings'],
             ['label' => 'Meeting Integrations', 'route' => 'meeting-integrations.index', 'icon' => 'radio-tower', 'permission' => 'manage settings'],
             ['label' => 'Communication Integrations', 'route' => 'communications.integrations', 'icon' => 'webhook', 'permission' => 'manage settings'],
             [

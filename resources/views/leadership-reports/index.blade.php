@@ -85,6 +85,7 @@
                 <p class="mt-1 text-sm text-slate-500">Oversee, review, and act on reports from pastors, ministries, departments, and campuses.</p>
             </div>
             <div class="flex flex-wrap gap-2">
+                <a href="{{ route('ai-copilot.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm hover:bg-violet-100"><i data-lucide="sparkles" class="size-4"></i>Ask Copilot</a>
                 <form method="POST" action="{{ route('leadership-reports.summary') }}">
                     @csrf
                     <button class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm hover:bg-violet-50">

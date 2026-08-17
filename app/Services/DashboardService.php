@@ -333,6 +333,7 @@ final class DashboardService
     public function getQuickActions(): array
     {
         return collect([
+            ['label' => 'Ask AI Copilot', 'route' => 'ai-copilot.index', 'icon' => 'sparkles', 'color' => 'violet'],
             ['label' => 'Add Member', 'route' => 'members.index', 'icon' => 'user-plus', 'color' => 'purple'],
             ['label' => 'Record Attendance', 'route' => 'attendance.index', 'icon' => 'clipboard-check', 'color' => 'blue'],
             ['label' => 'Create Event', 'route' => 'events.index', 'icon' => 'calendar-plus', 'color' => 'emerald'],

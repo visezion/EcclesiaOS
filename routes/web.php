@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\AuthenticationSettingsController;
 use App\Http\Controllers\BibleController;
+use App\Http\Controllers\AiCopilotController;
 use App\Http\Controllers\BiblePlanManagementController;
 use App\Http\Controllers\BibleStudyController;
 use App\Http\Controllers\BibleTranslationController;
@@ -117,6 +118,11 @@ Route::middleware('guest')->group(function (): void {
 Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('search', SearchController::class)->name('search');
+    Route::get('ai-copilot', [AiCopilotController::class, 'index'])->name('ai-copilot.index');
+    Route::post('ai-copilot/ask', [AiCopilotController::class, 'ask'])->middleware('throttle:20,1')->name('ai-copilot.ask');
+    Route::get('administration/ai-copilot', [AiCopilotController::class, 'settings'])->name('ai-copilot.settings');
+    Route::put('administration/ai-copilot', [AiCopilotController::class, 'saveSettings'])->name('ai-copilot.settings.update');
+    Route::post('administration/ai-copilot/test', [AiCopilotController::class, 'testSettings'])->name('ai-copilot.settings.test');
     Route::get('topbar/counts', TopbarCountsController::class)->name('topbar.counts');
     Route::get('support', [SupportTicketController::class, 'index'])->name('support.index');
     Route::get('support/tickets', [SupportTicketController::class, 'tickets'])->name('support.tickets.index');
@@ -464,7 +470,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.celebrations', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index', 'support.tickets.index', 'support.community', 'support.knowledge', 'support.live', 'central-support.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'ai-copilot.index', 'ai-copilot.settings', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.celebrations', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index', 'support.tickets.index', 'support.community', 'support.knowledge', 'support.live', 'central-support.index'], true)) {
             continue;
         }
 

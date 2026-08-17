@@ -36,6 +36,15 @@ final class SearchService
             ->when(! ModuleRegistry::isDisabledRoute('events.index'), fn ($results) => $results->merge($this->eventResults($query)))
             ->when(! ModuleRegistry::isDisabledRoute('assets.index'), fn ($results) => $results->merge($this->assetResults($query)));
 
+        if ($this->canUseCopilot($actor)) {
+            $navigation->push([
+                'category' => 'AI Copilot',
+                'title' => 'Ask the AI Church Operations Copilot',
+                'description' => 'Ask about missed services, giving trends, leadership reports, or new-member follow-up.',
+                'url' => route('ai-copilot.index'),
+            ]);
+        }
+
         return [
             'query' => $query,
             'results' => $navigation
@@ -120,5 +129,11 @@ final class SearchService
         return $actor?->isSuperAdministrator()
             || (! empty($item['permissions_any']) && $actor?->hasAnyPermission($item['permissions_any']))
             || (empty($item['permissions_any']) && (empty($item['permission']) || $actor?->hasPermission($item['permission'])));
+    }
+
+    private function canUseCopilot(?User $actor): bool
+    {
+        return $actor?->isSuperAdministrator()
+            || $actor?->hasAnyPermission(['use ai copilot', 'manage members', 'manage attendance', 'view finance', 'manage finance', 'view leadership reports', 'view reports', 'manage communications']);
     }
 }

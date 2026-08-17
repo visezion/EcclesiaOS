@@ -47,6 +47,9 @@
         </form>
 
         <div class="ml-auto flex items-center gap-1">
+            @if ($user?->isSuperAdministrator() || $user?->hasAnyPermission(['use ai copilot', 'manage members', 'manage attendance', 'view finance', 'manage finance', 'view leadership reports', 'view reports', 'manage communications']))
+                <a href="{{ route('ai-copilot.index') }}" class="hidden items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-violet-700 lg:flex"><i data-lucide="sparkles" class="size-3.5"></i> AI Copilot</a>
+            @endif
             <button type="button" x-on:click="mobileSearchOpen = ! mobileSearchOpen" class="grid size-10 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-violet-500 lg:hidden" aria-label="Open search">
                 <i data-lucide="search" class="size-5"></i>
             </button>

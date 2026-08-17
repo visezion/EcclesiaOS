@@ -49,6 +49,7 @@ return [
         'view reports',
         'manage workflows',
         'manage settings',
+        'use ai copilot',
     ],
 
     'roles' => [
