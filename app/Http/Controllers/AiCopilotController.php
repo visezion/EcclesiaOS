@@ -48,8 +48,9 @@ final class AiCopilotController extends Controller
         $conversation = $validated['conversation_id']
             ? AiCopilotConversation::query()->where('id', $validated['conversation_id'])->where('church_id', $request->user()->church_id)->where('user_id', $request->user()->id)->firstOrFail()
             : AiCopilotConversation::query()->create(['church_id' => $request->user()->church_id, 'user_id' => $request->user()->id, 'title' => str($validated['question'])->limit(160), 'messages' => []]);
+        $question = $this->resolveFollowUpQuestion($validated['question'], $conversation->messages ?? []);
         try {
-            $result = $copilot->ask($request->user(), $validated['question']);
+            $result = $copilot->ask($request->user(), $question);
             $logger->log('AI Copilot', 'copilot_query', 'AI Copilot answered a controlled operational query.', null, ['intent' => $result['intent'], 'source_count' => $result['source_count'], 'provider' => data_get($request->user()->church?->settings, 'ai_copilot.provider')], $request);
         } catch (\Throwable $e) {
             report($e);
@@ -70,6 +71,21 @@ final class AiCopilotController extends Controller
         $conversation->forceFill(['messages' => $messages, 'last_message_at' => now()])->save();
 
         return view('ai-copilot.partials.answer', ['question' => $validated['question'], 'result' => $result, 'conversationId' => $conversation->id]);
+    }
+
+    private function resolveFollowUpQuestion(string $question, array $messages): string
+    {
+        $isFollowUp = preg_match('/\b(this|current|last)\s+(month|moth|year)|\b(just|only)\b|\b(breakdown|compare|comparison|by fund|by method|by campus|trend)\b/i', $question) === 1;
+        if (! $isFollowUp) {
+            return $question;
+        }
+
+        $previous = collect($messages)->reverse()->first(fn ($message): bool => ($message['role'] ?? null) === 'user' && filled($message['text'] ?? null));
+        if (! $previous) {
+            return $question;
+        }
+
+        return "Previous report request: {$previous['text']}\nFollow-up scope or instruction: {$question}";
     }
 
     public function saveSettings(Request $request, AiProviderSettings $settings, ActivityLogger $logger): RedirectResponse
@@ -100,7 +116,7 @@ final class AiCopilotController extends Controller
 
     private function authorizeCopilot(Request $request): void
     {
-        abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasAnyPermission(['use ai copilot', 'manage members', 'manage attendance', 'view finance', 'manage finance', 'view leadership reports', 'view reports', 'manage communications', 'manage events', 'manage prayer', 'manage volunteers', 'manage ministries', 'manage assets', 'manage facilities']), 403);
+        abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasAnyPermission(['use ai copilot', 'manage members', 'manage attendance', 'view finance', 'manage finance', 'view ministry finance', 'view leadership reports', 'view reports', 'manage events', 'manage prayer', 'manage volunteers', 'manage ministries', 'manage assets', 'manage facilities', 'manage communications', 'manage counselling', 'manage financial assistance', 'manage support', 'manage workflows', 'manage bookstore']), 403);
     }
 
     private function authorizeSettings(Request $request): void

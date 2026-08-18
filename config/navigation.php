@@ -38,7 +38,7 @@ return [
         'implemented' => true,
     ],
     ['label' => 'Members', 'route' => 'members.index', 'icon' => 'users', 'section' => 'People', 'permission' => 'manage members', 'planned' => $planned['members.index']],
-    ['label' => 'AI Copilot', 'route' => 'ai-copilot.index', 'icon' => 'sparkles', 'section' => 'Leadership & Insights', 'permissions_any' => ['use ai copilot', 'manage members', 'manage attendance', 'view finance', 'manage finance', 'view leadership reports', 'view reports', 'manage communications'], 'implemented' => true, 'description' => 'Permission-aware operational questions and verified follow-up lists.'],
+    ['label' => 'AI Copilot', 'route' => 'ai-copilot.index', 'icon' => 'chart-no-axes-combined', 'section' => 'Leadership & Insights', 'permissions_any' => ['use ai copilot', 'manage members', 'manage attendance', 'view finance', 'manage finance', 'view ministry finance', 'view leadership reports', 'view reports', 'manage events', 'manage prayer', 'manage volunteers', 'manage ministries', 'manage assets', 'manage facilities', 'manage communications', 'manage counselling', 'manage financial assistance', 'manage support', 'manage workflows', 'manage bookstore'], 'implemented' => true, 'description' => 'Permission-aware cross-module reports, metrics, trends, and analysis.'],
     ['label' => 'Families', 'route' => 'families.index', 'icon' => 'users-round', 'section' => 'People', 'permission' => 'manage members', 'planned' => $planned['families.index']],
     [
         'label' => 'Programs & Attendance',
