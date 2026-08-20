@@ -57,8 +57,8 @@ return [
     ],
 
     'central_support' => [
-        'url' => env('CENTRAL_SUPPORT_URL', 'https://ecclesiaos.vicezion.com'),
-        'enrollment_key' => env('CENTRAL_SUPPORT_ENROLLMENT_KEY'),
+        'url' => env('CENTRAL_SUPPORT_URL', env('APP_ENV') === 'local' ? 'http://127.0.0.1:8090' : 'https://ecclesiaos.vicezion.com'),
+        'enrollment_key' => env('CENTRAL_SUPPORT_ENROLLMENT_KEY', env('APP_ENV') === 'local' ? 'ecclesiaos-local-enrollment' : ''),
     ],
 
 ];

@@ -22,6 +22,7 @@ final class SyncCentralSupport extends Command
         $failed = 0;
 
         Church::query()->each(function (Church $church) use ($settings, $outbox, $client, &$sent, &$failed): void {
+            $settings->autoEnroll($church);
             $connection = $settings->forChurch($church);
             if (! $connection['enabled'] || ! $connection['api_token_configured']) {
                 return;

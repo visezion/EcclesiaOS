@@ -17,6 +17,7 @@ final class SupportResourceController extends Controller
     public function knowledge(Request $request, CentralSupportSettings $settings, CentralSupportClient $client): View
     {
         $church = $this->church($request);
+        $settings->autoEnroll($church);
         $connection = $settings->forChurch($church);
         $result = ['data' => [], 'meta' => [], 'categories' => []];
         $unavailable = null;
@@ -54,6 +55,7 @@ final class SupportResourceController extends Controller
     public function knowledgeArticle(Request $request, string $article, CentralSupportSettings $settings, CentralSupportClient $client): View
     {
         $church = $this->church($request);
+        $settings->autoEnroll($church);
         $connection = $settings->forChurch($church);
         $articleData = null;
         $unavailable = null;
@@ -87,6 +89,7 @@ final class SupportResourceController extends Controller
     public function rateKnowledgeArticle(Request $request, string $article, CentralSupportSettings $settings, CentralSupportClient $client): RedirectResponse
     {
         $church = $this->church($request);
+        $settings->autoEnroll($church);
         $connection = $settings->forChurch($church);
         abort_unless($connection['enabled'] && $connection['api_token_configured'], 422, 'Connect central support before rating an article.');
         $validated = $request->validate(['helpful' => ['required', 'boolean']]);
@@ -105,6 +108,7 @@ final class SupportResourceController extends Controller
     public function live(Request $request, CentralSupportSettings $settings, CentralSupportClient $client): View
     {
         $church = $this->church($request);
+        $settings->autoEnroll($church);
         $connection = $settings->forChurch($church);
         $live = ['online' => false, 'queue_position' => null, 'average_response' => null, 'messages' => [], 'suggested_articles' => []];
         $unavailable = null;
@@ -135,6 +139,7 @@ final class SupportResourceController extends Controller
     public function sendLiveMessage(Request $request, CentralSupportSettings $settings, CentralSupportClient $client): RedirectResponse
     {
         $church = $this->church($request);
+        $settings->autoEnroll($church);
         $connection = $settings->forChurch($church);
         abort_unless($connection['enabled'] && $connection['api_token_configured'], 422, 'Connect central support before starting live support.');
         $validated = $request->validate(['message' => ['required', 'string', 'min:2', 'max:5000']]);

@@ -24,6 +24,7 @@ final class CentralSupportController extends Controller
     {
         $church = $this->church($request);
         $this->authorizeAccess($request, $church);
+        $settings->autoEnroll($church);
 
         return view('support.connection', [
             'church' => $church,
@@ -71,6 +72,7 @@ final class CentralSupportController extends Controller
     {
         $church = $this->church($request);
         $this->authorizeAccess($request, $church);
+        $settings->autoEnroll($church);
 
         try {
             $message = $client->test($church);
@@ -90,6 +92,7 @@ final class CentralSupportController extends Controller
     {
         $church = $this->church($request);
         $this->authorizeAccess($request, $church);
+        app(CentralSupportSettings::class)->autoEnroll($church);
         $result = $outbox->syncPending($client, $church->id);
 
         return back()->with(

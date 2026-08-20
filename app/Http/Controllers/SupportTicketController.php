@@ -191,6 +191,9 @@ final class SupportTicketController extends Controller
             'risk' => $ticket->priority,
         ], $request);
         $outbox->enqueueTicket($ticket->load(['church', 'creator', 'attachments']));
+        if ($ticket->church) {
+            $centralSettings->autoEnroll($ticket->church);
+        }
         $connection = $ticket->church ? $centralSettings->forChurch($ticket->church) : null;
         if ($connection && $connection['enabled'] && $connection['api_token_configured']) {
             // Deliver configured installations immediately; the outbox remains the retry path.

@@ -28,6 +28,7 @@ final class SupportCommunityController extends Controller
     public function index(Request $request, CentralSupportSettings $settings, CentralSupportClient $client): View
     {
         $church = $this->church($request);
+        $settings->autoEnroll($church);
         $connection = $settings->forChurch($church);
         $community = ['data' => [], 'meta' => []];
         $unavailable = null;
@@ -65,6 +66,7 @@ final class SupportCommunityController extends Controller
     public function store(Request $request, CentralSupportSettings $settings, CentralSupportClient $client, ActivityLogger $logger): RedirectResponse
     {
         $church = $this->church($request);
+        $settings->autoEnroll($church);
         $connection = $settings->forChurch($church);
         abort_unless($connection['enabled'] && $connection['api_token_configured'], 422, 'Connect central support before publishing a community question.');
         $validated = $request->validate([
