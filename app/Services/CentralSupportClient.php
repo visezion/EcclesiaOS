@@ -7,10 +7,10 @@ namespace App\Services;
 use App\Models\CentralSupportSyncEvent;
 use App\Models\Church;
 use App\Support\SafeOutboundUrl;
+use Closure;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
-use Closure;
 use RuntimeException;
 
 final class CentralSupportClient
