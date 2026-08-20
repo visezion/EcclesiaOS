@@ -59,10 +59,11 @@ final class CentralSupportSettings
         );
     }
 
-    public function autoEnroll(Church $church): bool
+    public function autoEnroll(Church $church, bool $force = false): bool
     {
         $value = $this->raw($church);
-        if (filled($value['api_token_encrypted'] ?? null) && filled($value['installation_id'] ?? null)) {
+        $existingToken = $this->decrypt($value['api_token_encrypted'] ?? null);
+        if (! $force && filled($existingToken) && filled($value['installation_id'] ?? null) && ($value['enabled'] ?? false)) {
             return (bool) ($value['enabled'] ?? false);
         }
 

@@ -50,6 +50,48 @@ final class CentralSupportConnectionTest extends TestCase
             ->assertSee('Create temporary access', false);
     }
 
+    public function test_rejected_existing_token_is_repaired_by_automatic_reenrollment(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        app(CentralSupportSettings::class)->save($admin->church, [
+            'enabled' => true,
+            'remote_access_enabled' => false,
+            'api_token' => 'stale-central-installation-token-123456',
+        ]);
+        config(['services.central_support.enrollment_key' => 'test-enrollment-key']);
+        $pingAttempts = 0;
+
+        Http::fake(function ($request) use (&$pingAttempts) {
+            if (str_ends_with($request->url(), '/api/v1/installations/enroll')) {
+                return Http::response([
+                    'connected' => true,
+                    'installation_id' => $request['installation_id'],
+                    'api_token' => 'repaired-central-installation-token-123456',
+                ]);
+            }
+
+            if (str_ends_with($request->url(), '/api/v1/installations/ping')) {
+                $pingAttempts++;
+
+                return $pingAttempts === 1
+                    ? Http::response(['message' => 'Invalid installation credentials.'], 401)
+                    : Http::response(['message' => 'Installation connected.']);
+            }
+
+            return Http::response([], 404);
+        });
+
+        $this->actingAs($admin)->post(route('central-support.test'))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Installation connected.');
+
+        Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/api/v1/installations/enroll')
+            && $request->hasHeader('X-EcclesiaOS-Enrollment-Key', 'test-enrollment-key'));
+        Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/api/v1/installations/ping')
+            && $request->hasHeader('Authorization', 'Bearer repaired-central-installation-token-123456'));
+    }
+
     public function test_new_tickets_enter_the_retryable_central_sync_outbox(): void
     {
         $this->seed();

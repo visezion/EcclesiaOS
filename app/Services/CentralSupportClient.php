@@ -10,6 +10,7 @@ use App\Support\SafeOutboundUrl;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Closure;
 use RuntimeException;
 
 final class CentralSupportClient
@@ -18,7 +19,7 @@ final class CentralSupportClient
 
     public function test(Church $church): string
     {
-        $response = $this->request($church)->get($this->endpoint('/api/v1/installations/ping'));
+        $response = $this->requestWithRecovery($church, fn (PendingRequest $request): Response => $request->get($this->endpoint('/api/v1/installations/ping')));
         $this->assertSuccessful($response);
 
         return (string) ($response->json('message') ?: 'Central support connection is healthy.');
@@ -30,7 +31,7 @@ final class CentralSupportClient
      */
     public function communityQuestions(Church $church, array $filters = []): array
     {
-        $response = $this->request($church)->get($this->endpoint('/api/v1/community/questions'), array_filter($filters));
+        $response = $this->requestWithRecovery($church, fn (PendingRequest $request): Response => $request->get($this->endpoint('/api/v1/community/questions'), array_filter($filters)));
         $this->assertSuccessful($response);
 
         return (array) $response->json();
@@ -42,7 +43,7 @@ final class CentralSupportClient
      */
     public function createCommunityQuestion(Church $church, array $payload): array
     {
-        $response = $this->request($church)->post($this->endpoint('/api/v1/community/questions'), $payload);
+        $response = $this->requestWithRecovery($church, fn (PendingRequest $request): Response => $request->post($this->endpoint('/api/v1/community/questions'), $payload));
         $this->assertSuccessful($response);
 
         return (array) $response->json();
@@ -54,7 +55,7 @@ final class CentralSupportClient
      */
     public function knowledgeArticles(Church $church, array $filters = []): array
     {
-        $response = $this->request($church)->get($this->endpoint('/api/v1/knowledge/articles'), array_filter($filters));
+        $response = $this->requestWithRecovery($church, fn (PendingRequest $request): Response => $request->get($this->endpoint('/api/v1/knowledge/articles'), array_filter($filters)));
         $this->assertSuccessful($response);
 
         return (array) $response->json();
@@ -65,7 +66,7 @@ final class CentralSupportClient
      */
     public function knowledgeArticle(Church $church, string $articleId): array
     {
-        $response = $this->request($church)->get($this->endpoint('/api/v1/knowledge/articles/'.rawurlencode($articleId)));
+        $response = $this->requestWithRecovery($church, fn (PendingRequest $request): Response => $request->get($this->endpoint('/api/v1/knowledge/articles/'.rawurlencode($articleId))));
         $this->assertSuccessful($response);
 
         return (array) $response->json();
@@ -76,7 +77,7 @@ final class CentralSupportClient
      */
     public function rateKnowledgeArticle(Church $church, string $articleId, bool $helpful): array
     {
-        $response = $this->request($church)->post(
+        $response = $this->requestWithRecovery($church, fn (PendingRequest $request): Response => $request->post(
             $this->endpoint('/api/v1/knowledge/articles/'.rawurlencode($articleId).'/helpful'),
             [
                 'helpful' => $helpful,
@@ -85,7 +86,7 @@ final class CentralSupportClient
                     'church_id' => $church->opaqueId(),
                 ],
             ],
-        );
+        ));
         $this->assertSuccessful($response);
 
         return (array) $response->json();
@@ -96,7 +97,7 @@ final class CentralSupportClient
      */
     public function liveSupport(Church $church): array
     {
-        $response = $this->request($church)->get($this->endpoint('/api/v1/live-support'));
+        $response = $this->requestWithRecovery($church, fn (PendingRequest $request): Response => $request->get($this->endpoint('/api/v1/live-support')));
         $this->assertSuccessful($response);
 
         return (array) $response->json();
@@ -108,7 +109,7 @@ final class CentralSupportClient
      */
     public function sendLiveMessage(Church $church, array $payload): array
     {
-        $response = $this->request($church)->post($this->endpoint('/api/v1/live-support/messages'), $payload);
+        $response = $this->requestWithRecovery($church, fn (PendingRequest $request): Response => $request->post($this->endpoint('/api/v1/live-support/messages'), $payload));
         $this->assertSuccessful($response);
 
         return (array) $response->json();
@@ -119,12 +120,12 @@ final class CentralSupportClient
      */
     public function send(CentralSupportSyncEvent $event): array
     {
-        $response = $this->request($event->church)->post($this->endpoint('/api/v1/church/events'), [
+        $response = $this->requestWithRecovery($event->church, fn (PendingRequest $request): Response => $request->post($this->endpoint('/api/v1/church/events'), [
             'event_id' => $event->event_id,
             'event_type' => $event->event_type,
             'occurred_at' => $event->created_at?->toIso8601String(),
             'payload' => $event->payload,
-        ]);
+        ]));
         $this->assertSuccessful($response);
 
         return (array) $response->json();
@@ -148,6 +149,21 @@ final class CentralSupportClient
             ->connectTimeout(5)
             ->timeout(20)
             ->withOptions(SafeOutboundUrl::requestOptions((string) $settings['endpoint']));
+    }
+
+    /** @param Closure(PendingRequest): Response $operation */
+    private function requestWithRecovery(Church $church, Closure $operation): Response
+    {
+        $response = $operation($this->request($church));
+        if ($response->status() !== 401) {
+            return $response;
+        }
+
+        if (! $this->settings->autoEnroll($church, true)) {
+            return $response;
+        }
+
+        return $operation($this->request($church));
     }
 
     private function endpoint(string $path): string
