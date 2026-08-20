@@ -51,7 +51,7 @@ final class ChurchCopilotService
         $answer = match ($intent) {
             'capabilities' => "## I can help with church reports and analysis\n\n- Build an executive summary from available metrics\n- Analyze membership and attendance trends\n- Compare giving by campus and period\n- Review leadership reports, priorities, and due dates\n- Explain patterns, changes, and areas needing attention\n\nI only use verified, permission-filtered records. I do not create, edit, send, or manage operational records.",
             'unknown' => "## Reports and analytics only\n\nI can help with executive summaries, metrics, trends, comparisons, and leadership-report analysis. I cannot handle operational requests or unrelated general questions here.",
-            default => $this->client->answer($this->church($user), $question, $context),
+            default => $this->providerAnswer($user, $question, $context, $intent),
         };
         $answer = trim($answer) !== '' ? $answer : $this->fallbackAnswer($intent, $context);
 
@@ -233,6 +233,42 @@ final class ChurchCopilotService
         return match ($intent) {
             default => 'I could not generate a report from the verified records. Try an executive summary, trend analysis, comparison, or leadership-report question.',
         };
+    }
+
+    private function providerAnswer(User $user, string $question, array $context, string $intent): string
+    {
+        try {
+            return $this->client->answer($this->church($user), $question, $context);
+        } catch (RuntimeException $exception) {
+            if (! str_contains($exception->getMessage(), 'Configure an AI provider API key')) {
+                throw $exception;
+            }
+
+            return $this->localReportFallback($intent, $context);
+        }
+    }
+
+    private function localReportFallback(string $intent, array $context): string
+    {
+        $lines = [
+            '## Verified report data',
+            '',
+            'The AI provider is not configured, so this is a local data summary. Add an API key in AI Copilot Settings to receive narrative analysis and recommendations.',
+            '',
+            '**Report:** '.($context['title'] ?? $intent),
+        ];
+        foreach ($context as $key => $value) {
+            if ($key === 'title' || $key === 'note') {
+                continue;
+            }
+            if (is_scalar($value) && $value !== '') {
+                $lines[] = '- **'.Str::headline((string) $key).':** '.$value;
+            } elseif (is_array($value)) {
+                $lines[] = '- **'.Str::headline((string) $key).':** '.count($value).' grouped results';
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     private function missedServices(User $user): array

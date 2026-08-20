@@ -131,6 +131,8 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('support/community', [SupportCommunityController::class, 'index'])->name('support.community');
     Route::post('support/community', [SupportCommunityController::class, 'store'])->middleware('throttle:10,1')->name('support.community.store');
     Route::get('support/knowledge', [SupportResourceController::class, 'knowledge'])->name('support.knowledge');
+    Route::get('support/knowledge/{article}', [SupportResourceController::class, 'knowledgeArticle'])->name('support.knowledge.article');
+    Route::post('support/knowledge/{article}/helpful', [SupportResourceController::class, 'rateKnowledgeArticle'])->middleware('throttle:20,1')->name('support.knowledge.article.helpful');
     Route::get('support/live', [SupportResourceController::class, 'live'])->name('support.live');
     Route::post('support/live/messages', [SupportResourceController::class, 'sendLiveMessage'])->middleware('throttle:30,1')->name('support.live.messages');
     Route::get('support/central-connection', [CentralSupportController::class, 'index'])->name('central-support.index');

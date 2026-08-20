@@ -51,6 +51,57 @@ final class SupportResourceController extends Controller
         ]);
     }
 
+    public function knowledgeArticle(Request $request, string $article, CentralSupportSettings $settings, CentralSupportClient $client): View
+    {
+        $church = $this->church($request);
+        $connection = $settings->forChurch($church);
+        $articleData = null;
+        $unavailable = null;
+
+        if ($connection['enabled'] && $connection['api_token_configured']) {
+            try {
+                $result = $client->knowledgeArticle($church, $article);
+                $articleData = (array) ($result['data'] ?? $result['article'] ?? $result);
+            } catch (Throwable $exception) {
+                report($exception);
+                $unavailable = 'This knowledge-base article is temporarily unavailable.';
+            }
+        } else {
+            $unavailable = 'Connect this church to central support to read the full article.';
+        }
+
+        return view('support.knowledge-article', [
+            'connection' => $connection,
+            'article' => $articleData,
+            'articleId' => $article,
+            'unavailable' => $unavailable,
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Support Center', 'url' => route('support.index')],
+                ['label' => 'Knowledge Base', 'url' => route('support.knowledge')],
+                ['label' => $articleData['title'] ?? 'Article', 'url' => null],
+            ],
+        ]);
+    }
+
+    public function rateKnowledgeArticle(Request $request, string $article, CentralSupportSettings $settings, CentralSupportClient $client): RedirectResponse
+    {
+        $church = $this->church($request);
+        $connection = $settings->forChurch($church);
+        abort_unless($connection['enabled'] && $connection['api_token_configured'], 422, 'Connect central support before rating an article.');
+        $validated = $request->validate(['helpful' => ['required', 'boolean']]);
+
+        try {
+            $client->rateKnowledgeArticle($church, $article, (bool) $validated['helpful']);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return back()->withErrors(['article' => 'Your article feedback could not be saved. Please try again.']);
+        }
+
+        return back()->with('status', 'Thank you. Your feedback helps improve the knowledge base.');
+    }
+
     public function live(Request $request, CentralSupportSettings $settings, CentralSupportClient $client): View
     {
         $church = $this->church($request);

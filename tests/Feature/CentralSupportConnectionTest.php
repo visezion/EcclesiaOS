@@ -91,6 +91,30 @@ final class CentralSupportConnectionTest extends TestCase
         Http::assertSent(fn ($request): bool => $request['event_type'] === 'ticket.created');
     }
 
+    public function test_new_ticket_is_delivered_immediately_when_central_support_is_configured(): void
+    {
+        $this->seed();
+        $user = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        app(CentralSupportSettings::class)->save($user->church, [
+            'enabled' => true,
+            'remote_access_enabled' => false,
+            'api_token' => 'central-installation-token-123456',
+        ]);
+        Http::fake([
+            'https://ecclesiaos.vicezion.com/api/v1/church/events' => Http::response(['ticket_id' => (string) Str::uuid()]),
+        ]);
+
+        $this->actingAs($user)->post(route('support.tickets.store'), [
+            'category' => 'bug',
+            'priority' => 'normal',
+            'subject' => 'Immediate central support delivery',
+            'description' => 'This ticket should be sent to central support as soon as it is created.',
+        ])->assertRedirect();
+
+        $this->assertSame('synced', SupportTicket::query()->sole()->sync_status);
+        Http::assertSent(fn ($request): bool => $request['event_type'] === 'ticket.created');
+    }
+
     public function test_one_time_grant_creates_an_expiring_named_remote_support_session(): void
     {
         $this->seed();
@@ -286,5 +310,44 @@ final class CentralSupportConnectionTest extends TestCase
         $this->actingAs($admin)->get(route('support.knowledge'))->assertOk()->assertSee('Configure attendance imports', false);
         $this->actingAs($admin)->get(route('support.live'))->assertOk()->assertSee('Central Support is online', false);
         $this->actingAs($admin)->post(route('support.live.messages'), ['message' => 'Please help us diagnose our current support issue.'])->assertRedirect()->assertSessionHas('status');
+    }
+
+    public function test_church_can_read_a_full_knowledge_article_and_rate_it(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        app(CentralSupportSettings::class)->save($admin->church, [
+            'enabled' => true,
+            'remote_access_enabled' => false,
+            'api_token' => 'central-installation-token-123456',
+        ]);
+        Http::fake(function ($request) {
+            if ($request->method() === 'GET') {
+                return Http::response([
+                    'data' => [
+                        'id' => 'article-1',
+                        'title' => 'Configure attendance imports',
+                        'content' => 'Follow these steps to configure attendance imports.',
+                    ],
+                ]);
+            }
+
+            return Http::response(['helpful' => true]);
+        });
+
+        $this->actingAs($admin)
+            ->get(route('support.knowledge.article', ['article' => 'article-1']))
+            ->assertOk()
+            ->assertSee('Follow these steps to configure attendance imports.', false)
+            ->assertSee('Was this article helpful?', false);
+
+        $this->actingAs($admin)
+            ->post(route('support.knowledge.article.helpful', ['article' => 'article-1']), ['helpful' => '1'])
+            ->assertRedirect()
+            ->assertSessionHas('status');
+
+        Http::assertSent(fn ($request): bool => $request->method() === 'POST'
+            && str_ends_with($request->url(), '/api/v1/knowledge/articles/article-1/helpful')
+            && $request['helpful'] === true);
     }
 }

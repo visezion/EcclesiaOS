@@ -45,7 +45,7 @@ final class AiCopilotController extends Controller
     {
         $this->authorizeCopilot($request);
         $validated = $request->validate(['question' => ['required', 'string', 'max:500'], 'conversation_id' => ['nullable', 'integer']]);
-        $conversation = $validated['conversation_id']
+        $conversation = ($validated['conversation_id'] ?? null)
             ? AiCopilotConversation::query()->where('id', $validated['conversation_id'])->where('church_id', $request->user()->church_id)->where('user_id', $request->user()->id)->firstOrFail()
             : AiCopilotConversation::query()->create(['church_id' => $request->user()->church_id, 'user_id' => $request->user()->id, 'title' => str($validated['question'])->limit(160), 'messages' => []]);
         $question = $this->resolveFollowUpQuestion($validated['question'], $conversation->messages ?? []);

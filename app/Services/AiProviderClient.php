@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Church;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -25,15 +26,15 @@ final class AiProviderClient
             $model = $this->resolveAnthropicModel($config);
             $payload = ['model' => $model, 'max_tokens' => $config['max_tokens']];
             $payload += ['system' => $system, 'messages' => [['role' => 'user', 'content' => "Question: {$question}\n\nVerified data:\n".json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)]]];
-            $response = Http::timeout($config['timeout'])->withHeaders(['x-api-key' => $config['api_key'], 'anthropic-version' => '2023-06-01'])->post(config('ai.anthropic_endpoint'), $payload);
+            $response = Http::connectTimeout(5)->timeout($config['timeout'])->withHeaders(['x-api-key' => $config['api_key'], 'anthropic-version' => '2023-06-01'])->post(config('ai.anthropic_endpoint'), $payload);
             $response->throw();
 
             return trim((string) collect($response->json('content', []))->where('type', 'text')->pluck('text')->implode("\n"));
         }
 
-        $payload = ['model' => $model, 'max_tokens' => $config['max_tokens']];
+        $payload = ['model' => $model, 'max_output_tokens' => $config['max_tokens']];
         $payload += ['store' => false, 'instructions' => $system, 'input' => "Question: {$question}\n\nVerified data:\n".json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)];
-        $response = Http::timeout($config['timeout'])->withToken($config['api_key'])->post(config('ai.openai_endpoint'), $payload);
+        $response = Http::connectTimeout(5)->timeout($config['timeout'])->withToken($config['api_key'])->post(config('ai.openai_endpoint'), $payload);
         $response->throw();
         $text = $response->json('output_text');
         if (filled($text)) {
@@ -57,31 +58,34 @@ final class AiProviderClient
      */
     private function resolveAnthropicModel(array $config): string
     {
-        $response = Http::timeout($config['timeout'])
-            ->withHeaders(['x-api-key' => $config['api_key'], 'anthropic-version' => '2023-06-01'])
-            ->get(config('ai.anthropic_models_endpoint'), ['limit' => 100]);
+        return Cache::remember('ai-copilot.anthropic-model.'.sha1($config['api_key']), now()->addMinutes(10), function () use ($config): string {
+            $response = Http::connectTimeout(5)
+                ->timeout($config['timeout'])
+                ->withHeaders(['x-api-key' => $config['api_key'], 'anthropic-version' => '2023-06-01'])
+                ->get(config('ai.anthropic_models_endpoint'), ['limit' => 100]);
 
-        if ($response->failed()) {
-            return $config['model'];
-        }
+            if ($response->failed()) {
+                return $config['model'];
+            }
 
-        $models = collect($response->json('data', []))
-            ->pluck('id')
-            ->filter(fn ($id): bool => is_string($id) && $id !== '')
-            ->values();
+            $models = collect($response->json('data', []))
+                ->pluck('id')
+                ->filter(fn ($id): bool => is_string($id) && $id !== '')
+                ->values();
 
-        if ($models->contains($config['model'])) {
-            return $config['model'];
-        }
+            if ($models->contains($config['model'])) {
+                return $config['model'];
+            }
 
-        $fallback = $models->first(fn (string $model): bool => str_contains($model, 'sonnet'))
-            ?? $models->first(fn (string $model): bool => str_contains($model, 'haiku'))
-            ?? $models->first();
+            $fallback = $models->first(fn (string $model): bool => str_contains($model, 'sonnet'))
+                ?? $models->first(fn (string $model): bool => str_contains($model, 'haiku'))
+                ?? $models->first();
 
-        if (! $fallback) {
-            throw new RuntimeException('Claude returned no usable models for this API key. Check the API key and Anthropic account access.');
-        }
+            if (! $fallback) {
+                throw new RuntimeException('Claude returned no usable models for this API key. Check the API key and Anthropic account access.');
+            }
 
-        return $fallback;
+            return $fallback;
+        });
     }
 }

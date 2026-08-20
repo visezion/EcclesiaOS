@@ -63,6 +63,37 @@ final class CentralSupportClient
     /**
      * @return array<string, mixed>
      */
+    public function knowledgeArticle(Church $church, string $articleId): array
+    {
+        $response = $this->request($church)->get($this->endpoint('/api/v1/knowledge/articles/'.rawurlencode($articleId)));
+        $this->assertSuccessful($response);
+
+        return (array) $response->json();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function rateKnowledgeArticle(Church $church, string $articleId, bool $helpful): array
+    {
+        $response = $this->request($church)->post(
+            $this->endpoint('/api/v1/knowledge/articles/'.rawurlencode($articleId).'/helpful'),
+            [
+                'helpful' => $helpful,
+                'voter' => [
+                    'local_id' => request()->user()?->opaqueId(),
+                    'church_id' => $church->opaqueId(),
+                ],
+            ],
+        );
+        $this->assertSuccessful($response);
+
+        return (array) $response->json();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function liveSupport(Church $church): array
     {
         $response = $this->request($church)->get($this->endpoint('/api/v1/live-support'));

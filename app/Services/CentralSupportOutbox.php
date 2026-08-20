@@ -77,13 +77,14 @@ final class CentralSupportOutbox
     /**
      * @return array{sent:int,failed:int,pending:int}
      */
-    public function syncPending(CentralSupportClient $client, ?int $churchId = null, int $limit = 25): array
+    public function syncPending(CentralSupportClient $client, ?int $churchId = null, int $limit = 25, ?int $ticketId = null): array
     {
         $events = CentralSupportSyncEvent::query()
             ->with(['church', 'ticket'])
             ->whereIn('status', ['pending', 'failed'])
             ->where(fn ($query) => $query->whereNull('next_attempt_at')->orWhere('next_attempt_at', '<=', now()))
             ->when($churchId, fn ($query) => $query->where('church_id', $churchId))
+            ->when($ticketId, fn ($query) => $query->where('support_ticket_id', $ticketId))
             ->oldest()
             ->limit($limit)
             ->get();

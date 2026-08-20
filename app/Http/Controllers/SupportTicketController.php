@@ -10,6 +10,7 @@ use App\Models\SupportTicketReply;
 use App\Models\User;
 use App\Notifications\SupportTicketNotification;
 use App\Services\ActivityLogger;
+use App\Services\CentralSupportClient;
 use App\Services\CentralSupportOutbox;
 use App\Services\CentralSupportSettings;
 use Illuminate\Contracts\View\View;
@@ -142,7 +143,13 @@ final class SupportTicketController extends Controller
         ]);
     }
 
-    public function store(Request $request, ActivityLogger $activityLogger, CentralSupportOutbox $outbox): RedirectResponse
+    public function store(
+        Request $request,
+        ActivityLogger $activityLogger,
+        CentralSupportOutbox $outbox,
+        CentralSupportClient $centralClient,
+        CentralSupportSettings $centralSettings,
+    ): RedirectResponse
     {
         $validated = $request->validate($this->ticketRules());
         $ticket = DB::transaction(function () use ($request, $validated): SupportTicket {
@@ -185,6 +192,11 @@ final class SupportTicketController extends Controller
             'risk' => $ticket->priority,
         ], $request);
         $outbox->enqueueTicket($ticket->load(['church', 'creator', 'attachments']));
+        $connection = $ticket->church ? $centralSettings->forChurch($ticket->church) : null;
+        if ($connection && $connection['enabled'] && $connection['api_token_configured']) {
+            // Deliver configured installations immediately; the outbox remains the retry path.
+            $outbox->syncPending($centralClient, $ticket->church_id, 1, $ticket->id);
+        }
         $this->notifySupportTeam($ticket, $request->user()->id);
 
         return redirect()->route('support.tickets.show', $ticket)->with('status', 'Your ticket was submitted. Track progress and replies here.');

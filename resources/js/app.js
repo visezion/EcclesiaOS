@@ -2348,6 +2348,99 @@ document.addEventListener('alpine:init', () => {
     });
 });
 
+function initializeCopilotChatFallback() {
+    const input = document.getElementById('copilot-question');
+    const form = input?.form;
+    const messages = document.querySelector('[x-ref="messages"]');
+
+    if (!input || !form || !messages || form.dataset.copilotBound === 'true') {
+        return;
+    }
+
+    input.removeAttribute('x-model');
+    input.removeAttribute(':disabled');
+    form.removeAttribute('x-on:submit.prevent');
+    form.dataset.copilotBound = 'true';
+    document.querySelectorAll('button[x-on*="question"]').forEach(button => {
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            input.value = button.textContent.trim();
+            form.requestSubmit();
+        }, true);
+    });
+    let conversationId = null;
+    let loading = false;
+    const askUrl = window.location.pathname.replace(/\/ai-copilot\/?$/, '/ai-copilot/ask');
+    const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const scroll = () => { messages.scrollTop = messages.scrollHeight; };
+    const addMessage = (role, content) => {
+        const item = document.createElement('div');
+        item.className = role === 'user' ? 'ml-auto max-w-[92%] space-y-1' : 'max-w-[96%] space-y-1';
+        if (role === 'user') {
+            item.innerHTML = '<div class="flex items-center justify-end gap-2 text-[11px] font-bold text-violet-600"><span></span><span>You</span></div><div class="rounded-xl bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-100"></div>';
+            item.querySelector('span').textContent = now();
+            item.querySelector('.rounded-xl').textContent = content;
+        } else {
+            item.innerHTML = '<div class="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm"><div class="mb-3 flex items-center gap-2"><span class="text-sm font-bold text-slate-900">Analytics Copilot</span><span class="ml-auto text-[10px] text-slate-400"></span></div><div class="copilot-markdown text-sm leading-6 text-slate-700"></div></div>';
+            item.querySelector('.text-slate-400').textContent = now();
+            item.querySelector('.copilot-markdown').innerHTML = content;
+        }
+        messages.appendChild(item);
+        scroll();
+    };
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (loading || !input.value.trim()) return;
+
+        const question = input.value.trim();
+        input.value = '';
+        addMessage('user', question);
+        loading = true;
+        input.disabled = true;
+        const submit = form.querySelector('button[type="submit"]');
+        if (submit) submit.disabled = true;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 60000);
+
+        try {
+            const response = await fetch(askUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'text/html',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                },
+                body: JSON.stringify({ question, conversation_id: conversationId }),
+                signal: controller.signal,
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = await response.text();
+            const answer = wrapper.querySelector('[data-copilot-answer]');
+            if (!answer) throw new Error('Empty Copilot response');
+            conversationId = answer.dataset.conversationId || conversationId;
+            addMessage('assistant', answer.querySelector('.copilot-markdown')?.innerHTML || '<p>The Copilot returned an empty answer.</p>');
+        } catch (error) {
+            addMessage('assistant', error.name === 'AbortError'
+                ? '<p>The request took too long. Please try again.</p>'
+                : '<p>The Copilot request failed. Check AI Copilot Settings and the provider connection.</p>');
+        } finally {
+            window.clearTimeout(timeout);
+            loading = false;
+            input.disabled = false;
+            if (submit) submit.disabled = false;
+            input.focus();
+            scroll();
+        }
+    }, true);
+}
+
+document.addEventListener('DOMContentLoaded', initializeCopilotChatFallback);
+initializeCopilotChatFallback();
+
 Alpine.start();
 
 const icons = {
