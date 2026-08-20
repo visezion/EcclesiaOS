@@ -7,7 +7,9 @@ namespace App\Services;
 use App\Models\Church;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use App\Support\SafeOutboundUrl;
 use Throwable;
 
 final class CentralSupportSettings
@@ -57,6 +59,61 @@ final class CentralSupportSettings
         );
     }
 
+    public function autoEnroll(Church $church): bool
+    {
+        $value = $this->raw($church);
+        if (filled($value['api_token_encrypted'] ?? null) && filled($value['installation_id'] ?? null)) {
+            return (bool) ($value['enabled'] ?? false);
+        }
+
+        $enrollmentKey = (string) config('services.central_support.enrollment_key');
+        if ($enrollmentKey === '') {
+            return false;
+        }
+
+        $value['installation_id'] ??= (string) Str::uuid();
+        $this->persist($church, $value);
+
+        try {
+            $response = Http::acceptJson()
+                ->asJson()
+                ->withHeaders(['X-EcclesiaOS-Enrollment-Key' => $enrollmentKey])
+                ->connectTimeout(5)
+                ->timeout(15)
+                ->withOptions(SafeOutboundUrl::requestOptions((string) config('services.central_support.url')))
+                ->post(SafeOutboundUrl::normalize((string) config('services.central_support.url')).'/api/v1/installations/enroll', [
+                    'installation_id' => $value['installation_id'],
+                    'church_name' => $church->name,
+                    'callback_url' => rtrim((string) config('app.url'), '/'),
+                    'version' => (string) config('app.version', 'development'),
+                ]);
+            $response->throw();
+            $token = (string) $response->json('api_token');
+            if ($token === '') {
+                return false;
+            }
+
+            $value['api_token_encrypted'] = Crypt::encryptString($token);
+            $value['api_token_last_four'] = Str::substr($token, -4);
+            $value['enabled'] = true;
+            $value['remote_access_enabled'] = false;
+            $value['last_tested_at'] = now()->toIso8601String();
+            $value['last_test_status'] = 'success';
+            $value['last_test_message'] = 'Automatically connected during installation.';
+            $this->persist($church, $value);
+
+            return true;
+        } catch (Throwable $exception) {
+            report($exception);
+            $value['last_tested_at'] = now()->toIso8601String();
+            $value['last_test_status'] = 'failed';
+            $value['last_test_message'] = 'Automatic Central Support enrollment is pending.';
+            $this->persist($church, $value);
+
+            return false;
+        }
+    }
+
     public function recordTest(Church $church, bool $success, string $message): void
     {
         $value = $this->raw($church);
@@ -78,6 +135,15 @@ final class CentralSupportSettings
         $value = Setting::query()->where('church_id', $church->id)->where('key', self::KEY)->value('value');
 
         return is_array($value) ? $value : [];
+    }
+
+    /** @param array<string, mixed> $value */
+    private function persist(Church $church, array $value): void
+    {
+        Setting::query()->updateOrCreate(
+            ['church_id' => $church->id, 'key' => self::KEY],
+            ['value' => $value, 'type' => 'encrypted_integration'],
+        );
     }
 
     private function decrypt(mixed $encrypted): string

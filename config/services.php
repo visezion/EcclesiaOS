@@ -58,6 +58,7 @@ return [
 
     'central_support' => [
         'url' => env('CENTRAL_SUPPORT_URL', 'https://ecclesiaos.vicezion.com'),
+        'enrollment_key' => env('CENTRAL_SUPPORT_ENROLLMENT_KEY'),
     ],
 
 ];

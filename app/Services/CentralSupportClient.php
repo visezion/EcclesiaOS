@@ -132,6 +132,7 @@ final class CentralSupportClient
 
     private function request(Church $church): PendingRequest
     {
+        $this->settings->autoEnroll($church);
         $settings = $this->settings->forChurch($church);
         if (! $settings['enabled'] || ! $settings['api_token_configured'] || blank($settings['installation_id'])) {
             throw new RuntimeException('Central support is not fully configured for this church.');

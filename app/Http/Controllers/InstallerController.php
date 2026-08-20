@@ -10,6 +10,7 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\Branding;
+use App\Services\CentralSupportSettings;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -72,12 +73,13 @@ final class InstallerController extends Controller
             ]);
         }
 
+        $installedChurch = null;
         try {
             if ($this->installationComplete()) {
                 return redirect()->route('login');
             }
 
-            DB::transaction(function () use ($data): void {
+            DB::transaction(function () use ($data, &$installedChurch): void {
                 $church = Church::query()->updateOrCreate(
                     ['slug' => Str::slug($data['church_name'])],
                     [
@@ -139,9 +141,14 @@ final class InstallerController extends Controller
                 );
 
                 $administrator->roles()->syncWithoutDetaching([$roles['Super Administrator']->id]);
+                $installedChurch = $church;
             });
         } finally {
             $installationLock->release();
+        }
+
+        if ($installedChurch instanceof Church) {
+            app(CentralSupportSettings::class)->autoEnroll($installedChurch);
         }
 
         return redirect()->route('login')->with('status', 'Installation complete. Sign in with the administrator account you just created.');
