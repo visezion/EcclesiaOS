@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.0.35 - 2026-08-20
+
+### Added
+
+- Added zero-click local Central Support enrollment using the shared local endpoint and enrollment key.
+- Added automatic enrollment attempts to Support Center overview, tickets, Community Solutions, Knowledge Base, Live Support, scheduled synchronization, and connection settings.
+- Added automatic connection recovery when Central Support rejects an expired or rotated installation token.
+- Added the Central Support client contract required for full Knowledge Base article retrieval and article helpfulness feedback.
+
+### Improved
+
+- Standardized local EcclesiaOS and Central Support development defaults so both projects use the same enrollment key and Central Support port.
+- Preserved retryable ticket outbox delivery when automatic enrollment or immediate ticket delivery cannot reach Central Support.
+- Added test-environment isolation for Central Support URL and enrollment configuration so tests never call local services.
+- Expanded support integration coverage for automatic enrollment, credential recovery, ticket delivery, full articles, and helpfulness voting.
+
+### Fixed
+
+- Fixed Support Center pages from showing disconnected before automatic enrollment could run.
+- Fixed local EcclesiaOS installations from using the production Central Support endpoint by default.
+- Fixed Support Center ticket, community, knowledge, live-support, and synchronization flows from requiring manual connection setup on local installations.
+- Fixed the local release configuration examples so the two repositories share matching connection settings.
+
 ## 1.0.32 - 2026-08-20
 
 ### Added
