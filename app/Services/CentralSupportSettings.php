@@ -6,10 +6,10 @@ namespace App\Services;
 
 use App\Models\Church;
 use App\Models\Setting;
+use App\Support\SafeOutboundUrl;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
-use App\Support\SafeOutboundUrl;
 use Throwable;
 
 final class CentralSupportSettings

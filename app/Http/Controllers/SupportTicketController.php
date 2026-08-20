@@ -149,8 +149,7 @@ final class SupportTicketController extends Controller
         CentralSupportOutbox $outbox,
         CentralSupportClient $centralClient,
         CentralSupportSettings $centralSettings,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         $validated = $request->validate($this->ticketRules());
         $ticket = DB::transaction(function () use ($request, $validated): SupportTicket {
             $ticket = SupportTicket::query()->create([

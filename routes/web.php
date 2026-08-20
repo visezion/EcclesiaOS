@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountSettingsController;
+use App\Http\Controllers\AiCopilotController;
 use App\Http\Controllers\AssetInventoryController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -10,7 +11,6 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\AuthenticationSettingsController;
 use App\Http\Controllers\BibleController;
-use App\Http\Controllers\AiCopilotController;
 use App\Http\Controllers\BiblePlanManagementController;
 use App\Http\Controllers\BibleStudyController;
 use App\Http\Controllers\BibleTranslationController;

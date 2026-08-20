@@ -61,7 +61,7 @@ final class AiCopilotController extends Controller
             $result['answer_html'] = e((string) ($result['answer'] ?? 'The Copilot could not complete this request.'));
         } else {
             $converter = new CommonMarkConverter(['html_input' => 'strip', 'allow_unsafe_links' => false]);
-            $converter->getEnvironment()->addExtension(new TableExtension());
+            $converter->getEnvironment()->addExtension(new TableExtension);
             $result['answer_html'] = $converter->convert((string) ($result['answer'] ?? ''))->getContent();
         }
 
@@ -131,7 +131,7 @@ final class AiCopilotController extends Controller
         }
 
         $converter = new CommonMarkConverter(['html_input' => 'strip', 'allow_unsafe_links' => false]);
-        $converter->getEnvironment()->addExtension(new TableExtension());
+        $converter->getEnvironment()->addExtension(new TableExtension);
 
         return $converter->convert($answer)->getContent();
     }

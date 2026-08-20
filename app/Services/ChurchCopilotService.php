@@ -4,28 +4,28 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Models\AttendanceRecord;
 use App\Models\Asset;
-use App\Models\CareTask;
-use App\Models\Church;
-use App\Models\Donation;
-use App\Models\Event;
+use App\Models\AttendanceRecord;
 use App\Models\AttendanceSession;
 use App\Models\BookstoreOrder;
+use App\Models\CareTask;
+use App\Models\Church;
 use App\Models\CommunicationCampaign;
 use App\Models\CounsellingBooking;
-use App\Models\Family;
+use App\Models\Donation;
+use App\Models\Event;
 use App\Models\Facility;
+use App\Models\Family;
 use App\Models\FinancialAssistanceRequest;
-use App\Models\Program;
-use App\Models\SupportTicket;
-use App\Models\Workflow;
 use App\Models\LeadershipReport;
 use App\Models\Member;
 use App\Models\Ministry;
 use App\Models\PrayerRequest;
+use App\Models\Program;
+use App\Models\SupportTicket;
 use App\Models\User;
 use App\Models\Volunteer;
+use App\Models\Workflow;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -106,6 +106,7 @@ final class ChurchCopilotService
         $rows = $sessions->map(function (AttendanceSession $session): array {
             $expected = (int) ($session->expected_attendance ?? 0);
             $actual = $session->records->whereNotNull('member_id')->unique('member_id')->count();
+
             return ['event' => $session->eventSession?->event?->title ?? $session->title, 'date' => $session->opens_at?->toDateString(), 'expected' => $expected, 'attended' => $actual, 'attendance_rate' => $expected > 0 ? round($actual / $expected * 100, 1) : null, 'status' => $session->status];
         })->values()->all();
 
@@ -298,6 +299,7 @@ final class ChurchCopilotService
         $q = Str::lower($question);
         if (str_contains($q, 'last month')) {
             $from = now()->subMonth()->startOfMonth();
+
             return ['from' => $from, 'to' => $from->copy()->endOfMonth(), 'months' => 1, 'label' => 'last month'];
         }
         if (str_contains($q, 'this month') || str_contains($q, 'current month') || str_contains($q, 'this moth')) {

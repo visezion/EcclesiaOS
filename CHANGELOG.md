@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.0.32 - 2026-08-20
+
+### Added
+
+- Added AI Copilot configuration for OpenAI-compatible and Anthropic providers, including encrypted provider settings, model selection, endpoint configuration, timeout controls, and administrator-only setup.
+- Added AI Copilot conversations with persistent history, conversation titles, reusable prompts, clear-history controls, and loading/error states.
+- Added cross-module Copilot analytics covering members, attendance, finance, events, ministries, communication, support, workflows, leadership reports, and system activity.
+- Added verified Copilot result cards with source context, metrics, warnings, and links back to the relevant EcclesiaOS records.
+- Added Central Support auto-enrollment settings for installer deployments, including a fixed central endpoint, enrollment token handling, installation identifiers, and version headers.
+- Added full Knowledge Base article retrieval for connected churches.
+- Added article helpfulness voting with positive and negative feedback sent to Central Support.
+- Added a dedicated full-article route and reader view with category, read time, update date, article content, and feedback controls.
+- Added immediate Central Support delivery for newly created tickets when the church connection is configured.
+
+### Improved
+
+- Central Support ticket delivery now sends a newly created ticket immediately while preserving the retryable outbox for failed or unavailable connections.
+- Knowledge Base search results now link to full articles instead of showing summaries only.
+- Central Support API requests now include the EcclesiaOS installation version for support diagnostics.
+- AI Copilot prompts now use structured context and verified application data to produce more useful cross-module answers.
+- AI Copilot navigation, top-bar access, dashboard visibility, and leadership-report entry points are now integrated into the application layout.
+- Updated Central Support documentation to reference the standalone Central Support repository.
+- Added release and deployment configuration required for the new Central Support enrollment flow.
+
+### Fixed
+
+- Fixed newly submitted support tickets remaining only in the local outbox until a manual synchronization action was performed.
+- Fixed immediate ticket synchronization from accidentally selecting an older pending event for the same church instead of the ticket just created.
+- Fixed Knowledge Base article summaries from having no way to open the complete article.
+- Fixed Knowledge Base users having no way to report whether an article was helpful.
+- Fixed Copilot provider request handling and response parsing across supported providers.
+- Fixed Copilot analytics context and result rendering for multi-module questions.
+
 ## 1.0.31 - 2026-08-13
 
 ### Improved
