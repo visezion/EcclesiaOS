@@ -566,6 +566,10 @@ final class ChurchWebsiteController extends Controller
             'column_widths.*' => ['integer', 'min:5', 'max:95'],
             'component_files' => ['nullable', 'array'],
             'component_files.*' => ['file', 'mimes:jpg,jpeg,png,gif,webp,mp4,webm,ogg', 'max:51200'],
+            'component_image_files' => ['nullable', 'array'],
+            'component_image_files.*' => ['file', 'mimes:jpg,jpeg,png,gif,webp', 'max:15360'],
+            'component_video_files' => ['nullable', 'array'],
+            'component_video_files.*' => ['file', 'mimes:mp4,webm,ogg', 'max:51200'],
         ]);
         $data['page_slugs'] = array_values($data['page_slugs'] ?? ['home']);
         $data['components'] = $this->normalizeSectionComponents($data['components'] ?? null);
@@ -574,14 +578,20 @@ final class ChurchWebsiteController extends Controller
         $data['column_widths'] = count($widths) === $columnCount
             ? array_map(fn (int $width): int => max(5, min(95, $width)), $widths)
             : array_fill(0, $columnCount, 1);
-        $this->storeComponentFiles($data['components'], $request->file('component_files', []), $church);
+        $this->storeComponentFiles(
+            $data['components'],
+            $request->file('component_files', []),
+            $request->file('component_image_files', []),
+            $request->file('component_video_files', []),
+            $church,
+        );
         if ($request->hasFile('image_file')) {
             $data['image_url'] = $this->storeWebsiteAsset($request->file('image_file'), $church);
         }
         if ($request->hasFile('video_file')) {
             $data['video_url'] = $this->storeWebsiteAsset($request->file('video_file'), $church);
         }
-        unset($data['image_file'], $data['video_file'], $data['component_files']);
+        unset($data['image_file'], $data['video_file'], $data['component_files'], $data['component_image_files'], $data['component_video_files']);
 
         return $data;
     }
@@ -708,34 +718,46 @@ final class ChurchWebsiteController extends Controller
         ];
     }
 
-    private function storeComponentFiles(array &$node, array $files, Church $church): void
+    private function storeComponentFiles(array &$node, array $legacyFiles, array $imageFiles, array $videoFiles, Church $church): void
     {
         if (($node['type'] ?? null) === 'columns') {
             if (isset($node['groups'])) {
                 foreach ($node['groups'] as &$group) {
-                    $this->storeComponentFiles($group, $files, $church);
+                    $this->storeComponentFiles($group, $legacyFiles, $imageFiles, $videoFiles, $church);
                 }
                 unset($group);
                 return;
             }
-            foreach ($node['columns'] ?? [] as &$column) {
-                foreach ($column['components'] ?? [] as &$component) {
-                    $this->storeComponentFiles($component, $files, $church);
+            foreach ($node['columns'] as &$column) {
+                foreach ($column['components'] as &$component) {
+                    $this->storeComponentFiles($component, $legacyFiles, $imageFiles, $videoFiles, $church);
                 }
             }
 
             return;
         }
 
-        if (in_array($node['type'] ?? null, ['carousel', 'video-slider'], true)) {
-            foreach ($node['slides'] ?? [] as &$slide) {
-                $file = $files[$slide['id'] ?? ''] ?? null;
-                if ($file instanceof UploadedFile) {
-                    $isVideo = $node['type'] === 'video-slider' || str_starts_with((string) $file->getMimeType(), 'video/');
-                    $slide[$isVideo ? 'video' : 'image'] = $this->storeWebsiteAsset($file, $church);
+        if (($node['type'] ?? null) === 'video-slider') {
+            foreach ($node['slides'] as &$slide) {
+                $slideId = (string) ($slide['id'] ?? '');
+                $videoFile = $videoFiles[$slideId] ?? $legacyFiles[$slideId] ?? $legacyFiles[$slideId.'-video'] ?? null;
+                if ($videoFile instanceof UploadedFile) {
+                    $slide['video'] = $this->storeWebsiteAsset($videoFile, $church);
                 }
-                $videoFile = $files[($slide['id'] ?? '').'-video'] ?? null;
-                if ($node['type'] === 'carousel' && $videoFile instanceof UploadedFile) {
+            }
+            unset($slide);
+            return;
+        }
+
+        if (($node['type'] ?? null) === 'carousel') {
+            foreach ($node['slides'] as &$slide) {
+                $slideId = (string) ($slide['id'] ?? '');
+                $imageFile = $imageFiles[$slideId] ?? $legacyFiles[$slideId] ?? null;
+                if ($imageFile instanceof UploadedFile) {
+                    $slide['image'] = $this->storeWebsiteAsset($imageFile, $church);
+                }
+                $videoFile = $videoFiles[$slideId] ?? $legacyFiles[$slideId.'-video'] ?? null;
+                if ($videoFile instanceof UploadedFile) {
                     $slide['video'] = $this->storeWebsiteAsset($videoFile, $church);
                 }
             }
@@ -744,8 +766,8 @@ final class ChurchWebsiteController extends Controller
         }
 
         if (($node['type'] ?? null) === 'gallery') {
-            foreach ($node['images'] ?? [] as &$image) {
-                $file = $files[$image['id'] ?? ''] ?? null;
+            foreach ($node['images'] as &$image) {
+                $file = $legacyFiles[$image['id'] ?? ''] ?? null;
                 if ($file instanceof UploadedFile) {
                     $image['url'] = $this->storeWebsiteAsset($file, $church);
                 }
@@ -756,12 +778,19 @@ final class ChurchWebsiteController extends Controller
         }
 
         if (($node['type'] ?? null) === 'card') {
-            $videoFile = $files[($node['id'] ?? '').'-video'] ?? null;
+            $nodeId = (string) ($node['id'] ?? '');
+            $videoFile = $videoFiles[$nodeId] ?? null;
+            if (! $videoFile instanceof UploadedFile) {
+                $videoFile = $legacyFiles[$nodeId.'-video'] ?? null;
+            }
             if ($videoFile instanceof UploadedFile) {
                 $node['background_video'] = $this->storeWebsiteAsset($videoFile, $church);
             }
 
-            $file = $files[$node['id'] ?? ''] ?? null;
+            $file = $imageFiles[$nodeId] ?? null;
+            if (! $file instanceof UploadedFile) {
+                $file = $legacyFiles[$nodeId] ?? null;
+            }
             if ($file instanceof UploadedFile) {
                 if (str_starts_with((string) $file->getMimeType(), 'video/')) {
                     $node['background_video'] = $this->storeWebsiteAsset($file, $church);
@@ -773,7 +802,13 @@ final class ChurchWebsiteController extends Controller
             return;
         }
 
-        $file = $files[$node['id'] ?? ''] ?? null;
+        $nodeId = (string) ($node['id'] ?? '');
+        $file = ($node['type'] ?? null) === 'video'
+            ? ($videoFiles[$nodeId] ?? null)
+            : ($imageFiles[$nodeId] ?? null);
+        if (! $file instanceof UploadedFile) {
+            $file = $legacyFiles[$nodeId] ?? null;
+        }
         if ($file instanceof UploadedFile) {
             $node['url'] = $this->storeWebsiteAsset($file, $church);
         }

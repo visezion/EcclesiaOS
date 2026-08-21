@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-loop-carousel]').forEach((carousel) => {
         const track = carousel.querySelector('.loop-carousel-track');
         const slides = [...carousel.querySelectorAll('.loop-carousel-slide')];
-        if (!track || slides.length < 2) return;
+        if (!track || slides.length < 1) return;
         const dots = carousel.querySelector('[data-carousel-dots]');
         let current = 0;
         const syncBackgroundVideos = () => {
@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-video-slider]').forEach((slider) => {
         const track = slider.querySelector('.video-slider-track');
         const slides = [...slider.querySelectorAll('.video-slider-slide')];
-        if (!track || slides.length < 2) return;
+        if (!track || slides.length < 1) return;
         const dots = slider.querySelector('[data-video-slider-dots]');
         let current = 0;
         const pauseVideos = () => slider.querySelectorAll('video').forEach((video) => video.pause());
@@ -99,6 +99,13 @@ document.addEventListener('DOMContentLoaded', () => {
             dots?.querySelectorAll('button').forEach((dot, index) =>
                 dot.classList.toggle('is-active', index === current),
             );
+            const activeVideo = slides[current]?.querySelector('video');
+            if (activeVideo && slider.dataset.autoplay === 'true') {
+                activeVideo.muted = true;
+                activeVideo.defaultMuted = true;
+                if (activeVideo.readyState === 0) activeVideo.load();
+                activeVideo.play().catch(() => {});
+            }
         };
         slides.forEach((_, index) => {
             const dot = document.createElement('button');
@@ -125,12 +132,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 render();
             }, 7000);
     });
-    document.querySelectorAll('.content-card-widget video').forEach((video) => {
+    document.querySelectorAll('[data-background-video]').forEach((video) => {
         video.muted = true;
+        video.defaultMuted = true;
+        video.autoplay = true;
+        video.loop = true;
+        video.playsInline = true;
         const start = () => {
             if (typeof video.play === 'function') video.play().catch(() => {});
         };
+        video.addEventListener('loadedmetadata', start, { once: true });
+        video.addEventListener('loadeddata', start, { once: true });
         video.addEventListener('canplay', start, { once: true });
+        if (video.readyState === 0) video.load();
         start();
     });
     document.querySelectorAll('[data-gallery][data-gallery-style="slider"]').forEach((gallery) => {

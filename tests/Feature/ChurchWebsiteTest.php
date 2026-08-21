@@ -12,11 +12,108 @@ use App\Models\User;
 use App\Models\WebsitePage;
 use App\Services\WebsiteStarterContent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 final class ChurchWebsiteTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void
+    {
+        Storage::fake('public');
+
+        $church = Church::factory()->create(['name' => 'Video Test Church']);
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $adminRole = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($adminRole);
+
+        $this->actingAs($user)->get(route('website-studio.index'))->assertOk();
+
+        $linkedCardId = 'linked-card';
+        $uploadedCardId = 'uploaded-card';
+        $sliderId = 'video-slider';
+        $sliderVideoId = 'uploaded-slider-video';
+        $remoteVideo = 'https://cdn.example.test/church-intro.mp4';
+        $components = [
+            'id' => 'root-columns',
+            'type' => 'columns',
+            'groups' => [[
+                'id' => 'group-one',
+                'type' => 'columns',
+                'columns' => [[
+                    'width' => 1,
+                    'components' => [
+                        [
+                            'id' => $linkedCardId,
+                            'type' => 'card',
+                            'title' => 'Linked video card',
+                            'body' => 'Direct URL video',
+                            'background_video' => $remoteVideo,
+                            'background_color' => '#6d4aff',
+                        ],
+                        [
+                            'id' => $uploadedCardId,
+                            'type' => 'card',
+                            'title' => 'Uploaded video card',
+                            'body' => 'Uploaded background video',
+                            'background_color' => '#6d4aff',
+                        ],
+                        [
+                            'id' => $sliderId,
+                            'type' => 'video-slider',
+                            'autoplay' => true,
+                            'slides' => [[
+                                'id' => $sliderVideoId,
+                                'video' => '',
+                                'title' => 'Uploaded slider video',
+                                'text' => '',
+                                'link' => '',
+                            ]],
+                        ],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->actingAs($user)
+            ->post(route('website-studio.sections.store'), [
+                'title' => 'Video end-to-end section',
+                'page_slugs' => ['about'],
+                'components' => json_encode($components, JSON_THROW_ON_ERROR),
+                'component_video_files' => [
+                    $uploadedCardId => UploadedFile::fake()->create('card-background.mp4', 256, 'video/mp4'),
+                    $sliderVideoId => UploadedFile::fake()->create('slider-video.mp4', 256, 'video/mp4'),
+                ],
+            ])
+            ->assertRedirect();
+
+        $section = collect(data_get($church->fresh()->settings, 'website.custom_sections'))->firstWhere('title', 'Video end-to-end section');
+        $this->assertNotNull($section);
+        $savedComponents = data_get($section, 'components.groups.0.columns.0.components');
+        $linkedCard = collect($savedComponents)->firstWhere('id', $linkedCardId);
+        $uploadedCard = collect($savedComponents)->firstWhere('id', $uploadedCardId);
+        $slider = collect($savedComponents)->firstWhere('id', $sliderId);
+        $uploadedCardPath = data_get($uploadedCard, 'background_video');
+        $uploadedSliderPath = data_get($slider, 'slides.0.video');
+
+        $this->assertSame($remoteVideo, data_get($linkedCard, 'background_video'));
+        $this->assertNotEmpty($uploadedCardPath);
+        $this->assertNotEmpty($uploadedSliderPath);
+        Storage::disk('public')->assertExists($uploadedCardPath);
+        Storage::disk('public')->assertExists($uploadedSliderPath);
+
+        $publicPage = $this->get(route('website.public', ['church' => $church->slug, 'page' => 'about']));
+        $publicPage->assertOk()
+            ->assertHeaderContains('Content-Security-Policy', "media-src 'self' blob: https:")
+            ->assertSee($remoteVideo, false)
+            ->assertSee(asset('storage/'.$uploadedCardPath), false)
+            ->assertSee(asset('storage/'.$uploadedSliderPath), false)
+            ->assertSee('content-card-widget-background', false)
+            ->assertSee('data-background-video', false)
+            ->assertSee('autoplay muted loop', false);
+    }
 
     public function test_every_supported_template_has_complete_starter_content(): void
     {

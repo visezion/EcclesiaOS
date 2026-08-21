@@ -47,6 +47,7 @@ final class SecurityHeaders
                 'script-src '.implode(' ', $scriptSources),
                 "connect-src 'self' https: wss:",
                 "font-src 'self' data: https://fonts.bunny.net",
+                "media-src 'self' blob: https:",
             ]).';'
         );
 

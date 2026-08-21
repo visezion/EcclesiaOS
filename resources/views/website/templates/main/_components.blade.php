@@ -42,22 +42,23 @@
     @elseif (($component['type'] ?? '') === 'events')
         @include('website.templates.main._events', ['component' => $component, 'events' => $events ?? collect()])
     @elseif (($component['type'] ?? '') === 'card')
-        <article class="content-card-widget {{ !empty($component['background_video']) || !empty($component['url']) ? 'has-media' : '' }}" style="--card-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : '#6d4aff' }};">
-            @if (!empty($component['link']))<a class="content-card-widget-media-link" href="{{ $component['link'] }}" aria-label="Open {{ $component['title'] ?? 'card' }}">
-            @endif
-            @if (!empty($component['background_video']))
-                <video class="content-card-widget-background" src="{{ $assetUrl($component['background_video']) }}" autoplay muted loop playsinline preload="metadata" @if (!empty($component['url'])) poster="{{ $assetUrl($component['url']) }}" @endif></video>
+        @php($cardVideoUrl = !empty($component['background_video']) ? $assetUrl($component['background_video']) : null)
+        @if (!empty($component['link']))<a class="content-card-widget-link" href="{{ $component['link'] }}" aria-label="Open {{ $component['title'] ?? 'card' }}">@endif
+        <article class="content-card-widget {{ $cardVideoUrl || !empty($component['url']) ? 'has-media' : '' }}" style="--card-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : '#6d4aff' }};">
+            @if ($cardVideoUrl)
+                <video class="content-card-widget-background" autoplay muted loop playsinline preload="auto" data-background-video @if (!empty($component['url'])) poster="{{ $assetUrl($component['url']) }}" @endif>
+                    <source src="{{ $cardVideoUrl }}">
+                </video>
             @elseif (!empty($component['url']))
                 <img src="{{ $assetUrl($component['url']) }}" alt="{{ $component['title'] ?? '' }}" loading="lazy">
-            @endif
-            @if (!empty($component['link']))</a>
             @endif
             <div class="content-card-widget-body">
                 @if (!empty($component['title']))<h3>{{ $component['title'] }}</h3>@endif
                 @if (!empty($component['body']))<p>{{ $component['body'] }}</p>@endif
-                @if (!empty($component['link']))<a class="button button-light" href="{{ $component['link'] }}">Learn more <span>→</span></a>@endif
+                @if (!empty($component['link']))<span class="button button-light">Learn more <span>→</span></span>@endif
             </div>
         </article>
+        @if (!empty($component['link']))</a>@endif
     @elseif (($component['type'] ?? '') === 'icon')
         @php($iconAlign = in_array($component['align'] ?? 'left', ['left', 'center', 'right'], true) ? ($component['align'] ?? 'left') : 'left')
         <a class="content-icon-widget" href="{{ $component['link'] ?? '' ?: '#' }}" @if (empty($component['link'])) onclick="return false" @endif style="justify-content: {{ $iconAlign === 'center' ? 'center' : ($iconAlign === 'right' ? 'flex-end' : 'flex-start') }};text-align: {{ $iconAlign }};--icon-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['icon_color'] ?? '') ? $component['icon_color'] : '#6d4aff' }};--icon-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : '#ede9fe' }};--icon-size: {{ max(24, min(160, (int) ($component['icon_size'] ?? 56))) }}px;">
@@ -72,7 +73,7 @@
     @elseif (($component['type'] ?? '') === 'image' && !empty($component['url']))
         <img src="{{ $assetUrl($component['url']) }}" alt="{{ $component['alt'] ?? '' }}" loading="lazy">
     @elseif (($component['type'] ?? '') === 'video' && !empty($component['url']))
-        <video controls preload="metadata"><source src="{{ $assetUrl($component['url']) }}"></video>
+        <video src="{{ $assetUrl($component['url']) }}" controls preload="metadata"></video>
     @elseif (($component['type'] ?? '') === 'button' && !empty($component['url']))
         <a class="button button-size-{{ $component['button_size'] ?? 'medium' }}" style="background: {{ $component['button_color'] ?? '#6d4aff' }}" href="{{ $component['url'] }}">{{ $component['text'] ?? 'Learn more' }}</a>
     @elseif (($component['type'] ?? '') === 'spacer')

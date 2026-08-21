@@ -3,7 +3,9 @@
         @foreach ($component['slides'] ?? [] as $slide)
             <article class="video-slider-slide">
                 @if (!empty($slide['video']))
-                    <video controls preload="metadata" playsinline><source src="{{ $assetUrl($slide['video']) }}"></video>
+                    <video autoplay muted loop preload="auto" playsinline data-background-video>
+                        <source src="{{ $assetUrl($slide['video']) }}">
+                    </video>
                 @else
                     <div class="video-slider-empty">Add a video to this slide</div>
                 @endif
