@@ -13,6 +13,7 @@ use App\Models\Sermon;
 use App\Models\WebsitePage;
 use App\Services\WebsiteStarterContent;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -210,12 +211,18 @@ final class ChurchWebsiteController extends Controller
         ]);
     }
 
-    public function uploadMedia(Request $request): RedirectResponse
+    public function uploadMedia(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorizeStudio($request);
         $church = $this->studioChurch($request);
         $request->validate(['media' => ['required', 'image', 'max:15360']]);
         $this->storeWebsiteAsset($request->file('media'), $church);
+
+        if ($request->expectsJson()) {
+            $record = collect($this->websiteSettings($church)['media_library'] ?? [])->last();
+
+            return response()->json(['media' => $record]);
+        }
 
         return back()->with('status', 'Image added to the media library.');
     }
@@ -574,7 +581,7 @@ final class ChurchWebsiteController extends Controller
         }
 
         return collect($components)->filter(fn ($component): bool => is_array($component))->map(function (array $component): array {
-            $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel'], true)
+            $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel', 'gallery', 'card', 'icon'], true)
                 ? $component['type']
                 : 'text';
 
@@ -586,6 +593,21 @@ final class ChurchWebsiteController extends Controller
                 'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
                 'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : [],
                 'autoplay' => $type === 'carousel' ? ($component['autoplay'] ?? true) !== false : false,
+                'height' => $type === 'spacer' ? max(0, min(600, (int) ($component['height'] ?? 36))) : 0,
+                'title' => in_array($type, ['card', 'icon', 'gallery'], true) ? Str::limit((string) ($component['title'] ?? ''), 180, '') : '',
+                'body' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['body'] ?? ''), 1000, '') : '',
+                'background_color' => in_array($type, ['card', 'icon'], true) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['background_color'] ?? '')) ? $component['background_color'] : ($type === 'icon' ? '#ede9fe' : '#6d4aff'),
+                'align' => in_array($component['align'] ?? null, ['left', 'center', 'right', 'justify'], true) ? $component['align'] : 'left',
+                'icon' => $type === 'icon' ? Str::limit((string) ($component['icon'] ?? '✦'), 8, '') : '',
+                'icon_color' => $type === 'icon' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['icon_color'] ?? '')) ? $component['icon_color'] : '#6d4aff',
+                'icon_size' => $type === 'icon' ? max(24, min(160, (int) ($component['icon_size'] ?? 56))) : 0,
+                'link' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['link'] ?? ''), 500, '') : '',
+                'button_color' => $type === 'button' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['button_color'] ?? '')) ? $component['button_color'] : '#6d4aff',
+                'button_size' => $type === 'button' && in_array($component['button_size'] ?? null, ['very-small', 'small', 'medium', 'big', 'very-big'], true) ? $component['button_size'] : 'medium',
+                'images' => $type === 'gallery' ? collect(is_array($component['images'] ?? null) ? $component['images'] : [])->map(fn ($image): array => ['id' => (string) ($image['id'] ?? Str::uuid()), 'url' => Str::limit((string) ($image['url'] ?? ''), 500, ''), 'alt' => Str::limit((string) ($image['alt'] ?? ''), 180, '')])->values()->all() : [],
+                'style' => $type === 'gallery' && in_array($component['style'] ?? null, ['grid', 'slider', 'masonry', 'featured', 'art-wall'], true) ? $component['style'] : 'grid',
+                'columns' => $type === 'gallery' ? max(2, min(6, (int) ($component['columns'] ?? 3))) : 0,
+                'animation' => in_array($component['animation'] ?? null, ['none', 'fade', 'slide-up', 'slide-left', 'zoom', 'bounce', 'float'], true) ? $component['animation'] : 'none',
                 'column' => max(0, min(3, (int) ($component['column'] ?? 0))),
             ];
         })->values()->all();
@@ -611,7 +633,7 @@ final class ChurchWebsiteController extends Controller
                         return $this->normalizeColumnNode($component);
                     }
 
-                    $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel'], true)
+                    $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel', 'gallery', 'card', 'icon'], true)
                         ? $component['type']
                         : 'text';
 
@@ -623,6 +645,21 @@ final class ChurchWebsiteController extends Controller
                         'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
                         'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : [],
                         'autoplay' => $type === 'carousel' ? ($component['autoplay'] ?? true) !== false : false,
+                        'height' => $type === 'spacer' ? max(0, min(600, (int) ($component['height'] ?? 36))) : 0,
+                        'title' => in_array($type, ['card', 'icon', 'gallery'], true) ? Str::limit((string) ($component['title'] ?? ''), 180, '') : '',
+                        'body' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['body'] ?? ''), 1000, '') : '',
+                        'background_color' => in_array($type, ['card', 'icon'], true) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['background_color'] ?? '')) ? $component['background_color'] : ($type === 'icon' ? '#ede9fe' : '#6d4aff'),
+                        'align' => in_array($component['align'] ?? null, ['left', 'center', 'right', 'justify'], true) ? $component['align'] : 'left',
+                        'icon' => $type === 'icon' ? Str::limit((string) ($component['icon'] ?? '✦'), 8, '') : '',
+                        'icon_color' => $type === 'icon' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['icon_color'] ?? '')) ? $component['icon_color'] : '#6d4aff',
+                        'icon_size' => $type === 'icon' ? max(24, min(160, (int) ($component['icon_size'] ?? 56))) : 0,
+                        'link' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['link'] ?? ''), 500, '') : '',
+                        'button_color' => $type === 'button' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['button_color'] ?? '')) ? $component['button_color'] : '#6d4aff',
+                        'button_size' => $type === 'button' && in_array($component['button_size'] ?? null, ['very-small', 'small', 'medium', 'big', 'very-big'], true) ? $component['button_size'] : 'medium',
+                        'images' => $type === 'gallery' ? collect(is_array($component['images'] ?? null) ? $component['images'] : [])->map(fn ($image): array => ['id' => (string) ($image['id'] ?? Str::uuid()), 'url' => Str::limit((string) ($image['url'] ?? ''), 500, ''), 'alt' => Str::limit((string) ($image['alt'] ?? ''), 180, '')])->values()->all() : [],
+                        'style' => $type === 'gallery' && in_array($component['style'] ?? null, ['grid', 'slider', 'masonry', 'featured', 'art-wall'], true) ? $component['style'] : 'grid',
+                        'columns' => $type === 'gallery' ? max(2, min(6, (int) ($component['columns'] ?? 3))) : 0,
+                        'animation' => in_array($component['animation'] ?? null, ['none', 'fade', 'slide-up', 'slide-left', 'zoom', 'bounce', 'float'], true) ? $component['animation'] : 'none',
                     ];
                 })->values()->all(),
             ];
@@ -662,6 +699,18 @@ final class ChurchWebsiteController extends Controller
                 }
             }
             unset($slide);
+            return;
+        }
+
+        if (($node['type'] ?? null) === 'gallery') {
+            foreach ($node['images'] ?? [] as &$image) {
+                $file = $files[$image['id'] ?? ''] ?? null;
+                if ($file instanceof UploadedFile) {
+                    $image['url'] = $this->storeWebsiteAsset($file, $church);
+                }
+            }
+            unset($image);
+
             return;
         }
 

@@ -75,9 +75,9 @@
                             <div class="component-column">
                                 @foreach ($components as $component)
                                     @if (($component['type'] ?? '') === 'heading')
-                                        <h3>{{ $component['text'] ?? '' }}</h3>
+                                        <h3 style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }}">{{ $component['text'] ?? '' }}</h3>
                                     @elseif (($component['type'] ?? '') === 'text')
-                                        <p>{{ $component['text'] ?? '' }}</p>
+                                        <p style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }}">{{ $component['text'] ?? '' }}</p>
                                     @elseif (($component['type'] ?? '') === 'quote')
                                         <blockquote>{{ $component['text'] ?? '' }}</blockquote>
                                     @elseif (($component['type'] ?? '') === 'image' && !empty($component['url']))
@@ -85,9 +85,15 @@
                                     @elseif (($component['type'] ?? '') === 'video' && !empty($component['url']))
                                         <video controls preload="metadata"><source src="{{ $assetUrl($component['url']) }}"></video>
                                     @elseif (($component['type'] ?? '') === 'button' && !empty($component['url']))
-                                        <a class="button" href="{{ $component['url'] }}">{{ $component['text'] ?? 'Learn more' }}</a>
+                                        <a class="button button-size-{{ $component['button_size'] ?? 'medium' }}" style="background: {{ $component['button_color'] ?? '#6d4aff' }}" href="{{ $component['url'] }}">{{ $component['text'] ?? 'Learn more' }}</a>
                                     @elseif (($component['type'] ?? '') === 'carousel')
                                         @include('website.templates.main._carousel', ['component' => $component])
+                                    @elseif (($component['type'] ?? '') === 'gallery')
+                                        @include('website.templates.main._gallery', ['component' => $component])
+                                    @elseif (($component['type'] ?? '') === 'card')
+                                        @include('website.templates.main._components', ['components' => [$component]])
+                                    @elseif (($component['type'] ?? '') === 'icon')
+                                        @include('website.templates.main._components', ['components' => [$component]])
                                     @elseif (($component['type'] ?? '') === 'spacer')
                                         <div class="component-spacer" style="height: {{ max(0, min(600, (int) ($component['height'] ?? 36))) }}px" aria-hidden="true"></div>
                                     @endif

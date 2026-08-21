@@ -11,5 +11,5 @@
             </article>
         @endforeach
     </div>
-    @if (count($component['slides'] ?? []) > 1)<button type="button" class="loop-carousel-control loop-carousel-prev" data-carousel-prev aria-label="Previous slide">‹</button><button type="button" class="loop-carousel-control loop-carousel-next" data-carousel-next aria-label="Next slide">›</button><div class="loop-carousel-dots" data-carousel-dots></div>@endif
+    @if (count($component['slides'] ?? []) > 1)<div class="loop-carousel-dots" data-carousel-dots></div>@endif
 </div>

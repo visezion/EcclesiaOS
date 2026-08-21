@@ -8,6 +8,33 @@
     display: grid;
     gap: 1rem;
 }
+.column-group-shell {
+    display: grid;
+    gap: 0.45rem;
+    border: 1px solid transparent;
+    border-radius: 0.8rem;
+}
+.column-group-shell.is-dragging {
+    opacity: 0.45;
+}
+.column-group-shell.is-drop-target {
+    border-color: #7c3aed;
+    background: #f5f3ff;
+    box-shadow: 0 0 0 3px rgb(124 58 237 / 14%);
+}
+.column-group-order {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.35rem;
+    color: #6d28d9;
+    font-size: 0.65rem;
+}
+.group-drag-handle {
+    cursor: grab;
+    color: #94a3b8;
+    font-size: 1rem;
+}
 .column-stack-toolbar {
     display: flex;
     align-items: center;
@@ -209,6 +236,55 @@
     border-radius: 0.7rem;
     background: #fafaff;
 }
+.gallery-editor {
+    display: grid;
+    gap: 0.75rem;
+}
+.gallery-editor-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+.gallery-editor-head button,
+.gallery-image-row > button {
+    border: 1px solid #c4b5fd;
+    border-radius: 0.55rem;
+    background: #fff;
+    padding: 0.4rem 0.65rem;
+    color: #6d28d9;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+.gallery-images {
+    display: grid;
+    gap: 0.65rem;
+}
+.gallery-image-row {
+    display: grid;
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.65rem;
+    padding: 0.7rem;
+    border: 1px solid #e9e5ff;
+    border-radius: 0.75rem;
+    background: #fff;
+}
+.gallery-image-number {
+    display: grid;
+    width: 1.5rem;
+    height: 1.5rem;
+    place-items: center;
+    border-radius: 0.45rem;
+    background: #ede9fe;
+    color: #6d28d9;
+    font-size: 0.7rem;
+    font-weight: 900;
+}
+.gallery-image-fields {
+    display: grid;
+    gap: 0.5rem;
+}
 .carousel-editor-head,
 .carousel-slide-head {
     display: flex;
@@ -251,6 +327,163 @@
     grid-template-columns: auto 1fr;
     align-items: center;
     gap: 0.4rem;
+}
+.card-editor {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.65rem;
+    border: 1px solid #ddd6fe;
+    border-radius: 0.7rem;
+    background: #fafaff;
+}
+.card-style-fields {
+    display: grid;
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: 0.55rem;
+}
+.card-style-fields input[type='color'] {
+    width: 100%;
+    height: 2.1rem;
+    padding: 0.15rem;
+}
+.icon-editor {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.65rem;
+    border: 1px solid #ddd6fe;
+    border-radius: 0.7rem;
+    background: #fafaff;
+}
+.icon-style-fields {
+    display: grid;
+    grid-template-columns: 5rem 5rem minmax(4rem, 1fr);
+    gap: 0.55rem;
+}
+.icon-style-fields input[type='color'] {
+    width: 100%;
+    height: 2.1rem;
+    padding: 0.15rem;
+}
+.icon-library-button {
+    width: max-content;
+    border: 1px solid #c4b5fd;
+    border-radius: 0.45rem;
+    background: #f5f3ff;
+    padding: 0.35rem 0.55rem;
+    color: #6d28d9;
+    font-size: 0.65rem;
+    font-weight: 800;
+}
+.studio-icon-modal {
+    position: fixed;
+    z-index: 100;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1.25rem;
+}
+.studio-icon-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(15 23 42 / 0.48);
+    backdrop-filter: blur(4px);
+}
+.studio-icon-dialog {
+    position: relative;
+    width: min(720px, 100%);
+    max-height: min(700px, 90vh);
+    overflow: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.25rem;
+    background: #fff;
+    padding: 1.25rem;
+    box-shadow: 0 24px 80px rgb(15 23 42 / 0.25);
+}
+.studio-icon-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.studio-icon-head p {
+    margin: 0 0 0.35rem;
+    color: #6d28d9;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.studio-icon-head h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.35rem;
+}
+.studio-icon-head small {
+    display: block;
+    margin-top: 0.3rem;
+    color: #64748b;
+}
+.studio-icon-head button {
+    border: 0;
+    background: transparent;
+    color: #64748b;
+    font-size: 1.5rem;
+}
+.studio-icon-search {
+    width: 100%;
+    margin-bottom: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.7rem;
+    padding: 0.7rem 0.85rem;
+}
+.studio-icon-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+.studio-icon-grid button {
+    display: grid;
+    gap: 0.25rem;
+    place-items: center;
+    min-height: 5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    background: #fafaff;
+    color: #334155;
+}
+.studio-icon-grid button:hover {
+    border-color: #8b5cf6;
+    background: #f5f3ff;
+    color: #6d28d9;
+}
+.studio-icon-grid button span {
+    font-size: 1.8rem;
+    line-height: 1;
+}
+.studio-icon-grid button small {
+    font-size: 0.62rem;
+}
+.studio-icon-empty {
+    grid-column: 1 / -1;
+    padding: 2rem;
+    text-align: center;
+    color: #64748b;
+}
+@media (max-width: 560px) {
+    .studio-icon-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+.button-style-fields {
+    display: grid;
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: 0.55rem;
+}
+.button-style-fields input[type='color'] {
+    width: 100%;
+    height: 2.1rem;
+    padding: 0.15rem;
 }
 .widget-media-preview {
     display: grid;
@@ -318,6 +551,11 @@
     opacity: 0.45;
     border-color: #8b5cf6;
 }
+.nested-column.is-drop-target {
+    border-color: #7c3aed;
+    background: #ede9fe;
+    box-shadow: 0 0 0 3px rgb(124 58 237 / 14%);
+}
 .column-drag-handle {
     margin-right: 0.25rem;
     cursor: grab;
@@ -356,6 +594,14 @@
 .nested-column-content {
     display: grid;
     gap: 0.5rem;
+    min-height: 3.5rem;
+    padding: 0.25rem;
+    border: 1px dashed transparent;
+    border-radius: 0.55rem;
+}
+.nested-column-content.is-drop-target {
+    border-color: #8b5cf6;
+    background: #f5f3ff;
 }
 @media (max-width: 720px) {
     .nested-column-list {
