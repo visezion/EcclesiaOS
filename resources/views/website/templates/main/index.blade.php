@@ -8,6 +8,7 @@
     $logoUrl = $assetUrl($settings['logo_url'] ?? null);
     $heroImageUrl = $assetUrl($settings['hero_image_url'] ?? null);
     $heroVideoUrl = $assetUrl($settings['hero_video_url'] ?? null);
+    $colorScheme = in_array($settings['color_scheme'] ?? 'dark', ['dark', 'light'], true) ? $settings['color_scheme'] : 'dark';
 @endphp
 <!doctype html>
 <html lang="en">
@@ -18,7 +19,7 @@
     <meta name="theme-color" content="{{ $settings['primary_color'] }}">
     <link rel="stylesheet" href="{{ asset('css/website/templates/main.css') }}?v={{ filemtime(public_path('css/website/templates/main.css')) }}">
 </head>
-<body style="--primary:{{ $settings['primary_color'] }};--accent:{{ $settings['accent_color'] }};--font:'{{ $settings['font'] ?? 'Manrope' }}',Arial,sans-serif">
+<body class="theme-{{ $colorScheme }}" data-default-theme="{{ $colorScheme }}" data-theme-key="ecclesia-site-theme-{{ $church->slug }}" style="--primary:{{ $settings['primary_color'] }};--accent:{{ $settings['accent_color'] }};--font:'{{ $settings['font'] ?? 'Manrope' }}',Arial,sans-serif">
     @if ($preview)<div class="preview-bar">Preview mode · unpublished changes are visible only to you</div>@endif
     <div class="site-shell">
         <header class="site-header" data-header>
@@ -27,6 +28,7 @@
                 <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-menu-toggle><span>☰</span><span class="sr-only">Menu</span></button>
                 <label class="site-search"><span>⌕</span><input type="search" placeholder="Search" aria-label="Search this website" data-site-search></label>
                 <nav id="site-nav" class="site-nav" data-menu>@foreach ($navigation as $item)<a href="{{ $item['url'] }}">{{ $item['label'] }}</a>@endforeach</nav>
+                <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to light mode" title="Switch website appearance"><span class="theme-toggle-sun" aria-hidden="true">☀</span><span class="theme-toggle-moon" aria-hidden="true">☾</span></button>
                 <a class="button button-small nav-action" href="{{ $settings['hero_button_url'] ?: '#visit' }}">{{ $settings['hero_button_label'] ?: 'Plan a visit' }}</a>
             </div>
         </header>

@@ -1,4 +1,34 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const themeToggle = document.querySelector('[data-theme-toggle]');
+    const themeStorageKey = document.body.dataset.themeKey || 'ecclesia-site-theme';
+    const defaultTheme = document.body.dataset.defaultTheme === 'light' ? 'light' : 'dark';
+    let savedTheme = null;
+    try {
+        savedTheme = window.localStorage.getItem(themeStorageKey);
+    } catch {
+        savedTheme = null;
+    }
+    const applyTheme = (theme) => {
+        const selectedTheme = theme === 'light' ? 'light' : 'dark';
+        document.body.classList.toggle('theme-light', selectedTheme === 'light');
+        document.body.classList.toggle('theme-dark', selectedTheme === 'dark');
+        document.documentElement.style.colorScheme = selectedTheme;
+        if (themeToggle) {
+            themeToggle.setAttribute('aria-label', `Switch to ${selectedTheme === 'light' ? 'dark' : 'light'} mode`);
+            themeToggle.setAttribute('aria-pressed', String(selectedTheme === 'light'));
+        }
+    };
+    applyTheme(['light', 'dark'].includes(savedTheme) ? savedTheme : defaultTheme);
+    themeToggle?.addEventListener('click', () => {
+        const nextTheme = document.body.classList.contains('theme-light') ? 'dark' : 'light';
+        applyTheme(nextTheme);
+        try {
+            window.localStorage.setItem(themeStorageKey, nextTheme);
+        } catch {
+            // The theme still changes for this page when browser storage is unavailable.
+        }
+    });
+
     const pageSectionFlow = document.querySelector('[data-page-section-flow]');
     if (pageSectionFlow) {
         let pageSectionOrder = [];
