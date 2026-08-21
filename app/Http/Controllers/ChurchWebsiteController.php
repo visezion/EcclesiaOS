@@ -17,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 final class ChurchWebsiteController extends Controller
 {
@@ -31,6 +32,7 @@ final class ChurchWebsiteController extends Controller
         return view('website-studio.index', [
             'church' => $church,
             'settings' => $settings,
+            'media' => collect($settings['media_library'] ?? [])->sortByDesc('uploaded_at')->values(),
             'homepage' => $homepage,
             'pages' => $church->websitePages()->latest('updated_at')->get(),
             'templates' => $this->templates(),
@@ -129,6 +131,7 @@ final class ChurchWebsiteController extends Controller
                 $settings[$settingKey] = $this->storeWebsiteAsset($request->file($fileKey), $church);
             }
         }
+        $settings['media_library'] = $this->websiteSettings($church)['media_library'] ?? [];
         $church->forceFill(['settings' => array_merge($church->settings ?? [], ['website' => $settings])])->save();
         $this->ensureStarterPages($church, $settings);
 
@@ -159,6 +162,8 @@ final class ChurchWebsiteController extends Controller
             'church' => $page->church,
             'page' => $page,
             'settings' => $this->websiteSettings($page->church),
+            'media' => collect($this->websiteSettings($page->church)['media_library'] ?? [])->sortByDesc('uploaded_at')->values(),
+            'customSections' => collect($this->websiteSettings($page->church)['custom_sections'] ?? [])->sortBy('order')->values(),
             'templates' => $this->templates(),
             'sectionTypes' => $this->sectionTypes(),
             'breadcrumbs' => [
@@ -178,11 +183,96 @@ final class ChurchWebsiteController extends Controller
         return view('website-studio.sections', [
             'church' => $church,
             'sections' => collect($settings['custom_sections'] ?? [])->sortBy('order')->values(),
+            'media' => collect($settings['media_library'] ?? [])->sortByDesc('uploaded_at')->values(),
             'pages' => $church->websitePages()->orderBy('title')->get(),
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
                 ['label' => 'Website Studio', 'url' => route('website-studio.index')],
                 ['label' => 'Reusable sections', 'url' => null],
+            ],
+        ]);
+    }
+
+    public function mediaLibrary(Request $request): View
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $settings = $this->websiteSettings($church);
+
+        return view('website-studio.media-library', [
+            'church' => $church,
+            'media' => collect($settings['media_library'] ?? [])->sortByDesc('uploaded_at')->values(),
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Website Studio', 'url' => route('website-studio.index')],
+                ['label' => 'Media library', 'url' => null],
+            ],
+        ]);
+    }
+
+    public function uploadMedia(Request $request): RedirectResponse
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $request->validate(['media' => ['required', 'image', 'max:15360']]);
+        $this->storeWebsiteAsset($request->file('media'), $church);
+
+        return back()->with('status', 'Image added to the media library.');
+    }
+
+    public function deleteMedia(Request $request, string $media): RedirectResponse
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $settings = $this->websiteSettings($church);
+        $record = collect($settings['media_library'] ?? [])->first(fn (array $item): bool => ($item['id'] ?? null) === $media);
+        abort_unless($record !== null, 404);
+        $usageSettings = $settings;
+        unset($usageSettings['media_library']);
+        abort_if(Str::contains(json_encode($usageSettings), (string) ($record['path'] ?? '')), 422, 'This image is still used by the website.');
+        Storage::disk('public')->delete((string) $record['path']);
+        $settings['media_library'] = collect($settings['media_library'] ?? [])->reject(fn (array $item): bool => ($item['id'] ?? null) === $media)->values()->all();
+        $this->saveWebsiteSettings($church, $settings);
+
+        return back()->with('status', 'Image removed from the media library.');
+    }
+
+    public function editSection(Request $request, string $section): View
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $settings = $this->websiteSettings($church);
+        $record = collect($settings['custom_sections'] ?? [])->first(fn (array $item): bool => ($item['id'] ?? null) === $section);
+        abort_unless($record !== null, 404);
+
+        return view('website-studio.section-edit', [
+            'church' => $church,
+            'section' => $record,
+            'pages' => $church->websitePages()->orderBy('title')->get(),
+            'media' => collect($this->websiteSettings($church)['media_library'] ?? [])->sortByDesc('uploaded_at')->values(),
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Website Studio', 'url' => route('website-studio.index')],
+                ['label' => 'Reusable sections', 'url' => route('website-studio.sections')],
+                ['label' => 'Edit '.$record['title'], 'url' => null],
+            ],
+        ]);
+    }
+
+    public function createSection(Request $request): View
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+
+        return view('website-studio.section-create', [
+            'church' => $church,
+            'pages' => $church->websitePages()->orderBy('title')->get(),
+            'media' => collect($this->websiteSettings($church)['media_library'] ?? [])->sortByDesc('uploaded_at')->values(),
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Website Studio', 'url' => route('website-studio.index')],
+                ['label' => 'Reusable sections', 'url' => route('website-studio.sections')],
+                ['label' => 'New section', 'url' => null],
             ],
         ]);
     }
@@ -196,9 +286,10 @@ final class ChurchWebsiteController extends Controller
         $section['id'] = (string) Str::uuid();
         $section['order'] = count($settings['custom_sections'] ?? []);
         $settings['custom_sections'][] = $section;
+        $settings['media_library'] = $this->websiteSettings($church)['media_library'] ?? [];
         $this->saveWebsiteSettings($church, $settings);
 
-        return back()->with('status', 'Reusable section created.');
+        return redirect()->route('website-studio.sections.edit', $section['id'])->with('status', 'Reusable section created.');
     }
 
     public function updateSection(Request $request, string $section): RedirectResponse
@@ -212,9 +303,10 @@ final class ChurchWebsiteController extends Controller
         $updated['id'] = $section;
         $updated['order'] = $settings['custom_sections'][$index]['order'] ?? $index;
         $settings['custom_sections'][$index] = $updated;
+        $settings['media_library'] = $this->websiteSettings($church)['media_library'] ?? [];
         $this->saveWebsiteSettings($church, $settings);
 
-        return back()->with('status', 'Reusable section updated.');
+        return redirect()->route('website-studio.sections.edit', $section)->with('status', 'Reusable section updated.');
     }
 
     public function destroySection(Request $request, string $section): RedirectResponse
@@ -241,6 +333,7 @@ final class ChurchWebsiteController extends Controller
             ? ($page->published_at ?? now())
             : null;
         $page->update($validated);
+        $this->syncPageCustomSections($request, $page);
 
         return back()->with('status', 'Website page updated.');
     }
@@ -308,7 +401,9 @@ final class ChurchWebsiteController extends Controller
             'sermons' => Sermon::query()->where('church_id', $church->id)->where('status', 'published')->latest('preached_at')->latest('id')->limit(6)->get(),
             'products' => BookstoreProduct::query()->where('church_id', $church->id)->where('status', 'active')->where('stock_quantity', '>', 0)->orderBy('name')->limit(8)->get(),
             'navigation' => $this->websiteNavigation($church),
-            'customSections' => collect($settings['custom_sections'] ?? [])->filter(fn (array $section): bool => in_array($page->slug, $section['page_slugs'] ?? ['home'], true))->sortBy('order')->values(),
+            'customSections' => collect($settings['custom_sections'] ?? [])->filter(fn (array $section): bool => in_array($page->slug, $section['page_slugs'] ?? ['home'], true) && empty($section['components']))->sortBy('order')->values(),
+            'customComponentSections' => collect($settings['custom_sections'] ?? [])->filter(fn (array $section): bool => in_array($page->slug, $section['page_slugs'] ?? ['home'], true) && ! empty($section['components']) && array_is_list($section['components']))->sortBy('order')->values(),
+            'customNestedSections' => collect($settings['custom_sections'] ?? [])->filter(fn (array $section): bool => in_array($page->slug, $section['page_slugs'] ?? ['home'], true) && (($section['components']['type'] ?? null) === 'columns'))->sortBy('order')->values(),
         ]);
     }
 
@@ -416,6 +511,7 @@ final class ChurchWebsiteController extends Controller
             'contact_address' => $church->address,
             'homepage_slug' => 'home',
             'custom_sections' => [],
+            'media_library' => [],
         ], data_get($church->settings, 'website', []));
 
         if (($settings['template'] ?? null) !== 'main') {
@@ -440,22 +536,177 @@ final class ChurchWebsiteController extends Controller
             'video_file' => ['nullable', 'mimetypes:video/mp4,video/webm,video/ogg', 'max:51200'],
             'page_slugs' => ['nullable', 'array'],
             'page_slugs.*' => ['string', 'alpha_dash', 'max:100'],
+            'components' => ['nullable', 'string', 'max:50000'],
+            'column_widths' => ['nullable', 'array'],
+            'column_widths.*' => ['integer', 'min:5', 'max:95'],
+            'component_files' => ['nullable', 'array'],
+            'component_files.*' => ['file', 'mimes:jpg,jpeg,png,gif,webp,mp4,webm,ogg', 'max:51200'],
         ]);
         $data['page_slugs'] = array_values($data['page_slugs'] ?? ['home']);
+        $data['components'] = $this->normalizeSectionComponents($data['components'] ?? null);
+        $columnCount = max(1, min(4, ((int) collect($data['components'])->max('column')) + 1));
+        $widths = array_values(array_map('intval', $data['column_widths'] ?? []));
+        $data['column_widths'] = count($widths) === $columnCount
+            ? array_map(fn (int $width): int => max(5, min(95, $width)), $widths)
+            : array_fill(0, $columnCount, 1);
+        $this->storeComponentFiles($data['components'], $request->file('component_files', []), $church);
         if ($request->hasFile('image_file')) {
             $data['image_url'] = $this->storeWebsiteAsset($request->file('image_file'), $church);
         }
         if ($request->hasFile('video_file')) {
             $data['video_url'] = $this->storeWebsiteAsset($request->file('video_file'), $church);
         }
-        unset($data['image_file'], $data['video_file']);
+        unset($data['image_file'], $data['video_file'], $data['component_files']);
 
         return $data;
+    }
+
+    /** @return array<string, mixed>|list<array<string, mixed>> */
+    private function normalizeSectionComponents(?string $encoded): array
+    {
+        $components = json_decode($encoded ?: '[]', true);
+        if (! is_array($components)) {
+            return [];
+        }
+
+        if (($components['type'] ?? null) === 'columns') {
+            return $this->normalizeColumnNode($components);
+        }
+
+        return collect($components)->filter(fn ($component): bool => is_array($component))->map(function (array $component): array {
+            $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel'], true)
+                ? $component['type']
+                : 'text';
+
+            return [
+                'id' => (string) ($component['id'] ?? Str::uuid()),
+                'type' => $type,
+                'text' => Str::limit((string) ($component['text'] ?? ''), 5000, ''),
+                'url' => Str::limit((string) ($component['url'] ?? ''), 500, ''),
+                'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
+                'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : [],
+                'autoplay' => $type === 'carousel' ? ($component['autoplay'] ?? true) !== false : false,
+                'column' => max(0, min(3, (int) ($component['column'] ?? 0))),
+            ];
+        })->values()->all();
+    }
+
+    /** @return array<string, mixed> */
+    private function normalizeColumnNode(array $node): array
+    {
+        if (is_array($node['groups'] ?? null) && $node['groups'] !== []) {
+            return [
+                'id' => (string) ($node['id'] ?? Str::uuid()),
+                'type' => 'columns',
+                'groups' => collect($node['groups'])->map(fn ($group): array => $this->normalizeColumnNode(is_array($group) ? $group : []))->values()->all(),
+            ];
+        }
+        $columns = collect($node['columns'] ?? [])->map(function ($column): array {
+            $column = is_array($column) ? $column : [];
+
+            return [
+                'width' => max(1, min(95, (int) ($column['width'] ?? 1))),
+                'components' => collect($column['components'] ?? [])->filter(fn ($component): bool => is_array($component))->map(function (array $component): array {
+                    if (($component['type'] ?? null) === 'columns') {
+                        return $this->normalizeColumnNode($component);
+                    }
+
+                    $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel'], true)
+                        ? $component['type']
+                        : 'text';
+
+                    return [
+                        'id' => (string) ($component['id'] ?? Str::uuid()),
+                        'type' => $type,
+                        'text' => Str::limit((string) ($component['text'] ?? ''), 5000, ''),
+                        'url' => Str::limit((string) ($component['url'] ?? ''), 500, ''),
+                        'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
+                        'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : [],
+                        'autoplay' => $type === 'carousel' ? ($component['autoplay'] ?? true) !== false : false,
+                    ];
+                })->values()->all(),
+            ];
+        })->values()->all();
+
+        return [
+            'id' => (string) ($node['id'] ?? Str::uuid()),
+            'type' => 'columns',
+            'columns' => $columns === [] ? [['width' => 1, 'components' => []]] : $columns,
+        ];
+    }
+
+    private function storeComponentFiles(array &$node, array $files, Church $church): void
+    {
+        if (($node['type'] ?? null) === 'columns') {
+            if (isset($node['groups'])) {
+                foreach ($node['groups'] as &$group) {
+                    $this->storeComponentFiles($group, $files, $church);
+                }
+                unset($group);
+                return;
+            }
+            foreach ($node['columns'] ?? [] as &$column) {
+                foreach ($column['components'] ?? [] as &$component) {
+                    $this->storeComponentFiles($component, $files, $church);
+                }
+            }
+
+            return;
+        }
+
+        if (($node['type'] ?? null) === 'carousel') {
+            foreach ($node['slides'] ?? [] as &$slide) {
+                $file = $files[$slide['id'] ?? ''] ?? null;
+                if ($file instanceof UploadedFile) {
+                    $slide['image'] = $this->storeWebsiteAsset($file, $church);
+                }
+            }
+            unset($slide);
+            return;
+        }
+
+        $file = $files[$node['id'] ?? ''] ?? null;
+        if ($file instanceof UploadedFile) {
+            $node['url'] = $this->storeWebsiteAsset($file, $church);
+        }
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function normalizeCarouselSlides(mixed $slides): array
+    {
+        return collect(is_array($slides) ? $slides : [])->map(function ($slide): array {
+            $slide = is_array($slide) ? $slide : [];
+
+            return [
+                'id' => (string) ($slide['id'] ?? Str::uuid()),
+                'image' => Str::limit((string) ($slide['image'] ?? ''), 500, ''),
+                'title' => Str::limit((string) ($slide['title'] ?? ''), 180, ''),
+                'text' => Str::limit((string) ($slide['text'] ?? ''), 500, ''),
+                'link' => Str::limit((string) ($slide['link'] ?? ''), 500, ''),
+            ];
+        })->values()->all();
     }
 
     private function saveWebsiteSettings(Church $church, array $settings): void
     {
         $church->forceFill(['settings' => array_merge($church->settings ?? [], ['website' => $settings])])->save();
+    }
+
+    private function syncPageCustomSections(Request $request, WebsitePage $page): void
+    {
+        $church = $page->church;
+        $settings = $this->websiteSettings($church);
+        $selected = $request->input('custom_section_ids', []);
+        $settings['custom_sections'] = collect($settings['custom_sections'] ?? [])->map(function (array $section) use ($page, $selected): array {
+            $pageSlugs = collect($section['page_slugs'] ?? [])->reject(fn (string $slug): bool => $slug === $page->slug)->values();
+            if (in_array((string) ($section['id'] ?? ''), $selected, true)) {
+                $pageSlugs->push($page->slug);
+            }
+            $section['page_slugs'] = $pageSlugs->unique()->values()->all();
+
+            return $section;
+        })->values()->all();
+        $this->saveWebsiteSettings($church, $settings);
     }
 
     private function ensureHomepage(Church $church, array $settings): WebsitePage
@@ -550,6 +801,8 @@ final class ChurchWebsiteController extends Controller
             'section_types.*' => ['string', 'in:hero,welcome,services,events,ministries,locations,sermons,store,giving,contact'],
             'section_order' => ['nullable', 'array'],
             'section_order.*' => ['string', 'in:hero,welcome,services,events,ministries,locations,sermons,store,giving,contact'],
+            'custom_section_ids' => ['nullable', 'array'],
+            'custom_section_ids.*' => ['string', 'max:80'],
             'page_template' => ['nullable', 'in:inherit,main'],
             'page_primary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'page_accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
@@ -620,6 +873,17 @@ final class ChurchWebsiteController extends Controller
 
     private function storeWebsiteAsset(UploadedFile $file, Church $church): string
     {
-        return $file->store('website/'.$church->id, 'public');
+        $path = $file->store('website/'.$church->id, 'public');
+        $settings = $this->websiteSettings($church);
+        $settings['media_library'][] = [
+            'id' => (string) Str::uuid(),
+            'path' => $path,
+            'name' => $file->getClientOriginalName(),
+            'type' => $file->getMimeType(),
+            'uploaded_at' => now()->toIso8601String(),
+        ];
+        $this->saveWebsiteSettings($church, $settings);
+
+        return $path;
     }
 }

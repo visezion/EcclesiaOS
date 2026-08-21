@@ -1,6 +1,10 @@
 @php
     $sections = collect($page->sections ?? ['hero', 'welcome', 'services', 'events', 'ministries', 'locations', 'sermons', 'giving', 'contact'])->map(fn ($section) => is_array($section) ? ($section['type'] ?? null) : $section)->filter()->all();
-    $assetUrl = static fn (?string $value): ?string => filled($value) ? (str_starts_with($value, 'http') ? $value : asset('storage/'.ltrim($value, '/'))) : null;
+    $assetUrl = static fn (?string $value): ?string => filled($value)
+        ? (str_starts_with($value, 'http') || str_starts_with($value, '//')
+            ? $value
+            : asset('storage/'.ltrim($value, '/')))
+        : null;
     $logoUrl = $assetUrl($settings['logo_url'] ?? null);
     $heroImageUrl = $assetUrl($settings['hero_image_url'] ?? null);
     $heroVideoUrl = $assetUrl($settings['hero_video_url'] ?? null);
@@ -12,7 +16,7 @@
     <title>{{ $page->seo_title ?: $settings['site_name'] }}</title>
     <meta name="description" content="{{ $page->seo_description ?: ($settings['seo_description'] ?: $settings['tagline']) }}">
     <meta name="theme-color" content="{{ $settings['primary_color'] }}">
-    <link rel="stylesheet" href="{{ asset('css/website/templates/main.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/website/templates/main.css') }}?v={{ filemtime(public_path('css/website/templates/main.css')) }}">
 </head>
 <body style="--primary:{{ $settings['primary_color'] }};--accent:{{ $settings['accent_color'] }};--font:'{{ $settings['font'] ?? 'Manrope' }}',Arial,sans-serif">
     @if ($preview)<div class="preview-bar">Preview mode · unpublished changes are visible only to you</div>@endif
@@ -43,7 +47,58 @@
         @if (in_array('giving', $sections, true))<section class="section"><div class="container"><div class="giving"><div><p class="eyebrow">{{ $settings['giving_kicker'] }}</p><h2>{{ $settings['giving_heading'] }}</h2><p>{{ $settings['giving_body'] }}</p></div><a class="button button-light" href="{{ $settings['giving_button_url'] }}">{{ $settings['giving_button_label'] }} <span>→</span></a></div></div></section>@endif
         @if (in_array('store', $sections, true) && $products->isNotEmpty())<section class="section soft"><div class="container"><div class="section-heading"><p class="eyebrow">Church store</p><h2>Resources for your next step.</h2></div><div class="card-grid">@foreach ($products as $product)<article class="card"><h3>{{ $product->name }}</h3><p>{{ $product->author ?: ($product->category ?: 'Church resource') }} · {{ $product->format ?: 'Available now' }}</p><strong>{{ $church->currency }} {{ number_format((float) $product->price, 2) }}</strong></article>@endforeach</div></div></section>@endif
         @if (in_array('contact', $sections, true))<section id="contact" class="section contact"><div class="container two-column"><div><p class="eyebrow">{{ $settings['contact_kicker'] }}</p><h2>{{ $settings['contact_heading'] }}</h2></div><div class="contact-details"><p>{{ $settings['contact_address'] ?: 'Come find us at our church campus.' }}</p>@if ($settings['contact_email'])<a href="mailto:{{ $settings['contact_email'] }}">{{ $settings['contact_email'] }}</a>@endif @if ($settings['contact_phone'])<a href="tel:{{ $settings['contact_phone'] }}">{{ $settings['contact_phone'] }}</a>@endif</div></div></section>@endif
-        @foreach ($customSections as $customSection)<section class="section reusable-section"><div class="container reusable-grid"><div><p class="eyebrow">{{ $customSection['eyebrow'] ?? '' }}</p><h2>{{ $customSection['title'] }}</h2><p class="lead preserve-lines">{{ $customSection['body'] ?? '' }}</p>@if (!empty($customSection['button_label']) && !empty($customSection['button_url']))<a class="button" href="{{ $customSection['button_url'] }}">{{ $customSection['button_label'] }} <span>→</span></a>@endif</div>@if (!empty($customSection['video_url']) || !empty($customSection['image_url']))<div class="reusable-media">@if (!empty($customSection['video_url']))<video controls playsinline @if (!empty($customSection['image_url'])) poster="{{ $assetUrl($customSection['image_url']) }}" @endif><source src="{{ $assetUrl($customSection['video_url']) }}"></video>@else<img src="{{ $assetUrl($customSection['image_url']) }}" alt="{{ $customSection['title'] }}">@endif</div>@endif</div></section>@endforeach
+        @foreach ($customSections as $customSection)<section class="section reusable-section"><div class="container reusable-grid"><div><p class="eyebrow">{{ $customSection['eyebrow'] ?? '' }}</p><h2>{{ $customSection['title'] }}</h2>@if (!empty($customSection['components']))<div class="component-stack">@foreach ($customSection['components'] as $component)@if (($component['type'] ?? '') === 'heading')<h3>{{ $component['text'] ?? '' }}</h3>@elseif (($component['type'] ?? '') === 'text')<p class="lead preserve-lines">{{ $component['text'] ?? '' }}</p>@elseif (($component['type'] ?? '') === 'quote')<blockquote>{{ $component['text'] ?? '' }}</blockquote>@elseif (($component['type'] ?? '') === 'image' && !empty($component['url']))<img src="{{ $assetUrl($component['url']) }}" alt="{{ $component['alt'] ?? $customSection['title'] }}">@elseif (($component['type'] ?? '') === 'video' && !empty($component['url']))<video class="component-video" controls playsinline><source src="{{ $assetUrl($component['url']) }}"></video>@elseif (($component['type'] ?? '') === 'button' && !empty($component['url']))<a class="button" href="{{ $component['url'] }}">{{ $component['text'] ?? 'Learn more' }} <span>→</span></a>@elseif (($component['type'] ?? '') === 'spacer')<div class="component-spacer" style="height: {{ max(0, min(600, (int) ($component['height'] ?? 36))) }}px"></div>@endif @endforeach</div>@else<p class="lead preserve-lines">{{ $customSection['body'] ?? '' }}</p>@if (!empty($customSection['button_label']) && !empty($customSection['button_url']))<a class="button" href="{{ $customSection['button_url'] }}">{{ $customSection['button_label'] }} <span>→</span></a>@endif @endif</div>@if (!empty($customSection['video_url']) || !empty($customSection['image_url']))<div class="reusable-media">@if (!empty($customSection['video_url']))<video controls playsinline @if (!empty($customSection['image_url'])) poster="{{ $assetUrl($customSection['image_url']) }}" @endif><source src="{{ $assetUrl($customSection['video_url']) }}"></video>@else<img src="{{ $assetUrl($customSection['image_url']) }}" alt="{{ $customSection['title'] }}">@endif</div>@endif</div></section>@endforeach
+        @foreach ($customNestedSections as $customSection)
+            <section class="section reusable-section reusable-columns">
+                <div class="container">
+                    <p class="eyebrow">{{ $customSection['eyebrow'] ?? '' }}</p>
+                    <h2>{{ $customSection['title'] }}</h2>
+                    @if (!empty($customSection['body']))<p class="lead preserve-lines">{{ $customSection['body'] }}</p>@endif
+                    <div class="component-column nested-root-column">
+                        @include('website.templates.main._components', ['components' => [$customSection['components']]])
+                    </div>
+                </div>
+            </section>
+        @endforeach
+        @foreach ($customComponentSections as $customSection)
+            @php($columnCount = max(1, min(4, ((int) collect($customSection['components'])->max('column')) + 1)))
+            @php($columnWidths = count($customSection['column_widths'] ?? []) === $columnCount ? array_map(fn ($width) => max(1, (int) $width), $customSection['column_widths']) : array_fill(0, $columnCount, 1))
+            <section class="section reusable-section reusable-columns">
+                <div class="container">
+                    <p class="eyebrow">{{ $customSection['eyebrow'] ?? '' }}</p>
+                    <h2>{{ $customSection['title'] }}</h2>
+                    @if (!empty($customSection['body']))
+                        <p class="lead preserve-lines">{{ $customSection['body'] }}</p>
+                    @endif
+                    <div class="component-columns" style="grid-template-columns: {{ collect($columnWidths)->map(fn ($width) => $width.'fr')->join(' ') }};">
+                        @foreach (collect($customSection['components'])->groupBy(fn ($component) => (int) ($component['column'] ?? 0))->sortKeys() as $components)
+                            <div class="component-column">
+                                @foreach ($components as $component)
+                                    @if (($component['type'] ?? '') === 'heading')
+                                        <h3>{{ $component['text'] ?? '' }}</h3>
+                                    @elseif (($component['type'] ?? '') === 'text')
+                                        <p>{{ $component['text'] ?? '' }}</p>
+                                    @elseif (($component['type'] ?? '') === 'quote')
+                                        <blockquote>{{ $component['text'] ?? '' }}</blockquote>
+                                    @elseif (($component['type'] ?? '') === 'image' && !empty($component['url']))
+                                        <img src="{{ $assetUrl($component['url']) }}" alt="{{ $component['alt'] ?? '' }}" loading="lazy">
+                                    @elseif (($component['type'] ?? '') === 'video' && !empty($component['url']))
+                                        <video controls preload="metadata"><source src="{{ $assetUrl($component['url']) }}"></video>
+                                    @elseif (($component['type'] ?? '') === 'button' && !empty($component['url']))
+                                        <a class="button" href="{{ $component['url'] }}">{{ $component['text'] ?? 'Learn more' }}</a>
+                                    @elseif (($component['type'] ?? '') === 'carousel')
+                                        @include('website.templates.main._carousel', ['component' => $component])
+                                    @elseif (($component['type'] ?? '') === 'spacer')
+                                        <div class="component-spacer" style="height: {{ max(0, min(600, (int) ($component['height'] ?? 36))) }}px" aria-hidden="true"></div>
+                                    @endif
+                                @endforeach
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </section>
+        @endforeach
+
         <footer><div class="container footer-row"><span>© {{ now()->year }} {{ $settings['site_name'] }}</span><span>{{ $settings['footer_text'] }}</span></div></footer>
     </div>
     <script src="{{ asset('js/website/templates/main.js') }}" defer></script>

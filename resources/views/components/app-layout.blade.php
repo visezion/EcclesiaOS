@@ -106,6 +106,12 @@
                 </div>
             </div>
         @endif
+        @if (request()->is('website-studio*'))
+            <link rel="stylesheet" href="{{ asset('css/website-studio/media-picker.css') }}?v={{ filemtime(public_path('css/website-studio/media-picker.css')) }}">
+            @php($studioMedia = data_get(auth()->user()?->church?->settings, 'website.media_library', []))
+            <script id="website-media-library" type="application/json">@json($studioMedia)</script>
+            <script src="{{ asset('js/website-studio/media-picker.js') }}?v={{ filemtime(public_path('js/website-studio/media-picker.js')) }}" defer></script>
+        @endif
         @stack('scripts')
     </body>
 </html>

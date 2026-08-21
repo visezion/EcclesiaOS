@@ -386,6 +386,11 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('website-studio/preview/{page}', [ChurchWebsiteController::class, 'preview'])->name('website-studio.preview');
     Route::get('website-studio/pages/{page}/edit', [ChurchWebsiteController::class, 'editPage'])->name('website-studio.pages.edit');
     Route::get('website-studio/sections', [ChurchWebsiteController::class, 'sections'])->name('website-studio.sections');
+    Route::get('website-studio/media', [ChurchWebsiteController::class, 'mediaLibrary'])->name('website-studio.media');
+    Route::post('website-studio/media', [ChurchWebsiteController::class, 'uploadMedia'])->name('website-studio.media.upload');
+    Route::delete('website-studio/media/{media}', [ChurchWebsiteController::class, 'deleteMedia'])->name('website-studio.media.delete');
+    Route::get('website-studio/sections/create', [ChurchWebsiteController::class, 'createSection'])->name('website-studio.sections.create');
+    Route::get('website-studio/sections/{section}/edit', [ChurchWebsiteController::class, 'editSection'])->name('website-studio.sections.edit');
     Route::post('website-studio/sections', [ChurchWebsiteController::class, 'storeSection'])->name('website-studio.sections.store');
     Route::put('website-studio/sections/{section}', [ChurchWebsiteController::class, 'updateSection'])->name('website-studio.sections.update');
     Route::delete('website-studio/sections/{section}', [ChurchWebsiteController::class, 'destroySection'])->name('website-studio.sections.destroy');

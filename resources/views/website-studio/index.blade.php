@@ -17,6 +17,10 @@
                 <i data-lucide="palette" class="size-4"></i>
                 Design homepage
             </a>
+            <a href="{{ route('website-studio.sections') }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 hover:bg-amber-100">
+                <i data-lucide="blocks" class="size-4"></i>
+                Manage sections
+            </a>
         </div>
 
         @if (session('status'))
