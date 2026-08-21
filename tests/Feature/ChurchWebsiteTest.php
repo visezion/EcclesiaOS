@@ -136,6 +136,35 @@ final class ChurchWebsiteTest extends TestCase
         }
     }
 
+    public function test_page_sections_are_saved_in_the_dragged_order(): void
+    {
+        $church = Church::factory()->create(['name' => 'Section Order Church']);
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $adminRole = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($adminRole);
+
+        $this->actingAs($user)->get(route('website-studio.index'))->assertOk();
+
+        $page = WebsitePage::query()
+            ->where('church_id', $church->id)
+            ->where('slug', 'about')
+            ->firstOrFail();
+
+        $this->actingAs($user)
+            ->put(route('website-studio.pages.update', $page), [
+                'title' => $page->title,
+                'slug' => $page->slug,
+                'status' => 'published',
+                'body' => $page->body,
+                'section_types' => ['hero', 'welcome', 'contact'],
+                'section_order' => ['contact', 'hero', 'welcome'],
+                'page_template' => 'inherit',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(['contact', 'hero', 'welcome'], $page->fresh()->sections);
+    }
+
     public function test_church_admin_can_configure_publish_and_preview_a_church_website(): void
     {
         $church = Church::factory()->create(['name' => 'Harbour Light Church']);
