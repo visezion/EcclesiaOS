@@ -2,7 +2,11 @@
     <div class="loop-carousel-track">
         @foreach ($component['slides'] ?? [] as $slide)
             <article class="loop-carousel-slide">
-                @if (!empty($slide['image']))<img src="{{ $assetUrl($slide['image']) }}" alt="{{ $slide['title'] ?? '' }}" loading="lazy">@endif
+                @if (!empty($slide['video']))
+                    <video class="loop-carousel-background" src="{{ $assetUrl($slide['video']) }}" autoplay muted loop playsinline preload="metadata"></video>
+                @elseif (!empty($slide['image']))
+                    <img src="{{ $assetUrl($slide['image']) }}" alt="{{ $slide['title'] ?? '' }}" loading="lazy">
+                @endif
                 <div class="loop-carousel-caption">
                     @if (!empty($slide['title']))<h3>{{ $slide['title'] }}</h3>@endif
                     @if (!empty($slide['text']))<p>{{ $slide['text'] }}</p>@endif

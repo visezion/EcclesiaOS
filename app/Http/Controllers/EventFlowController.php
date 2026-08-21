@@ -29,6 +29,7 @@ use App\Models\User;
 use App\Models\Workflow;
 use App\Services\ActivityLogger;
 use App\Services\Communications\DomainNotificationService;
+use App\Support\ModuleRegistry;
 use App\Support\OpaqueId;
 use App\Support\SecretHash;
 use Illuminate\Contracts\View\View;
@@ -159,6 +160,8 @@ final class EventFlowController extends Controller
             'draft' => (clone $eventStatsQuery)->where('status', 'draft')->count(),
         ];
 
+        $church = $request->user()?->church_id ? Church::query()->find($request->user()->church_id) : null;
+
         return view('events.events', [
             'program' => $program,
             'programs' => $this->scopePrograms(Program::query(), $request)->orderBy('name')->get(),
@@ -168,6 +171,7 @@ final class EventFlowController extends Controller
                 ->orderBy('name')
                 ->get(),
             'events' => $events,
+            'websiteModuleEnabled' => $church !== null && ! ModuleRegistry::isDisabledRoute('website-studio.index', $church),
             'stats' => $eventStats,
             'breadcrumbs' => $this->breadcrumbs([['Programs', route('programs.index')], [$program?->name ?? 'Events', null]]),
         ]);
@@ -182,15 +186,21 @@ final class EventFlowController extends Controller
             $this->authorizeEvents($request);
         }
 
+        $churchId = $program?->church_id ?? $request->user()->church_id ?? Church::query()->value('id');
+        $church = $churchId ? Church::query()->find($churchId) : null;
+        $websiteModuleEnabled = $church !== null && ! ModuleRegistry::isDisabledRoute('website-studio.index', $church);
+
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:160'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'poster' => ['nullable', 'image', 'max:10240'],
             'event_type' => ['nullable', 'string', 'max:80'],
             'starts_at' => ['required', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'venue' => ['nullable', 'string', 'max:160'],
             'status' => ['nullable', Rule::in(['scheduled', 'draft', 'completed', 'cancelled'])],
             'template_id' => ['nullable', 'exists:event_templates,id'],
+            'show_on_website' => ['nullable', 'boolean'],
         ]);
 
         $template = null;
@@ -204,7 +214,11 @@ final class EventFlowController extends Controller
         }
         unset($validated['template_id']);
 
-        $churchId = $program?->church_id ?? $request->user()->church_id ?? Church::query()->value('id');
+        if ($request->hasFile('poster')) {
+            $validated['poster_path'] = $request->file('poster')->store('events/'.$churchId, 'public');
+        }
+        unset($validated['poster']);
+
         $campusId = $program?->campus_id ?? $request->user()->campus_id;
         $event = Event::query()->create([
             ...$validated,
@@ -213,6 +227,7 @@ final class EventFlowController extends Controller
             'program_id' => $program?->id,
             'category' => $validated['event_type'] ?? 'Event',
             'status' => 'draft',
+            'show_on_website' => $websiteModuleEnabled && $request->boolean('show_on_website'),
         ]);
 
         $session = $this->createDefaultSession($event);
@@ -689,6 +704,9 @@ final class EventFlowController extends Controller
     {
         $this->authorizeSession($request, $eventSession);
         $eventSession->load(['event.program', 'campus', 'attendanceSession']);
+        $eventUrl = $eventSession->event->program
+            ? route('event-sessions.index', [$eventSession->event->program, $eventSession->event])
+            : route('events.index');
 
         return view('events.meeting', [
             'session' => $eventSession,
@@ -699,7 +717,7 @@ final class EventFlowController extends Controller
             'enabledMeetingProviders' => $this->enabledMeetingProviders($request),
             'breadcrumbs' => $this->breadcrumbs([
                 ['Programs', route('programs.index')],
-                [$eventSession->event->title, route('event-sessions.index', [$eventSession->event->program, $eventSession->event])],
+                [$eventSession->event->title, $eventUrl],
                 ['Meeting', null],
             ]),
         ]);
@@ -1725,6 +1743,9 @@ final class EventFlowController extends Controller
         $this->authorizeSession($request, $eventSession);
         $attendanceSession = $this->ensureAttendanceSession($eventSession);
         $attendanceSession->load(['eventSession.event.program', 'records.member', 'verifications']);
+        $eventUrl = $eventSession->event->program
+            ? route('event-sessions.index', [$eventSession->event->program, $eventSession->event])
+            : route('events.index');
 
         return view('events.attendance-session', [
             'session' => $eventSession->load(['event.program', 'campus']),
@@ -1733,7 +1754,7 @@ final class EventFlowController extends Controller
             'records' => $attendanceSession->records()->with(['member', 'verifications'])->latest('checked_in_at')->paginate(10),
             'breadcrumbs' => $this->breadcrumbs([
                 ['Programs', route('programs.index')],
-                [$eventSession->event->title, route('event-sessions.index', [$eventSession->event->program, $eventSession->event])],
+                [$eventSession->event->title, $eventUrl],
                 ['Attendance Session', null],
             ]),
         ]);

@@ -15,11 +15,11 @@ final class Event extends Model
     use SoftDeletes;
     use UsesOpaqueRouteKeys;
 
-    protected $fillable = ['church_id', 'campus_id', 'program_id', 'title', 'description', 'event_type', 'starts_at', 'ends_at', 'venue', 'category', 'status'];
+    protected $fillable = ['church_id', 'campus_id', 'program_id', 'title', 'description', 'poster_path', 'event_type', 'starts_at', 'ends_at', 'venue', 'category', 'status', 'show_on_website'];
 
     protected function casts(): array
     {
-        return ['starts_at' => 'datetime', 'ends_at' => 'datetime'];
+        return ['starts_at' => 'datetime', 'ends_at' => 'datetime', 'show_on_website' => 'boolean'];
     }
 
     public function program(): BelongsTo

@@ -19,6 +19,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
+use App\Support\ModuleRegistry;
+use Illuminate\Validation\Rule;
 
 final class ChurchWebsiteController extends Controller
 {
@@ -396,18 +398,34 @@ final class ChurchWebsiteController extends Controller
         $templateView = view()->exists('website.templates.'.$template.'.index')
             ? 'website.templates.'.$template.'.index'
             : 'website.public';
+        $availableCustomSections = collect($settings['custom_sections'] ?? [])->filter(fn (array $section): bool => in_array($page->slug, $section['page_slugs'] ?? ['home'], true));
+        $pageSectionOrder = collect($page->sections ?? [])
+            ->map(fn ($section) => is_array($section) ? ($section['type'] ?? null) : $section)
+            ->filter()
+            ->map(fn ($section): string => (string) $section)
+            ->values()
+            ->all();
+        $pageSectionOrder = array_values(array_unique(array_merge(
+            $pageSectionOrder,
+            $availableCustomSections->pluck('id')->map(fn ($id): string => (string) $id)->all(),
+        )));
+
+        $websiteModuleEnabled = ! ModuleRegistry::isDisabledRoute('website-studio.index', $church);
 
         return view($templateView, [
             'church' => $church,
             'page' => $page,
             'settings' => $settings,
             'preview' => $preview,
-            'events' => Event::query()->where('church_id', $church->id)->whereIn('status', ['scheduled', 'published'])->where('starts_at', '>=', now()->subDay())->orderBy('starts_at')->limit(4)->get(),
+            'events' => $websiteModuleEnabled
+                ? Event::query()->where('church_id', $church->id)->where('show_on_website', true)->whereIn('status', ['scheduled', 'published'])->where('starts_at', '>', now())->orderBy('starts_at')->limit(6)->get()
+                : collect(),
             'ministries' => Ministry::query()->where('church_id', $church->id)->where('status', 'active')->orderBy('name')->limit(6)->get(),
             'campuses' => Campus::query()->where('church_id', $church->id)->where('status', 'active')->orderBy('name')->limit(8)->get(),
             'sermons' => Sermon::query()->where('church_id', $church->id)->where('status', 'published')->latest('preached_at')->latest('id')->limit(6)->get(),
             'products' => BookstoreProduct::query()->where('church_id', $church->id)->where('status', 'active')->where('stock_quantity', '>', 0)->orderBy('name')->limit(8)->get(),
             'navigation' => $this->websiteNavigation($church),
+            'pageSectionOrder' => $pageSectionOrder,
             'customSections' => collect($settings['custom_sections'] ?? [])->filter(fn (array $section): bool => in_array($page->slug, $section['page_slugs'] ?? ['home'], true) && empty($section['components']))->sortBy('order')->values(),
             'customComponentSections' => collect($settings['custom_sections'] ?? [])->filter(fn (array $section): bool => in_array($page->slug, $section['page_slugs'] ?? ['home'], true) && ! empty($section['components']) && array_is_list($section['components']))->sortBy('order')->values(),
             'customNestedSections' => collect($settings['custom_sections'] ?? [])->filter(fn (array $section): bool => in_array($page->slug, $section['page_slugs'] ?? ['home'], true) && (($section['components']['type'] ?? null) === 'columns'))->sortBy('order')->values(),
@@ -581,7 +599,7 @@ final class ChurchWebsiteController extends Controller
         }
 
         return collect($components)->filter(fn ($component): bool => is_array($component))->map(function (array $component): array {
-            $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel', 'gallery', 'card', 'icon'], true)
+            $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel', 'video-slider', 'gallery', 'card', 'icon', 'divider', 'events'], true)
                 ? $component['type']
                 : 'text';
 
@@ -591,12 +609,13 @@ final class ChurchWebsiteController extends Controller
                 'text' => Str::limit((string) ($component['text'] ?? ''), 5000, ''),
                 'url' => Str::limit((string) ($component['url'] ?? ''), 500, ''),
                 'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
-                'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : [],
-                'autoplay' => $type === 'carousel' ? ($component['autoplay'] ?? true) !== false : false,
+                'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : ($type === 'video-slider' ? $this->normalizeVideoSlides($component['slides'] ?? []) : []),
+                'autoplay' => in_array($type, ['carousel', 'video-slider'], true) ? ($component['autoplay'] ?? true) !== false : false,
                 'height' => $type === 'spacer' ? max(0, min(600, (int) ($component['height'] ?? 36))) : 0,
                 'title' => in_array($type, ['card', 'icon', 'gallery'], true) ? Str::limit((string) ($component['title'] ?? ''), 180, '') : '',
                 'body' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['body'] ?? ''), 1000, '') : '',
                 'background_color' => in_array($type, ['card', 'icon'], true) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['background_color'] ?? '')) ? $component['background_color'] : ($type === 'icon' ? '#ede9fe' : '#6d4aff'),
+                'background_video' => $type === 'card' ? Str::limit((string) ($component['background_video'] ?? ''), 500, '') : '',
                 'align' => in_array($component['align'] ?? null, ['left', 'center', 'right', 'justify'], true) ? $component['align'] : 'left',
                 'icon' => $type === 'icon' ? Str::limit((string) ($component['icon'] ?? '✦'), 8, '') : '',
                 'icon_color' => $type === 'icon' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['icon_color'] ?? '')) ? $component['icon_color'] : '#6d4aff',
@@ -604,9 +623,17 @@ final class ChurchWebsiteController extends Controller
                 'link' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['link'] ?? ''), 500, '') : '',
                 'button_color' => $type === 'button' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['button_color'] ?? '')) ? $component['button_color'] : '#6d4aff',
                 'button_size' => $type === 'button' && in_array($component['button_size'] ?? null, ['very-small', 'small', 'medium', 'big', 'very-big'], true) ? $component['button_size'] : 'medium',
-                'images' => $type === 'gallery' ? collect(is_array($component['images'] ?? null) ? $component['images'] : [])->map(fn ($image): array => ['id' => (string) ($image['id'] ?? Str::uuid()), 'url' => Str::limit((string) ($image['url'] ?? ''), 500, ''), 'alt' => Str::limit((string) ($image['alt'] ?? ''), 180, '')])->values()->all() : [],
+                'images' => $type === 'gallery' ? collect(is_array($component['images'] ?? null) ? $component['images'] : [])->map(fn ($image): array => ['id' => (string) ($image['id'] ?? Str::uuid()), 'url' => Str::limit((string) ($image['url'] ?? ''), 500, ''), 'alt' => Str::limit((string) ($image['alt'] ?? ''), 180, ''), 'position' => in_array($image['position'] ?? null, ['center', 'top', 'bottom', 'left', 'right'], true) ? $image['position'] : 'center'])->values()->all() : [],
                 'style' => $type === 'gallery' && in_array($component['style'] ?? null, ['grid', 'slider', 'masonry', 'featured', 'art-wall'], true) ? $component['style'] : 'grid',
                 'columns' => $type === 'gallery' ? max(2, min(6, (int) ($component['columns'] ?? 3))) : 0,
+                'divider_style' => $type === 'divider' && in_array($component['divider_style'] ?? null, ['solid', 'dashed', 'dotted'], true) ? $component['divider_style'] : 'solid',
+                'divider_color' => $type === 'divider' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['divider_color'] ?? '')) ? $component['divider_color'] : '#e2e8f0',
+                'divider_width' => $type === 'divider' ? max(10, min(100, (int) ($component['divider_width'] ?? 100))) : 0,
+                'divider_thickness' => $type === 'divider' ? max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) : 0,
+                'divider_spacing' => $type === 'divider' ? max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) : 0,
+                'event_limit' => $type === 'events' && in_array((int) ($component['event_limit'] ?? 3), [3, 6], true) ? (int) $component['event_limit'] : 3,
+                'event_button_color' => $type === 'events' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['event_button_color'] ?? '')) ? $component['event_button_color'] : '#6d4aff',
+                'event_button_text_color' => $type === 'events' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['event_button_text_color'] ?? '')) ? $component['event_button_text_color'] : '#ffffff',
                 'animation' => in_array($component['animation'] ?? null, ['none', 'fade', 'slide-up', 'slide-left', 'zoom', 'bounce', 'float'], true) ? $component['animation'] : 'none',
                 'column' => max(0, min(3, (int) ($component['column'] ?? 0))),
             ];
@@ -633,7 +660,7 @@ final class ChurchWebsiteController extends Controller
                         return $this->normalizeColumnNode($component);
                     }
 
-                    $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel', 'gallery', 'card', 'icon'], true)
+                    $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel', 'video-slider', 'gallery', 'card', 'icon', 'divider', 'events'], true)
                         ? $component['type']
                         : 'text';
 
@@ -643,12 +670,13 @@ final class ChurchWebsiteController extends Controller
                         'text' => Str::limit((string) ($component['text'] ?? ''), 5000, ''),
                         'url' => Str::limit((string) ($component['url'] ?? ''), 500, ''),
                         'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
-                        'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : [],
-                        'autoplay' => $type === 'carousel' ? ($component['autoplay'] ?? true) !== false : false,
+                        'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : ($type === 'video-slider' ? $this->normalizeVideoSlides($component['slides'] ?? []) : []),
+                        'autoplay' => in_array($type, ['carousel', 'video-slider'], true) ? ($component['autoplay'] ?? true) !== false : false,
                         'height' => $type === 'spacer' ? max(0, min(600, (int) ($component['height'] ?? 36))) : 0,
                         'title' => in_array($type, ['card', 'icon', 'gallery'], true) ? Str::limit((string) ($component['title'] ?? ''), 180, '') : '',
                         'body' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['body'] ?? ''), 1000, '') : '',
                         'background_color' => in_array($type, ['card', 'icon'], true) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['background_color'] ?? '')) ? $component['background_color'] : ($type === 'icon' ? '#ede9fe' : '#6d4aff'),
+                        'background_video' => $type === 'card' ? Str::limit((string) ($component['background_video'] ?? ''), 500, '') : '',
                         'align' => in_array($component['align'] ?? null, ['left', 'center', 'right', 'justify'], true) ? $component['align'] : 'left',
                         'icon' => $type === 'icon' ? Str::limit((string) ($component['icon'] ?? '✦'), 8, '') : '',
                         'icon_color' => $type === 'icon' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['icon_color'] ?? '')) ? $component['icon_color'] : '#6d4aff',
@@ -656,9 +684,17 @@ final class ChurchWebsiteController extends Controller
                         'link' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['link'] ?? ''), 500, '') : '',
                         'button_color' => $type === 'button' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['button_color'] ?? '')) ? $component['button_color'] : '#6d4aff',
                         'button_size' => $type === 'button' && in_array($component['button_size'] ?? null, ['very-small', 'small', 'medium', 'big', 'very-big'], true) ? $component['button_size'] : 'medium',
-                        'images' => $type === 'gallery' ? collect(is_array($component['images'] ?? null) ? $component['images'] : [])->map(fn ($image): array => ['id' => (string) ($image['id'] ?? Str::uuid()), 'url' => Str::limit((string) ($image['url'] ?? ''), 500, ''), 'alt' => Str::limit((string) ($image['alt'] ?? ''), 180, '')])->values()->all() : [],
+                        'images' => $type === 'gallery' ? collect(is_array($component['images'] ?? null) ? $component['images'] : [])->map(fn ($image): array => ['id' => (string) ($image['id'] ?? Str::uuid()), 'url' => Str::limit((string) ($image['url'] ?? ''), 500, ''), 'alt' => Str::limit((string) ($image['alt'] ?? ''), 180, ''), 'position' => in_array($image['position'] ?? null, ['center', 'top', 'bottom', 'left', 'right'], true) ? $image['position'] : 'center'])->values()->all() : [],
                         'style' => $type === 'gallery' && in_array($component['style'] ?? null, ['grid', 'slider', 'masonry', 'featured', 'art-wall'], true) ? $component['style'] : 'grid',
                         'columns' => $type === 'gallery' ? max(2, min(6, (int) ($component['columns'] ?? 3))) : 0,
+                        'divider_style' => $type === 'divider' && in_array($component['divider_style'] ?? null, ['solid', 'dashed', 'dotted'], true) ? $component['divider_style'] : 'solid',
+                        'divider_color' => $type === 'divider' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['divider_color'] ?? '')) ? $component['divider_color'] : '#e2e8f0',
+                        'divider_width' => $type === 'divider' ? max(10, min(100, (int) ($component['divider_width'] ?? 100))) : 0,
+                        'divider_thickness' => $type === 'divider' ? max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) : 0,
+                        'divider_spacing' => $type === 'divider' ? max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) : 0,
+                        'event_limit' => $type === 'events' && in_array((int) ($component['event_limit'] ?? 3), [3, 6], true) ? (int) $component['event_limit'] : 3,
+                        'event_button_color' => $type === 'events' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['event_button_color'] ?? '')) ? $component['event_button_color'] : '#6d4aff',
+                        'event_button_text_color' => $type === 'events' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['event_button_text_color'] ?? '')) ? $component['event_button_text_color'] : '#ffffff',
                         'animation' => in_array($component['animation'] ?? null, ['none', 'fade', 'slide-up', 'slide-left', 'zoom', 'bounce', 'float'], true) ? $component['animation'] : 'none',
                     ];
                 })->values()->all(),
@@ -691,11 +727,16 @@ final class ChurchWebsiteController extends Controller
             return;
         }
 
-        if (($node['type'] ?? null) === 'carousel') {
+        if (in_array($node['type'] ?? null, ['carousel', 'video-slider'], true)) {
             foreach ($node['slides'] ?? [] as &$slide) {
                 $file = $files[$slide['id'] ?? ''] ?? null;
                 if ($file instanceof UploadedFile) {
-                    $slide['image'] = $this->storeWebsiteAsset($file, $church);
+                    $isVideo = $node['type'] === 'video-slider' || str_starts_with((string) $file->getMimeType(), 'video/');
+                    $slide[$isVideo ? 'video' : 'image'] = $this->storeWebsiteAsset($file, $church);
+                }
+                $videoFile = $files[($slide['id'] ?? '').'-video'] ?? null;
+                if ($node['type'] === 'carousel' && $videoFile instanceof UploadedFile) {
+                    $slide['video'] = $this->storeWebsiteAsset($videoFile, $church);
                 }
             }
             unset($slide);
@@ -710,6 +751,24 @@ final class ChurchWebsiteController extends Controller
                 }
             }
             unset($image);
+
+            return;
+        }
+
+        if (($node['type'] ?? null) === 'card') {
+            $videoFile = $files[($node['id'] ?? '').'-video'] ?? null;
+            if ($videoFile instanceof UploadedFile) {
+                $node['background_video'] = $this->storeWebsiteAsset($videoFile, $church);
+            }
+
+            $file = $files[$node['id'] ?? ''] ?? null;
+            if ($file instanceof UploadedFile) {
+                if (str_starts_with((string) $file->getMimeType(), 'video/')) {
+                    $node['background_video'] = $this->storeWebsiteAsset($file, $church);
+                } else {
+                    $node['url'] = $this->storeWebsiteAsset($file, $church);
+                }
+            }
 
             return;
         }
@@ -729,6 +788,23 @@ final class ChurchWebsiteController extends Controller
             return [
                 'id' => (string) ($slide['id'] ?? Str::uuid()),
                 'image' => Str::limit((string) ($slide['image'] ?? ''), 500, ''),
+                'video' => Str::limit((string) ($slide['video'] ?? ''), 500, ''),
+                'title' => Str::limit((string) ($slide['title'] ?? ''), 180, ''),
+                'text' => Str::limit((string) ($slide['text'] ?? ''), 500, ''),
+                'link' => Str::limit((string) ($slide['link'] ?? ''), 500, ''),
+            ];
+        })->values()->all();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function normalizeVideoSlides(mixed $slides): array
+    {
+        return collect(is_array($slides) ? $slides : [])->map(function ($slide): array {
+            $slide = is_array($slide) ? $slide : [];
+
+            return [
+                'id' => (string) ($slide['id'] ?? Str::uuid()),
+                'video' => Str::limit((string) ($slide['video'] ?? ''), 500, ''),
                 'title' => Str::limit((string) ($slide['title'] ?? ''), 180, ''),
                 'text' => Str::limit((string) ($slide['text'] ?? ''), 500, ''),
                 'link' => Str::limit((string) ($slide['link'] ?? ''), 500, ''),
@@ -841,6 +917,14 @@ final class ChurchWebsiteController extends Controller
     /** @return array<string, mixed> */
     private function validatedPage(Request $request, Church $church): array
     {
+        $customSectionIds = collect($this->websiteSettings($church)['custom_sections'] ?? [])
+            ->pluck('id')
+            ->filter()
+            ->map(fn ($id): string => (string) $id)
+            ->values()
+            ->all();
+        $sectionOrderOptions = array_values(array_unique(array_merge(array_keys($this->sectionTypes()), $customSectionIds)));
+
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:150'],
             'slug' => ['nullable', 'alpha_dash', 'max:100'],
@@ -849,9 +933,9 @@ final class ChurchWebsiteController extends Controller
             'section_types' => ['nullable', 'array'],
             'section_types.*' => ['string', 'in:hero,welcome,services,events,ministries,locations,sermons,store,giving,contact'],
             'section_order' => ['nullable', 'array'],
-            'section_order.*' => ['string', 'in:hero,welcome,services,events,ministries,locations,sermons,store,giving,contact'],
+            'section_order.*' => ['string', Rule::in($sectionOrderOptions)],
             'custom_section_ids' => ['nullable', 'array'],
-            'custom_section_ids.*' => ['string', 'max:80'],
+            'custom_section_ids.*' => ['string', 'max:80', Rule::in($customSectionIds)],
             'page_template' => ['nullable', 'in:inherit,main'],
             'page_primary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'page_accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
@@ -871,6 +955,7 @@ final class ChurchWebsiteController extends Controller
 
         $validated['slug'] = $slug;
         $selectedSections = array_values($validated['section_types'] ?? ['welcome', 'contact']);
+        $selectedSections = array_values(array_unique(array_merge($selectedSections, $validated['custom_section_ids'] ?? [])));
         $orderedSections = array_values($validated['section_order'] ?? []);
         $validated['sections'] = array_values(array_unique(array_merge(
             array_values(array_filter($orderedSections, fn (string $section): bool => in_array($section, $selectedSections, true))),
@@ -878,6 +963,7 @@ final class ChurchWebsiteController extends Controller
         )));
         unset($validated['section_types']);
         unset($validated['section_order']);
+        unset($validated['custom_section_ids']);
 
         $page = $request->route('page') instanceof WebsitePage ? $request->route('page') : null;
         $design = $page?->design ?? [];

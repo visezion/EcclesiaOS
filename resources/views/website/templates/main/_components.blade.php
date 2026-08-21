@@ -7,7 +7,7 @@
                 <div class="component-columns nested-component-columns" style="grid-template-columns: {{ collect($group['columns'] ?? [])->map(fn ($column) => max(1, (int) ($column['width'] ?? 1)).'fr')->join(' ') }};">
                     @foreach ($group['columns'] ?? [] as $column)
                         <div class="component-column">
-                            @include('website.templates.main._components', ['components' => $column['components'] ?? []])
+                            @include('website.templates.main._components', ['components' => $column['components'] ?? [], 'events' => $events ?? collect()])
                         </div>
                     @endforeach
                 </div>
@@ -18,7 +18,11 @@
             <div class="loop-carousel-track">
                 @foreach ($component['slides'] ?? [] as $slide)
                     <article class="loop-carousel-slide">
-                        @if (!empty($slide['image']))<img src="{{ $assetUrl($slide['image']) }}" alt="{{ $slide['title'] ?? '' }}" loading="lazy">@endif
+                        @if (!empty($slide['video']))
+                            <video class="loop-carousel-background" src="{{ $assetUrl($slide['video']) }}" autoplay muted loop playsinline preload="metadata"></video>
+                        @elseif (!empty($slide['image']))
+                            <img src="{{ $assetUrl($slide['image']) }}" alt="{{ $slide['title'] ?? '' }}" loading="lazy">
+                        @endif
                         <div class="loop-carousel-caption">
                             @if (!empty($slide['title']))<h3>{{ $slide['title'] }}</h3>@endif
                             @if (!empty($slide['text']))<p>{{ $slide['text'] }}</p>@endif
@@ -29,11 +33,25 @@
             </div>
             @if (count($component['slides'] ?? []) > 1)<div class="loop-carousel-dots" data-carousel-dots></div>@endif
         </div>
+    @elseif (($component['type'] ?? '') === 'video-slider')
+        @include('website.templates.main._video-slider', ['component' => $component])
     @elseif (($component['type'] ?? '') === 'gallery')
         @include('website.templates.main._gallery', ['component' => $component])
+    @elseif (($component['type'] ?? '') === 'divider')
+        <div class="content-divider-widget" style="--divider-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['divider_color'] ?? '') ? $component['divider_color'] : '#e2e8f0' }};--divider-width: {{ max(10, min(100, (int) ($component['divider_width'] ?? 100))) }}%;--divider-thickness: {{ max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) }}px;--divider-spacing: {{ max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) }}px;--divider-style: {{ in_array($component['divider_style'] ?? 'solid', ['solid', 'dashed', 'dotted'], true) ? ($component['divider_style'] ?? 'solid') : 'solid' }}" aria-hidden="true"><span></span></div>
+    @elseif (($component['type'] ?? '') === 'events')
+        @include('website.templates.main._events', ['component' => $component, 'events' => $events ?? collect()])
     @elseif (($component['type'] ?? '') === 'card')
-        <article class="content-card-widget" style="--card-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : '#6d4aff' }};">
-            @if (!empty($component['url']))<img src="{{ $assetUrl($component['url']) }}" alt="{{ $component['title'] ?? '' }}" loading="lazy">@endif
+        <article class="content-card-widget {{ !empty($component['background_video']) || !empty($component['url']) ? 'has-media' : '' }}" style="--card-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : '#6d4aff' }};">
+            @if (!empty($component['link']))<a class="content-card-widget-media-link" href="{{ $component['link'] }}" aria-label="Open {{ $component['title'] ?? 'card' }}">
+            @endif
+            @if (!empty($component['background_video']))
+                <video class="content-card-widget-background" src="{{ $assetUrl($component['background_video']) }}" autoplay muted loop playsinline preload="metadata" @if (!empty($component['url'])) poster="{{ $assetUrl($component['url']) }}" @endif></video>
+            @elseif (!empty($component['url']))
+                <img src="{{ $assetUrl($component['url']) }}" alt="{{ $component['title'] ?? '' }}" loading="lazy">
+            @endif
+            @if (!empty($component['link']))</a>
+            @endif
             <div class="content-card-widget-body">
                 @if (!empty($component['title']))<h3>{{ $component['title'] }}</h3>@endif
                 @if (!empty($component['body']))<p>{{ $component['body'] }}</p>@endif

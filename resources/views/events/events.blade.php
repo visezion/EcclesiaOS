@@ -136,6 +136,7 @@
                                     <th class="px-5 py-3">Type</th>
                                     <th class="px-5 py-3">Sessions</th>
                                     <th class="px-5 py-3">Status</th>
+                                    <th class="px-5 py-3">Website</th>
                                     <th class="px-5 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -154,6 +155,15 @@
                                         <td class="px-5 py-4">{{ $event->event_type ?? $event->category ?? 'Event' }}</td>
                                         <td class="px-5 py-4">{{ number_format($event->sessions_count) }}</td>
                                         <td class="px-5 py-4"><span class="rounded-full px-2.5 py-1 text-xs ring-1 {{ $statusStyles[$event->status] ?? 'bg-slate-100 text-slate-700 ring-slate-200' }}">{{ Str::headline($event->status) }}</span></td>
+                                        <td class="px-5 py-4">
+                                            @if($websiteModuleEnabled)
+                                                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ring-1 {{ $event->show_on_website ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : 'bg-slate-100 text-slate-600 ring-slate-200' }}">
+                                                    <i data-lucide="{{ $event->show_on_website ? 'globe-2' : 'eye-off' }}" class="size-3.5"></i>{{ $event->show_on_website ? 'Shown' : 'Hidden' }}
+                                                </span>
+                                            @else
+                                                <span class="text-xs text-slate-400">Website off</span>
+                                            @endif
+                                        </td>
                                         <td class="px-5 py-4 text-right">
                                             @if($event->program)
                                                 <a href="{{ route('event-sessions.index', [$event->program, $event]) }}" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="View sessions"><i data-lucide="eye" class="size-4"></i></a>
@@ -167,7 +177,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="px-5 py-14 text-center">
+                                        <td colspan="8" class="px-5 py-14 text-center">
                                             <div class="mx-auto grid size-12 place-items-center rounded-lg bg-violet-50 text-violet-600"><i data-lucide="calendar-plus" class="size-6"></i></div>
                                             <h2 class="mt-3 text-base font-semibold text-slate-950">No events found</h2>
                                             <p class="mt-1 text-sm text-slate-500">Create an event or clear filters to see existing records.</p>
@@ -246,7 +256,7 @@
                     </div>
                     <button type="button" @click="createOpen = false" class="rounded-lg p-2 hover:bg-slate-100" aria-label="Close"><i data-lucide="x" class="size-5"></i></button>
                 </div>
-                <form method="POST" action="{{ $program ? route('programs.events.store', $program) : route('events.store') }}" class="space-y-4">
+                <form method="POST" action="{{ $program ? route('programs.events.store', $program) : route('events.store') }}" enctype="multipart/form-data" class="space-y-4">
                     @csrf
                     <label class="block text-sm text-slate-600">Event Name
                         <input name="title" required value="{{ old('title') }}" placeholder="Opening Service" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
@@ -261,6 +271,10 @@
                     </label>
                     <label class="block text-sm text-slate-600">Description
                         <textarea name="description" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" placeholder="Purpose and expected outcome">{{ old('description') }}</textarea>
+                    </label>
+                    <label class="block text-sm text-slate-600">Event poster <span class="text-xs text-slate-400">(optional)</span>
+                        <input name="poster" type="file" accept="image/*" class="mt-1 block w-full rounded-lg border border-dashed border-violet-300 bg-violet-50 px-3 py-2.5 text-sm text-slate-600">
+                        <small class="mt-1 block text-xs text-slate-500">Use a clear landscape image. It will appear on the public event list.</small>
                     </label>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <label class="block text-sm text-slate-600">Event Type
@@ -277,6 +291,15 @@
                     <label class="block text-sm text-slate-600">Venue
                         <input name="venue" value="{{ old('venue') }}" placeholder="Main Auditorium" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
                     </label>
+                    @if($websiteModuleEnabled)
+                        <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-violet-100 bg-violet-50/60 p-3 text-sm text-slate-700">
+                            <input type="hidden" name="show_on_website" value="0">
+                            <input type="checkbox" name="show_on_website" value="1" @checked(old('show_on_website', true)) class="mt-0.5 size-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+                            <span><strong class="block text-slate-900">Show this event on the church website</strong><small class="mt-1 block text-xs leading-5 text-slate-500">After approval, only upcoming scheduled events appear in the Events widget and public events page.</small></span>
+                        </label>
+                    @else
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-500">Website Studio is disabled. Enable the website module to publish events on the public website.</div>
+                    @endif
                     <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white hover:bg-violet-700">
                         <i data-lucide="save" class="size-4"></i>
                         Create Event

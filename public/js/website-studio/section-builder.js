@@ -8,9 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
         button: 'Button',
         spacer: 'Spacer',
         carousel: 'Loop carousel',
+        'video-slider': 'Video slider',
         gallery: 'Gallery',
         card: 'Card',
         icon: 'Icon',
+        divider: 'Divider',
+        events: 'Events',
     };
     const defaults = {
         heading: 'Section heading',
@@ -21,9 +24,12 @@ document.addEventListener('DOMContentLoaded', () => {
         button: 'Learn more',
         spacer: '',
         carousel: '',
+        'video-slider': '',
         gallery: '',
         card: 'A welcoming card',
         icon: '✦',
+        divider: '',
+        events: '',
     };
     const id = () => window.crypto?.randomUUID?.() || `widget-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const esc = (value) =>
@@ -308,6 +314,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const animationField = (item) =>
         `<label class="widget-animation-field">Public animation<select data-field="animation"><option value="none" ${!item.animation || item.animation === 'none' ? 'selected' : ''}>None</option><option value="fade" ${item.animation === 'fade' ? 'selected' : ''}>Fade in</option><option value="slide-up" ${item.animation === 'slide-up' ? 'selected' : ''}>Slide up</option><option value="slide-left" ${item.animation === 'slide-left' ? 'selected' : ''}>Slide left</option><option value="zoom" ${item.animation === 'zoom' ? 'selected' : ''}>Zoom in</option><option value="bounce" ${item.animation === 'bounce' ? 'selected' : ''}>Bounce</option><option value="float" ${item.animation === 'float' ? 'selected' : ''}>Float</option></select></label>`;
     const widgetFields = (item) => {
+        if (item.type === 'divider')
+            return `<div class="widget-field-grid"><label>Line style<select data-field="divider_style"><option value="solid" ${!item.divider_style || item.divider_style === 'solid' ? 'selected' : ''}>Solid</option><option value="dashed" ${item.divider_style === 'dashed' ? 'selected' : ''}>Dashed</option><option value="dotted" ${item.divider_style === 'dotted' ? 'selected' : ''}>Dotted</option></select></label><label>Color<input type="color" data-field="divider_color" value="${esc(item.divider_color || '#e2e8f0')}"></label><label>Width (%)<input type="number" min="10" max="100" step="1" data-field="divider_width" value="${Math.max(10, Math.min(100, Number(item.divider_width) || 100))}"></label><label>Thickness (px)<input type="number" min="1" max="8" step="1" data-field="divider_thickness" value="${Math.max(1, Math.min(8, Number(item.divider_thickness) || 1))}"></label><label>Spacing (px)<input type="number" min="0" max="120" step="1" data-field="divider_spacing" value="${Math.max(0, Math.min(120, Number(item.divider_spacing) || 24))}"></label></div>`;
+        if (item.type === 'events')
+            return `<label>Number of events<select data-field="event_limit"><option value="3" ${Number(item.event_limit) !== 6 ? 'selected' : ''}>Show top 3</option><option value="6" ${Number(item.event_limit) === 6 ? 'selected' : ''}>Show top 6</option></select></label><div class="widget-field-grid"><label>Button color<input type="color" data-field="event_button_color" value="${esc(item.event_button_color || '#6d4aff')}"></label><label>Button text color<input type="color" data-field="event_button_text_color" value="${esc(item.event_button_text_color || '#ffffff')}"></label></div><span class="widget-hint">Events are pulled automatically from your church event calendar.</span>`;
         if (item.type === 'spacer')
             return `<label>Spacer height (px)<input type="number" min="0" max="600" step="1" data-field="height" value="${Math.max(0, Math.min(600, Number(item.height) || 36))}"></label><span class="widget-hint">Choose how much vertical space this widget adds.</span>`;
         if (item.type === 'carousel') {
@@ -318,6 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ).map((slide) => ({
                 id: slide.id || id(),
                 image: slide.image || '',
+                video: slide.video || '',
                 title: slide.title || '',
                 text: slide.text || '',
                 link: slide.link || '',
@@ -326,16 +337,41 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<div class="carousel-editor"><div class="carousel-editor-head"><strong>Slides</strong><button type="button" data-add-slide>+ Add slide</button></div>${slides
                 .map(
                     (slide, index) =>
-                        `<div class="carousel-slide" data-slide-index="${index}"><div class="carousel-slide-head"><b>Slide ${index + 1}</b><button type="button" data-remove-slide>Remove</button></div><label>Image URL<input data-slide-field="image" data-slide-index="${index}" value="${esc(slide.image)}" placeholder="https://..."></label><label>Upload image<input type="file" name="component_files[${slide.id || id()}]" accept="image/*"></label><label>Heading<input data-slide-field="title" data-slide-index="${index}" value="${esc(slide.title)}" placeholder="Slide heading"></label><label>Text<textarea data-slide-field="text" data-slide-index="${index}" rows="2" placeholder="Short message">${esc(slide.text)}</textarea></label><label>Link <span class="optional">(optional)</span><input data-slide-field="link" data-slide-index="${index}" value="${esc(slide.link)}" placeholder="/about or https://..."></label></div>`,
+                        `<div class="carousel-slide" data-slide-index="${index}"><div class="carousel-slide-head"><b>Slide ${index + 1}</b><button type="button" data-remove-slide>Remove</button></div><label>Image URL<input data-slide-field="image" data-slide-index="${index}" value="${esc(slide.image)}" placeholder="https://..."></label><label>Upload image<input type="file" name="component_files[${slide.id || id()}]" accept="image/*"></label><label>Video background URL <span class="optional">(optional)</span><input data-slide-field="video" data-slide-index="${index}" value="${esc(slide.video)}" placeholder="https://..."></label><label>Upload video background<input type="file" name="component_files[${slide.id || id()}-video]" accept="video/mp4,video/webm,video/ogg"></label><span class="widget-hint">When a video is provided, it plays muted and loops behind this slide.</span><label>Heading<input data-slide-field="title" data-slide-index="${index}" value="${esc(slide.title)}" placeholder="Slide heading"></label><label>Text<textarea data-slide-field="text" data-slide-index="${index}" rows="2" placeholder="Short message">${esc(slide.text)}</textarea></label><label>Link <span class="optional">(optional)</span><input data-slide-field="link" data-slide-index="${index}" value="${esc(slide.link)}" placeholder="/about or https://..."></label></div>`,
                 )
                 .join(
                     '',
                 )}</div><label class="carousel-option"><input type="checkbox" data-field="autoplay" ${item.autoplay !== false ? 'checked' : ''}> Auto-play slides</label>`;
         }
+        if (item.type === 'video-slider') {
+            const slides = (
+                Array.isArray(item.slides) && item.slides.length
+                    ? item.slides
+                    : [{ id: id(), video: '', title: 'New video', text: '', link: '' }]
+            ).map((slide) => ({
+                id: slide.id || id(),
+                video: slide.video || '',
+                title: slide.title || '',
+                text: slide.text || '',
+                link: slide.link || '',
+            }));
+            item.slides = slides;
+            return `<div class="carousel-editor"><div class="carousel-editor-head"><strong>Video slides</strong><button type="button" data-add-slide>+ Add video</button></div>${slides
+                .map(
+                    (slide, index) =>
+                        `<div class="carousel-slide" data-slide-index="${index}"><div class="carousel-slide-head"><b>Video ${index + 1}</b><button type="button" data-remove-slide>Remove</button></div><label>Video URL<input data-slide-field="video" data-slide-index="${index}" value="${esc(slide.video)}" placeholder="https://..."></label><label>Upload video<input type="file" name="component_files[${slide.id || id()}]" accept="video/mp4,video/webm,video/ogg"></label><label>Heading<input data-slide-field="title" data-slide-index="${index}" value="${esc(slide.title)}" placeholder="Video heading"></label><label>Text<textarea data-slide-field="text" data-slide-index="${index}" rows="2" placeholder="Short message">${esc(slide.text)}</textarea></label><label>Link <span class="optional">(optional)</span><input data-slide-field="link" data-slide-index="${index}" value="${esc(slide.link)}" placeholder="/about or https://..."></label></div>`,
+                )
+                .join('')}</div><label class="carousel-option"><input type="checkbox" data-field="autoplay" ${item.autoplay !== false ? 'checked' : ''}> Auto-play videos</label>`;
+        }
         if (item.type === 'gallery') {
             const images =
                 Array.isArray(item.images) && item.images.length ? item.images : [{ id: id(), url: '', alt: '' }];
-            item.images = images.map((image) => ({ id: image.id || id(), url: image.url || '', alt: image.alt || '' }));
+            item.images = images.map((image) => ({
+                id: image.id || id(),
+                url: image.url || '',
+                alt: image.alt || '',
+                position: image.position || 'center',
+            }));
             return (
                 '<div class="gallery-editor"><div class="gallery-editor-head"><strong>Gallery images</strong><button type="button" data-add-gallery-image>+ Add image</button></div><label>Gallery style<select data-field="style"><option value="grid" ' +
                 (item.style === 'grid' || !item.style ? 'selected' : '') +
@@ -367,7 +403,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             index +
                             '" value="' +
                             esc(image.alt) +
-                            '" placeholder="Describe this image"></label></div><button type="button" data-remove-gallery-image aria-label="Remove image">×</button></div>',
+                            '" placeholder="Describe this image"></label><label>Crop focus<select data-gallery-field="position" data-gallery-index="' +
+                            index +
+                            '"><option value="center" ' +
+                            (image.position === 'center' || !image.position ? 'selected' : '') +
+                            '>Center</option><option value="top" ' +
+                            (image.position === 'top' ? 'selected' : '') +
+                            '>Top</option><option value="bottom" ' +
+                            (image.position === 'bottom' ? 'selected' : '') +
+                            '>Bottom</option><option value="left" ' +
+                            (image.position === 'left' ? 'selected' : '') +
+                            '>Left</option><option value="right" ' +
+                            (image.position === 'right' ? 'selected' : '') +
+                            '>Right</option></select></label></div><button type="button" data-remove-gallery-image aria-label="Remove image">×</button></div>',
                     )
                     .join('') +
                 '</div><div class="grid gap-3 sm:grid-cols-2"><label>Columns on desktop<input type="number" min="2" max="6" data-field="columns" value="' +
@@ -378,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
             );
         }
         if (item.type === 'card')
-            return `<div class="card-editor"><label>Card title<input data-card-field="title" value="${esc(item.title)}" placeholder="Card title"></label><label>Description<textarea data-card-field="body" rows="3" placeholder="Card description">${esc(item.body)}</textarea></label><label>Background image URL<input data-field="url" value="${esc(item.url)}" placeholder="https://..."></label><label>Upload background image<input type="file" name="component_files[${item.id}]" accept="image/*"></label><div class="card-style-fields"><label>Background color<input type="color" data-field="background_color" value="${esc(item.background_color || '#6d4aff')}"></label><label>Link <span class="optional">(optional)</span><input data-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div></div>`;
+            return `<div class="card-editor"><label>Card title<input data-card-field="title" value="${esc(item.title)}" placeholder="Card title"></label><label>Description<textarea data-card-field="body" rows="3" placeholder="Card description">${esc(item.body)}</textarea></label><label>Background image URL <span class="optional">(optional)</span><input data-field="url" value="${esc(item.url)}" placeholder="https://..."></label><label>Upload background image<input type="file" name="component_files[${item.id}]" accept="image/*"></label><label>Background video URL <span class="optional">(optional)</span><input data-field="background_video" value="${esc(item.background_video)}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_files[${item.id}-video]" accept="video/mp4,video/webm,video/ogg"></label><span class="widget-hint">Video backgrounds play muted and loop automatically.</span><div class="card-style-fields"><label>Background color<input type="color" data-field="background_color" value="${esc(item.background_color || '#6d4aff')}"></label><label>Card link <span class="optional">(optional)</span><input data-card-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div></div>`;
         if (item.type === 'icon')
             return `<div class="icon-editor"><label>Icon symbol<input data-icon-field="icon" value="${esc(item.icon || '✦')}" maxlength="8" placeholder="✦"><button type="button" class="icon-library-button" data-open-icon-library>Choose from icon library</button></label><div class="icon-style-fields"><label>Icon color<input type="color" data-field="icon_color" value="${esc(item.icon_color || '#6d4aff')}"></label><label>Background<input type="color" data-field="background_color" value="${esc(item.background_color || '#ede9fe')}"></label><label>Size (px)<input type="number" min="24" max="160" data-field="icon_size" value="${Number(item.icon_size) || 56}"></label></div><label>Alignment<select data-field="align"><option value="left" ${!item.align || item.align === 'left' ? 'selected' : ''}>Left</option><option value="center" ${item.align === 'center' ? 'selected' : ''}>Center</option><option value="right" ${item.align === 'right' ? 'selected' : ''}>Right</option></select></label><label>Link <span class="optional">(optional)</span><input data-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div>`;
         if (item.type === 'image')
@@ -559,6 +607,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             slides:
                                 type === 'carousel'
                                     ? [{ id: id(), image: '', title: 'New slide', text: '', link: '' }]
+                                    : type === 'video-slider'
+                                      ? [{ id: id(), video: '', title: 'New video', text: '', link: '' }]
                                     : type === 'gallery'
                                       ? []
                                       : [],
@@ -566,6 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             title: type === 'card' ? 'Card title' : '',
                             body: type === 'card' ? defaults.card : '',
                             background_color: type === 'card' ? '#6d4aff' : '',
+                            background_video: type === 'card' ? '' : '',
                             link: '',
                             align: 'left',
                             button_color: type === 'button' ? '#6d4aff' : '',
@@ -573,9 +624,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             icon: type === 'icon' ? '✦' : '',
                             icon_color: type === 'icon' ? '#6d4aff' : '',
                             icon_size: type === 'icon' ? 56 : 0,
-                            images: type === 'gallery' ? [{ id: id(), url: '', alt: '' }] : [],
+                            images: type === 'gallery' ? [{ id: id(), url: '', alt: '', position: 'center' }] : [],
                             style: type === 'gallery' ? 'grid' : '',
                             columns: type === 'gallery' ? 3 : 0,
+                            divider_style: type === 'divider' ? 'solid' : '',
+                            divider_color: type === 'divider' ? '#e2e8f0' : '',
+                            divider_width: type === 'divider' ? 100 : 0,
+                            divider_thickness: type === 'divider' ? 1 : 0,
+                            divider_spacing: type === 'divider' ? 24 : 0,
+                            event_limit: type === 'events' ? 3 : 0,
+                            event_button_color: type === 'events' ? '#6d4aff' : '',
+                            event_button_text_color: type === 'events' ? '#ffffff' : '',
                         });
                         render();
                     }),
@@ -681,7 +740,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }),
                     );
                     block.querySelector('[data-add-gallery-image]')?.addEventListener('click', () => {
-                        item.images.push({ id: id(), url: '', alt: '' });
+                        item.images.push({ id: id(), url: '', alt: '', position: 'center' });
                         render();
                     });
                     block.querySelectorAll('[data-remove-gallery-image]').forEach((button, imageIndex) =>
@@ -694,7 +753,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         .querySelector('[data-open-icon-library]')
                         ?.addEventListener('click', () => openIconLibrary(item, block, sync));
                     block.querySelector('[data-add-slide]')?.addEventListener('click', () => {
-                        item.slides.push({ id: id(), image: '', title: 'New slide', text: '', link: '' });
+                        item.slides.push(
+                            item.type === 'video-slider'
+                                ? { id: id(), video: '', title: 'New video', text: '', link: '' }
+                                : { id: id(), image: '', title: 'New slide', text: '', link: '' },
+                        );
                         render();
                     });
                     block.querySelectorAll('[data-remove-slide]').forEach((button, slideIndex) =>

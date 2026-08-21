@@ -1,4 +1,27 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const pageSectionFlow = document.querySelector('[data-page-section-flow]');
+    if (pageSectionFlow) {
+        let pageSectionOrder = [];
+        try {
+            pageSectionOrder = JSON.parse(pageSectionFlow.dataset.pageSectionOrder || '[]');
+        } catch {
+            pageSectionOrder = [];
+        }
+
+        const pageSectionNodes = [...pageSectionFlow.children].filter((node) => node.dataset.pageSection);
+        const pageSectionByKey = new Map(pageSectionNodes.map((node) => [node.dataset.pageSection, node]));
+        const orderedPageSections = [
+            ...pageSectionOrder.map((key) => pageSectionByKey.get(String(key))).filter(Boolean),
+            ...pageSectionNodes.filter((node) => !pageSectionOrder.includes(node.dataset.pageSection)),
+        ];
+
+        if (orderedPageSections.length === pageSectionNodes.length && pageSectionNodes.some((node, index) => node !== orderedPageSections[index])) {
+            const placeholders = pageSectionNodes.map(() => document.createComment('page-section-slot'));
+            pageSectionNodes.forEach((node, index) => node.replaceWith(placeholders[index]));
+            orderedPageSections.forEach((node, index) => placeholders[index].replaceWith(node));
+        }
+    }
+
     const toggle = document.querySelector('[data-menu-toggle]');
     const menu = document.querySelector('[data-menu]');
     const header = document.querySelector('[data-header]');
@@ -19,11 +42,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!track || slides.length < 2) return;
         const dots = carousel.querySelector('[data-carousel-dots]');
         let current = 0;
+        const syncBackgroundVideos = () => {
+            slides.forEach((slide, index) => {
+                const video = slide.querySelector('video');
+                if (!video) return;
+                if (index === current) {
+                    video.play().catch(() => {});
+                } else {
+                    video.pause();
+                    video.currentTime = 0;
+                }
+            });
+        };
         const render = () => {
             track.style.transform = `translateX(-${current * 100}%)`;
             dots?.querySelectorAll('button').forEach((dot, index) =>
                 dot.classList.toggle('is-active', index === current),
             );
+            syncBackgroundVideos();
         };
         slides.forEach((_, index) => {
             const dot = document.createElement('button');
@@ -48,7 +84,54 @@ document.addEventListener('DOMContentLoaded', () => {
             window.setInterval(() => {
                 current = (current + 1) % slides.length;
                 render();
-            }, 5000);
+                }, 5000);
+    });
+    document.querySelectorAll('[data-video-slider]').forEach((slider) => {
+        const track = slider.querySelector('.video-slider-track');
+        const slides = [...slider.querySelectorAll('.video-slider-slide')];
+        if (!track || slides.length < 2) return;
+        const dots = slider.querySelector('[data-video-slider-dots]');
+        let current = 0;
+        const pauseVideos = () => slider.querySelectorAll('video').forEach((video) => video.pause());
+        const render = () => {
+            pauseVideos();
+            track.style.transform = `translateX(-${current * 100}%)`;
+            dots?.querySelectorAll('button').forEach((dot, index) =>
+                dot.classList.toggle('is-active', index === current),
+            );
+        };
+        slides.forEach((_, index) => {
+            const dot = document.createElement('button');
+            dot.type = 'button';
+            dot.setAttribute('aria-label', `Go to video ${index + 1}`);
+            dot.addEventListener('click', () => {
+                current = index;
+                render();
+            });
+            dots?.appendChild(dot);
+        });
+        slider.querySelector('[data-video-slider-prev]')?.addEventListener('click', () => {
+            current = (current - 1 + slides.length) % slides.length;
+            render();
+        });
+        slider.querySelector('[data-video-slider-next]')?.addEventListener('click', () => {
+            current = (current + 1) % slides.length;
+            render();
+        });
+        render();
+        if (slider.dataset.autoplay === 'true')
+            window.setInterval(() => {
+                current = (current + 1) % slides.length;
+                render();
+            }, 7000);
+    });
+    document.querySelectorAll('.content-card-widget video').forEach((video) => {
+        video.muted = true;
+        const start = () => {
+            if (typeof video.play === 'function') video.play().catch(() => {});
+        };
+        video.addEventListener('canplay', start, { once: true });
+        start();
     });
     document.querySelectorAll('[data-gallery][data-gallery-style="slider"]').forEach((gallery) => {
         const track = gallery.querySelector('.content-gallery-grid');
@@ -77,6 +160,58 @@ document.addEventListener('DOMContentLoaded', () => {
             current = (current + 1) % slides.length;
             render();
         }, 4500);
+    });
+    document.querySelectorAll('[data-gallery][data-gallery-style="art-wall"]').forEach((gallery) => {
+        const grid = gallery.querySelector('.content-gallery-grid');
+        const allItems = [...gallery.querySelectorAll('.content-gallery-item')];
+        const mosaicLayout = [
+            [4, 1, 4],
+            [9, 1, 4],
+            [15, 1, 4],
+            [20, 1, 4],
+            [2, 5, 4],
+            [6, 5, 4],
+            [10, 5, 4],
+            [14, 5, 4],
+            [18, 5, 4],
+            [4, 9, 3],
+            [7, 9, 3],
+            [10, 9, 3],
+            [13, 9, 3],
+            [16, 9, 3],
+            [19, 9, 3],
+            [6, 12, 2],
+            [8, 12, 2],
+            [10, 12, 2],
+            [12, 12, 2],
+            [14, 12, 2],
+            [16, 12, 2],
+            [18, 12, 2],
+            [8, 14, 2],
+            [10, 14, 2],
+            [12, 14, 2],
+            [14, 14, 2],
+            [16, 14, 2],
+            [10, 16, 2],
+            [12, 16, 2],
+            [14, 16, 2],
+            [11, 18, 2],
+            [13, 18, 2],
+            [12, 20, 2],
+        ];
+        const items = allItems.slice(0, mosaicLayout.length);
+        if (!grid || !items.length) return;
+
+        allItems.slice(mosaicLayout.length).forEach((item) => {
+            item.hidden = true;
+        });
+        grid.style.gridTemplateColumns = 'repeat(24, minmax(0, 1fr))';
+        items.forEach((item, index) => {
+            const [x, y, size] = mosaicLayout[index];
+            item.style.gridColumn = x + ' / span ' + size;
+            item.style.gridRow = y + ' / span ' + size;
+            item.style.animationDelay = index * 25 + 'ms';
+        });
     });
     const animatedWidgets = document.querySelectorAll('.public-widget:not(.widget-animation-none)');
     if ('IntersectionObserver' in window) {
