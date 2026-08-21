@@ -55,7 +55,8 @@ return [
     ],
     ['label' => 'Giving & Finance', 'route' => 'finance.index', 'icon' => 'badge-dollar-sign', 'section' => 'Finance & Care', 'permissions_any' => ['manage finance', 'view finance', 'record finance entries', 'view ministry finance', 'record ministry contributions'], 'implemented' => true, 'description' => 'Donation ledger, fund management, giving filters, exports, member giving relationships, and finance summaries.'],
     ['label' => 'Financial Assistance', 'route' => 'financial-assistance.index', 'icon' => 'hand-coins', 'section' => 'Finance & Care', 'permissions_any' => ['request financial assistance', 'approve financial assistance', 'manage financial assistance'], 'implemented' => true, 'active_routes' => ['financial-assistance'], 'description' => 'Campus-routed assistance requests, evidence, approval stages, disbursement tracking, and notifications.'],
-    ['label' => 'Sermons & Media', 'route' => 'sermons.index', 'icon' => 'monitor-play', 'section' => 'Finance & Care', 'permission' => 'manage media', 'planned' => $planned['sermons.index']],
+    ['label' => 'Sermons & Media', 'route' => 'sermons.index', 'icon' => 'monitor-play', 'section' => 'Finance & Care', 'permission' => 'manage media', 'implemented' => true, 'description' => 'Manage sermon recordings, speakers, Scripture, audio, video, and public publishing.'],
+    ['label' => 'Website Studio', 'route' => 'website-studio.index', 'icon' => 'panels-top-left', 'section' => 'Communications', 'permission' => 'manage studio', 'implemented' => true, 'description' => 'Choose a church website template, manage branding, build pages, and publish a beautiful public site.'],
     ['label' => 'Prayer Requests', 'route' => 'prayer-requests.index', 'icon' => 'hand-heart', 'section' => 'Finance & Care', 'permission' => 'manage prayer', 'badge' => '23', 'planned' => $planned['prayer-requests.index']],
     [
         'label' => 'Bible',

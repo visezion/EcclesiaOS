@@ -8,6 +8,7 @@ use App\Models\Church;
 use App\Services\CentralSupportClient;
 use App\Services\CentralSupportSettings;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Throwable;
@@ -136,7 +137,26 @@ final class SupportResourceController extends Controller
         ]);
     }
 
-    public function sendLiveMessage(Request $request, CentralSupportSettings $settings, CentralSupportClient $client): RedirectResponse
+    public function liveUpdates(Request $request, CentralSupportSettings $settings, CentralSupportClient $client): JsonResponse
+    {
+        $church = $this->church($request);
+        $settings->autoEnroll($church);
+        $connection = $settings->forChurch($church);
+
+        if (! $connection['enabled'] || ! $connection['api_token_configured']) {
+            return response()->json(['online' => false, 'messages' => [], 'error' => 'Central support is not connected.'], 422);
+        }
+
+        try {
+            return response()->json($client->liveSupport($church));
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json(['online' => false, 'messages' => [], 'error' => 'Live support is temporarily unavailable.'], 503);
+        }
+    }
+
+    public function sendLiveMessage(Request $request, CentralSupportSettings $settings, CentralSupportClient $client): RedirectResponse|JsonResponse
     {
         $church = $this->church($request);
         $settings->autoEnroll($church);
@@ -145,7 +165,7 @@ final class SupportResourceController extends Controller
         $validated = $request->validate(['message' => ['required', 'string', 'min:2', 'max:5000']]);
 
         try {
-            $client->sendLiveMessage($church, [
+            $result = $client->sendLiveMessage($church, [
                 'message' => $validated['message'],
                 'author' => ['local_id' => $request->user()->opaqueId(), 'display_name' => $request->user()->name],
             ]);
@@ -153,6 +173,10 @@ final class SupportResourceController extends Controller
             report($exception);
 
             return back()->withInput()->withErrors(['live' => 'Your message could not be sent. Submit a ticket if the problem continues.']);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json($result, 201);
         }
 
         return back()->with('status', 'Message sent to central support.');

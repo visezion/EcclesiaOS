@@ -32,4 +32,14 @@ final class Church extends Model
     {
         return $this->hasMany(Member::class);
     }
+
+    public function websitePages(): HasMany
+    {
+        return $this->hasMany(WebsitePage::class);
+    }
+
+    public function sermons(): HasMany
+    {
+        return $this->hasMany(Sermon::class);
+    }
 }

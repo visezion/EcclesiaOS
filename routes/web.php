@@ -19,6 +19,7 @@ use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\CampusManagementController;
 use App\Http\Controllers\CentralSupportController;
 use App\Http\Controllers\ChildrenYouthController;
+use App\Http\Controllers\ChurchWebsiteController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CounsellingController;
 use App\Http\Controllers\DashboardController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\RemoteSupportAccessController;
 use App\Http\Controllers\RoleDirectoryController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\SermonController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\SupportCommunityController;
 use App\Http\Controllers\SupportResourceController;
@@ -78,6 +80,7 @@ Route::get('give', [PublicGivingController::class, 'create'])->name('giving.crea
 Route::post('give/checkout', [PublicGivingController::class, 'checkout'])->middleware('throttle:10,1')->name('giving.checkout');
 Route::get('give/success', [PublicGivingController::class, 'success'])->name('giving.success');
 Route::get('give/cancel', [PublicGivingController::class, 'cancel'])->name('giving.cancel');
+Route::get('site/{church:slug}/{page?}', [ChurchWebsiteController::class, 'show'])->where('page', '[A-Za-z0-9_-]+')->name('website.public');
 Route::post('webhooks/stripe', StripeWebhookController::class)->middleware('throttle:120,1')->name('webhooks.stripe');
 Route::post('webhooks/payments/{provider}', StripeWebhookController::class)
     ->whereIn('provider', ['paystack', 'paypal'])
@@ -134,6 +137,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('support/knowledge/{article}', [SupportResourceController::class, 'knowledgeArticle'])->name('support.knowledge.article');
     Route::post('support/knowledge/{article}/helpful', [SupportResourceController::class, 'rateKnowledgeArticle'])->middleware('throttle:20,1')->name('support.knowledge.article.helpful');
     Route::get('support/live', [SupportResourceController::class, 'live'])->name('support.live');
+    Route::get('support/live/updates', [SupportResourceController::class, 'liveUpdates'])->name('support.live.updates');
     Route::post('support/live/messages', [SupportResourceController::class, 'sendLiveMessage'])->middleware('throttle:30,1')->name('support.live.messages');
     Route::get('support/central-connection', [CentralSupportController::class, 'index'])->name('central-support.index');
     Route::put('support/central-connection', [CentralSupportController::class, 'update'])->name('central-support.update');
@@ -374,6 +378,21 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::delete('counselling/{case}', [CounsellingController::class, 'destroy'])->name('counselling.destroy');
     Route::get('counselling/export', [CounsellingController::class, 'export'])->name('counselling.export');
     Route::get('settings', SystemSettingsController::class)->name('settings.index');
+    Route::get('website-studio', [ChurchWebsiteController::class, 'index'])->name('website-studio.index');
+    Route::put('website-studio/settings', [ChurchWebsiteController::class, 'updateSettings'])->name('website-studio.settings.update');
+    Route::post('website-studio/pages', [ChurchWebsiteController::class, 'storePage'])->name('website-studio.pages.store');
+    Route::put('website-studio/pages/{page}', [ChurchWebsiteController::class, 'updatePage'])->name('website-studio.pages.update');
+    Route::delete('website-studio/pages/{page}', [ChurchWebsiteController::class, 'destroyPage'])->name('website-studio.pages.destroy');
+    Route::get('website-studio/preview/{page}', [ChurchWebsiteController::class, 'preview'])->name('website-studio.preview');
+    Route::get('website-studio/pages/{page}/edit', [ChurchWebsiteController::class, 'editPage'])->name('website-studio.pages.edit');
+    Route::get('website-studio/sections', [ChurchWebsiteController::class, 'sections'])->name('website-studio.sections');
+    Route::post('website-studio/sections', [ChurchWebsiteController::class, 'storeSection'])->name('website-studio.sections.store');
+    Route::put('website-studio/sections/{section}', [ChurchWebsiteController::class, 'updateSection'])->name('website-studio.sections.update');
+    Route::delete('website-studio/sections/{section}', [ChurchWebsiteController::class, 'destroySection'])->name('website-studio.sections.destroy');
+    Route::get('sermons', [SermonController::class, 'index'])->name('sermons.index');
+    Route::post('sermons', [SermonController::class, 'store'])->name('sermons.store');
+    Route::put('sermons/{sermon}', [SermonController::class, 'update'])->name('sermons.update');
+    Route::delete('sermons/{sermon}', [SermonController::class, 'destroy'])->name('sermons.destroy');
     Route::put('settings/system', [SystemSettingsController::class, 'update'])->name('settings.system.update');
     Route::put('settings/system/reset', [SystemSettingsController::class, 'reset'])->name('settings.system.reset');
     Route::post('settings/system/test-connection', [SystemSettingsController::class, 'testConnection'])->name('settings.system.test-connection');
@@ -472,7 +491,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'ai-copilot.index', 'ai-copilot.settings', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.celebrations', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index', 'support.tickets.index', 'support.community', 'support.knowledge', 'support.live', 'central-support.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'ai-copilot.index', 'ai-copilot.settings', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'sermons.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'website-studio.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.celebrations', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index', 'support.tickets.index', 'support.community', 'support.knowledge', 'support.live', 'central-support.index'], true)) {
             continue;
         }
 

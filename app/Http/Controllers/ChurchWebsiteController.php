@@ -1,0 +1,625 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers;
+
+use App\Models\BookstoreProduct;
+use App\Models\Campus;
+use App\Models\Church;
+use App\Models\Event;
+use App\Models\Ministry;
+use App\Models\Sermon;
+use App\Models\WebsitePage;
+use App\Services\WebsiteStarterContent;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
+
+final class ChurchWebsiteController extends Controller
+{
+    public function index(Request $request): View
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $settings = $this->websiteSettings($church);
+        $this->ensureStarterPages($church, $settings);
+        $homepage = $this->ensureHomepage($church, $settings);
+
+        return view('website-studio.index', [
+            'church' => $church,
+            'settings' => $settings,
+            'homepage' => $homepage,
+            'pages' => $church->websitePages()->latest('updated_at')->get(),
+            'templates' => $this->templates(),
+            'sectionTypes' => $this->sectionTypes(),
+            'publicUrl' => route('website.public', ['church' => $church->slug]),
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Website Studio', 'url' => null],
+            ],
+        ]);
+    }
+
+    public function updateSettings(Request $request): RedirectResponse
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $validated = $request->validate([
+            'enabled' => ['nullable', 'boolean'],
+            'template' => ['required', 'in:main'],
+            'site_name' => ['required', 'string', 'max:120'],
+            'tagline' => ['nullable', 'string', 'max:180'],
+            'logo_url' => ['nullable', 'string', 'max:500'],
+            'hero_image_url' => ['nullable', 'string', 'max:500'],
+            'hero_video_url' => ['nullable', 'string', 'max:500'],
+            'logo_file' => ['nullable', 'image', 'max:10240'],
+            'hero_image_file' => ['nullable', 'image', 'max:15360'],
+            'hero_video_file' => ['nullable', 'mimetypes:video/mp4,video/webm,video/ogg', 'max:51200'],
+            'primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'accent_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'font' => ['required', 'in:Inter,Manrope,DM Sans,Playfair Display'],
+            'hero_eyebrow' => ['nullable', 'string', 'max:100'],
+            'hero_heading' => ['required', 'string', 'max:180'],
+            'hero_body' => ['nullable', 'string', 'max:1000'],
+            'hero_button_label' => ['nullable', 'string', 'max:60'],
+            'hero_button_url' => ['nullable', 'string', 'max:300'],
+            'welcome_heading' => ['required', 'string', 'max:180'],
+            'welcome_body' => ['required', 'string', 'max:2000'],
+            'experience_heading' => ['nullable', 'string', 'max:180'],
+            'experience_body' => ['nullable', 'string', 'max:1000'],
+            'service_kicker' => ['nullable', 'string', 'max:80'],
+            'service_heading' => ['nullable', 'string', 'max:180'],
+            'service_body' => ['nullable', 'string', 'max:1000'],
+            'service_one_title' => ['nullable', 'string', 'max:100'],
+            'service_one_body' => ['nullable', 'string', 'max:300'],
+            'service_two_title' => ['nullable', 'string', 'max:100'],
+            'service_two_body' => ['nullable', 'string', 'max:300'],
+            'service_three_title' => ['nullable', 'string', 'max:100'],
+            'service_three_body' => ['nullable', 'string', 'max:300'],
+            'experience_kicker' => ['nullable', 'string', 'max:80'],
+            'experience_one_title' => ['nullable', 'string', 'max:100'],
+            'experience_one_body' => ['nullable', 'string', 'max:300'],
+            'experience_two_title' => ['nullable', 'string', 'max:100'],
+            'experience_two_body' => ['nullable', 'string', 'max:300'],
+            'experience_three_title' => ['nullable', 'string', 'max:100'],
+            'experience_three_body' => ['nullable', 'string', 'max:300'],
+            'experience_four_title' => ['nullable', 'string', 'max:100'],
+            'experience_four_body' => ['nullable', 'string', 'max:300'],
+            'giving_kicker' => ['nullable', 'string', 'max:80'],
+            'giving_heading' => ['nullable', 'string', 'max:180'],
+            'giving_body' => ['nullable', 'string', 'max:1000'],
+            'giving_button_label' => ['nullable', 'string', 'max:80'],
+            'giving_button_url' => ['nullable', 'string', 'max:300'],
+            'contact_kicker' => ['nullable', 'string', 'max:80'],
+            'contact_heading' => ['nullable', 'string', 'max:180'],
+            'footer_text' => ['nullable', 'string', 'max:180'],
+            'hero_secondary_label' => ['nullable', 'string', 'max:80'],
+            'experience_one_link' => ['nullable', 'string', 'max:80'],
+            'experience_two_link' => ['nullable', 'string', 'max:80'],
+            'experience_three_link' => ['nullable', 'string', 'max:80'],
+            'experience_four_link' => ['nullable', 'string', 'max:80'],
+            'event_kicker' => ['nullable', 'string', 'max:80'],
+            'event_heading' => ['nullable', 'string', 'max:180'],
+            'event_link_label' => ['nullable', 'string', 'max:80'],
+            'ministry_kicker' => ['nullable', 'string', 'max:80'],
+            'ministry_heading' => ['nullable', 'string', 'max:180'],
+            'location_kicker' => ['nullable', 'string', 'max:80'],
+            'location_heading' => ['nullable', 'string', 'max:180'],
+            'location_body' => ['nullable', 'string', 'max:500'],
+            'sermon_kicker' => ['nullable', 'string', 'max:80'],
+            'sermon_heading' => ['nullable', 'string', 'max:180'],
+            'store_kicker' => ['nullable', 'string', 'max:80'],
+            'store_heading' => ['nullable', 'string', 'max:180'],
+            'store_body' => ['nullable', 'string', 'max:500'],
+            'seo_description' => ['nullable', 'string', 'max:180'],
+            'contact_email' => ['nullable', 'email', 'max:180'],
+            'contact_phone' => ['nullable', 'string', 'max:60'],
+            'contact_address' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $settings = array_merge($this->websiteSettings($church), $validated, [
+            'enabled' => $request->boolean('enabled'),
+        ]);
+
+        foreach (['logo_file' => 'logo_url', 'hero_image_file' => 'hero_image_url', 'hero_video_file' => 'hero_video_url'] as $fileKey => $settingKey) {
+            if ($request->hasFile($fileKey)) {
+                $settings[$settingKey] = $this->storeWebsiteAsset($request->file($fileKey), $church);
+            }
+        }
+        $church->forceFill(['settings' => array_merge($church->settings ?? [], ['website' => $settings])])->save();
+        $this->ensureStarterPages($church, $settings);
+
+        return back()->with('status', 'Website settings saved.');
+    }
+
+    public function storePage(Request $request): RedirectResponse
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $validated = $this->validatedPage($request, $church);
+        $validated['church_id'] = $church->id;
+        $validated['published_at'] = $validated['status'] === 'published' ? now() : null;
+
+        WebsitePage::query()->create($validated);
+
+        $page = WebsitePage::query()->where('church_id', $church->id)->where('slug', $validated['slug'])->firstOrFail();
+
+        return redirect()->route('website-studio.pages.edit', $page)->with('status', 'Website page created.');
+    }
+
+    public function editPage(Request $request, WebsitePage $page): View
+    {
+        $this->authorizeStudio($request);
+        $this->authorizePage($request, $page);
+
+        return view('website-studio.page-edit', [
+            'church' => $page->church,
+            'page' => $page,
+            'settings' => $this->websiteSettings($page->church),
+            'templates' => $this->templates(),
+            'sectionTypes' => $this->sectionTypes(),
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Website Studio', 'url' => route('website-studio.index')],
+                ['label' => 'Design '.$page->title, 'url' => null],
+            ],
+        ]);
+    }
+
+    public function sections(Request $request): View
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $settings = $this->websiteSettings($church);
+
+        return view('website-studio.sections', [
+            'church' => $church,
+            'sections' => collect($settings['custom_sections'] ?? [])->sortBy('order')->values(),
+            'pages' => $church->websitePages()->orderBy('title')->get(),
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Website Studio', 'url' => route('website-studio.index')],
+                ['label' => 'Reusable sections', 'url' => null],
+            ],
+        ]);
+    }
+
+    public function storeSection(Request $request): RedirectResponse
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $settings = $this->websiteSettings($church);
+        $section = $this->validatedSection($request, $church);
+        $section['id'] = (string) Str::uuid();
+        $section['order'] = count($settings['custom_sections'] ?? []);
+        $settings['custom_sections'][] = $section;
+        $this->saveWebsiteSettings($church, $settings);
+
+        return back()->with('status', 'Reusable section created.');
+    }
+
+    public function updateSection(Request $request, string $section): RedirectResponse
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $settings = $this->websiteSettings($church);
+        $index = collect($settings['custom_sections'] ?? [])->search(fn (array $item): bool => ($item['id'] ?? null) === $section);
+        abort_unless($index !== false, 404);
+        $updated = $this->validatedSection($request, $church);
+        $updated['id'] = $section;
+        $updated['order'] = $settings['custom_sections'][$index]['order'] ?? $index;
+        $settings['custom_sections'][$index] = $updated;
+        $this->saveWebsiteSettings($church, $settings);
+
+        return back()->with('status', 'Reusable section updated.');
+    }
+
+    public function destroySection(Request $request, string $section): RedirectResponse
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $settings = $this->websiteSettings($church);
+        $settings['custom_sections'] = collect($settings['custom_sections'] ?? [])->reject(fn (array $item): bool => ($item['id'] ?? null) === $section)->values()->all();
+        $this->saveWebsiteSettings($church, $settings);
+
+        return back()->with('status', 'Reusable section removed.');
+    }
+
+    public function updatePage(Request $request, WebsitePage $page): RedirectResponse
+    {
+        $this->authorizeStudio($request);
+        $this->authorizePage($request, $page);
+        $validated = $this->validatedPage($request, $page->church);
+        if ($request->hasFile('page_hero_image_file')) {
+            $validated['design'] = $validated['design'] ?? [];
+            $validated['design']['hero_image_url'] = $this->storeWebsiteAsset($request->file('page_hero_image_file'), $page->church);
+        }
+        $validated['published_at'] = $validated['status'] === 'published'
+            ? ($page->published_at ?? now())
+            : null;
+        $page->update($validated);
+
+        return back()->with('status', 'Website page updated.');
+    }
+
+    public function destroyPage(Request $request, WebsitePage $page): RedirectResponse
+    {
+        $this->authorizeStudio($request);
+        $this->authorizePage($request, $page);
+        abort_if($page->slug === 'home', 422, 'The homepage cannot be deleted.');
+        $page->delete();
+
+        return back()->with('status', 'Website page moved to archive.');
+    }
+
+    public function preview(Request $request, WebsitePage $page): View
+    {
+        $this->authorizeStudio($request);
+        $this->authorizePage($request, $page);
+
+        return $this->renderWebsite($page->church, $page, true);
+    }
+
+    public function show(Church $church, ?string $page = null): View
+    {
+        $settings = $this->websiteSettings($church);
+        abort_unless((bool) ($settings['enabled'] ?? true), 404);
+        $this->ensureStarterPages($church, $settings);
+
+        $slug = $page ?: ($settings['homepage_slug'] ?? 'home');
+        $websitePage = $church->websitePages()
+            ->where('slug', $slug)
+            ->where('status', 'published')
+            ->first();
+
+        if ($websitePage === null && $slug === 'home') {
+            $websitePage = $this->ensureHomepage($church, $settings);
+        }
+
+        abort_if($websitePage === null, 404);
+
+        return $this->renderWebsite($church, $websitePage);
+    }
+
+    private function renderWebsite(Church $church, WebsitePage $page, bool $preview = false): View
+    {
+        $settings = array_merge(
+            $this->websiteSettings($church),
+            collect($page->design ?? [])->filter(fn ($value): bool => filled($value))->all(),
+        );
+        $settings['template'] = 'main';
+
+        $template = $settings['template'] ?? 'main';
+        $templateView = view()->exists('website.templates.'.$template.'.index')
+            ? 'website.templates.'.$template.'.index'
+            : 'website.public';
+
+        return view($templateView, [
+            'church' => $church,
+            'page' => $page,
+            'settings' => $settings,
+            'preview' => $preview,
+            'events' => Event::query()->where('church_id', $church->id)->whereIn('status', ['scheduled', 'published'])->where('starts_at', '>=', now()->subDay())->orderBy('starts_at')->limit(4)->get(),
+            'ministries' => Ministry::query()->where('church_id', $church->id)->where('status', 'active')->orderBy('name')->limit(6)->get(),
+            'campuses' => Campus::query()->where('church_id', $church->id)->where('status', 'active')->orderBy('name')->limit(8)->get(),
+            'sermons' => Sermon::query()->where('church_id', $church->id)->where('status', 'published')->latest('preached_at')->latest('id')->limit(6)->get(),
+            'products' => BookstoreProduct::query()->where('church_id', $church->id)->where('status', 'active')->where('stock_quantity', '>', 0)->orderBy('name')->limit(8)->get(),
+            'navigation' => $this->websiteNavigation($church),
+            'customSections' => collect($settings['custom_sections'] ?? [])->filter(fn (array $section): bool => in_array($page->slug, $section['page_slugs'] ?? ['home'], true))->sortBy('order')->values(),
+        ]);
+    }
+
+    private function authorizeStudio(Request $request): void
+    {
+        $user = $request->user();
+        abort_unless($user?->isSuperAdministrator() || $user?->hasPermission('manage studio'), 403);
+    }
+
+    private function authorizePage(Request $request, WebsitePage $page): void
+    {
+        abort_unless($request->user()?->isSuperAdministrator() || $page->church_id === $request->user()?->church_id, 404);
+    }
+
+    private function studioChurch(Request $request): Church
+    {
+        $church = $request->user()?->church_id
+            ? Church::query()->find($request->user()->church_id)
+            : null;
+
+        return $church ?? Church::query()->firstOrCreate(
+            ['slug' => 'kingdom-life-global-church'],
+            [
+                'name' => config('church.name'),
+                'timezone' => config('church.timezone'),
+                'currency' => config('church.currency'),
+                'email' => config('church.contact_email'),
+                'phone' => config('church.contact_phone'),
+                'address' => config('church.address'),
+                'settings' => [],
+            ],
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function websiteSettings(Church $church): array
+    {
+        $settings = array_merge([
+            'enabled' => true,
+            'template' => 'main',
+            'site_name' => $church->name,
+            'tagline' => 'A place to belong, become, and believe.',
+            'logo_url' => null,
+            'hero_image_url' => null,
+            'hero_video_url' => null,
+            'primary_color' => '#4338CA',
+            'accent_color' => '#F59E0B',
+            'font' => 'Manrope',
+            'hero_eyebrow' => 'You are welcome here',
+            'hero_heading' => 'Find hope. Find community. Find your next step.',
+            'hero_body' => 'Join us as we worship Jesus, care for one another, and serve our city together.',
+            'hero_secondary_label' => 'Meet the community',
+            'hero_button_label' => 'Plan your visit',
+            'hero_button_url' => '#visit',
+            'welcome_heading' => 'A church family for every season of life.',
+            'welcome_body' => 'We are a growing family of people learning to follow Jesus with courage, compassion, and joy. There is a place for you here.',
+            'experience_heading' => 'Find the right experience for you.',
+            'experience_body' => 'No matter where you are, online or in person, become part of all God is doing.',
+            'service_kicker' => 'Gather with us',
+            'service_heading' => 'There is a place for you this Sunday.',
+            'service_body' => 'Come early for coffee, stay after for conversation, and worship with a community that wants to know your name.',
+            'service_one_title' => 'Sunday worship',
+            'service_one_body' => 'Every Sunday · 9:00 AM & 11:00 AM',
+            'service_two_title' => 'Midweek community',
+            'service_two_body' => 'Wednesday · 6:30 PM',
+            'service_three_title' => 'Kids & students',
+            'service_three_body' => 'Safe, joyful spaces for every age.',
+            'experience_kicker' => 'Find your place',
+            'experience_one_title' => 'Physical campus',
+            'experience_one_body' => 'Worship with us in person at one of our locations.',
+            'experience_two_title' => 'Live streams',
+            'experience_two_body' => 'Join our online community wherever you are.',
+            'experience_three_title' => 'Community',
+            'experience_three_body' => 'Find people to grow with and a place to serve.',
+            'experience_four_title' => 'Next step',
+            'experience_four_body' => 'Ask a question, plan a visit, or get connected.',
+            'experience_one_link' => 'Find a location →',
+            'experience_two_link' => 'Find a time →',
+            'experience_three_link' => 'Find your people →',
+            'experience_four_link' => 'Get connected →',
+            'event_kicker' => 'Coming up',
+            'event_heading' => 'Make room for what matters.',
+            'event_link_label' => 'See all events ↗',
+            'ministry_kicker' => 'Life together',
+            'ministry_heading' => 'Find your people. Grow together.',
+            'location_kicker' => 'Our locations',
+            'location_heading' => 'Gather where you are.',
+            'location_body' => 'Visit one of our campuses and find a church family near you.',
+            'sermon_kicker' => 'Watch and listen',
+            'sermon_heading' => 'Messages for the journey.',
+            'store_kicker' => 'Church store',
+            'store_heading' => 'Resources for your next step.',
+            'store_body' => 'These products are connected directly to the church bookstore catalog.',
+            'giving_kicker' => 'Make an impact',
+            'giving_heading' => 'Generosity changes lives.',
+            'giving_body' => 'Your gifts help us care for people, strengthen families, and bring hope beyond our walls.',
+            'giving_button_label' => 'Give online',
+            'giving_button_url' => '/give',
+            'contact_kicker' => 'Plan your visit',
+            'contact_heading' => 'We would love to meet you.',
+            'footer_text' => 'Church management, beautifully connected.',
+            'seo_description' => null,
+            'contact_email' => $church->email,
+            'contact_phone' => $church->phone,
+            'contact_address' => $church->address,
+            'homepage_slug' => 'home',
+            'custom_sections' => [],
+        ], data_get($church->settings, 'website', []));
+
+        if (($settings['template'] ?? null) !== 'main') {
+            $settings['template'] = 'main';
+        }
+
+        return $settings;
+    }
+
+    /** @return array<string, mixed> */
+    private function validatedSection(Request $request, Church $church): array
+    {
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:160'],
+            'eyebrow' => ['nullable', 'string', 'max:100'],
+            'body' => ['nullable', 'string', 'max:3000'],
+            'button_label' => ['nullable', 'string', 'max:80'],
+            'button_url' => ['nullable', 'string', 'max:500'],
+            'image_url' => ['nullable', 'string', 'max:500'],
+            'video_url' => ['nullable', 'string', 'max:500'],
+            'image_file' => ['nullable', 'image', 'max:15360'],
+            'video_file' => ['nullable', 'mimetypes:video/mp4,video/webm,video/ogg', 'max:51200'],
+            'page_slugs' => ['nullable', 'array'],
+            'page_slugs.*' => ['string', 'alpha_dash', 'max:100'],
+        ]);
+        $data['page_slugs'] = array_values($data['page_slugs'] ?? ['home']);
+        if ($request->hasFile('image_file')) {
+            $data['image_url'] = $this->storeWebsiteAsset($request->file('image_file'), $church);
+        }
+        if ($request->hasFile('video_file')) {
+            $data['video_url'] = $this->storeWebsiteAsset($request->file('video_file'), $church);
+        }
+        unset($data['image_file'], $data['video_file']);
+
+        return $data;
+    }
+
+    private function saveWebsiteSettings(Church $church, array $settings): void
+    {
+        $church->forceFill(['settings' => array_merge($church->settings ?? [], ['website' => $settings])])->save();
+    }
+
+    private function ensureHomepage(Church $church, array $settings): WebsitePage
+    {
+        return $church->websitePages()->firstOrCreate(
+            ['slug' => 'home'],
+            [
+                'title' => 'Home',
+                'status' => 'published',
+                'sections' => ['hero', 'welcome', 'services', 'events', 'ministries', 'locations', 'sermons', 'store', 'giving', 'contact'],
+                'published_at' => now(),
+            ],
+        );
+    }
+
+    private function ensureStarterPages(Church $church, array $settings): void
+    {
+        foreach (app(WebsiteStarterContent::class)->pages((string) ($settings['template'] ?? 'main'), (string) ($settings['site_name'] ?? $church->name)) as $definition) {
+            $page = $church->websitePages()->where('slug', $definition['slug'])->first();
+            if ($page === null) {
+                $church->websitePages()->create($definition);
+
+                continue;
+            }
+
+            if ((bool) data_get($page->design, 'starter') && data_get($page->design, 'starter_template') !== $settings['template']) {
+                $page->update([
+                    'title' => $definition['title'],
+                    'body' => $definition['body'],
+                    'sections' => $definition['sections'],
+                    'design' => $definition['design'],
+                ]);
+            }
+        }
+    }
+
+    /** @return list<array{label: string, url: string}> */
+    private function websiteNavigation(Church $church): array
+    {
+        $slugs = ['ministries', 'about', 'our-sermons', 'our-locations', 'events', 'contact', 'store'];
+        $pages = $church->websitePages()->whereIn('slug', $slugs)->where('status', 'published')->get()->keyBy('slug');
+
+        return collect($slugs)->map(function (string $slug) use ($church, $pages): ?array {
+            $page = $pages->get($slug);
+            if ($page === null) {
+                return null;
+            }
+
+            return [
+                'label' => $page->title,
+                'url' => route('website.public', $slug === 'home'
+                    ? ['church' => $church->slug]
+                    : ['church' => $church->slug, 'page' => $slug]),
+            ];
+        })->filter()->values()->all();
+    }
+
+    /** @return array<string, string> */
+    private function templates(): array
+    {
+        return [
+            'main' => 'Grace & Community',
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function sectionTypes(): array
+    {
+        return [
+            'hero' => 'Welcome hero',
+            'welcome' => 'Welcome message',
+            'services' => 'Service times',
+            'events' => 'Upcoming events',
+            'ministries' => 'Ministry cards',
+            'locations' => 'Our locations',
+            'sermons' => 'Sermon library',
+            'store' => 'Bookstore products',
+            'giving' => 'Giving call-to-action',
+            'contact' => 'Visit and contact',
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function validatedPage(Request $request, Church $church): array
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:150'],
+            'slug' => ['nullable', 'alpha_dash', 'max:100'],
+            'status' => ['required', 'in:draft,published'],
+            'body' => ['nullable', 'string', 'max:30000'],
+            'section_types' => ['nullable', 'array'],
+            'section_types.*' => ['string', 'in:hero,welcome,services,events,ministries,locations,sermons,store,giving,contact'],
+            'section_order' => ['nullable', 'array'],
+            'section_order.*' => ['string', 'in:hero,welcome,services,events,ministries,locations,sermons,store,giving,contact'],
+            'page_template' => ['nullable', 'in:inherit,main'],
+            'page_primary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'page_accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'page_hero_eyebrow' => ['nullable', 'string', 'max:100'],
+            'page_hero_heading' => ['nullable', 'string', 'max:180'],
+            'page_hero_body' => ['nullable', 'string', 'max:1000'],
+            'page_hero_image_url' => ['nullable', 'string', 'max:500'],
+            'page_hero_image_file' => ['nullable', 'image', 'max:15360'],
+            'seo_title' => ['nullable', 'string', 'max:180'],
+            'seo_description' => ['nullable', 'string', 'max:180'],
+        ]);
+        $slug = Str::slug($validated['slug'] ?: $validated['title']);
+
+        if ($request->route('page') instanceof WebsitePage && $request->route('page')->slug === 'home') {
+            $slug = 'home';
+        }
+
+        $validated['slug'] = $slug;
+        $selectedSections = array_values($validated['section_types'] ?? ['welcome', 'contact']);
+        $orderedSections = array_values($validated['section_order'] ?? []);
+        $validated['sections'] = array_values(array_unique(array_merge(
+            array_values(array_filter($orderedSections, fn (string $section): bool => in_array($section, $selectedSections, true))),
+            array_values(array_diff($selectedSections, $orderedSections)),
+        )));
+        unset($validated['section_types']);
+        unset($validated['section_order']);
+
+        $page = $request->route('page') instanceof WebsitePage ? $request->route('page') : null;
+        $design = $page?->design ?? [];
+        $designFields = [
+            'page_template' => 'template',
+            'page_primary_color' => 'primary_color',
+            'page_accent_color' => 'accent_color',
+            'page_hero_eyebrow' => 'hero_eyebrow',
+            'page_hero_heading' => 'hero_heading',
+            'page_hero_body' => 'hero_body',
+            'page_hero_image_url' => 'hero_image_url',
+        ];
+        foreach ($designFields as $requestKey => $designKey) {
+            if (! array_key_exists($requestKey, $validated)) {
+                continue;
+            }
+
+            $value = $validated[$requestKey];
+            unset($validated[$requestKey]);
+
+            if ($requestKey === 'page_template' && $value === 'inherit') {
+                unset($design[$designKey]);
+            } elseif (filled($value)) {
+                $design[$designKey] = $value;
+            } else {
+                unset($design[$designKey]);
+            }
+        }
+        if ($page !== null) {
+            unset($design['starter'], $design['starter_template']);
+        }
+        $validated['design'] = $design === [] ? null : $design;
+
+        $query = $church->websitePages()->where('slug', $slug);
+        if ($request->route('page') instanceof WebsitePage) {
+            $query->whereKeyNot($request->route('page')->getKey());
+        }
+        abort_if($query->exists(), 422, 'A page with this URL already exists.');
+
+        return $validated;
+    }
+
+    private function storeWebsiteAsset(UploadedFile $file, Church $church): string
+    {
+        return $file->store('website/'.$church->id, 'public');
+    }
+}

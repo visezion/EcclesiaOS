@@ -1,0 +1,4 @@
+/* Shared public-site primitives. Each template adds its own visual language after this file. */
+.hero-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.86}.hero-media{isolation:isolate}.hero-media:after{z-index:1}.media-label{z-index:2}
+.public-menu-toggle{display:none}
+@media (max-width:800px){.public-menu-toggle{display:inline-flex}.links.is-open{display:flex;position:absolute;top:68px;right:14px;left:14px;z-index:10;flex-direction:column;padding:18px;border-radius:16px;background:#fff;box-shadow:0 15px 40px rgb(0 0 0 / 15%)}}
