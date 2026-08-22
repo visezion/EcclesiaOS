@@ -7,7 +7,7 @@
                 <div class="component-columns nested-component-columns" style="grid-template-columns: {{ collect($group['columns'] ?? [])->map(fn ($column) => max(1, (int) ($column['width'] ?? 1)).'fr')->join(' ') }};">
                     @foreach ($group['columns'] ?? [] as $column)
                         <div class="component-column">
-                            @include('website.templates.main._components', ['components' => $column['components'] ?? [], 'events' => $events ?? collect()])
+                            @include('website.templates.main._components', ['components' => $column['components'] ?? [], 'events' => $events ?? collect(), 'sermons' => $sermons ?? collect()])
                         </div>
                     @endforeach
                 </div>
@@ -41,6 +41,8 @@
         <div class="content-divider-widget" style="--divider-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['divider_color'] ?? '') ? $component['divider_color'] : '#e2e8f0' }};--divider-width: {{ max(10, min(100, (int) ($component['divider_width'] ?? 100))) }}%;--divider-thickness: {{ max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) }}px;--divider-spacing: {{ max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) }}px;--divider-style: {{ in_array($component['divider_style'] ?? 'solid', ['solid', 'dashed', 'dotted'], true) ? ($component['divider_style'] ?? 'solid') : 'solid' }}" aria-hidden="true"><span></span></div>
     @elseif (($component['type'] ?? '') === 'events')
         @include('website.templates.main._events', ['component' => $component, 'events' => $events ?? collect()])
+    @elseif (($component['type'] ?? '') === 'sermons')
+        @include('website.templates.main._sermons', ['component' => $component, 'sermons' => $sermons ?? collect()])
     @elseif (($component['type'] ?? '') === 'card')
         @php($cardVideoUrl = !empty($component['background_video']) ? $assetUrl($component['background_video']) : null)
         @if (!empty($component['link']))<a class="content-card-widget-link" href="{{ $component['link'] }}" aria-label="Open {{ $component['title'] ?? 'card' }}">@endif

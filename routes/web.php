@@ -395,7 +395,9 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('website-studio/sections/{section}', [ChurchWebsiteController::class, 'updateSection'])->name('website-studio.sections.update');
     Route::delete('website-studio/sections/{section}', [ChurchWebsiteController::class, 'destroySection'])->name('website-studio.sections.destroy');
     Route::get('sermons', [SermonController::class, 'index'])->name('sermons.index');
+    Route::get('sermons/create', [SermonController::class, 'create'])->name('sermons.create');
     Route::post('sermons', [SermonController::class, 'store'])->name('sermons.store');
+    Route::get('sermons/{sermon}/edit', [SermonController::class, 'edit'])->name('sermons.edit');
     Route::put('sermons/{sermon}', [SermonController::class, 'update'])->name('sermons.update');
     Route::delete('sermons/{sermon}', [SermonController::class, 'destroy'])->name('sermons.destroy');
     Route::put('settings/system', [SystemSettingsController::class, 'update'])->name('settings.system.update');

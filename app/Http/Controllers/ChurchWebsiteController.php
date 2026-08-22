@@ -419,11 +419,11 @@ final class ChurchWebsiteController extends Controller
             'settings' => $settings,
             'preview' => $preview,
             'events' => $websiteModuleEnabled
-                ? Event::query()->where('church_id', $church->id)->where('show_on_website', true)->whereIn('status', ['scheduled', 'published'])->where('starts_at', '>', now())->orderBy('starts_at')->limit(6)->get()
+                ? Event::query()->where('church_id', $church->id)->where('show_on_website', true)->whereIn('status', ['scheduled', 'published'])->where('starts_at', '>', now())->orderBy('starts_at')->get()
                 : collect(),
             'ministries' => Ministry::query()->where('church_id', $church->id)->where('status', 'active')->orderBy('name')->limit(6)->get(),
             'campuses' => Campus::query()->where('church_id', $church->id)->where('status', 'active')->orderBy('name')->limit(8)->get(),
-            'sermons' => Sermon::query()->where('church_id', $church->id)->where('status', 'published')->latest('preached_at')->latest('id')->limit(6)->get(),
+            'sermons' => Sermon::query()->where('church_id', $church->id)->where('status', 'published')->latest('preached_at')->latest('id')->get(),
             'products' => BookstoreProduct::query()->where('church_id', $church->id)->where('status', 'active')->where('stock_quantity', '>', 0)->orderBy('name')->limit(8)->get(),
             'navigation' => $this->websiteNavigation($church),
             'pageSectionOrder' => $pageSectionOrder,
@@ -611,7 +611,7 @@ final class ChurchWebsiteController extends Controller
         }
 
         return collect($components)->filter(fn ($component): bool => is_array($component))->map(function (array $component): array {
-            $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel', 'video-slider', 'gallery', 'card', 'icon', 'divider', 'events'], true)
+            $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel', 'video-slider', 'gallery', 'card', 'icon', 'divider', 'events', 'sermons'], true)
                 ? $component['type']
                 : 'text';
 
@@ -623,6 +623,7 @@ final class ChurchWebsiteController extends Controller
                 'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
                 'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : ($type === 'video-slider' ? $this->normalizeVideoSlides($component['slides'] ?? []) : []),
                 'autoplay' => in_array($type, ['carousel', 'video-slider'], true) ? ($component['autoplay'] ?? true) !== false : false,
+                'video_slider_height' => $type === 'video-slider' && in_array((int) ($component['video_slider_height'] ?? 420), [300, 420, 560, 700], true) ? (int) $component['video_slider_height'] : 0,
                 'height' => $type === 'spacer' ? max(0, min(600, (int) ($component['height'] ?? 36))) : 0,
                 'title' => in_array($type, ['card', 'icon', 'gallery'], true) ? Str::limit((string) ($component['title'] ?? ''), 180, '') : '',
                 'body' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['body'] ?? ''), 1000, '') : '',
@@ -643,9 +644,11 @@ final class ChurchWebsiteController extends Controller
                 'divider_width' => $type === 'divider' ? max(10, min(100, (int) ($component['divider_width'] ?? 100))) : 0,
                 'divider_thickness' => $type === 'divider' ? max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) : 0,
                 'divider_spacing' => $type === 'divider' ? max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) : 0,
-                'event_limit' => $type === 'events' && in_array((int) ($component['event_limit'] ?? 3), [3, 6], true) ? (int) $component['event_limit'] : 3,
+                'event_limit' => $type === 'events' && (($component['event_limit'] ?? 3) === 'all' || in_array((int) ($component['event_limit'] ?? 0), [3, 4, 6, 8], true)) ? (($component['event_limit'] ?? 3) === 'all' ? 'all' : (int) $component['event_limit']) : 3,
+                'event_style' => $type === 'events' && in_array($component['event_style'] ?? null, ['list', 'gallery'], true) ? $component['event_style'] : 'list',
                 'event_button_color' => $type === 'events' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['event_button_color'] ?? '')) ? $component['event_button_color'] : '#6d4aff',
                 'event_button_text_color' => $type === 'events' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['event_button_text_color'] ?? '')) ? $component['event_button_text_color'] : '#ffffff',
+                'sermon_limit' => $type === 'sermons' && (($component['sermon_limit'] ?? 'all') === 'all' || in_array((int) ($component['sermon_limit'] ?? 0), [3, 4, 5, 6, 8, 9], true)) ? (($component['sermon_limit'] ?? 'all') === 'all' ? 'all' : (int) $component['sermon_limit']) : 'all',
                 'animation' => in_array($component['animation'] ?? null, ['none', 'fade', 'slide-up', 'slide-left', 'zoom', 'bounce', 'float'], true) ? $component['animation'] : 'none',
                 'column' => max(0, min(3, (int) ($component['column'] ?? 0))),
             ];
@@ -672,7 +675,7 @@ final class ChurchWebsiteController extends Controller
                         return $this->normalizeColumnNode($component);
                     }
 
-                    $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel', 'video-slider', 'gallery', 'card', 'icon', 'divider', 'events'], true)
+                    $type = in_array($component['type'] ?? null, ['heading', 'text', 'quote', 'image', 'video', 'button', 'spacer', 'carousel', 'video-slider', 'gallery', 'card', 'icon', 'divider', 'events', 'sermons'], true)
                         ? $component['type']
                         : 'text';
 
@@ -684,6 +687,7 @@ final class ChurchWebsiteController extends Controller
                         'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
                         'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : ($type === 'video-slider' ? $this->normalizeVideoSlides($component['slides'] ?? []) : []),
                         'autoplay' => in_array($type, ['carousel', 'video-slider'], true) ? ($component['autoplay'] ?? true) !== false : false,
+                        'video_slider_height' => $type === 'video-slider' && in_array((int) ($component['video_slider_height'] ?? 420), [300, 420, 560, 700], true) ? (int) $component['video_slider_height'] : 0,
                         'height' => $type === 'spacer' ? max(0, min(600, (int) ($component['height'] ?? 36))) : 0,
                         'title' => in_array($type, ['card', 'icon', 'gallery'], true) ? Str::limit((string) ($component['title'] ?? ''), 180, '') : '',
                         'body' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['body'] ?? ''), 1000, '') : '',
@@ -704,9 +708,11 @@ final class ChurchWebsiteController extends Controller
                         'divider_width' => $type === 'divider' ? max(10, min(100, (int) ($component['divider_width'] ?? 100))) : 0,
                         'divider_thickness' => $type === 'divider' ? max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) : 0,
                         'divider_spacing' => $type === 'divider' ? max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) : 0,
-                        'event_limit' => $type === 'events' && in_array((int) ($component['event_limit'] ?? 3), [3, 6], true) ? (int) $component['event_limit'] : 3,
+                        'event_limit' => $type === 'events' && (($component['event_limit'] ?? 3) === 'all' || in_array((int) ($component['event_limit'] ?? 0), [3, 4, 6, 8], true)) ? (($component['event_limit'] ?? 3) === 'all' ? 'all' : (int) $component['event_limit']) : 3,
+                        'event_style' => $type === 'events' && in_array($component['event_style'] ?? null, ['list', 'gallery'], true) ? $component['event_style'] : 'list',
                         'event_button_color' => $type === 'events' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['event_button_color'] ?? '')) ? $component['event_button_color'] : '#6d4aff',
                         'event_button_text_color' => $type === 'events' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['event_button_text_color'] ?? '')) ? $component['event_button_text_color'] : '#ffffff',
+                        'sermon_limit' => $type === 'sermons' && (($component['sermon_limit'] ?? 'all') === 'all' || in_array((int) ($component['sermon_limit'] ?? 0), [3, 4, 5, 6, 8, 9], true)) ? (($component['sermon_limit'] ?? 'all') === 'all' ? 'all' : (int) $component['sermon_limit']) : 'all',
                         'animation' => in_array($component['animation'] ?? null, ['none', 'fade', 'slide-up', 'slide-left', 'zoom', 'bounce', 'float'], true) ? $component['animation'] : 'none',
                     ];
                 })->values()->all(),
@@ -745,6 +751,10 @@ final class ChurchWebsiteController extends Controller
                 $videoFile = $videoFiles[$slideId] ?? $legacyFiles[$slideId] ?? $legacyFiles[$slideId.'-video'] ?? null;
                 if ($videoFile instanceof UploadedFile) {
                     $slide['video'] = $this->storeWebsiteAsset($videoFile, $church);
+                }
+                $imageFile = $imageFiles[$slideId] ?? null;
+                if ($imageFile instanceof UploadedFile) {
+                    $slide['image'] = $this->storeWebsiteAsset($imageFile, $church);
                 }
             }
             unset($slide);
@@ -842,6 +852,7 @@ final class ChurchWebsiteController extends Controller
             return [
                 'id' => (string) ($slide['id'] ?? Str::uuid()),
                 'video' => Str::limit((string) ($slide['video'] ?? ''), 500, ''),
+                'image' => Str::limit((string) ($slide['image'] ?? ''), 500, ''),
                 'title' => Str::limit((string) ($slide['title'] ?? ''), 180, ''),
                 'text' => Str::limit((string) ($slide['text'] ?? ''), 500, ''),
                 'link' => Str::limit((string) ($slide['link'] ?? ''), 500, ''),

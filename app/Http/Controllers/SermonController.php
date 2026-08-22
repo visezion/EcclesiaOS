@@ -28,6 +28,35 @@ final class SermonController extends Controller
         ]);
     }
 
+    public function create(Request $request): View
+    {
+        $this->authorizeMedia($request);
+
+        return view('sermons.create', [
+            'sermon' => null,
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Sermons & Media', 'url' => route('sermons.index')],
+                ['label' => 'Create sermon', 'url' => null],
+            ],
+        ]);
+    }
+
+    public function edit(Request $request, Sermon $sermon): View
+    {
+        $this->authorizeMedia($request);
+        $this->authorizeSermon($request, $sermon);
+
+        return view('sermons.edit', [
+            'sermon' => $sermon,
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Sermons & Media', 'url' => route('sermons.index')],
+                ['label' => 'Edit sermon', 'url' => null],
+            ],
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $this->authorizeMedia($request);
@@ -42,7 +71,7 @@ final class SermonController extends Controller
         $data['church_id'] = $church->id;
         Sermon::query()->create($data);
 
-        return back()->with('status', 'Sermon published to the library.');
+        return redirect()->route('sermons.index')->with('status', 'Sermon added to the library.');
     }
 
     public function update(Request $request, Sermon $sermon): RedirectResponse
@@ -58,7 +87,7 @@ final class SermonController extends Controller
         }
         $sermon->update($data);
 
-        return back()->with('status', 'Sermon updated.');
+        return redirect()->route('sermons.index')->with('status', 'Sermon updated.');
     }
 
     public function destroy(Request $request, Sermon $sermon): RedirectResponse

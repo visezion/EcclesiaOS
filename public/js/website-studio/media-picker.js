@@ -102,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
             logo_file: 'logo_url',
             hero_image_file: 'hero_image_url',
             page_hero_image_file: 'page_hero_image_url',
+            thumbnail_file: 'thumbnail_url',
         }[target.name];
         const urlInput =
             slide?.querySelector('[data-slide-field="image"]') ||

@@ -1,9 +1,10 @@
 @php
-    $eventLimit = in_array((int) ($component['event_limit'] ?? 3), [3, 6], true) ? (int) $component['event_limit'] : 3;
+    $eventLimit = ($component['event_limit'] ?? 3) === 'all' ? null : (int) ($component['event_limit'] ?? 3);
     $eventItems = collect($events ?? [])->take($eventLimit);
+    $eventStyle = in_array($component['event_style'] ?? 'list', ['list', 'gallery'], true) ? ($component['event_style'] ?? 'list') : 'list';
     $eventsUrl = route('website.public', ['church' => $church->slug, 'page' => 'events']);
 @endphp
-<section class="content-events-widget content-events-widget-{{ $eventLimit }}" style="--event-button-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['event_button_color'] ?? '') ? $component['event_button_color'] : '#6d4aff' }};--event-button-text-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['event_button_text_color'] ?? '') ? $component['event_button_text_color'] : '#ffffff' }};">
+<section class="content-events-widget content-events-widget-{{ $eventStyle }}" style="--event-button-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['event_button_color'] ?? '') ? $component['event_button_color'] : '#6d4aff' }};--event-button-text-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['event_button_text_color'] ?? '') ? $component['event_button_text_color'] : '#ffffff' }};">
     <div class="content-events-widget-header">
         <h2 class="content-events-widget-title"><span>Upcoming</span> <em>Events</em></h2>
         @if ($eventItems->isNotEmpty())<a class="content-events-view-all content-events-view-all-top" href="{{ $eventsUrl }}">View all events <span>↗</span></a>@endif

@@ -58,7 +58,7 @@
                     <h2>{{ $customSection['title'] }}</h2>
                     @if (!empty($customSection['body']))<p class="lead preserve-lines">{{ $customSection['body'] }}</p>@endif
                     <div class="component-column nested-root-column">
-                    @include('website.templates.main._components', ['components' => [$customSection['components']], 'events' => $events])
+                    @include('website.templates.main._components', ['components' => [$customSection['components']], 'events' => $events, 'sermons' => $sermons])
                     </div>
                 </div>
             </section>
@@ -99,6 +99,8 @@
                                         <div class="content-divider-widget" style="--divider-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['divider_color'] ?? '') ? $component['divider_color'] : '#e2e8f0' }};--divider-width: {{ max(10, min(100, (int) ($component['divider_width'] ?? 100))) }}%;--divider-thickness: {{ max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) }}px;--divider-spacing: {{ max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) }}px;--divider-style: {{ in_array($component['divider_style'] ?? 'solid', ['solid', 'dashed', 'dotted'], true) ? ($component['divider_style'] ?? 'solid') : 'solid' }}" aria-hidden="true"><span></span></div>
                                     @elseif (($component['type'] ?? '') === 'events')
                                         @include('website.templates.main._events', ['component' => $component, 'events' => $events])
+                                    @elseif (($component['type'] ?? '') === 'sermons')
+                                        @include('website.templates.main._sermons', ['component' => $component, 'sermons' => $sermons])
                                     @elseif (($component['type'] ?? '') === 'card')
                                         @include('website.templates.main._components', ['components' => [$component]])
                                     @elseif (($component['type'] ?? '') === 'icon')

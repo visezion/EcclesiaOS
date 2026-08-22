@@ -106,7 +106,7 @@
                 </div>
             </div>
         @endif
-        @if (request()->is('website-studio*'))
+        @if (request()->is('website-studio*') || request()->is('sermons*'))
             <link rel="stylesheet" href="{{ asset('css/website-studio/media-picker.css') }}?v={{ filemtime(public_path('css/website-studio/media-picker.css')) }}">
             @php($studioMedia = data_get(auth()->user()?->church?->settings, 'website.media_library', []))
             <script id="website-media-library" type="application/json">@json($studioMedia)</script>

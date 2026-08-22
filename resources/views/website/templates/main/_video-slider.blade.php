@@ -1,11 +1,13 @@
-<div class="video-slider" data-video-slider data-autoplay="{{ ($component['autoplay'] ?? true) ? 'true' : 'false' }}">
+<div class="video-slider" data-video-slider data-height="{{ in_array((int) ($component['video_slider_height'] ?? 420), [300, 420, 560, 700], true) ? (int) $component['video_slider_height'] : 420 }}" data-autoplay="{{ ($component['autoplay'] ?? true) ? 'true' : 'false' }}">
     <div class="video-slider-track">
         @foreach ($component['slides'] ?? [] as $slide)
             <article class="video-slider-slide">
                 @if (!empty($slide['video']))
-                    <video autoplay muted loop preload="auto" playsinline data-background-video>
+                    <video @if (!empty($slide['image'])) poster="{{ $assetUrl($slide['image']) }}" @endif autoplay muted loop preload="auto" playsinline data-background-video>
                         <source src="{{ $assetUrl($slide['video']) }}">
                     </video>
+                @elseif (!empty($slide['image']))
+                    <img src="{{ $assetUrl($slide['image']) }}" alt="{{ $slide['title'] ?? '' }}" loading="lazy">
                 @else
                     <div class="video-slider-empty">Add a video to this slide</div>
                 @endif
