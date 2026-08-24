@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.0.36 - 2026-08-24
+
+### Added
+
+- Added a complete church Website Studio with editable homepage content, page management, reusable sections, section ordering, media uploads, image and video support, public previews, publishing controls, SEO fields, contact details, giving links, sermon sections, event sections, ministry sections, campus sections, and bookstore content.
+- Added a production-ready Grace & Community public website template with responsive layouts, navigation, theme controls, configurable colors, fonts, branding, hero media, service information, ministries, campuses, sermons, events, giving, bookstore products, and contact details.
+- Added reusable website components including cards, galleries, carousels, video sliders, columns, buttons, icons, quotes, text blocks, spacers, uploaded media, linked media, and background video support.
+- Added a public sermon detail page with related sermons, sermon metadata, thumbnails, video links, Scripture information, summaries, and configurable next-step content.
+- Added sermon administration for creating, editing, publishing, archiving, searching, filtering, and managing sermon media.
+- Added YouTube sermon integration settings, encrypted OAuth credentials, connection management, callback handling, synchronization diagnostics, and idempotent synchronization for upcoming, live, and completed videos.
+- Added a shareable public member registration link component on the dashboard and Members page.
+- Added public member self-registration with optional account creation, member matching, ministry and campus assignment controls, optional check-in, duplicate prevention, and localized validation feedback.
+- Added English, Spanish, and French registration and interface translation resources, locale persistence, language switching, and translated validation messages.
+- Added leadership report templates, report creation and review workflows, reviewer-role restrictions, escalation settings, reminders, analytics, and personal report templates.
+- Added configurable website theme appearance with dark and light modes, persistent visitor theme preferences, and administrator-controlled default appearance.
+
+### Improved
+
+- Website sections now preserve their saved drag-and-drop order and retain visibility state when pages are edited.
+- Website media handling now validates uploads, stores assets per church, preserves linked external media, supports uploaded card and slider videos, and keeps public media URLs safe.
+- Public website pages now use the selected church branding, site name, colors, fonts, contact information, and published content consistently.
+- The Website Studio now exposes only the working Grace & Community template. Unsupported experimental templates were removed from the selector and validation rules.
+- Legacy saved website template values are normalized to the working template so existing churches do not render with incomplete or unsupported designs.
+- Page-level template overrides are limited to the production-ready template and safely discard unsupported legacy values.
+- Lucide icon registration now covers all static icons used across Blade views, including icons used by registration, website, leadership, and media workflows.
+- Public and authenticated registration flows now preserve the selected locale across navigation, validation errors, and account preference updates.
+- Dashboard, Members, Families, Events, Attendance, Leadership Reports, Sermons, Website Studio, and related module navigation now share consistent branding, footer versioning, and responsive layout behavior.
+
+### Fixed
+
+- Fixed runtime translation failures caused by untranslated longer text fragments and locale catalog fallback handling.
+- Fixed an argument-count error in locale catalog filtering that could break translated public registration pages.
+- Fixed missing Lucide icon registrations that caused static icon audit failures and missing icons in compiled frontend output.
+- Fixed Alpine-bound dynamic icon attributes being incorrectly treated as unregistered static icons.
+- Fixed website template validation rejecting supported workflow values while the starter-content service still referenced them.
+- Fixed website settings silently forcing or retaining unsupported templates without a reliable public design.
+- Fixed page-level website template validation so unsupported legacy page designs no longer affect public rendering.
+- Fixed website starter pages so their content and metadata refresh correctly when the production template is applied.
+- Fixed website preview and public rendering fallback behavior so missing experimental template views use the working public template safely.
+- Fixed sermon page rendering issues involving related sermon data, thumbnail variables, and public sermon detail rendering.
+- Fixed registration-link generation and member registration integration across the dashboard and Members module.
+- Fixed static view and route validation issues discovered during the full project health scan.
+
+### Verification
+
+- Full automated test suite passed: 263 tests and 3,040 assertions.
+- Church website regression suite passed: 5 tests and 279 assertions after the single-template cleanup.
+- Blade templates compiled and cached successfully.
+- Route registration completed successfully.
+- Frontend production build completed successfully with Vite.
+- Git whitespace validation completed successfully.
+
 ## 1.0.35 - 2026-08-20
 
 ### Added

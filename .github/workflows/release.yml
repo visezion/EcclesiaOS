@@ -180,12 +180,19 @@ jobs:
           if [[ -z "$RELEASE_JSON" || "$ASSET_COUNT" -eq 0 ]]; then
             # Attach assets during creation. Immutable-release repositories reject
             # a later `gh release upload` request.
-            gh release create "$GITHUB_REF_NAME" \
-              --verify-tag \
-              --draft \
-              --title "EcclesiaOS $GITHUB_REF_NAME" \
-              --generate-notes \
-              release-assets/*
+            NOTES_FILE=".github/release-notes/${GITHUB_REF_NAME#v}.md"
+            RELEASE_ARGS=(
+              "$GITHUB_REF_NAME"
+              --verify-tag
+              --draft
+              --title "EcclesiaOS $GITHUB_REF_NAME"
+            )
+            if [[ -f "$NOTES_FILE" ]]; then
+              RELEASE_ARGS+=(--notes-file "$NOTES_FILE")
+            else
+              RELEASE_ARGS+=(--generate-notes)
+            fi
+            gh release create "${RELEASE_ARGS[@]}" release-assets/*
           else
             echo "The existing draft release already has assets; no upload is attempted."
           fi
