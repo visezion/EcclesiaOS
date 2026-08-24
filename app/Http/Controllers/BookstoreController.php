@@ -860,21 +860,28 @@ final class BookstoreController extends Controller
 
     private function restoreOrderStock(BookstoreOrder $order): void
     {
-        $order->loadMissing('items');
+        // Use the persisted foreign key explicitly. This keeps stock restoration
+        // reliable during status transitions and avoids depending on relationship
+        // key inference while the order is inside a transaction.
+        BookstoreOrderItem::query()
+            ->where('bookstore_order_id', $order->getKey())
+            ->get()
+            ->each(function (BookstoreOrderItem $item): void {
+                $product = BookstoreProduct::withTrashed()
+                    ->whereKey($item->bookstore_product_id)
+                    ->lockForUpdate()
+                    ->first();
 
-        foreach ($order->items as $item) {
-            $product = BookstoreProduct::withTrashed()->whereKey($item->bookstore_product_id)->first();
+                if (! $product) {
+                    return;
+                }
 
-            if (! $product) {
-                continue;
-            }
+                $product->increment('stock_quantity', $item->quantity);
 
-            $product->increment('stock_quantity', $item->quantity);
-
-            if (! $product->trashed() && $product->fresh()?->status === 'out_of_stock') {
-                $product->update(['status' => 'active']);
-            }
-        }
+                if (! $product->trashed() && $product->fresh()?->status === 'out_of_stock') {
+                    $product->update(['status' => 'active']);
+                }
+            });
     }
 
     private function currency(Request $request): string

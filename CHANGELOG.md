@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.38 - 2026-08-24
+
+### Fixed
+
+- Fixed bookstore order refunds and cancellations failing to restore the reserved product quantity.
+- Fixed stock restoration to query order items explicitly through `bookstore_order_id` during the transaction.
+- Added row locking while restoring inventory so concurrent order updates cannot lose stock changes.
+- Preserved automatic reactivation of a product when restored inventory moves it out of the `out_of_stock` state.
+
+### Verification
+
+- Full application suite passed: 263 tests and 3,038 assertions.
+- Operational modules suite passed: 15 tests and 150 assertions.
+- The previously failing bookstore stock restoration test now passes.
+- Previous release fixes remain verified: route caching, framework optimization, Docker smoke-test command execution, Composer validation, and Vite production build.
+
 ## 1.0.37 - 2026-08-24
 
 ### Fixed
