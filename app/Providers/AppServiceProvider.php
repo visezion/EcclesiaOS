@@ -29,7 +29,12 @@ final class AppServiceProvider extends ServiceProvider
         View::composer('*', function ($view): void {
             $terminology = OrganizationTerminology::forRequest(request());
             $view->with('terminology', $terminology);
-            $view->with('term', fn (?string $text): string => OrganizationTerminology::translate($text, $terminology));
+            $view->with('term', function (?string $text) use ($terminology): string {
+                $source = (string) $text;
+                $localized = __($source);
+
+                return OrganizationTerminology::translate(is_string($localized) ? $localized : $source, $terminology);
+            });
         });
 
         if (parse_url((string) config('app.url'), PHP_URL_SCHEME) === 'https') {

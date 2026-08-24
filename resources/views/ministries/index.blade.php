@@ -26,7 +26,7 @@
             campus: '',
             status: '',
             expanded: null,
-            addOpen: false,
+            addOpen: @js($errors->any()),
             importOpen: false,
             cloneOpen: false,
             cloneSource: '',
@@ -46,7 +46,8 @@
                 this.status = '';
             }
         }"
-        class="grid gap-4 xl:grid-cols-[1fr_390px]"
+        class="grid grid-cols-1 gap-4"
+        x-bind:class="{ 'xl:grid-cols-[minmax(0,1fr)_390px]': addOpen }"
     >
         <main class="min-w-0 space-y-4">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -68,10 +69,10 @@
                         <i data-lucide="copy" class="size-4"></i>
                         Clone Campus {{ $terminology['ministry_plural'] }}
                     </button>
-                    <button type="button" x-on:click="addOpen = true; $nextTick(() => $refs.createPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }))" class="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">
+                    <button type="button" x-on:click="addOpen = true; $nextTick(() => { $refs.createPanel.scrollIntoView({ behavior: 'smooth', block: 'start' }); $refs.ministryName.focus(); })" x-bind:aria-expanded="addOpen" aria-controls="create-ministry-panel" class="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">
                         <i data-lucide="plus" class="size-4"></i>
                         Add {{ $terminology['ministry_singular'] }}
-                        <i data-lucide="chevron-up" class="size-4 rotate-180"></i>
+                        <i data-lucide="panel-right-open" class="size-4"></i>
                     </button>
                 </div>
             </div>
@@ -265,7 +266,7 @@
             </div>
         </main>
 
-        <aside x-ref="createPanel" class="dashboard-card h-fit xl:sticky xl:top-20" x-bind:class="addOpen ? 'ring-2 ring-violet-100' : ''">
+        <aside id="create-ministry-panel" x-ref="createPanel" x-cloak x-show="addOpen" x-transition.opacity.duration.150ms x-on:keydown.escape.window="addOpen = false" class="dashboard-card h-fit ring-2 ring-violet-100 xl:sticky xl:top-20">
             <div class="mb-5 flex items-start justify-between">
                 <div>
                     <h2 class="text-lg font-semibold text-slate-950">Create {{ $terminology['ministry_singular'] }}</h2>
@@ -283,7 +284,7 @@
                     </div>
                     <div class="space-y-3">
                         <label class="space-y-1 text-xs font-medium text-slate-500">{{ $terminology['ministry_singular'] }} Name
-                            <input name="name" value="{{ old('name') }}" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900" placeholder="Worship {{ $terminology['ministry_singular'] }}">
+                            <input x-ref="ministryName" name="name" value="{{ old('name') }}" required class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900" placeholder="Worship {{ $terminology['ministry_singular'] }}">
                         </label>
                         <label class="space-y-1 text-xs font-medium text-slate-500">Description
                             <textarea name="description" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900" placeholder="Purpose, responsibilities, and serving focus.">{{ old('description') }}</textarea>

@@ -713,7 +713,7 @@ final class MemberManagementController extends Controller
             'alternateEmail' => $details?->alternate_email ?? '',
             'homePhone' => $details?->home_phone ?? '',
             'gender' => $details?->gender ?? 'Not specified',
-            'dateOfBirth' => $details?->date_of_birth?->format('M d, Y') ?? '',
+            'dateOfBirth' => $details?->date_of_birth?->translatedFormat('M d, Y') ?? '',
             'dateOfBirthInput' => $details?->date_of_birth?->toDateString(),
             'age' => $age,
             'marital' => $details?->marital_status ?? 'Not specified',
@@ -746,7 +746,7 @@ final class MemberManagementController extends Controller
             'familyId' => $member->family_id,
             'ministry' => $ministry,
             'ministryId' => $member->volunteers->first()?->ministry_id,
-            'joined' => $member->joined_at?->format('M d, Y') ?? 'Not recorded',
+            'joined' => $member->joined_at?->translatedFormat('M d, Y') ?? 'Not recorded',
             'joinedInput' => $member->joined_at?->toDateString(),
             'attendance' => $attendance,
             'attendanceBars' => $this->attendanceBars($member->id, $attendance),
@@ -855,7 +855,7 @@ final class MemberManagementController extends Controller
         $latestGift = $member->donations()->latest('received_at')->value('received_at');
         $latest = collect([$latestAttendance, $latestGift, $member->updated_at])->filter()->sortDesc()->first();
 
-        return $latest ? Carbon::parse($latest)->format('M d, Y') : 'No activity';
+        return $latest ? Carbon::parse($latest)->translatedFormat('M d, Y') : 'No activity';
     }
 
     private function queryId(Request $request, string $key, string $scope): ?int

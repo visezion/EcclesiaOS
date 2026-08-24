@@ -8,7 +8,7 @@
 
 @php
     $branding = \App\Support\Branding::current();
-    $title = \App\Support\OrganizationTerminology::translate($title, $terminology);
+    $title = $term($title);
     $settings = $branding->settings;
     $fontStacks = [
         'Inter' => 'Inter, ui-sans-serif, system-ui, sans-serif',
@@ -76,21 +76,21 @@
                     <main class="{{ $mainClass }}">
                         @if ($remoteSupportAccess && data_get(auth()->user()?->account_settings, 'remote_support.managed'))
                             <div class="mb-4 flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
-                                <span class="flex items-center gap-2 font-semibold"><i data-lucide="shield-check" class="size-4"></i>Temporary central support session · expires {{ $remoteSupportAccess->expires_at->format('M d, Y H:i') }}</span>
+                                <span class="flex items-center gap-2 font-semibold"><i data-lucide="shield-check" class="size-4"></i>{{ __('Temporary central support session · expires :date', ['date' => $remoteSupportAccess->expires_at->translatedFormat('M d, Y H:i')]) }}</span>
                                 <form method="POST" action="{{ route('central-support.remote.end') }}">
                                     @csrf
-                                    <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-amber-700 px-3 py-2 text-xs font-bold text-white"><i data-lucide="log-out" class="size-3.5"></i>End support session</button>
+                                    <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-amber-700 px-3 py-2 text-xs font-bold text-white"><i data-lucide="log-out" class="size-3.5"></i>{{ $term('End support session') }}</button>
                                 </form>
                             </div>
                         @endif
                         @if (session('impersonator_id'))
                             <div class="mb-4 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
-                                <span>You are impersonating {{ auth()->user()?->name }}.</span>
+                                <span>{{ __('You are impersonating :name.', ['name' => auth()->user()?->name]) }}</span>
                                 <form method="POST" action="{{ route('users.impersonation.stop') }}">
                                     @csrf
                                     <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700">
                                         <i data-lucide="arrow-left" class="size-4"></i>
-                                        Return to Admin
+                                        {{ $term('Return to Admin') }}
                                     </button>
                                 </form>
                             </div>

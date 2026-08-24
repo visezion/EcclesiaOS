@@ -15,6 +15,9 @@
     $changeIsNeutral = $change !== null && preg_match('/^0(?:\.0+)?%$/', $change) === 1;
     $changeIcon = $changeIsNegative ? 'arrow-down' : ($changeIsNeutral ? 'minus' : 'arrow-up');
     $changeTone = $changeIsNegative ? 'text-rose-600' : ($changeIsNeutral ? 'text-slate-500' : 'text-emerald-600');
+    $periodParams = collect($metric['period_params'] ?? [])->map(fn ($value) => is_string($value) ? $term($value) : $value)->all();
+    $localizedPeriod = __((string) $metric['period'], $periodParams);
+    $periodLabel = $term(is_string($localizedPeriod) ? $localizedPeriod : (string) $metric['period']);
 @endphp
 
 <a href="{{ route($metric['route']) }}" class="dashboard-card flex min-h-[104px] items-center gap-3 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-violet-500 sm:gap-4" aria-label="{{ $term($metric['label']).': '.$metric['value'] }}">
@@ -28,7 +31,7 @@
             @if ($change)
                 <span class="shrink-0 font-semibold {{ $changeTone }}"><i data-lucide="{{ $changeIcon }}" class="inline size-3"></i> {{ $change }}</span>
             @endif
-            <span class="min-w-0 {{ $change ? 'text-slate-500' : 'font-semibold text-emerald-600' }}">{{ $term($metric['period']) }}</span>
+            <span class="min-w-0 {{ $change ? 'text-slate-500' : 'font-semibold text-emerald-600' }}">{{ $periodLabel }}</span>
         </div>
     </div>
 </a>

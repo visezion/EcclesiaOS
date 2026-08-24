@@ -354,6 +354,8 @@ class AdminPagesTest extends TestCase
             ->get(route('settings.index'))
             ->assertOk()
             ->assertSee('System Settings')
+            ->assertSee('Application Landing Page')
+            ->assertSee('Show member registration link on login')
             ->assertSee('System Health')
             ->assertSee('Compliance & Security', false)
             ->assertSee(route('settings.system.update'), false)
@@ -379,6 +381,8 @@ class AdminPagesTest extends TestCase
                 'sidebar_text_color' => '#F8FAFC',
                 'sidebar_profile_color' => '#172554',
                 'sidebar_colorful_icons' => '1',
+                'admin_landing_page_enabled' => '0',
+                'login_member_registration_link_enabled' => '0',
                 'card_radius' => 12,
                 'campus_singular_label' => 'Branch',
                 'campus_plural_label' => 'Branches',
@@ -396,6 +400,8 @@ class AdminPagesTest extends TestCase
         $this->assertSame('Roboto', data_get($church->settings, 'font_family'));
         $this->assertSame(95, data_get($church->settings, 'interface_zoom'));
         $this->assertTrue(data_get($church->settings, 'sidebar_colorful_icons'));
+        $this->assertFalse(data_get($church->settings, 'admin_landing_page_enabled'));
+        $this->assertFalse(data_get($church->settings, 'login_member_registration_link_enabled'));
         $this->assertSame('Branch', data_get($church->settings, 'campus_singular_label'));
         $this->assertSame('Departments', data_get($church->settings, 'ministry_plural_label'));
         $this->assertDatabaseHas('activity_logs', ['action' => 'system_settings_updated']);
@@ -682,6 +688,9 @@ class AdminPagesTest extends TestCase
             ->get(route('ministries.index'))
             ->assertOk()
             ->assertSee('Ministries')
+            ->assertSee('x-show="addOpen"', false)
+            ->assertSee("xl:grid-cols-[minmax(0,1fr)_390px]", false)
+            ->assertSee('x-on:click="addOpen = false"', false)
             ->assertSee($ownCampus->name)
             ->assertDontSee('Other Branch Media Team');
 
@@ -1288,6 +1297,8 @@ class AdminPagesTest extends TestCase
     {
         return [
             'system_name' => 'KingdomHub',
+            'admin_landing_page_enabled' => '1',
+            'login_member_registration_link_enabled' => '1',
             'church_name' => 'Kingdom Life Global Church',
             'primary_email' => 'info@klgc.org',
             'support_email' => 'support@klgc.org',

@@ -56,6 +56,12 @@ return [
         'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
     ],
 
+    'youtube' => [
+        'client_id' => env('YOUTUBE_CLIENT_ID'),
+        'client_secret' => env('YOUTUBE_CLIENT_SECRET'),
+        'redirect_uri' => env('YOUTUBE_REDIRECT_URI', env('APP_URL').'/sermons/youtube/callback'),
+    ],
+
     'central_support' => [
         'url' => env('CENTRAL_SUPPORT_URL', env('APP_ENV') === 'local' ? 'http://127.0.0.1:8090' : 'https://ecclesiaos.vicezion.com'),
         'enrollment_key' => env('CENTRAL_SUPPORT_ENROLLMENT_KEY', env('APP_ENV') === 'local' ? 'ecclesiaos-local-enrollment' : ''),

@@ -6,6 +6,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Church;
 use App\Models\Sermon;
+use App\Models\YouTubeConnection;
+use App\Models\YouTubeAppCredential;
+use App\Services\YouTubeSermonSyncService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,11 +24,139 @@ final class SermonController extends Controller
         return view('sermons.index', [
             'church' => $church,
             'sermons' => $church->sermons()->latest('preached_at')->latest('id')->get(),
+            'youtubeConnection' => $church->youtubeConnection,
+            'youtubeCredentials' => $church->youtubeAppCredential,
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
                 ['label' => 'Sermons & Media', 'url' => null],
             ],
         ]);
+    }
+
+    public function youtubeIntegration(Request $request): View
+    {
+        $this->authorizeSettings($request);
+        $church = $this->churchForRequest($request);
+
+        return view('administration.youtube-integration', [
+            'church' => $church,
+            'youtubeCredentials' => $church->youtubeAppCredential,
+            'youtubeConnection' => $church->youtubeConnection,
+            'canManageMedia' => $request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage media'),
+            'youtubeStats' => [
+                'total' => $church->sermons()->whereNotNull('youtube_video_id')->count(),
+                'upcoming' => $church->sermons()->where('youtube_live_status', 'upcoming')->count(),
+                'live' => $church->sermons()->where('youtube_live_status', 'live')->count(),
+                'completed' => $church->sermons()->where('youtube_live_status', 'completed')->count(),
+            ],
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Administration', 'url' => null],
+                ['label' => 'YouTube Integration', 'url' => null],
+            ],
+        ]);
+    }
+
+    public function youtubeConnect(Request $request): RedirectResponse
+    {
+        $this->authorizeMedia($request);
+        $church = $this->churchForRequest($request);
+        $credentials = $church->youtubeAppCredential;
+        $clientId = $credentials?->client_id ?: config('services.youtube.client_id');
+        $redirectUri = $credentials?->redirect_uri ?: config('services.youtube.redirect_uri');
+        if (!$clientId || (!$credentials?->client_secret && !config('services.youtube.client_secret'))) {
+            return redirect()->route('sermons.index')->with('error', 'Add your Google OAuth client ID and client secret before connecting YouTube.');
+        }
+
+        $state = bin2hex(random_bytes(32));
+        $request->session()->put('youtube_oauth_state', $state);
+        $request->session()->put('youtube_oauth_church_id', $church->id);
+        $query = http_build_query([
+            'client_id' => $clientId,
+            'redirect_uri' => $redirectUri,
+            'response_type' => 'code',
+            'scope' => 'https://www.googleapis.com/auth/youtube.readonly',
+            'access_type' => 'offline',
+            'prompt' => 'consent',
+            'state' => $state,
+        ]);
+
+        return redirect('https://accounts.google.com/o/oauth2/v2/auth?'.$query);
+    }
+
+    public function youtubeCallback(Request $request, YouTubeSermonSyncService $sync): RedirectResponse
+    {
+        $this->authorizeMedia($request);
+        abort_unless(hash_equals((string) $request->session()->pull('youtube_oauth_state'), (string) $request->string('state')), 419);
+        $church = Church::query()->findOrFail((int) $request->session()->pull('youtube_oauth_church_id'));
+        $tokens = $sync->exchangeCode((string) $request->string('code'), $church->youtubeAppCredential);
+        $existingConnection = $church->youtubeConnection;
+        $connection = YouTubeConnection::query()->updateOrCreate(
+            ['church_id' => $church->id],
+            [
+                'channel_id' => 'pending-'.$church->id,
+                'access_token' => $tokens['access_token'],
+                'refresh_token' => $tokens['refresh_token'] ?? $existingConnection?->refresh_token,
+                'token_expires_at' => now()->addSeconds((int) ($tokens['expires_in'] ?? 3600) - 60),
+                'last_sync_error' => null,
+            ],
+        );
+        try {
+            $result = $sync->sync($connection);
+            return redirect()->route('sermons.index')->with('status', "YouTube connected. Imported {$result['imported']} new videos and updated {$result['updated']} existing videos.");
+        } catch (\Throwable $exception) {
+            return redirect()->route('sermons.index')->with('error', 'YouTube connected, but the first sync failed: '.$exception->getMessage());
+        }
+    }
+
+    public function youtubeCredentialsUpdate(Request $request): RedirectResponse
+    {
+        $this->authorizeSettings($request);
+        $church = $this->churchForRequest($request);
+        $existing = $church->youtubeAppCredential;
+        $validated = $request->validate([
+            'client_id' => ['required', 'string', 'max:255'],
+            'client_secret' => [$existing ? 'nullable' : 'required', 'string', 'max:500'],
+            'redirect_uri' => ['nullable', 'url', 'max:500'],
+        ]);
+        if ($existing && blank($validated['client_secret'] ?? null)) unset($validated['client_secret']);
+        $validated['redirect_uri'] = $validated['redirect_uri'] ?? route('sermons.youtube.callback');
+        YouTubeAppCredential::query()->updateOrCreate(['church_id' => $church->id], $validated + ['church_id' => $church->id]);
+
+        return back()->with('status', 'YouTube OAuth credentials saved securely. You can now connect the channel.');
+    }
+
+    public function youtubeSync(Request $request, YouTubeSermonSyncService $sync): RedirectResponse
+    {
+        $this->authorizeMedia($request);
+        $connection = $this->churchForRequest($request)->youtubeConnection;
+        abort_unless($connection, 422, 'Connect a YouTube channel before syncing.');
+        try {
+            $result = $sync->sync($connection);
+            return back()->with('status', "YouTube sync complete. {$result['imported']} new, {$result['updated']} updated, {$result['total']} channel videos checked.");
+        } catch (\Throwable $exception) {
+            return back()->with('error', 'YouTube sync failed: '.$exception->getMessage());
+        }
+    }
+
+    public function youtubeTest(Request $request, YouTubeSermonSyncService $sync): RedirectResponse
+    {
+        $this->authorizeSettings($request);
+        $connection = $this->churchForRequest($request)->youtubeConnection;
+        if (!$connection) return back()->with('error', 'Connect a YouTube channel before testing the API connection.');
+        try {
+            $result = $sync->testConnection($connection);
+            return back()->with('status', "Connection test passed. YouTube returned {$result['channel_title']}.");
+        } catch (\Throwable $exception) {
+            return back()->with('error', 'Connection test failed: '.$exception->getMessage());
+        }
+    }
+
+    public function youtubeDisconnect(Request $request): RedirectResponse
+    {
+        $this->authorizeMedia($request);
+        $this->churchForRequest($request)->youtubeConnection?->delete();
+        return back()->with('status', 'YouTube channel disconnected. Imported sermons were kept in your library.');
     }
 
     public function create(Request $request): View
@@ -103,6 +234,12 @@ final class SermonController extends Controller
     {
         $user = $request->user();
         abort_unless($user?->isSuperAdministrator() || $user?->hasPermission('manage media'), 403);
+    }
+
+    private function authorizeSettings(Request $request): void
+    {
+        $user = $request->user();
+        abort_unless($user?->isSuperAdministrator() || $user?->hasPermission('manage settings'), 403);
     }
 
     private function authorizeSermon(Request $request, Sermon $sermon): void

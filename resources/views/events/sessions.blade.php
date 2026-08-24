@@ -86,8 +86,8 @@
             @endforeach
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-[1fr_350px]">
-            <main class="space-y-4">
+        <section class="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_350px]">
+            <main class="min-w-0 space-y-4">
                 <form method="GET" action="{{ route('event-sessions.index', [$program, $event]) }}" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                     <div class="grid gap-3 xl:grid-cols-[1fr_160px_160px_165px_auto_auto] xl:items-end">
                         <label class="text-sm text-slate-600">

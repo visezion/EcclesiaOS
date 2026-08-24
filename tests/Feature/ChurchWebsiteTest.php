@@ -165,6 +165,31 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertSame(['contact', 'hero', 'welcome'], $page->fresh()->sections);
     }
 
+    public function test_legacy_public_landing_toggle_no_longer_hides_the_church_homepage(): void
+    {
+        $church = Church::factory()->create([
+            'name' => 'Always Open Church',
+            'settings' => [
+                'website' => [
+                    'enabled' => true,
+                    'landing_page_enabled' => false,
+                ],
+            ],
+        ]);
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $adminRole = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($adminRole);
+
+        $this->actingAs($user)
+            ->get(route('website-studio.index'))
+            ->assertOk()
+            ->assertDontSee('Landing page enabled');
+
+        $this->get(route('website.public', ['church' => $church->slug]))
+            ->assertOk()
+            ->assertSee('Always Open Church');
+    }
+
     public function test_church_admin_can_configure_publish_and_preview_a_church_website(): void
     {
         $church = Church::factory()->create(['name' => 'Harbour Light Church']);
@@ -176,7 +201,7 @@ final class ChurchWebsiteTest extends TestCase
             ->get(route('website-studio.index'))
             ->assertOk()
             ->assertSee('Build a website that feels like your church.')
-            ->assertSee('Abundant Grace');
+            ->assertSee('Harbour Light Church');
 
         $this->assertSame(
             ['home', 'ministries', 'about', 'our-sermons', 'our-locations', 'events', 'contact', 'store'],
@@ -186,7 +211,7 @@ final class ChurchWebsiteTest extends TestCase
         $this->actingAs($user)
             ->put(route('website-studio.settings.update'), [
                 'enabled' => '1',
-                'template' => 'community',
+                'template' => 'main',
                 'site_name' => 'Harbour Light Church',
                 'tagline' => 'A warm place to belong.',
                 'primary_color' => '#123456',
@@ -208,8 +233,8 @@ final class ChurchWebsiteTest extends TestCase
 
         $homepage = WebsitePage::query()->where('church_id', $church->id)->where('slug', 'home')->firstOrFail();
         $this->assertSame('published', $homepage->status);
-        $this->assertSame('community', data_get($church->fresh()->settings, 'website.template'));
-        $this->assertSame('community', data_get(WebsitePage::query()->where('church_id', $church->id)->where('slug', 'about')->firstOrFail()->design, 'starter_template'));
+        $this->assertSame('main', data_get($church->fresh()->settings, 'website.template'));
+        $this->assertSame('main', data_get(WebsitePage::query()->where('church_id', $church->id)->where('slug', 'about')->firstOrFail()->design, 'starter_template'));
 
         $this->actingAs($user)
             ->post(route('website-studio.pages.store'), [
@@ -244,14 +269,14 @@ final class ChurchWebsiteTest extends TestCase
                 'status' => 'published',
                 'body' => 'Our story starts here.',
                 'section_types' => ['hero', 'sermons', 'store', 'contact'],
-                'page_template' => 'crepa',
+                'page_template' => 'main',
                 'page_primary_color' => '#234567',
                 'page_accent_color' => '#F59E0B',
                 'page_hero_heading' => 'Our story, told together.',
             ])
             ->assertRedirect();
 
-        $this->assertSame('crepa', data_get($page->fresh()->design, 'template'));
+        $this->assertSame('main', data_get($page->fresh()->design, 'template'));
 
         $this->get(route('website.public', ['church' => $church->slug, 'page' => 'our-story']))
             ->assertOk()
@@ -260,7 +285,7 @@ final class ChurchWebsiteTest extends TestCase
         $this->actingAs($user)
             ->put(route('website-studio.settings.update'), [
                 'enabled' => '1',
-                'template' => 'crepa',
+                'template' => 'main',
                 'site_name' => 'Harbour Light Church',
                 'tagline' => 'A warm place to belong.',
                 'primary_color' => '#123456',
@@ -271,7 +296,7 @@ final class ChurchWebsiteTest extends TestCase
                 'welcome_body' => 'We are glad you are here.',
             ])
             ->assertRedirect();
-        $this->assertSame('crepa', data_get(WebsitePage::query()->where('church_id', $church->id)->where('slug', 'about')->firstOrFail()->design, 'starter_template'));
+        $this->assertSame('main', data_get(WebsitePage::query()->where('church_id', $church->id)->where('slug', 'about')->firstOrFail()->design, 'starter_template'));
 
         $this->actingAs($user)
             ->post(route('sermons.store'), [
@@ -297,8 +322,6 @@ final class ChurchWebsiteTest extends TestCase
 
         $this->get(route('website.public', ['church' => $church->slug]))
             ->assertOk()
-            ->assertSee('crepa-title', false)
-            ->assertSee('Be part of our', false)
             ->assertSee('Grace for the road')
             ->assertSee('Harbour Light Study Guide');
 
@@ -307,4 +330,5 @@ final class ChurchWebsiteTest extends TestCase
             ->assertOk()
             ->assertSee('Grace for the road');
     }
+
 }

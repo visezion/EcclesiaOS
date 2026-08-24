@@ -22,6 +22,7 @@ import {
     BookOpen,
     BookOpenCheck,
     Bookmark,
+    BookmarkCheck,
     BookmarkPlus,
     BookPlus,
     BriefcaseMedical,
@@ -29,6 +30,7 @@ import {
     Building2,
     Braces,
     Calendar,
+    Camera,
     CalendarCheck,
     CalendarClock,
     CalendarDays,
@@ -78,6 +80,8 @@ import {
     EyeOff,
     FileDown,
     FileChartColumn,
+    FilePenLine,
+    FilePlus2,
     FileSearch,
     FileText,
     FileUp,
@@ -87,6 +91,7 @@ import {
     Filter,
     FolderPlus,
     Gauge,
+    Gift,
     GitBranch,
     GraduationCap,
     Globe2,
@@ -103,6 +108,7 @@ import {
     HeartPulse,
     Highlighter,
     History,
+    House,
     Hourglass,
     Home,
     Image,
@@ -114,10 +120,12 @@ import {
     LayoutDashboard,
     LayoutGrid,
     LayoutList,
+    LayoutTemplate,
     Layers2,
     Layers3,
     Leaf,
     Library,
+    LibraryBig,
     LifeBuoy,
     Lightbulb,
     Link,
@@ -131,6 +139,7 @@ import {
     LogIn,
     LogOut,
     LockKeyhole,
+    LocateFixed,
     Mail,
     MailPlus,
     MailX,
@@ -165,6 +174,7 @@ import {
     PackageCheck,
     PackagePlus,
     PanelTop,
+    PanelRightOpen,
     PanelsTopLeft,
     Palette,
     Paperclip,
@@ -220,6 +230,7 @@ import {
     Timer,
     ToggleRight,
     TrendingUp,
+    Unlink,
     TriangleAlert,
     Trash2,
     Trophy,
@@ -245,6 +256,7 @@ import {
     Wallet,
     Webhook,
     Wifi,
+    Video as Youtube,
     Wrench,
     X,
     Zap,
@@ -622,6 +634,7 @@ document.addEventListener('alpine:init', () => {
         manualAttendanceScore: Number(options.attendance_score ?? 90),
         selectedAttendanceSessionIds: (options.selected_attendance_session_ids || []).map(id => String(id)),
         attendanceSources: Array.isArray(options.attendance_sources) ? options.attendance_sources : [],
+        reportFiles: [],
 
         nextStep() {
             this.createStep = Math.min(this.createTotal, this.createStep + 1);
@@ -664,6 +677,193 @@ document.addEventListener('alpine:init', () => {
         clearUnavailableAttendanceSelections() {
             const visibleIds = this.filteredAttendanceSources().map(source => String(source.id));
             this.selectedAttendanceSessionIds = this.selectedAttendanceSessionIds.filter(id => visibleIds.includes(id));
+        },
+
+        handleReportFiles(event) {
+            this.setReportFiles(event.target.files);
+        },
+
+        setReportFiles(fileList) {
+            this.reportFiles.forEach(file => URL.revokeObjectURL(file.url));
+
+            const files = Array.from(fileList || []).slice(0, 8);
+            const transfer = new DataTransfer();
+            files.forEach(file => transfer.items.add(file));
+
+            if (this.$refs.reportFileInput) {
+                this.$refs.reportFileInput.files = transfer.files;
+            }
+
+            this.reportFiles = files.map((file, index) => ({
+                id: `${file.name}-${file.lastModified}-${index}`,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                label: file.type || 'Document',
+                isImage: file.type.startsWith('image/'),
+                url: URL.createObjectURL(file),
+                source: file,
+            }));
+        },
+
+        removeReportFile(index) {
+            const files = this.reportFiles.filter((file, fileIndex) => fileIndex !== index).map(file => file.source);
+            this.setReportFiles(files);
+        },
+
+        openReportFile(file) {
+            window.open(file.url, '_blank', 'noopener,noreferrer');
+        },
+
+        formatReportFileSize(bytes) {
+            if (! bytes) {
+                return '0 KB';
+            }
+
+            const units = ['B', 'KB', 'MB', 'GB'];
+            const unit = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+
+            return `${(bytes / (1024 ** unit)).toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+        },
+    }));
+
+    Alpine.data('leadershipReportAttachments', (options = {}) => ({
+        maxFiles: Number(options.max_files || 8),
+        maxFileSize: 15 * 1024 * 1024,
+        existingFiles: Array.isArray(options.existing_files) ? options.existing_files : [],
+        newFiles: [],
+        activeFile: null,
+        previewOpen: false,
+        fileError: '',
+
+        remainingSlots() {
+            return Math.max(0, this.maxFiles - this.existingFiles.length - this.newFiles.length);
+        },
+
+        addFiles(event) {
+            this.fileError = '';
+
+            const acceptedExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt', 'jpg', 'jpeg', 'png', 'webp'];
+            const selected = [...this.newFiles.map(file => file.source), ...Array.from(event.target.files || [])];
+            const unique = selected.filter((file, index, files) => files.findIndex(candidate => (
+                candidate.name === file.name
+                && candidate.size === file.size
+                && candidate.lastModified === file.lastModified
+            )) === index);
+            const rejected = [];
+            const valid = unique.filter(file => {
+                const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+
+                if (! acceptedExtensions.includes(extension)) {
+                    rejected.push(`${file.name}: unsupported file type`);
+                    return false;
+                }
+
+                if (file.size > this.maxFileSize) {
+                    rejected.push(`${file.name}: larger than 15 MB`);
+                    return false;
+                }
+
+                return true;
+            });
+            const available = Math.max(0, this.maxFiles - this.existingFiles.length);
+            const retained = valid.slice(0, available);
+
+            if (valid.length > available) {
+                rejected.push(`Only ${available} additional file${available === 1 ? '' : 's'} can be attached to this report`);
+            }
+
+            this.replaceNewFiles(retained);
+            this.fileError = rejected.join('. ');
+        },
+
+        replaceNewFiles(files) {
+            this.newFiles.forEach(file => URL.revokeObjectURL(file.url));
+
+            const transfer = new DataTransfer();
+            files.forEach(file => transfer.items.add(file));
+            if (this.$refs.editAttachmentInput) {
+                this.$refs.editAttachmentInput.files = transfer.files;
+            }
+
+            this.newFiles = files.map((file, index) => this.normalizeNewFile(file, index));
+        },
+
+        normalizeNewFile(file, index) {
+            const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+            const type = file.type || this.fallbackMimeType(extension);
+            const isImage = type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(extension);
+            const isPdf = type === 'application/pdf' || extension === 'pdf';
+            const isText = type.startsWith('text/') || ['csv', 'txt'].includes(extension);
+
+            return {
+                id: `new-${file.name}-${file.lastModified}-${index}`,
+                name: file.name,
+                size: file.size,
+                sizeLabel: this.formatFileSize(file.size),
+                type,
+                isImage,
+                isPdf,
+                isText,
+                icon: isImage ? 'image' : (isPdf ? 'file-text' : 'paperclip'),
+                url: URL.createObjectURL(file),
+                source: file,
+                existing: false,
+            };
+        },
+
+        fallbackMimeType(extension) {
+            return {
+                pdf: 'application/pdf',
+                csv: 'text/csv',
+                txt: 'text/plain',
+                jpg: 'image/jpeg',
+                jpeg: 'image/jpeg',
+                png: 'image/png',
+                webp: 'image/webp',
+                doc: 'application/msword',
+                docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                xls: 'application/vnd.ms-excel',
+                xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ppt: 'application/vnd.ms-powerpoint',
+                pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            }[extension] || 'application/octet-stream';
+        },
+
+        removeFile(index) {
+            const retained = this.newFiles
+                .filter((file, fileIndex) => fileIndex !== index)
+                .map(file => file.source);
+            this.replaceNewFiles(retained);
+            this.fileError = '';
+        },
+
+        reviewFile(file) {
+            this.activeFile = file;
+            this.previewOpen = true;
+            document.documentElement.style.overflow = 'hidden';
+        },
+
+        closePreview() {
+            this.previewOpen = false;
+            this.activeFile = null;
+            document.documentElement.style.overflow = '';
+        },
+
+        formatFileSize(bytes) {
+            if (! bytes) {
+                return '0 KB';
+            }
+
+            const units = ['B', 'KB', 'MB', 'GB'];
+            const unit = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+
+            return `${(bytes / (1024 ** unit)).toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+        },
+
+        destroy() {
+            this.newFiles.forEach(file => URL.revokeObjectURL(file.url));
+            document.documentElement.style.overflow = '';
         },
     }));
 
@@ -2448,6 +2648,11 @@ initializeCopilotChatFallback();
 Alpine.start();
 
 const icons = {
+    FilePenLine,
+    FilePlus2,
+    LibraryBig,
+    Unlink,
+    Youtube,
     ArrowDown,
     ArrowLeft,
     ArrowRight,
@@ -2470,6 +2675,7 @@ const icons = {
     BookOpen,
     BookOpenCheck,
     Bookmark,
+    BookmarkCheck,
     BookmarkPlus,
     BookPlus,
     BriefcaseMedical,
@@ -2477,6 +2683,7 @@ const icons = {
     Building2,
     Braces,
     Calendar,
+    Camera,
     CalendarCheck,
     CalendarClock,
     CalendarDays,
@@ -2535,6 +2742,7 @@ const icons = {
     Fingerprint,
     FolderPlus,
     Gauge,
+    Gift,
     GitBranch,
     GraduationCap,
     Globe2,
@@ -2551,6 +2759,7 @@ const icons = {
     HeartPulse,
     Highlighter,
     History,
+    House,
     Hourglass,
     Home,
     Image,
@@ -2562,6 +2771,7 @@ const icons = {
     LayoutDashboard,
     LayoutGrid,
     LayoutList,
+    LayoutTemplate,
     Layers2,
     Layers3,
     Leaf,
@@ -2579,6 +2789,7 @@ const icons = {
     LogIn,
     LogOut,
     LockKeyhole,
+    LocateFixed,
     Mail,
     MailPlus,
     MailX,
@@ -2613,6 +2824,7 @@ const icons = {
     PackageCheck,
     PackagePlus,
     PanelTop,
+    PanelRightOpen,
     PanelsTopLeft,
     Palette,
     Paperclip,

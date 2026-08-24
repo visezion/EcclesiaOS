@@ -16,6 +16,7 @@
         $faviconUrl = $assetUrl($settings['favicon'] ?? null);
         $sectionLinks = [
             ['id' => 'general', 'label' => 'General', 'icon' => 'settings'],
+            ['id' => 'admin-landing-page', 'label' => 'Application Landing Page', 'icon' => 'panel-top'],
             ['id' => 'organization', 'label' => 'Organization Profile', 'icon' => 'building-2'],
             ['id' => 'campus', 'label' => $terminology['campus_plural'].' & Branches', 'icon' => 'network'],
             ['id' => 'users', 'label' => 'Users & Access', 'icon' => 'users'],
@@ -280,12 +281,60 @@
                             </div>
                         </section>
 
+                        <section id="admin-landing-page" class="rounded-lg border border-slate-200 p-4" x-data="{ landingEnabled: @js((bool) old('admin_landing_page_enabled', $settings['admin_landing_page_enabled'] ?? true)) }">
+                            <div class="mb-4 flex items-start justify-between gap-3">
+                                <div>
+                                    <h3 class="flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="panel-top" class="size-4 text-violet-600"></i> Application Landing Page</h3>
+                                    <p class="mt-1 text-xs leading-5 text-slate-500">Control the EcclesiaOS welcome page shown at the application root URL.</p>
+                                </div>
+                                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold" :class="landingEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'">
+                                    <span class="size-1.5 rounded-full" :class="landingEnabled ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                                    <span x-text="landingEnabled ? 'Enabled' : 'Login first'"></span>
+                                </span>
+                            </div>
+                            <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                                <span class="flex min-w-0 items-start gap-3">
+                                    <span class="grid size-10 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700"><i data-lucide="layout-template" class="size-5"></i></span>
+                                    <span>
+                                        <span class="block text-sm font-semibold text-slate-900">Enable the main landing page</span>
+                                        <span class="mt-1 block text-xs font-normal leading-5 text-slate-500" x-text="landingEnabled ? 'Visitors to the root URL see the EcclesiaOS welcome and product page.' : 'Visitors to the root URL are sent directly to the secure sign-in page.'"></span>
+                                    </span>
+                                </span>
+                                <span class="relative inline-flex shrink-0 items-center">
+                                    <input type="hidden" name="admin_landing_page_enabled" value="0">
+                                    <input name="admin_landing_page_enabled" type="checkbox" value="1" x-model="landingEnabled" class="peer sr-only">
+                                    <span class="h-7 w-12 rounded-full bg-slate-300 transition peer-checked:bg-violet-600"></span>
+                                    <span class="absolute left-0.5 size-6 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+                                </span>
+                            </label>
+                            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                                <a href="{{ route('home') }}" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"><i data-lucide="external-link" class="size-4"></i>Open root page</a>
+                                <a href="{{ route('login') }}" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 py-2.5 text-xs font-semibold text-white hover:bg-violet-700"><i data-lucide="log-in" class="size-4"></i>Preview sign in</a>
+                            </div>
+                            <p class="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700"><i data-lucide="info" class="mt-0.5 size-3.5 shrink-0"></i>This setting does not disable member registration, giving, church websites, or other public links.</p>
+                        </section>
+
                         <section id="authentication" class="rounded-lg border border-slate-200 p-4">
                             <div class="mb-4 flex items-center justify-between gap-3">
                                 <h3 class="flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="lock" class="size-4 text-violet-600"></i> Authentication & Security</h3>
                                 <button type="button" @click="edit('#authentication')" class="text-xs font-medium text-violet-600">Edit</button>
                             </div>
                             <div class="space-y-3">
+                                <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                                    <span class="flex min-w-0 items-start gap-3">
+                                        <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700"><i data-lucide="user-plus" class="size-4"></i></span>
+                                        <span>
+                                            <span class="block text-xs font-semibold text-slate-900">Show member registration link on login</span>
+                                            <span class="mt-1 block text-xs font-normal leading-5 text-slate-500">Display “New or returning member? Register or check in” below the sign-in form.</span>
+                                        </span>
+                                    </span>
+                                    <span class="relative inline-flex shrink-0 items-center">
+                                        <input type="hidden" name="login_member_registration_link_enabled" value="0">
+                                        <input name="login_member_registration_link_enabled" type="checkbox" value="1" @checked(old('login_member_registration_link_enabled', $settings['login_member_registration_link_enabled'] ?? true)) class="peer sr-only">
+                                        <span class="h-7 w-12 rounded-full bg-slate-300 transition peer-checked:bg-violet-600"></span>
+                                        <span class="absolute left-0.5 size-6 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+                                    </span>
+                                </label>
                                 <label class="flex items-center justify-between gap-3 text-xs font-medium text-slate-500">Multi-Factor Authentication<input name="mfa_required" type="checkbox" value="1" @checked(old('mfa_required', $settings['mfa_required'])) class="rounded border-slate-300 text-violet-600"></label>
                                 <label class="space-y-1 text-xs font-medium text-slate-500">Password Policy<select name="password_policy" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">@foreach (['Strong (Recommended)', 'Standard', 'Custom'] as $value)<option value="{{ $value }}" @selected(old('password_policy', $settings['password_policy']) === $value)>{{ $value }}</option>@endforeach</select></label>
                                 <label class="space-y-1 text-xs font-medium text-slate-500">Session Timeout<input name="session_timeout" type="number" min="5" max="1440" value="{{ old('session_timeout', $settings['session_timeout']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"></label>

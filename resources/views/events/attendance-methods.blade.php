@@ -13,7 +13,9 @@
             'jitsi' => ['Jitsi Room', 'Join the selected built-in Jitsi room.', 'radio', 'bg-violet-50 text-violet-600 ring-violet-100'],
             'livekit' => ['LiveKit Room', 'Open the selected LiveKit room.', 'radio-tower', 'bg-orange-50 text-orange-600 ring-orange-100'],
         ];
-        $availableMethods = collect($methodMeta)->filter(fn ($meta, $method) => in_array($method, $methods, true) && (! in_array($method, $onlineMethods, true) || in_array($method, $selectedOnlineMethods ?? [], true)));
+        $availableMethods = collect($methodMeta)->filter(fn ($meta, $method) => in_array($method, $methods, true)
+            && (! in_array($method, $onlineMethods, true) || in_array($method, $selectedOnlineMethods ?? [], true))
+            && ($canManageAttendance || ! in_array($method, ['manual', 'kiosk'], true)));
         $physicalCount = $availableMethods->keys()->filter(fn ($method) => ! in_array($method, $onlineMethods, true))->count();
         $onlineCount = $availableMethods->keys()->filter(fn ($method) => in_array($method, $onlineMethods, true))->count();
         $session = $attendanceSession->eventSession;
@@ -53,6 +55,12 @@
         @if($errors->any())
             <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ $errors->first() }}</div>
         @endif
+        @if($attendanceSession->status !== 'open')
+            <div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                <i data-lucide="clock-3" class="mt-0.5 size-5 shrink-0"></i>
+                <div><strong class="block">Self check-in is {{ Str::headline($attendanceSession->status) }}</strong><span class="mt-1 block text-xs">An attendance manager must change the session status to Open before QR, geolocation, or face check-in can be submitted. Manual attendance remains available as an administrative override.</span></div>
+            </div>
+        @endif
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <article class="dashboard-card">
@@ -90,11 +98,24 @@
                     </div>
                     <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
                         @forelse($availableMethods->reject(fn ($meta, $method) => in_array($method, $onlineMethods, true)) as $method => [$label, $description, $icon, $tone])
-                            <form method="POST" action="{{ route('attendance.check-in', $attendanceSession) }}" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                            <form method="POST" action="{{ route('attendance.check-in', $attendanceSession) }}" enctype="multipart/form-data" x-data="{
+                                locating: false,
+                                locationMessage: '',
+                                faceName: '',
+                                locate() {
+                                    if (!navigator.geolocation) { this.locationMessage = 'Geolocation is not supported by this browser.'; return; }
+                                    this.locating = true; this.locationMessage = 'Requesting your current location...';
+                                    navigator.geolocation.getCurrentPosition(
+                                        position => { this.$refs.latitude.value = position.coords.latitude; this.$refs.longitude.value = position.coords.longitude; this.locationMessage = `Location captured with ${Math.round(position.coords.accuracy)} m browser accuracy.`; this.locating = false; },
+                                        error => { this.locationMessage = error.message || 'Location permission was denied.'; this.locating = false; },
+                                        { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+                                    );
+                                }
+                            }" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                                 @csrf
                                 <input type="hidden" name="method" value="{{ $method }}">
                                 <input type="hidden" name="provider" value="{{ $method }}">
-                                @if($member)
+                                @if($member && !$canManageAttendance)
                                     <input type="hidden" name="member_id" value="{{ $member->opaqueId() }}">
                                 @endif
                                 <div class="flex items-start justify-between gap-3">
@@ -103,16 +124,35 @@
                                 </div>
                                 <h3 class="mt-4 text-base font-semibold text-slate-950">{{ $label }}</h3>
                                 <p class="mt-1 min-h-10 text-sm text-slate-500">{{ $description }}</p>
+                                @if($canManageAttendance)
+                                    <label class="mt-3 block text-xs font-semibold text-slate-600">Member
+                                        <select name="member_id" @if(!$attendanceSession->allow_guests) required @endif class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                            <option value="">{{ $attendanceSession->allow_guests ? 'Guest attendance' : 'Select a member' }}</option>
+                                            @foreach($members as $attendanceMember)
+                                                <option value="{{ $attendanceMember->opaqueId() }}" @selected($member?->id === $attendanceMember->id)>{{ $attendanceMember->last_name }}, {{ $attendanceMember->first_name }}{{ $attendanceMember->email ? ' · '.$attendanceMember->email : '' }}</option>
+                                            @endforeach
+                                        </select>
+                                    </label>
+                                @endif
+                                @if($method === 'qr')
+                                    <label class="mt-3 block text-xs font-semibold text-slate-600">Session QR token
+                                        <input name="qr_token" value="{{ request('method') === 'qr' ? request('token') : ($canManageAttendance ? $qrToken : '') }}" required autocomplete="one-time-code" placeholder="Scan the current QR code" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    </label>
+                                @endif
                                 @if($method === 'geolocation')
-                                    <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                                        <input name="latitude" placeholder="Latitude" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                                        <input name="longitude" placeholder="Longitude" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                                    </div>
+                                    <input x-ref="latitude" type="hidden" name="latitude">
+                                    <input x-ref="longitude" type="hidden" name="longitude">
+                                    <button type="button" @click="locate()" :disabled="locating" class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"><i data-lucide="locate-fixed" class="size-4"></i><span x-text="locating ? 'Locating...' : 'Use my current location'"></span></button>
+                                    <p x-show="locationMessage" x-text="locationMessage" class="mt-2 text-xs text-slate-500"></p>
                                 @endif
                                 @if($method === 'face')
-                                    <input name="face_reference" placeholder="Face capture reference" class="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                    <label class="mt-3 block rounded-lg border border-dashed border-orange-200 bg-orange-50/50 p-3 text-xs font-semibold text-orange-800">
+                                        <span class="flex items-center gap-2"><i data-lucide="camera" class="size-4"></i>Capture or upload face evidence</span>
+                                        <input name="face_evidence" type="file" accept="image/jpeg,image/png,image/webp" capture="user" required @change="faceName = $event.target.files[0]?.name || ''" class="mt-2 block w-full text-xs text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-orange-100 file:px-3 file:py-2 file:font-semibold file:text-orange-700">
+                                        <span x-show="faceName" x-text="faceName" class="mt-2 block font-normal text-slate-500"></span>
+                                    </label>
                                 @endif
-                                <button class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white hover:bg-violet-700">
+                                <button @if($method !== 'manual' && $attendanceSession->status !== 'open') disabled @endif class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300">
                                     <i data-lucide="badge-check" class="size-4"></i>
                                     Check In
                                 </button>
@@ -160,6 +200,14 @@
                         <div class="flex justify-between gap-4"><dt class="text-slate-500">Expected</dt><dd class="text-right text-slate-900">{{ number_format((int) $attendanceSession->expected_attendance) }}</dd></div>
                     </dl>
                 </section>
+                @if($canManageAttendance && in_array('qr', $methods, true))
+                    <section class="dashboard-card">
+                        <div class="flex items-center justify-between"><h2 class="text-base font-semibold text-slate-950">Session QR Code</h2><i data-lucide="qr-code" class="size-5 text-violet-600"></i></div>
+                        <div class="mx-auto mt-4 max-w-[210px] overflow-hidden rounded-lg bg-white p-2 ring-1 ring-slate-200">{!! $qrSvg !!}</div>
+                        <p class="mt-3 text-xs leading-5 text-slate-500">Display this code at the venue. It opens this exact session and supplies the signed attendance token.</p>
+                        <input value="{{ $qrCheckInUrl }}" readonly class="mt-3 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    </section>
+                @endif
                 <section class="dashboard-card">
                     <h2 class="text-base font-semibold text-slate-950">Verification Rule</h2>
                     <p class="mt-3 text-sm text-slate-500">Every attempt is stored as evidence, but one final attendance record is kept per person for reports and analytics.</p>

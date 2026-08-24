@@ -8,6 +8,7 @@ use App\Models\Concerns\UsesOpaqueRouteKeys;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 final class Church extends Model
@@ -41,5 +42,15 @@ final class Church extends Model
     public function sermons(): HasMany
     {
         return $this->hasMany(Sermon::class);
+    }
+
+    public function youtubeConnection(): HasOne
+    {
+        return $this->hasOne(YouTubeConnection::class);
+    }
+
+    public function youtubeAppCredential(): HasOne
+    {
+        return $this->hasOne(YouTubeAppCredential::class);
     }
 }

@@ -47,7 +47,7 @@ final class Branding
 
     public function subtitle(): string
     {
-        return (string) (data_get($this->settings, 'subtitle') ?: config('church.subtitle', 'Enterprise Church Management System'));
+        return (string) (data_get($this->settings, 'subtitle') ?: config('church.subtitle', 'Church Management System'));
     }
 
     public function interfaceZoom(): int

@@ -199,12 +199,14 @@
                             </button>
                         </form>
 
-                        <div class="mt-5 rounded-2xl border border-violet-100 bg-violet-50/70 px-4 py-3 text-center text-sm text-slate-600">
-                            New or returning member?
-                            <a href="{{ route('members.self-register') }}" class="font-bold text-violet-700 hover:text-violet-800">
-                                Register or check in
-                            </a>
-                        </div>
+                        @if ((bool) data_get($settings, 'login_member_registration_link_enabled', true))
+                            <div class="mt-5 rounded-2xl border border-violet-100 bg-violet-50/70 px-4 py-3 text-center text-sm text-slate-600">
+                                New or returning member?
+                                <a href="{{ route('members.self-register') }}" class="font-bold text-violet-700 hover:text-violet-800">
+                                    Register or check in
+                                </a>
+                            </div>
+                        @endif
 
                         @if ($microsoftProvider || $secondaryProviders->isNotEmpty())
                             <div class="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">

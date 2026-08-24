@@ -32,6 +32,30 @@ class AuthenticationTest extends TestCase
             ->assertSee(route('login'), false);
     }
 
+    public function test_disabled_application_landing_page_redirects_guests_to_login(): void
+    {
+        Church::factory()->create([
+            'settings' => ['admin_landing_page_enabled' => false],
+        ]);
+
+        $this->get(route('home'))->assertRedirect(route('login'));
+    }
+
+    public function test_member_registration_prompt_can_be_hidden_from_the_login_page(): void
+    {
+        $church = Church::factory()->create([
+            'settings' => ['login_member_registration_link_enabled' => false],
+        ]);
+        User::factory()->create(['church_id' => $church->id]);
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertDontSee('New or returning member?')
+            ->assertDontSee('Register or check in');
+
+        $this->get(route('members.self-register'))->assertOk();
+    }
+
     public function test_public_features_page_is_available_to_guests(): void
     {
         $this->seed();

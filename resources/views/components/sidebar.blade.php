@@ -110,7 +110,7 @@
             </div>
         </div>
         @foreach ($sections as $sectionLabel => $sectionItems)
-            <div class="px-3 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 first:pt-1">{{ $sectionLabel }}</div>
+            <div class="px-3 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 first:pt-1">{{ $term($sectionLabel) }}</div>
             @foreach ($sectionItems as $item)
             @php
                 $children = collect($item['children'] ?? [])->filter($canAccessNavigationItem);
@@ -130,7 +130,7 @@
                         @else
                             <i data-lucide="{{ $item['icon'] }}" class="size-4 shrink-0"></i>
                         @endif
-                        <span class="min-w-0 flex-1 truncate">{{ $item['label'] }}</span>
+                        <span class="min-w-0 flex-1 truncate">{{ $term($item['label']) }}</span>
                         @isset($item['badge'])
                             <span class="rounded-full bg-violet-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ $item['badge'] }}</span>
                         @endisset
@@ -151,7 +151,7 @@
                                 @else
                                     <i data-lucide="{{ $child['icon'] }}" class="size-3.5"></i>
                                 @endif
-                                <span class="min-w-0 flex-1 truncate">{{ $child['label'] }}</span>
+                                <span class="min-w-0 flex-1 truncate">{{ $term($child['label']) }}</span>
                                 @if ($childBadge !== null && $childBadge > 0)
                                     <span class="rounded-full bg-violet-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white" title="{{ number_format($childBadge) }} unread">{{ $childBadge > 99 ? '99+' : $childBadge }}</span>
                                 @endif
@@ -169,7 +169,7 @@
                         @else
                             <i data-lucide="{{ $item['icon'] }}" class="size-4 shrink-0"></i>
                         @endif
-                        <span class="min-w-0 flex-1 truncate">{{ $item['label'] }}</span>
+                        <span class="min-w-0 flex-1 truncate">{{ $term($item['label']) }}</span>
                         @isset($item['badge'])
                             <span class="rounded-full bg-violet-500 px-2 py-0.5 text-[11px] font-semibold text-white">{{ $item['badge'] }}</span>
                         @endisset
@@ -192,8 +192,8 @@
             @endif
             <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-medium">{{ auth()->user()?->name }}</div>
-                <div class="truncate text-xs text-slate-300">{{ auth()->user()?->title ?? 'Team Member' }}</div>
-                <div class="mt-1 flex items-center gap-1 text-xs text-emerald-300"><span class="size-2 rounded-full bg-emerald-400"></span> Online</div>
+                <div class="truncate text-xs text-slate-300">{{ auth()->user()?->title ?? $term('Team Member') }}</div>
+                <div class="mt-1 flex items-center gap-1 text-xs text-emerald-300"><span class="size-2 rounded-full bg-emerald-400"></span> {{ $term('Online') }}</div>
             </div>
             <i data-lucide="chevron-up" class="size-4 text-slate-300"></i>
         </div>

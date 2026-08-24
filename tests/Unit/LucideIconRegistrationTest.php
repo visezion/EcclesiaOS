@@ -33,7 +33,10 @@ final class LucideIconRegistrationTest extends TestCase
                 continue;
             }
 
-            preg_match_all('/data-lucide\s*=\s*["\'](?<name>[^"\']+)["\']/', $contents, $usedMatches);
+            // Alpine-bound icons use x-bind:data-lucide and are resolved at
+            // runtime; only literal data-lucide attributes belong in this
+            // static registration check.
+            preg_match_all('/(?<![:\\w-])data-lucide\s*=\s*["\'](?<name>[^"\']+)["\']/', $contents, $usedMatches);
             foreach ($usedMatches['name'] as $icon) {
                 if (str_contains($icon, '{{')) {
                     continue;

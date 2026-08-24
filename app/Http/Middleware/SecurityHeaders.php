@@ -20,7 +20,7 @@ final class SecurityHeaders
         $response->headers->set('X-Permitted-Cross-Domain-Policies', 'none');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin');
-        $response->headers->set('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()');
+        $response->headers->set('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(self)');
         $scriptSources = ["'self'", "'unsafe-inline'", "'unsafe-eval'"];
 
         if (filter_var(config('services.cloudflare_insights.enabled', false), FILTER_VALIDATE_BOOL)) {
@@ -43,6 +43,7 @@ final class SecurityHeaders
                 "frame-ancestors 'self'",
                 'form-action '.implode(' ', $formSources),
                 "img-src 'self' data: blob: https:",
+                "frame-src 'self' blob: https://www.youtube-nocookie.com https://www.youtube.com",
                 "style-src 'self' 'unsafe-inline' https://fonts.bunny.net",
                 'script-src '.implode(' ', $scriptSources),
                 "connect-src 'self' https: wss:",

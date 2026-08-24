@@ -9,9 +9,11 @@ use App\Models\AttendanceRecord;
 use App\Models\Campus;
 use App\Models\Church;
 use App\Models\Member;
+use App\Models\Ministry;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\Volunteer;
 use App\Services\Communications\DomainNotificationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -52,8 +54,13 @@ final class PublicMemberRegistrationController extends Controller
         return view('members.self-register', [
             'church' => $church,
             'campuses' => $this->campuses($church),
-            'interests' => self::INTERESTS,
-            'howHeardOptions' => self::HOW_HEARD,
+            'ministries' => $this->ministries($church),
+            'interests' => collect(self::INTERESTS)
+                ->mapWithKeys(fn (string $label, string $value): array => [$value => __('registration.interests.'.$value)])
+                ->all(),
+            'howHeardOptions' => collect(self::HOW_HEARD)
+                ->mapWithKeys(fn (string $label, string $value): array => [$value => __('registration.how_heard.'.$value)])
+                ->all(),
         ]);
     }
 
@@ -80,6 +87,15 @@ final class PublicMemberRegistrationController extends Controller
                 'nullable',
                 Rule::exists('campuses', 'id')->where(fn ($query) => $query
                     ->where('church_id', $church->id)
+                    ->where('status', 'active')
+                    ->whereNull('deleted_at')),
+            ],
+            'ministry_id' => [
+                'nullable',
+                'prohibited_unless:registration_type,returning',
+                Rule::exists('ministries', 'id')->where(fn ($query) => $query
+                    ->where('church_id', $church->id)
+                    ->where('status', 'active')
                     ->whereNull('deleted_at')),
             ],
             'address_line' => ['nullable', 'string', 'max:160'],
@@ -104,28 +120,39 @@ final class PublicMemberRegistrationController extends Controller
             'privacy_consent' => ['required', 'accepted'],
             'website' => ['prohibited'],
         ], [
-            'email.required_without' => 'Enter an email address or phone number.',
-            'email.required' => 'An email address is required to create your member login.',
-            'email.unique' => 'An account already uses this email. Please sign in or reset your password.',
-            'phone.required_without' => 'Enter a phone number or email address.',
-            'password.required_if' => 'Create a password for your member login.',
-            'privacy_consent.accepted' => 'Please confirm that the church may securely use this information for membership and pastoral care.',
+            'email.required_without' => __('registration.validation.contact_email'),
+            'email.required' => __('registration.validation.account_email'),
+            'email.unique' => __('registration.validation.email_unique'),
+            'phone.required_without' => __('registration.validation.contact_phone'),
+            'password.required_if' => __('registration.validation.password'),
+            'ministry_id.prohibited_unless' => __('registration.validation.ministry_returning'),
+            'privacy_consent.accepted' => __('registration.validation.privacy'),
         ]);
 
         $campus = Campus::query()->where('church_id', $church->id)->find($validated['campus_id'] ?? null)
             ?? $this->campuses($church)->first();
+        $ministry = filled($validated['ministry_id'] ?? null)
+            ? Ministry::query()->where('church_id', $church->id)->where('status', 'active')->find($validated['ministry_id'])
+            : null;
+
+        if ($ministry && (empty($validated['campus_id']) || (int) $ministry->campus_id !== (int) $validated['campus_id'])) {
+            return back()
+                ->withErrors(['ministry_id' => __('registration.validation.ministry_campus')])
+                ->withInput();
+        }
+
         $contactMember = $this->findMemberByContact($church, $validated);
         $existingMember = $contactMember && $this->namesMatch($contactMember, $validated) ? $contactMember : null;
 
         if ($contactMember && ! $existingMember) {
             return back()
-                ->withErrors(['identity' => 'We could not safely match those details. Please check your name and contact information or ask the welcome team for help.'])
+                ->withErrors(['identity' => __('registration.validation.identity')])
                 ->withInput();
         }
 
         if ($validated['registration_type'] === 'returning' && ! $existingMember) {
             return back()
-                ->withErrors(['identity' => 'We could not safely match those details. Please check your name and contact information, or choose “I’m new here”.'])
+                ->withErrors(['identity' => __('registration.validation.identity_returning')])
                 ->withInput();
         }
 
@@ -135,7 +162,7 @@ final class PublicMemberRegistrationController extends Controller
         $registeredMember = null;
         $registeredUser = null;
 
-        DB::transaction(function () use ($request, $church, $campus, $validated, $existingMember, $reference, $isReturning, &$accountCreated, &$registeredMember, &$registeredUser): void {
+        DB::transaction(function () use ($request, $church, $campus, $ministry, $validated, $existingMember, $reference, $isReturning, &$accountCreated, &$registeredMember, &$registeredUser): void {
             $member = $existingMember ?? Member::query()->create([
                 'church_id' => $church->id,
                 'campus_id' => $campus?->id,
@@ -147,7 +174,27 @@ final class PublicMemberRegistrationController extends Controller
                 'joined_at' => today(),
             ]);
 
+            if ($isReturning && ! empty($validated['campus_id']) && (int) $member->campus_id !== (int) $campus?->id) {
+                $member->forceFill(['campus_id' => $campus?->id])->save();
+            }
+
             $this->syncProfile($member, $validated, $isReturning);
+
+            if ($isReturning && $ministry) {
+                Volunteer::query()->updateOrCreate(
+                    [
+                        'church_id' => $church->id,
+                        'member_id' => $member->id,
+                        'ministry_id' => $ministry->id,
+                    ],
+                    [
+                        'campus_id' => $ministry->campus_id,
+                        'role' => 'Team Member',
+                        'status' => 'active',
+                        'availability' => ['sunday' => true],
+                    ],
+                );
+            }
 
             if ($request->boolean('create_account')) {
                 $user = User::query()->create([
@@ -163,6 +210,9 @@ final class PublicMemberRegistrationController extends Controller
                     'status' => 'active',
                     'password_changed_at' => now(),
                     'account_settings' => [
+                        'preferences' => [
+                            'language' => app()->getLocale(),
+                        ],
                         'member_portal' => [
                             'created_via' => 'self_registration',
                             'created_at' => now()->toIso8601String(),
@@ -212,6 +262,9 @@ final class PublicMemberRegistrationController extends Controller
                     'selected_path' => $validated['registration_type'],
                     'interests' => $validated['interests'] ?? [],
                     'how_heard' => $validated['how_heard'] ?? null,
+                    'selected_campus_id' => $campus?->id,
+                    'selected_ministry_id' => $ministry?->id,
+                    'selected_ministry_name' => $ministry?->name,
                     'follow_up_requested' => filled($validated['support_note'] ?? null),
                     'checked_in_today' => $request->boolean('check_in_today'),
                     'member_login_created' => $accountCreated,
@@ -264,6 +317,8 @@ final class PublicMemberRegistrationController extends Controller
             'checked_in' => $request->boolean('check_in_today'),
             'account_created' => $accountCreated,
             'email' => $accountCreated ? Str::lower(trim($validated['email'])) : null,
+            'campus_name' => $campus?->name,
+            'ministry_name' => $ministry?->name,
         ]);
     }
 
@@ -275,6 +330,19 @@ final class PublicMemberRegistrationController extends Controller
         return Campus::query()
             ->where('church_id', $church->id)
             ->where('status', 'active')
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * @return Collection<int, Ministry>
+     */
+    private function ministries(Church $church): Collection
+    {
+        return Ministry::query()
+            ->where('church_id', $church->id)
+            ->where('status', 'active')
+            ->whereHas('campus', fn ($query) => $query->where('status', 'active'))
             ->orderBy('name')
             ->get();
     }

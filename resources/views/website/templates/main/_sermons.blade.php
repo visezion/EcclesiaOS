@@ -5,19 +5,20 @@
 <section class="content-sermons-widget">
     <div class="content-sermon-list">
         @forelse ($sermonItems as $sermon)
-            @php($sermonUrl = $sermon->video_url ?: ($sermon->audio_url ?: '#'))
+            @php
+                $videoUrl = (string) ($sermon->video_url ?? '');
+                $youtubeId = $sermon->youtube_video_id;
+                if (!$youtubeId && preg_match('/(?:youtu\\.be\\/|youtube\\.com\\/(?:watch\\?v=|live\\/|embed\\/))([^?&\\/]+)/i', $videoUrl, $matches)) $youtubeId = $matches[1];
+                $thumbnailUrl = $assetUrl($sermon->thumbnail_url ?? null) ?: ($youtubeId ? 'https://img.youtube.com/vi/'.$youtubeId.'/hqdefault.jpg' : null);
+                $detailUrl = route('website.public.sermons.show', ['church' => $church->slug, 'sermon' => $sermon]);
+            @endphp
             <article class="content-sermon-card">
-                @if ($sermonUrl !== '#')<a class="content-sermon-card-link" href="{{ $sermonUrl }}" target="_blank" rel="noreferrer">@endif
-                    @if (!empty($sermon->thumbnail_url))
-                        <img class="content-sermon-thumbnail" src="{{ $assetUrl($sermon->thumbnail_url) }}" alt="{{ $sermon->title }}" loading="lazy">
-                    @else
-                        <div class="content-sermon-thumbnail content-sermon-thumbnail-empty" aria-hidden="true">▶</div>
-                    @endif
-                    <div class="content-sermon-details">
-                        <h3>{{ $sermon->title }}</h3>
-                        <p class="content-sermon-meta">{{ $sermon->speaker ?: 'Teaching team' }}</p>
-                    </div>
-                @if ($sermonUrl !== '#')</a>@endif
+                @if ($thumbnailUrl)
+                    <a class="content-sermon-player content-sermon-player-link" href="{{ $detailUrl }}" aria-label="Open sermon"><img src="{{ $thumbnailUrl }}" alt="{{ $sermon->title }}" loading="lazy"></a>
+                @else
+                    <a class="content-sermon-player content-sermon-player-link content-sermon-thumbnail-empty" href="{{ $detailUrl }}" aria-label="Open sermon"><span>View sermon</span></a>
+                @endif
+                <div class="content-sermon-details"><h3>{{ $sermon->title }}</h3><p class="content-sermon-meta">{{ $sermon->speaker ?: 'Teaching team' }} @if ($sermon->youtube_live_status && $sermon->youtube_live_status !== 'none') · {{ ucfirst($sermon->youtube_live_status) }} @endif</p></div>
             </article>
         @empty
             <p class="widget-empty">No published sermons are available yet.</p>

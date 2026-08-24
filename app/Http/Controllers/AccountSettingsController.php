@@ -41,7 +41,7 @@ final class AccountSettingsController extends Controller
         $validated = $request->validate([
             'section' => ['required', Rule::in(['preferences', 'notifications', 'security'])],
             'timezone' => ['nullable', 'string', 'max:100'],
-            'language' => ['nullable', Rule::in(['en', 'es', 'fr', 'pt'])],
+            'language' => ['nullable', Rule::in(['en', 'fr', 'es'])],
             'date_format' => ['nullable', Rule::in(['M d, Y', 'Y-m-d', 'd M Y', 'm/d/Y'])],
             'theme_mode' => ['nullable', Rule::in(['light', 'dark', 'system'])],
             'default_landing_page' => ['nullable', Rule::in(['dashboard', 'members.index', 'programs.index', 'calendar.index', 'profile.edit'])],
@@ -120,6 +120,12 @@ final class AccountSettingsController extends Controller
 
         $user->account_settings = $current;
         $user->save();
+
+        if ($section === 'preferences') {
+            $request->session()->put('locale', $current['preferences']['language']);
+            app()->setLocale($current['preferences']['language']);
+            $this->syncNotificationPreference($user, $current['notifications']);
+        }
 
         $activityLogger->log('Account Settings', 'account_'.$section.'_updated', Str::headline($section).' settings were updated.', $user, ['resource' => 'Account Settings', 'risk' => $section === 'security' ? 'medium' : 'low', 'status' => 'success'], $request);
 

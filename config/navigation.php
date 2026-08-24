@@ -146,6 +146,7 @@ return [
             ['label' => 'System Settings', 'route' => 'settings.index', 'icon' => 'settings', 'permission' => 'manage settings'],
             ['label' => 'AI Copilot', 'route' => 'ai-copilot.settings', 'icon' => 'bot', 'permission' => 'manage settings'],
             ['label' => 'Meeting Integrations', 'route' => 'meeting-integrations.index', 'icon' => 'radio-tower', 'permission' => 'manage settings'],
+            ['label' => 'YouTube Integration', 'route' => 'youtube-integration.index', 'icon' => 'youtube', 'permission' => 'manage settings'],
             ['label' => 'Communication Integrations', 'route' => 'communications.integrations', 'icon' => 'webhook', 'permission' => 'manage settings'],
             [
                 'label' => 'Payment Gateways',

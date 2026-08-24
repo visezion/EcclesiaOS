@@ -18,6 +18,9 @@ final class Sermon extends Model
         'church_id',
         'title',
         'slug',
+        'youtube_video_id',
+        'youtube_live_status',
+        'youtube_published_at',
         'speaker',
         'scripture',
         'summary',
@@ -30,7 +33,7 @@ final class Sermon extends Model
 
     protected function casts(): array
     {
-        return ['preached_at' => 'date'];
+        return ['preached_at' => 'date', 'youtube_published_at' => 'datetime'];
     }
 
     public function church(): BelongsTo

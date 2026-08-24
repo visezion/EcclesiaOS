@@ -5,6 +5,8 @@ use App\Http\Middleware\EnsureRemoteSupportSessionValid;
 use App\Http\Middleware\EnsureUserHasPermission;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\TranslateRenderedView;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -20,7 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // This allows Laravel to correctly detect the original HTTPS request.
         $middleware->trustProxies(env('TRUSTED_PROXIES'));
         $middleware->append(SecurityHeaders::class);
-        $middleware->web(append: [EnsureRemoteSupportSessionValid::class]);
+        $middleware->web(append: [SetLocale::class, TranslateRenderedView::class, EnsureRemoteSupportSessionValid::class]);
         $middleware->validateCsrfTokens(except: ['webhooks/stripe', 'webhooks/payments/*']);
 
         $middleware->alias([

@@ -6,7 +6,7 @@
 
 <footer {{ $attributes->merge(['class' => 'mt-8 border-t border-slate-200/80 py-5']) }}>
     <div class="mx-auto flex max-w-7xl flex-col gap-2 text-center text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:text-left">
-        <span class="font-semibold text-slate-600">&copy; {{ now()->year }} {{ $productName }} &middot; v{{ $version }}. All rights reserved.</span>
-        <span>{{ $vision }}</span>
+        <span class="font-semibold text-slate-600">&copy; {{ now()->year }} {{ $productName }} &middot; v{{ $version }}. {{ $term('All rights reserved.') }}</span>
+        <span>{{ $term($vision) }}</span>
     </div>
 </footer>

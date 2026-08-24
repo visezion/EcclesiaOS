@@ -41,6 +41,7 @@ final class ChurchWebsiteController extends Controller
             'templates' => $this->templates(),
             'sectionTypes' => $this->sectionTypes(),
             'publicUrl' => route('website.public', ['church' => $church->slug]),
+            'previewUrl' => route('website-studio.preview', $homepage),
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
                 ['label' => 'Website Studio', 'url' => null],
@@ -54,7 +55,7 @@ final class ChurchWebsiteController extends Controller
         $church = $this->studioChurch($request);
         $validated = $request->validate([
             'enabled' => ['nullable', 'boolean'],
-            'template' => ['required', 'in:main'],
+            'template' => ['required', Rule::in(array_keys($this->templates()))],
             'site_name' => ['required', 'string', 'max:120'],
             'tagline' => ['nullable', 'string', 'max:180'],
             'logo_url' => ['nullable', 'string', 'max:500'],
@@ -76,6 +77,25 @@ final class ChurchWebsiteController extends Controller
             'welcome_body' => ['required', 'string', 'max:2000'],
             'experience_heading' => ['nullable', 'string', 'max:180'],
             'experience_body' => ['nullable', 'string', 'max:1000'],
+            'sermon_next_step_enabled' => ['nullable', 'boolean'],
+            'sermon_next_step_kicker' => ['nullable', 'string', 'max:80'],
+            'sermon_next_step_heading' => ['nullable', 'string', 'max:180'],
+            'sermon_next_step_body' => ['nullable', 'string', 'max:1000'],
+            'sermon_next_step_one_icon' => ['nullable', 'string', 'max:10'],
+            'sermon_next_step_one_title' => ['nullable', 'string', 'max:100'],
+            'sermon_next_step_one_body' => ['nullable', 'string', 'max:300'],
+            'sermon_next_step_one_link_label' => ['nullable', 'string', 'max:80'],
+            'sermon_next_step_one_link' => ['nullable', 'string', 'max:300'],
+            'sermon_next_step_two_icon' => ['nullable', 'string', 'max:10'],
+            'sermon_next_step_two_title' => ['nullable', 'string', 'max:100'],
+            'sermon_next_step_two_body' => ['nullable', 'string', 'max:300'],
+            'sermon_next_step_two_link_label' => ['nullable', 'string', 'max:80'],
+            'sermon_next_step_two_link' => ['nullable', 'string', 'max:300'],
+            'sermon_next_step_three_icon' => ['nullable', 'string', 'max:10'],
+            'sermon_next_step_three_title' => ['nullable', 'string', 'max:100'],
+            'sermon_next_step_three_body' => ['nullable', 'string', 'max:300'],
+            'sermon_next_step_three_link_label' => ['nullable', 'string', 'max:80'],
+            'sermon_next_step_three_link' => ['nullable', 'string', 'max:300'],
             'service_kicker' => ['nullable', 'string', 'max:80'],
             'service_heading' => ['nullable', 'string', 'max:180'],
             'service_body' => ['nullable', 'string', 'max:1000'],
@@ -129,6 +149,7 @@ final class ChurchWebsiteController extends Controller
         $settings = array_merge($this->websiteSettings($church), $validated, [
             'enabled' => $request->boolean('enabled'),
         ]);
+        unset($settings['landing_page_enabled']);
 
         foreach (['logo_file' => 'logo_url', 'hero_image_file' => 'hero_image_url', 'hero_video_file' => 'hero_video_url'] as $fileKey => $settingKey) {
             if ($request->hasFile($fileKey)) {
@@ -387,18 +408,38 @@ final class ChurchWebsiteController extends Controller
         return $this->renderWebsite($church, $websitePage);
     }
 
+    public function showSermon(Church $church, Sermon $sermon): View
+    {
+        $settings = $this->websiteSettings($church);
+        abort_unless((bool) ($settings['enabled'] ?? true), 404);
+        abort_unless($sermon->church_id === $church->id && $sermon->status === 'published', 404);
+
+        return view('website.templates.main.sermon', [
+            'church' => $church,
+            'settings' => $settings,
+            'sermon' => $sermon,
+            'relatedSermons' => Sermon::query()
+                ->where('church_id', $church->id)
+                ->where('status', 'published')
+                ->whereKeyNot($sermon->getKey())
+                ->latest('preached_at')
+                ->latest('id')
+                ->limit(6)
+                ->get(),
+            'navigation' => $this->websiteNavigation($church),
+        ]);
+    }
+
     private function renderWebsite(Church $church, WebsitePage $page, bool $preview = false): View
     {
         $settings = array_merge(
             $this->websiteSettings($church),
             collect($page->design ?? [])->filter(fn ($value): bool => filled($value))->all(),
         );
-        $settings['template'] = 'main';
-
         $template = $settings['template'] ?? 'main';
         $templateView = view()->exists('website.templates.'.$template.'.index')
             ? 'website.templates.'.$template.'.index'
-            : 'website.public';
+            : 'website.templates.main.index';
         $availableCustomSections = collect($settings['custom_sections'] ?? [])->filter(fn (array $section): bool => in_array($page->slug, $section['page_slugs'] ?? ['home'], true));
         $pageSectionOrder = collect($page->sections ?? [])
             ->map(fn ($section) => is_array($section) ? ($section['type'] ?? null) : $section)
@@ -489,6 +530,25 @@ final class ChurchWebsiteController extends Controller
             'welcome_body' => 'We are a growing family of people learning to follow Jesus with courage, compassion, and joy. There is a place for you here.',
             'experience_heading' => 'Find the right experience for you.',
             'experience_body' => 'No matter where you are, online or in person, become part of all God is doing.',
+            'sermon_next_step_enabled' => true,
+            'sermon_next_step_kicker' => 'Your next step',
+            'sermon_next_step_heading' => 'Take your next step of faith',
+            'sermon_next_step_body' => 'Everyone’s at a different point in their faith journey. Wherever you are, we’re here to help you take the next step.',
+            'sermon_next_step_one_icon' => '♡',
+            'sermon_next_step_one_title' => 'Make a decision for Christ',
+            'sermon_next_step_one_body' => 'If you haven’t yet accepted Jesus as your Savior, we want to help you discover the new life He has to offer.',
+            'sermon_next_step_one_link_label' => 'Learn more',
+            'sermon_next_step_one_link' => '#contact',
+            'sermon_next_step_two_icon' => '≋',
+            'sermon_next_step_two_title' => 'Go public with your faith',
+            'sermon_next_step_two_body' => 'Baptism is a public declaration of your decision to follow Christ. Discover why baptism is an important step of faith.',
+            'sermon_next_step_two_link_label' => 'Learn more',
+            'sermon_next_step_two_link' => '#contact',
+            'sermon_next_step_three_icon' => '♧',
+            'sermon_next_step_three_title' => 'Find your people',
+            'sermon_next_step_three_body' => 'We don’t want you to attend church alone. Connect with others at a physical campus, Pop-Up, Watch Party, or online.',
+            'sermon_next_step_three_link_label' => 'Learn more',
+            'sermon_next_step_three_link' => '#contact',
             'service_kicker' => 'Gather with us',
             'service_heading' => 'There is a place for you this Sunday.',
             'service_body' => 'Come early for coffee, stay after for conversation, and worship with a community that wants to know your name.',
@@ -541,9 +601,9 @@ final class ChurchWebsiteController extends Controller
             'media_library' => [],
         ], data_get($church->settings, 'website', []));
 
-        if (($settings['template'] ?? null) !== 'main') {
-            $settings['template'] = 'main';
-        }
+        // Only the main public template is production-ready. Normalize legacy
+        // experimental template values so older churches keep rendering safely.
+        $settings['template'] = 'main';
 
         return $settings;
     }
@@ -687,7 +747,7 @@ final class ChurchWebsiteController extends Controller
                         'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
                         'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : ($type === 'video-slider' ? $this->normalizeVideoSlides($component['slides'] ?? []) : []),
                         'autoplay' => in_array($type, ['carousel', 'video-slider'], true) ? ($component['autoplay'] ?? true) !== false : false,
-                        'video_slider_height' => $type === 'video-slider' && in_array((int) ($component['video_slider_height'] ?? 420), [300, 420, 560, 700], true) ? (int) $component['video_slider_height'] : 0,
+                        'video_slider_height' => $type === 'video-slider' && in_array((int) ($component['video_slider_height'] ?? 420), [300, 420, 560, 700], true) ? (int) ($component['video_slider_height'] ?? 420) : 0,
                         'height' => $type === 'spacer' ? max(0, min(600, (int) ($component['height'] ?? 36))) : 0,
                         'title' => in_array($type, ['card', 'icon', 'gallery'], true) ? Str::limit((string) ($component['title'] ?? ''), 180, '') : '',
                         'body' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['body'] ?? ''), 1000, '') : '',
@@ -984,7 +1044,7 @@ final class ChurchWebsiteController extends Controller
             'section_order.*' => ['string', Rule::in($sectionOrderOptions)],
             'custom_section_ids' => ['nullable', 'array'],
             'custom_section_ids.*' => ['string', 'max:80', Rule::in($customSectionIds)],
-            'page_template' => ['nullable', 'in:inherit,main'],
+            'page_template' => ['nullable', Rule::in(array_merge(['inherit'], array_keys($this->templates())))],
             'page_primary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'page_accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'page_hero_eyebrow' => ['nullable', 'string', 'max:100'],
@@ -1015,6 +1075,9 @@ final class ChurchWebsiteController extends Controller
 
         $page = $request->route('page') instanceof WebsitePage ? $request->route('page') : null;
         $design = $page?->design ?? [];
+        if (($design['template'] ?? null) !== null && ! array_key_exists((string) $design['template'], $this->templates())) {
+            unset($design['template']);
+        }
         $designFields = [
             'page_template' => 'template',
             'page_primary_color' => 'primary_color',

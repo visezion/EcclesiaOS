@@ -30,6 +30,7 @@ use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\FinancialAssistanceController;
 use App\Http\Controllers\InstallerController;
 use App\Http\Controllers\LeadershipReportController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MemberImportConnectionController;
 use App\Http\Controllers\MemberImportController;
 use App\Http\Controllers\MemberManagementController;
@@ -58,6 +59,7 @@ use App\Http\Controllers\TopbarCountsController;
 use App\Http\Controllers\UserDirectoryController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\WorkflowController;
+use App\Support\Branding;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 
@@ -72,8 +74,15 @@ Route::get('m/{code}/{provider}/state', [EventFlowController::class, 'publicStud
 Route::post('m/{code}/{provider}/qna', [EventFlowController::class, 'storePublicQuestion'])->where('code', '[A-Za-z0-9-]+')->middleware(['module.enabled', 'throttle:20,1'])->name('meetings.rooms.short.qna.store');
 Route::post('m/{code}/{provider}/polls/{poll}/vote', [EventFlowController::class, 'storePublicPollVote'])->where('code', '[A-Za-z0-9-]+')->middleware(['module.enabled', 'throttle:60,1'])->name('meetings.rooms.short.polls.vote');
 
-Route::get('/', fn () => view('landing'))->name('home');
+Route::get('/', function () {
+    $landingPageEnabled = (bool) data_get(Branding::current()->settings, 'admin_landing_page_enabled', true);
+
+    return $landingPageEnabled
+        ? view('landing')
+        : redirect()->route('login');
+})->name('home');
 Route::view('features', 'features')->name('features');
+Route::post('language', [LocaleController::class, 'update'])->name('locale.update');
 Route::get('member-registration', [PublicMemberRegistrationController::class, 'create'])->name('members.self-register');
 Route::post('member-registration', [PublicMemberRegistrationController::class, 'store'])->middleware('throttle:10,1')->name('members.self-register.store');
 Route::get('give', [PublicGivingController::class, 'create'])->name('giving.create');
@@ -81,6 +90,7 @@ Route::post('give/checkout', [PublicGivingController::class, 'checkout'])->middl
 Route::get('give/success', [PublicGivingController::class, 'success'])->name('giving.success');
 Route::get('give/cancel', [PublicGivingController::class, 'cancel'])->name('giving.cancel');
 Route::get('site/{church:slug}/{page?}', [ChurchWebsiteController::class, 'show'])->where('page', '[A-Za-z0-9_-]+')->name('website.public');
+Route::get('site/{church:slug}/sermons/{sermon}', [ChurchWebsiteController::class, 'showSermon'])->name('website.public.sermons.show');
 Route::post('webhooks/stripe', StripeWebhookController::class)->middleware('throttle:120,1')->name('webhooks.stripe');
 Route::post('webhooks/payments/{provider}', StripeWebhookController::class)
     ->whereIn('provider', ['paystack', 'paypal'])
@@ -247,6 +257,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('attendance-records/{record}', [EventFlowController::class, 'updateAttendanceRecord'])->name('attendance.records.update');
     Route::delete('attendance-records/{record}', [EventFlowController::class, 'destroyAttendanceRecord'])->name('attendance.records.destroy');
     Route::get('attendance/{attendanceSession}/records/{member}', [EventFlowController::class, 'record'])->name('attendance.records.show');
+    Route::get('attendance-verifications/{verification}/face-evidence', [EventFlowController::class, 'faceEvidence'])->name('attendance.verifications.face-evidence');
     Route::get('administration/meeting-integrations', [EventFlowController::class, 'integrations'])->name('meeting-integrations.index');
     Route::put('administration/meeting-integrations', [EventFlowController::class, 'updateIntegrations'])->name('meeting-integrations.update');
     Route::post('administration/meeting-integrations/{provider}/test', [EventFlowController::class, 'testIntegration'])->name('meeting-integrations.test');
@@ -261,6 +272,10 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('leadership-reports/reminders', [LeadershipReportController::class, 'sendReminders'])->name('leadership-reports.reminders');
     Route::put('leadership-reports/settings', [LeadershipReportController::class, 'updateSettings'])->name('leadership-reports.settings.update');
     Route::get('leadership-reports/export', [LeadershipReportController::class, 'export'])->name('leadership-reports.export');
+    Route::post('leadership-reports/{leadershipReport}/templates', [LeadershipReportController::class, 'saveAsTemplate'])->name('leadership-reports.templates.store');
+    Route::post('leadership-report-templates/{leadershipReportTemplate}/use', [LeadershipReportController::class, 'usePersonalTemplate'])->name('leadership-report-templates.use');
+    Route::delete('leadership-report-templates/{leadershipReportTemplate}', [LeadershipReportController::class, 'destroyPersonalTemplate'])->name('leadership-report-templates.destroy');
+    Route::get('leadership-reports/{leadershipReport}/attachments/{attachment}', [LeadershipReportController::class, 'viewAttachment'])->whereNumber('attachment')->name('leadership-reports.attachments.view');
     Route::get('leadership-reports/{leadershipReport}', [LeadershipReportController::class, 'show'])->name('leadership-reports.show');
     Route::put('leadership-reports/{leadershipReport}', [LeadershipReportController::class, 'update'])->name('leadership-reports.update');
     Route::delete('leadership-reports/{leadershipReport}', [LeadershipReportController::class, 'destroy'])->name('leadership-reports.destroy');
@@ -400,6 +415,13 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('sermons/{sermon}/edit', [SermonController::class, 'edit'])->name('sermons.edit');
     Route::put('sermons/{sermon}', [SermonController::class, 'update'])->name('sermons.update');
     Route::delete('sermons/{sermon}', [SermonController::class, 'destroy'])->name('sermons.destroy');
+    Route::get('sermons/youtube/connect', [SermonController::class, 'youtubeConnect'])->name('sermons.youtube.connect');
+    Route::get('sermons/youtube/callback', [SermonController::class, 'youtubeCallback'])->name('sermons.youtube.callback');
+    Route::post('sermons/youtube/sync', [SermonController::class, 'youtubeSync'])->name('sermons.youtube.sync');
+    Route::post('administration/youtube-integration/test', [SermonController::class, 'youtubeTest'])->name('youtube-integration.test');
+    Route::delete('sermons/youtube', [SermonController::class, 'youtubeDisconnect'])->name('sermons.youtube.disconnect');
+    Route::put('sermons/youtube/credentials', [SermonController::class, 'youtubeCredentialsUpdate'])->name('sermons.youtube.credentials.update');
+    Route::get('administration/youtube-integration', [SermonController::class, 'youtubeIntegration'])->name('youtube-integration.index');
     Route::put('settings/system', [SystemSettingsController::class, 'update'])->name('settings.system.update');
     Route::put('settings/system/reset', [SystemSettingsController::class, 'reset'])->name('settings.system.reset');
     Route::post('settings/system/test-connection', [SystemSettingsController::class, 'testConnection'])->name('settings.system.test-connection');
@@ -498,7 +520,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (in_array(($item['route'] ?? null), ['dashboard', 'ai-copilot.index', 'ai-copilot.settings', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'sermons.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'website-studio.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.celebrations', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index', 'support.tickets.index', 'support.community', 'support.knowledge', 'support.live', 'central-support.index'], true)) {
+        if (in_array(($item['route'] ?? null), ['dashboard', 'ai-copilot.index', 'ai-copilot.settings', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'sermons.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'website-studio.index', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'youtube-integration.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.celebrations', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index', 'support.tickets.index', 'support.community', 'support.knowledge', 'support.live', 'central-support.index'], true)) {
             continue;
         }
 

@@ -123,12 +123,21 @@ final class OrganizationTerminology
     {
         foreach (['label', 'description', 'section'] as $key) {
             if (isset($item[$key]) && is_string($item[$key])) {
-                $item[$key] = self::translate($item[$key], $terminology);
+                $localized = __($item[$key]);
+                $item[$key] = self::translate(is_string($localized) ? $localized : $item[$key], $terminology);
             }
         }
 
         if (isset($item['planned']) && is_array($item['planned'])) {
-            $item['planned'] = array_map(fn ($value): mixed => is_string($value) ? self::translate($value, $terminology) : $value, $item['planned']);
+            $item['planned'] = array_map(function ($value) use ($terminology): mixed {
+                if (! is_string($value)) {
+                    return $value;
+                }
+
+                $localized = __($value);
+
+                return self::translate(is_string($localized) ? $localized : $value, $terminology);
+            }, $item['planned']);
         }
 
         if (isset($item['children']) && is_array($item['children'])) {

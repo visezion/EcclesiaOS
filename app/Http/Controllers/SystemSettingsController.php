@@ -52,6 +52,8 @@ final class SystemSettingsController extends Controller
 
         $validated = $request->validate([
             'system_name' => ['required', 'string', 'max:120'],
+            'admin_landing_page_enabled' => ['nullable', 'boolean'],
+            'login_member_registration_link_enabled' => ['nullable', 'boolean'],
             'church_name' => ['required', 'string', 'max:120'],
             'primary_email' => ['required', 'email', 'max:120'],
             'support_email' => ['required', 'email', 'max:120'],
@@ -140,6 +142,8 @@ final class SystemSettingsController extends Controller
 
         $newSettings = array_merge($settings, [
             ...$validated,
+            'admin_landing_page_enabled' => $request->boolean('admin_landing_page_enabled'),
+            'login_member_registration_link_enabled' => $request->boolean('login_member_registration_link_enabled'),
             'mfa_required' => $request->boolean('mfa_required'),
             'login_notifications' => $request->boolean('login_notifications'),
             'low_stock_alerts' => $request->boolean('low_stock_alerts'),
@@ -265,6 +269,8 @@ final class SystemSettingsController extends Controller
     {
         return [
             'system_name' => config('church.product_name', 'EcclesiaOS'),
+            'admin_landing_page_enabled' => true,
+            'login_member_registration_link_enabled' => true,
             'church_name' => $church->name ?: config('church.name'),
             'primary_email' => $church->email ?: config('church.contact_email'),
             'support_email' => config('mail.from.address', 'support@klgc.org'),

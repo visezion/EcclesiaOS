@@ -120,7 +120,7 @@ final class DashboardService
             ['label' => 'Total Members', 'value' => Number::format($memberCount), 'change' => $this->growth($this->query(Member::class), 'created_at'), 'period' => 'vs last month', 'icon' => 'users', 'color' => 'purple', 'route' => 'members.index'],
             ['label' => 'Avg. Attendance', 'value' => Number::format($attendanceAverage), 'change' => $this->attendanceGrowth(), 'period' => 'vs last month', 'icon' => 'users-round', 'color' => 'emerald', 'route' => 'attendance.index'],
             ['label' => 'Total Giving (Month)', 'value' => Number::currency((float) $givingTotal, $currency), 'change' => $this->moneyGrowth($this->query(Donation::class), 'received_at', 'amount'), 'period' => 'vs last month', 'icon' => 'heart', 'color' => 'rose', 'route' => 'finance.index', 'sensitive_finance' => true],
-            ['label' => 'Upcoming Events', 'value' => Number::format($events), 'change' => null, 'period' => 'Next: '.($this->query(Event::class)->where('starts_at', '>=', now())->orderBy('starts_at')->value('title') ?? 'None scheduled'), 'icon' => 'calendar-days', 'color' => 'orange', 'route' => 'events.index'],
+            ['label' => 'Upcoming Events', 'value' => Number::format($events), 'change' => null, 'period' => 'Next: :event', 'period_params' => ['event' => $this->query(Event::class)->where('starts_at', '>=', now())->orderBy('starts_at')->value('title') ?? 'None scheduled'], 'icon' => 'calendar-days', 'color' => 'orange', 'route' => 'events.index'],
             ['label' => 'Book Store Revenue', 'value' => Number::currency((float) $bookstoreRevenue, $currency), 'change' => $this->moneyGrowth($this->query(BookstoreOrder::class), 'ordered_at', 'total_amount'), 'period' => 'this month', 'icon' => 'book-open', 'color' => 'amber', 'route' => 'bookstore.index'],
             ['label' => 'Asset Health Score', 'value' => $assetHealth.'/100', 'change' => null, 'period' => $assetHealth >= 80 ? 'Good' : 'Needs attention', 'icon' => 'shield-check', 'color' => 'teal', 'route' => 'assets.index'],
         ])
@@ -270,9 +270,9 @@ final class DashboardService
     public function getUpcomingEvents(): array
     {
         return $this->query(Event::class)->where('starts_at', '>=', now())->orderBy('starts_at')->limit(5)->get()->map(fn (Event $event): array => [
-            'date' => Carbon::parse($event->starts_at)->format('M d'),
+            'date' => Carbon::parse($event->starts_at)->translatedFormat('M d'),
             'title' => $event->title,
-            'time' => Carbon::parse($event->starts_at)->format('l, g:i A'),
+            'time' => Carbon::parse($event->starts_at)->translatedFormat('l, g:i A'),
             'venue' => $event->venue,
             'type' => $event->category,
         ])->all();
@@ -320,7 +320,7 @@ final class DashboardService
     {
         return $this->query(ActivityLog::class)->latest()->limit(7)->get()->map(fn (ActivityLog $log): array => [
             'description' => $log->description,
-            'time' => $log->created_at->format('M d, Y - g:i A'),
+            'time' => $log->created_at->translatedFormat('M d, Y - g:i A'),
             'module' => $log->module,
             'icon' => match ($log->module) {
                 'Authentication' => 'shield-check',

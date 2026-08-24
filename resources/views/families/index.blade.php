@@ -92,8 +92,12 @@
                 @csrf
                 <input name="name" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Household name">
                 <select name="campus_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Select campus</option>@foreach($campuses as $campus)<option value="{{ $campus->id }}">{{ $campus->name }}</option>@endforeach</select>
-                <select name="primary_contact_id" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Head of household</option>@foreach($members as $member)<option value="{{ $member->id }}">{{ $member->first_name }} {{ $member->last_name }}</option>@endforeach</select>
-                <select name="member_ids[]" multiple class="h-36 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">@foreach($members as $member)<option value="{{ $member->opaqueId() }}">{{ $member->first_name }} {{ $member->last_name }}</option>@endforeach</select>
+                <label class="block text-sm font-medium text-slate-600">Head of household
+                    <select name="primary_contact_id" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Head of household</option>@foreach($members as $member)<option value="{{ $member->id }}">{{ $member->first_name }} {{ $member->last_name }}</option>@endforeach</select>
+                </label>
+                <label class="block text-sm font-medium text-slate-600">Household members
+                    <select name="member_ids[]" multiple class="mt-1 h-36 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">@foreach($members as $member)<option value="{{ $member->opaqueId() }}">{{ $member->first_name }} {{ $member->last_name }}</option>@endforeach</select>
+                </label>
                 <textarea name="address" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Household address"></textarea>
                 <button class="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white">Create Household</button>
             </form>

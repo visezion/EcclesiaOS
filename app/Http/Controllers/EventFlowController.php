@@ -29,6 +29,7 @@ use App\Models\User;
 use App\Models\Workflow;
 use App\Services\ActivityLogger;
 use App\Services\Communications\DomainNotificationService;
+use App\Services\TotpService;
 use App\Support\ModuleRegistry;
 use App\Support\OpaqueId;
 use App\Support\SecretHash;
@@ -46,10 +47,14 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 final class EventFlowController extends Controller
 {
-    public function __construct(private readonly DomainNotificationService $domainNotifications) {}
+    public function __construct(
+        private readonly DomainNotificationService $domainNotifications,
+        private readonly TotpService $qrCode,
+    ) {}
 
     private const PHYSICAL_METHODS = ['manual', 'qr', 'geolocation', 'kiosk', 'face'];
 
@@ -1777,11 +1782,18 @@ final class EventFlowController extends Controller
             'status' => ['required', Rule::in(['scheduled', 'open', 'closed'])],
         ]);
 
+        $requestedMethods = $this->allowedRequestedMethods($eventSession, $validated['methods'] ?? $this->attendanceMethodsForSession($eventSession));
+        if (in_array('geolocation', $requestedMethods, true) && (! filled($validated['geo_latitude'] ?? null) || ! filled($validated['geo_longitude'] ?? null))) {
+            throw ValidationException::withMessages([
+                'geo_latitude' => 'Latitude and longitude are required when geolocation attendance is enabled.',
+            ]);
+        }
+
         $attendanceSession = $this->ensureAttendanceSession($eventSession);
         $wasOpen = $attendanceSession->status === 'open';
         $attendanceSession->update([
             ...$validated,
-            'methods' => $this->allowedRequestedMethods($eventSession, $validated['methods'] ?? $this->attendanceMethodsForSession($eventSession)),
+            'methods' => $requestedMethods,
             'require_authenticated' => (bool) ($validated['require_authenticated'] ?? false),
             'allow_guests' => (bool) ($validated['allow_guests'] ?? false),
             'expected_attendance' => (int) ($validated['expected_attendance'] ?? 0),
@@ -1809,11 +1821,19 @@ final class EventFlowController extends Controller
         $this->authorizeAttendanceSession($request, $attendanceSession);
 
         $title = $attendanceSession->title;
+        $faceEvidencePaths = $attendanceSession->verifications()
+            ->where('method', 'face')
+            ->get()
+            ->pluck('metadata')
+            ->map(fn ($metadata) => data_get($metadata, 'face_evidence_path'))
+            ->filter(fn ($path) => is_string($path) && Str::startsWith($path, 'attendance/face-evidence/'))
+            ->values();
         DB::transaction(function () use ($attendanceSession): void {
             $attendanceSession->verifications()->delete();
             $attendanceSession->records()->delete();
             $attendanceSession->delete();
         });
+        Storage::disk('local')->delete($faceEvidencePaths->all());
 
         $activityLogger->log('Attendance', 'attendance_session_deleted', $title.' attendance session was deleted with its records.', $attendanceSession, ['resource' => 'Attendance Session', 'risk' => 'medium', 'status' => 'success'], $request);
 
@@ -1852,13 +1872,26 @@ final class EventFlowController extends Controller
 
     public function methods(Request $request, AttendanceSession $attendanceSession): View
     {
-        $this->authorizeAttendanceSession($request, $attendanceSession);
+        $this->authorizeAttendanceCheckIn($request, $attendanceSession);
         $attendanceSession->load('eventSession.event.program');
         $member = $this->memberForUser($request);
+        $canManageAttendance = $this->canManageAttendance($request);
+        $qrToken = $this->qrTokenFor($attendanceSession);
+        $qrCheckInUrl = route('attendance.methods', $attendanceSession).'?'.http_build_query(['method' => 'qr', 'token' => $qrToken]);
 
         return view('events.attendance-methods', [
             'attendanceSession' => $attendanceSession,
             'member' => $member,
+            'members' => $canManageAttendance
+                ? Member::query()
+                    ->where('church_id', $attendanceSession->church_id)
+                    ->when($attendanceSession->campus_id, fn (Builder $query) => $query->where(fn (Builder $campusQuery) => $campusQuery->whereNull('campus_id')->orWhere('campus_id', $attendanceSession->campus_id)))
+                    ->orderBy('last_name')->orderBy('first_name')->limit(1000)->get()
+                : collect(),
+            'canManageAttendance' => $canManageAttendance,
+            'qrToken' => $qrToken,
+            'qrCheckInUrl' => $qrCheckInUrl,
+            'qrSvg' => $this->qrCode->qrSvg($qrCheckInUrl, 210),
             'selectedOnlineMethods' => $this->selectedOnlineMethods($attendanceSession->eventSession),
             'breadcrumbs' => $this->breadcrumbs([['Attendance', route('attendance.index')], ['Check-in Methods', null]]),
         ]);
@@ -1866,7 +1899,7 @@ final class EventFlowController extends Controller
 
     public function checkIn(Request $request, AttendanceSession $attendanceSession, ActivityLogger $activityLogger): RedirectResponse
     {
-        $this->authorizeAttendanceSession($request, $attendanceSession);
+        $this->authorizeAttendanceCheckIn($request, $attendanceSession);
 
         $method = $request->validate([
             'method' => ['required', Rule::in([...self::PHYSICAL_METHODS, ...self::ONLINE_METHODS])],
@@ -1874,14 +1907,85 @@ final class EventFlowController extends Controller
             'member_id' => ['nullable', 'string'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'qr_token' => ['nullable', 'string', 'size:64'],
             'face_reference' => ['nullable', 'string', 'max:255'],
+            'face_evidence' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
 
         abort_unless(in_array($method['method'], $attendanceSession->methods ?? [], true), 403);
 
+        $isManager = $this->canManageAttendance($request);
+        if ($method['method'] === 'manual') {
+            abort_unless($isManager, 403, 'Manual check-in requires an attendance manager.');
+        } elseif ($method['method'] === 'kiosk') {
+            abort_unless($isManager, 403, 'Kiosk check-in requires an attendance manager.');
+            $this->ensureAttendanceIsOpen($attendanceSession);
+        } elseif (! in_array($method['method'], self::ONLINE_METHODS, true)) {
+            $this->ensureAttendanceIsOpen($attendanceSession);
+        }
+
         $member = $this->resolveMember($request, $method['member_id'] ?? null);
+        if ($member) {
+            abort_unless((int) $member->church_id === (int) $attendanceSession->church_id, 403);
+            abort_unless($attendanceSession->campus_id === null || $member->campus_id === null || (int) $member->campus_id === (int) $attendanceSession->campus_id, 403);
+        }
+        if (! $member && ! $attendanceSession->allow_guests) {
+            throw ValidationException::withMessages(['member_id' => 'Select a member before recording attendance.']);
+        }
+
+        if (! $isManager && $member?->id !== $this->memberForUser($request)?->id) {
+            abort(403, 'You may only record attendance for your own member profile.');
+        }
+
+        $metadata = ['auto_online' => in_array($method['method'], self::ONLINE_METHODS, true)];
+
+        if ($method['method'] === 'qr') {
+            if (! hash_equals($this->qrTokenFor($attendanceSession), (string) ($method['qr_token'] ?? ''))) {
+                throw ValidationException::withMessages(['qr_token' => 'The QR attendance token is invalid or has expired. Scan the current session code again.']);
+            }
+            $metadata['qr_token_fingerprint'] = substr(hash('sha256', (string) $method['qr_token']), 0, 16);
+        }
+
+        if ($method['method'] === 'geolocation') {
+            if (! filled($attendanceSession->geo_latitude) || ! filled($attendanceSession->geo_longitude)) {
+                throw ValidationException::withMessages(['latitude' => 'The venue location has not been configured for this attendance session.']);
+            }
+            if (! filled($method['latitude'] ?? null) || ! filled($method['longitude'] ?? null)) {
+                throw ValidationException::withMessages(['latitude' => 'Allow location access so the approved attendance radius can be verified.']);
+            }
+            $distance = $this->distanceInMeters(
+                (float) $attendanceSession->geo_latitude,
+                (float) $attendanceSession->geo_longitude,
+                (float) $method['latitude'],
+                (float) $method['longitude'],
+            );
+            if ($distance > (int) $attendanceSession->geo_radius_meters) {
+                throw ValidationException::withMessages(['latitude' => 'You are '.number_format($distance).' meters from the venue, outside the approved '.number_format((int) $attendanceSession->geo_radius_meters).'-meter radius.']);
+            }
+            $metadata = [...$metadata, 'latitude' => (float) $method['latitude'], 'longitude' => (float) $method['longitude'], 'distance_meters' => round($distance, 1), 'approved_radius_meters' => (int) $attendanceSession->geo_radius_meters];
+        }
+
+        if ($method['method'] === 'face') {
+            if (! $request->hasFile('face_evidence')) {
+                throw ValidationException::withMessages(['face_evidence' => 'Capture or upload a clear face image for verification review.']);
+            }
+            $file = $request->file('face_evidence');
+            $path = $file->store('attendance/face-evidence/'.$attendanceSession->church_id, 'local');
+            $metadata = [...$metadata, 'face_reference' => $method['face_reference'] ?? $file->hashName(), 'face_evidence_path' => $path, 'face_evidence_name' => $file->getClientOriginalName(), 'face_evidence_mime' => $file->getMimeType()];
+        }
+
+        if ($method['method'] === 'manual') {
+            $metadata['recorded_by_user_id'] = $request->user()?->id;
+            $metadata['administrative_override'] = $attendanceSession->status !== 'open';
+        }
+
+        if ($method['method'] === 'kiosk') {
+            $metadata['kiosk_operator_user_id'] = $request->user()?->id;
+            $metadata['station'] = $request->userAgent();
+        }
+
         $eventSession = $attendanceSession->eventSession()->with('event')->firstOrFail();
-        $confidence = $this->confidenceFor($method['method'], $method);
+        $confidence = $this->confidenceFor($method['method'], [...$method, ...$metadata]);
 
         $record = $this->storeAttendanceEvidence(
             $attendanceSession,
@@ -1890,12 +1994,7 @@ final class EventFlowController extends Controller
             $method['method'],
             $method['provider'] ?? $method['method'],
             $confidence,
-            [
-                'latitude' => $method['latitude'] ?? null,
-                'longitude' => $method['longitude'] ?? null,
-                'face_reference' => $method['face_reference'] ?? null,
-                'auto_online' => in_array($method['method'], self::ONLINE_METHODS, true),
-            ],
+            $metadata,
         );
 
         $activityLogger->log('Attendance', 'attendance_marked', ($member?->first_name ?? 'Guest').' attendance was marked by '.$method['method'].'.', $record, ['resource' => 'Attendance Record', 'risk' => 'low', 'status' => 'success'], $request);
@@ -1928,6 +2027,24 @@ final class EventFlowController extends Controller
             'attendanceSession' => $attendanceSession->load('eventSession.event.program'),
             'record' => $record,
             'breadcrumbs' => $this->breadcrumbs([['Attendance', route('attendance.index')], ['Final Attendance Record', null]]),
+        ]);
+    }
+
+    public function faceEvidence(Request $request, AttendanceVerification $verification): BinaryFileResponse
+    {
+        $verification->load('attendanceSession');
+        abort_unless($verification->attendanceSession && $verification->method === 'face', 404);
+        $this->authorizeAttendanceSession($request, $verification->attendanceSession);
+
+        $path = data_get($verification->metadata, 'face_evidence_path');
+        abort_unless(is_string($path) && Str::startsWith($path, 'attendance/face-evidence/') && Storage::disk('local')->exists($path), 404);
+
+        $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename((string) data_get($verification->metadata, 'face_evidence_name', 'face-evidence.jpg'))) ?: 'face-evidence.jpg';
+
+        return response()->file(Storage::disk('local')->path($path), [
+            'Content-Type' => (string) data_get($verification->metadata, 'face_evidence_mime', 'image/jpeg'),
+            'Cache-Control' => 'private, no-store',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
         ]);
     }
 
@@ -1971,10 +2088,18 @@ final class EventFlowController extends Controller
 
         $attendanceSession = $record->attendanceSession;
         $recordId = $record->opaqueId();
+        $faceEvidencePaths = $record->verifications()
+            ->where('method', 'face')
+            ->get()
+            ->pluck('metadata')
+            ->map(fn ($metadata) => data_get($metadata, 'face_evidence_path'))
+            ->filter(fn ($path) => is_string($path) && Str::startsWith($path, 'attendance/face-evidence/'))
+            ->values();
         DB::transaction(function () use ($record): void {
             $record->verifications()->delete();
             $record->delete();
         });
+        Storage::disk('local')->delete($faceEvidencePaths->all());
 
         $activityLogger->log('Attendance', 'attendance_record_deleted', 'Attendance record '.$recordId.' was deleted.', $attendanceSession, ['resource' => 'Attendance Record', 'risk' => 'medium', 'status' => 'success'], $request);
 
@@ -2914,13 +3039,17 @@ final class EventFlowController extends Controller
                 ],
             );
 
+            $verificationStatus = $method === 'face' || $attendanceSession->verification_policy === 'manual_review'
+                ? 'pending_review'
+                : 'success';
+
             AttendanceVerification::query()->create([
                 'attendance_session_id' => $attendanceSession->id,
                 'attendance_record_id' => $record->id,
                 'member_id' => $member?->id,
                 'method' => $method,
                 'provider' => $provider,
-                'status' => 'success',
+                'status' => $verificationStatus,
                 'confidence' => $confidence,
                 'verified_at' => $checkedInAt,
                 'metadata' => [
@@ -2942,8 +3071,13 @@ final class EventFlowController extends Controller
                 ])
                 ->all();
 
-            $best = collect($summary)->sortByDesc('confidence')->first();
-            $record->update(['final_method' => $best['method'] ?? $method, 'verification_summary' => $summary]);
+            $successful = collect($summary)->where('status', 'success');
+            $final = match ($attendanceSession->verification_policy) {
+                'best_confidence' => $successful->sortByDesc('confidence')->first() ?? collect($summary)->sortByDesc('confidence')->first(),
+                'any_one' => $successful->sortBy('verified_at')->first() ?? collect($summary)->sortBy('verified_at')->first(),
+                default => collect($summary)->sortByDesc('verified_at')->first(),
+            };
+            $record->update(['final_method' => $final['method'] ?? $method, 'verification_summary' => $summary]);
 
             return $record->fresh();
         });
@@ -2970,11 +3104,51 @@ final class EventFlowController extends Controller
             return null;
         }
 
+        if ($user->member_id) {
+            return Member::query()
+                ->whereKey($user->member_id)
+                ->where(fn (Builder $query) => $this->scopeMemberQuery($query, $request))
+                ->first();
+        }
+
+        if (! filled($user->email) && ! filled($user->phone)) {
+            return null;
+        }
+
         return Member::query()
-            ->where(fn (Builder $query) => $query->where('email', $user?->email)->orWhere('phone', $user?->phone))
+            ->where(function (Builder $query) use ($user): void {
+                if (filled($user->email)) {
+                    $query->whereRaw('LOWER(email) = ?', [Str::lower((string) $user->email)]);
+                }
+                if (filled($user->phone)) {
+                    $query->{filled($user->email) ? 'orWhere' : 'where'}('phone', $user->phone);
+                }
+            })
             ->where(fn (Builder $query) => $this->scopeMemberQuery($query, $request))
-            ->first()
-            ?? Member::query()->where(fn (Builder $query) => $this->scopeMemberQuery($query, $request))->orderBy('last_name')->first();
+            ->first();
+    }
+
+    private function qrTokenFor(AttendanceSession $attendanceSession): string
+    {
+        return hash_hmac('sha256', 'attendance-session:'.$attendanceSession->getKey(), (string) config('app.key'));
+    }
+
+    private function ensureAttendanceIsOpen(AttendanceSession $attendanceSession): void
+    {
+        if ($attendanceSession->status !== 'open') {
+            throw ValidationException::withMessages(['method' => 'Attendance check-in is not open for this session.']);
+        }
+    }
+
+    private function distanceInMeters(float $fromLatitude, float $fromLongitude, float $toLatitude, float $toLongitude): float
+    {
+        $earthRadius = 6371000;
+        $latitudeDelta = deg2rad($toLatitude - $fromLatitude);
+        $longitudeDelta = deg2rad($toLongitude - $fromLongitude);
+        $a = sin($latitudeDelta / 2) ** 2
+            + cos(deg2rad($fromLatitude)) * cos(deg2rad($toLatitude)) * sin($longitudeDelta / 2) ** 2;
+
+        return $earthRadius * 2 * atan2(sqrt($a), sqrt(max(0, 1 - $a)));
     }
 
     private function confidenceFor(string $method, array $payload): int
@@ -3042,6 +3216,27 @@ final class EventFlowController extends Controller
     private function authorizeAttendance(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage attendance') || $request->user()?->hasPermission('manage events'), 403);
+    }
+
+    private function canManageAttendance(Request $request): bool
+    {
+        return (bool) ($request->user()?->isSuperAdministrator()
+            || $request->user()?->hasPermission('manage attendance')
+            || $request->user()?->hasPermission('manage events'));
+    }
+
+    private function authorizeAttendanceCheckIn(Request $request, AttendanceSession $session): void
+    {
+        if ($this->canManageAttendance($request)) {
+            $this->authorizeAttendanceSession($request, $session);
+
+            return;
+        }
+
+        $member = $this->memberForUser($request);
+        abort_unless($member, 403, 'A linked member profile is required for self check-in.');
+        abort_unless((int) $member->church_id === (int) $session->church_id, 403);
+        abort_unless($session->campus_id === null || $member->campus_id === null || (int) $member->campus_id === (int) $session->campus_id, 403);
     }
 
     private function authorizeSettings(Request $request): void

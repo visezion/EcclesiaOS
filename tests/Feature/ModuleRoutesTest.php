@@ -11,6 +11,7 @@ use App\Models\Event;
 use App\Models\EventRecurrenceRule;
 use App\Models\EventSession;
 use App\Models\LeadershipReport;
+use App\Models\LeadershipReportTemplate;
 use App\Models\MeetingIntegration;
 use App\Models\MeetingPoll;
 use App\Models\MeetingQnaItem;
@@ -55,7 +56,16 @@ class ModuleRoutesTest extends TestCase
         $event = Event::query()->where('program_id', $program->id)->firstOrFail();
         $session = EventSession::query()->where('event_id', $event->id)->firstOrFail();
         $attendanceSession = AttendanceSession::query()->where('event_session_id', $session->id)->firstOrFail();
-        $member = Member::query()->firstOrFail();
+        $member = Member::query()
+            ->where('church_id', $attendanceSession->church_id)
+            ->when(
+                $attendanceSession->campus_id !== null,
+                fn ($query) => $query->where(fn ($campusQuery) => $campusQuery
+                    ->whereNull('campus_id')
+                    ->orWhere('campus_id', $attendanceSession->campus_id))
+            )
+            ->firstOrFail();
+        $attendanceSession->update(['status' => 'open']);
 
         $this->actingAs($user)
             ->get(route('programs.index'))
@@ -137,10 +147,14 @@ class ModuleRoutesTest extends TestCase
                 'member_id' => $member->opaqueId(),
                 'method' => 'qr',
                 'provider' => 'qr',
+                'qr_token' => hash_hmac('sha256', 'attendance-session:'.$attendanceSession->id, (string) config('app.key')),
             ])
             ->assertRedirect();
 
         $this->assertSame(1, AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->where('member_id', $member->id)->count());
+
+        $roomMember = Member::query()->where('email', $user->email)->first() ?? Member::query()->orderBy('last_name')->firstOrFail();
+        $user->forceFill(['member_id' => $roomMember->id])->save();
 
         $this->actingAs($user)
             ->get(route('meetings.rooms.show', [$session, 'zoom']))
@@ -148,7 +162,6 @@ class ModuleRoutesTest extends TestCase
             ->assertSee('Built-in Zoom Room')
             ->assertSee('Attendance Record');
 
-        $roomMember = Member::query()->where('email', $user->email)->first() ?? Member::query()->orderBy('last_name')->firstOrFail();
         $this->assertSame(1, AttendanceRecord::query()->where('attendance_session_id', $attendanceSession->id)->where('member_id', $roomMember->id)->count());
         $this->assertDatabaseHas('attendance_verifications', [
             'attendance_session_id' => $attendanceSession->id,
@@ -459,6 +472,7 @@ class ModuleRoutesTest extends TestCase
 
     public function test_leadership_reports_dashboard_and_actions_are_functional(): void
     {
+        Storage::fake('local');
         $this->seed();
         $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
 
@@ -471,6 +485,9 @@ class ModuleRoutesTest extends TestCase
             ->assertSee(route('leadership-reports.summary'), false)
             ->assertSee(route('leadership-reports.export'), false)
             ->assertSee('Use Recorded Attendance')
+            ->assertSee('Choose files')
+            ->assertSee('Review now')
+            ->assertSee('multipart/form-data', false)
             ->assertSee('Reports Trend');
 
         $event = Event::query()->create([
@@ -541,6 +558,10 @@ class ModuleRoutesTest extends TestCase
                 'discipleship_score' => 87,
                 'care_followups' => 11,
                 'volunteer_coverage' => 83,
+                'attachments' => [
+                    UploadedFile::fake()->image('weekly-attendance-chart.png', 900, 600),
+                    UploadedFile::fake()->create('leadership-notes.pdf', 256, 'application/pdf'),
+                ],
                 'action_items' => "Follow up with campus pastors\nPrepare ministry leader notes",
                 'submit' => '1',
             ])
@@ -553,6 +574,9 @@ class ModuleRoutesTest extends TestCase
         $this->assertSame(8, $report->metrics['attendance_total']);
         $this->assertSame(10, $report->metrics['attendance_expected']);
         $this->assertCount(2, $report->action_items);
+        $this->assertCount(2, $report->metrics['attachments']);
+        Storage::disk('local')->assertExists($report->metrics['attachments'][0]['path']);
+        Storage::disk('local')->assertExists($report->metrics['attachments'][1]['path']);
 
         $this->actingAs($admin)
             ->get(route('leadership-reports.show', $report))
@@ -560,7 +584,15 @@ class ModuleRoutesTest extends TestCase
             ->assertSee('Report Detail')
             ->assertSee('Recorded Attendance Source')
             ->assertSee('Leadership summary for the current week')
+            ->assertSee('weekly-attendance-chart.png')
+            ->assertSee('leadership-notes.pdf')
+            ->assertSee(route('leadership-reports.attachments.view', [$report, 0]), false)
             ->assertSee(route('leadership-reports.review', $report), false);
+
+        $this->actingAs($admin)
+            ->get(route('leadership-reports.attachments.view', [$report, 0]))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png');
 
         $this->actingAs($admin)
             ->put(route('leadership-reports.review', $report), [
@@ -584,6 +616,28 @@ class ModuleRoutesTest extends TestCase
                 ->get(route('leadership-reports.index', ['tab' => $tab]))
                 ->assertOk();
         }
+
+        $this->actingAs($admin)
+            ->get(route('leadership-reports.index', ['tab' => 'templates']))
+            ->assertOk()
+            ->assertSee('Weekly Campus Operations Report')
+            ->assertSee('Monthly Executive Performance Report')
+            ->assertSee('Ministry/Department Health &amp; Impact Report', false)
+            ->assertSee('Ministry/Department Leadership Report')
+            ->assertSee('Community Outreach Department')
+            ->assertSee('Grace Okafor')
+            ->assertSee('Campus Leadership &amp; Governance Report', false)
+            ->assertSee('Pastoral Care &amp; Member Wellbeing Brief', false)
+            ->assertSee('Incident, Safety &amp; Safeguarding Report', false)
+            ->assertSee('Strategic Initiative &amp; Transformation Report', false)
+            ->assertDontSee('Complete report library')
+            ->assertDontSee('Start with a leadership-ready reporting framework')
+            ->assertDontSee('ready-to-use templates')
+            ->assertSee('xl:grid-cols-4', false)
+            ->assertSee('Use template')
+            ->assertSee('name="service_notes"', false)
+            ->assertSee('name="issues"', false)
+            ->assertSee('name="plans"', false);
 
         $this->actingAs($admin)
             ->get(route('leadership-reports.index', ['tab' => 'settings']))
@@ -618,7 +672,7 @@ class ModuleRoutesTest extends TestCase
         $this->assertSame($churchSettingsBefore, $admin->church()->firstOrFail()->refresh()->settings ?? []);
         $this->assertNull(data_get(User::query()->where('email', 'sarah.johnson@klgc.org')->firstOrFail()->account_settings, 'leadership_reports.weekly_due_day'));
 
-        $this->actingAs($admin)
+        $templateResponse = $this->actingAs($admin)
             ->post(route('leadership-reports.store'), [
                 'title' => 'Template Created Leadership Report',
                 'report_type' => 'ministry',
@@ -631,10 +685,13 @@ class ModuleRoutesTest extends TestCase
                 'discipleship_score' => 91,
                 'care_followups' => 6,
                 'volunteer_coverage' => 78,
+                'service_notes' => 'Template-prepared operational and ministry delivery review.',
+                'issues' => 'Template-prepared risks, blockers, and leadership support requests.',
+                'plans' => 'Template-prepared improvement plan and next reporting period priorities.',
                 'action_items' => "Update ministry leader roster\nEscalate volunteer coverage gaps",
                 'submit' => '0',
-            ])
-            ->assertRedirect();
+                'from_template' => '1',
+            ]);
 
         $this->assertDatabaseHas('leadership_reports', [
             'title' => 'Template Created Leadership Report',
@@ -643,10 +700,26 @@ class ModuleRoutesTest extends TestCase
 
         $draft = LeadershipReport::query()->where('title', 'Template Created Leadership Report')->firstOrFail();
 
+        $templateResponse->assertRedirect(route('leadership-reports.show', $draft).'#edit-report');
+        $this->assertSame('Template-prepared operational and ministry delivery review.', $draft->metrics['service_notes']);
+        $this->assertSame('Template-prepared risks, blockers, and leadership support requests.', $draft->metrics['issues']);
+        $this->assertSame('Template-prepared improvement plan and next reporting period priorities.', $draft->metrics['plans']);
+
         $this->actingAs($admin)
             ->get(route('leadership-reports.show', $draft))
             ->assertOk()
             ->assertSee('Edit Draft')
+            ->assertSee('Report editing workspace')
+            ->assertSee('Save as template')
+            ->assertSee('Save as personal template')
+            ->assertSee(route('leadership-reports.templates.store', $draft), false)
+            ->assertSee('scroll-mt-28', false)
+            ->assertDontSee('sticky top-16 z-20', false)
+            ->assertSee('Report identity & routing', false)
+            ->assertSee('Supporting files & in-page review', false)
+            ->assertSee('Supporting file review')
+            ->assertSee('Review here')
+            ->assertSee('leadershipReportAttachments', false)
             ->assertSee(route('leadership-reports.update', $draft), false)
             ->assertSee(route('leadership-reports.destroy', $draft), false);
 
@@ -734,6 +807,174 @@ class ModuleRoutesTest extends TestCase
             ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
     }
 
+    public function test_users_can_save_use_and_delete_only_their_own_leadership_report_templates(): void
+    {
+        $this->seed();
+        $owner = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $sourceReport = LeadershipReport::query()->create([
+            'church_id' => $owner->church_id,
+            'campus_id' => $owner->campus_id,
+            'submitted_by' => $owner->id,
+            'title' => 'Personal Ministry Review - July 2026',
+            'report_type' => 'ministry',
+            'period_start' => now()->subMonth()->startOfMonth()->toDateString(),
+            'period_end' => now()->subMonth()->endOfMonth()->toDateString(),
+            'status' => 'approved',
+            'priority' => 'high',
+            'summary' => 'Reusable ministry leadership overview and achievements.',
+            'metrics' => [
+                'attendance_score' => 88,
+                'discipleship_score' => 82,
+                'care_followups' => 14,
+                'volunteer_coverage' => 91,
+                'service_notes' => 'Reusable service delivery notes.',
+                'issues' => 'Reusable risk and support notes.',
+                'plans' => 'Reusable next-period ministry plan.',
+                'attendance_session_ids' => [91, 92],
+                'attendance_total' => 240,
+                'attendance_expected' => 260,
+                'attachments' => [['path' => 'private/old-report.pdf', 'original_name' => 'old-report.pdf']],
+            ],
+            'action_items' => ['Review volunteer coverage', 'Confirm care follow-ups'],
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('leadership-reports.templates.store', $sourceReport), [
+                'template_name' => 'Personal Ministry Review',
+                'template_description' => 'My reusable monthly ministry leadership format.',
+            ])
+            ->assertRedirect(route('leadership-reports.index', ['tab' => 'templates']))
+            ->assertSessionHas('status', 'Personal template saved. Only you can view and use it.');
+
+        $template = LeadershipReportTemplate::query()->where('user_id', $owner->id)->firstOrFail();
+        $this->assertSame($owner->church_id, $template->church_id);
+        $this->assertSame('Personal Ministry Review', $template->name);
+        $this->assertSame(88, $template->metrics['attendance_score']);
+        $this->assertArrayNotHasKey('attachments', $template->metrics);
+        $this->assertArrayNotHasKey('attendance_session_ids', $template->metrics);
+        $this->assertArrayNotHasKey('attendance_total', $template->metrics);
+        $this->assertArrayNotHasKey('attendance_expected', $template->metrics);
+
+        $this->actingAs($owner)
+            ->get(route('leadership-reports.index', ['tab' => 'templates']))
+            ->assertOk()
+            ->assertSee('My templates')
+            ->assertSee('Personal Ministry Review')
+            ->assertSee('Private')
+            ->assertSee(route('leadership-report-templates.use', $template), false)
+            ->assertSee(route('leadership-report-templates.destroy', $template), false);
+
+        $otherUser = User::factory()->create([
+            'church_id' => $owner->church_id,
+            'campus_id' => $owner->campus_id,
+            'name' => 'Another Report Author',
+            'email' => 'another.report.author@example.test',
+        ]);
+        $otherUser->roles()->sync($owner->roles()->pluck('roles.id'));
+
+        $this->actingAs($otherUser)
+            ->get(route('leadership-reports.index', ['tab' => 'templates']))
+            ->assertOk()
+            ->assertDontSee('Personal Ministry Review');
+
+        $this->actingAs($otherUser)
+            ->post(route('leadership-report-templates.use', $template))
+            ->assertNotFound();
+
+        $this->actingAs($otherUser)
+            ->delete(route('leadership-report-templates.destroy', $template))
+            ->assertNotFound();
+
+        $useResponse = $this->actingAs($owner)
+            ->post(route('leadership-report-templates.use', $template));
+
+        $draft = LeadershipReport::query()
+            ->where('submitted_by', $owner->id)
+            ->where('title', 'Personal Ministry Review - '.now()->format('F Y'))
+            ->latest('id')
+            ->firstOrFail();
+        $useResponse
+            ->assertRedirect(route('leadership-reports.show', $draft).'#edit-report')
+            ->assertSessionHas('status', 'Personal template opened as a new draft.');
+        $this->assertSame('draft', $draft->status);
+        $this->assertSame(now()->startOfMonth()->toDateString(), $draft->period_start->toDateString());
+        $this->assertSame(now()->endOfMonth()->toDateString(), $draft->period_end->toDateString());
+        $this->assertSame(88, $draft->metrics['attendance_score']);
+        $this->assertArrayNotHasKey('attachments', $draft->metrics);
+
+        $this->actingAs($owner)
+            ->delete(route('leadership-report-templates.destroy', $template))
+            ->assertRedirect(route('leadership-reports.index', ['tab' => 'templates']))
+            ->assertSessionHas('status', 'Personal template deleted.');
+
+        $this->assertDatabaseMissing('leadership_report_templates', ['id' => $template->id]);
+    }
+
+    public function test_new_leadership_report_can_be_saved_directly_as_a_personal_template(): void
+    {
+        $this->seed();
+        $owner = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+
+        $this->actingAs($owner)
+            ->get(route('leadership-reports.index'))
+            ->assertOk()
+            ->assertSee('New Leadership Report')
+            ->assertSee('Save this setup for later')
+            ->assertSee('name="personal_template_name"', false)
+            ->assertSee('name="personal_template_description"', false)
+            ->assertSee('name="save_as_template"', false)
+            ->assertSee('Save as Template');
+
+        $reportCount = LeadershipReport::query()->count();
+
+        $this->actingAs($owner)
+            ->post(route('leadership-reports.store'), [
+                'title' => 'Reusable Department Check-in - August 2026',
+                'report_type' => 'monthly',
+                'campus_id' => $owner->campus_id,
+                'ministry_id' => null,
+                'assigned_to' => $owner->id,
+                'period_start' => now()->startOfMonth()->toDateString(),
+                'period_end' => now()->endOfMonth()->toDateString(),
+                'priority' => 'normal',
+                'summary' => 'Reusable department outcomes, decisions, and leadership overview.',
+                'attendance_score' => 90,
+                'discipleship_score' => 84,
+                'care_followups' => 9,
+                'volunteer_coverage' => 87,
+                'service_notes' => 'Reusable service and delivery review.',
+                'issues' => 'Reusable risks, blockers, and support requests.',
+                'plans' => 'Reusable next-month priorities and milestones.',
+                'supporting_links' => 'https://example.test/reference-pack',
+                'action_items' => "Confirm department scorecard\nReview outstanding decisions",
+                'personal_template_name' => 'Department Leadership Check-in',
+                'personal_template_description' => 'My private monthly department reporting format.',
+                'save_as_template' => '1',
+            ])
+            ->assertRedirect(route('leadership-reports.index', ['tab' => 'templates']))
+            ->assertSessionHas('status', 'New report saved as a personal template. No report was created.');
+
+        $this->assertSame($reportCount, LeadershipReport::query()->count());
+        $template = LeadershipReportTemplate::query()
+            ->where('user_id', $owner->id)
+            ->where('name', 'Department Leadership Check-in')
+            ->firstOrFail();
+        $this->assertSame('My private monthly department reporting format.', $template->description);
+        $this->assertSame('monthly', $template->report_type);
+        $this->assertSame(90, $template->metrics['attendance_score']);
+        $this->assertSame(['Confirm department scorecard', 'Review outstanding decisions'], $template->action_items);
+        $this->assertArrayNotHasKey('attendance_source', $template->metrics);
+        $this->assertArrayNotHasKey('attendance_sessions', $template->metrics);
+        $this->assertArrayNotHasKey('attendance_total', $template->metrics);
+        $this->assertArrayNotHasKey('attendance_expected', $template->metrics);
+        $this->assertArrayNotHasKey('attachments', $template->metrics);
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'leadership_report_template_created',
+            'subject_type' => $template->getMorphClass(),
+            'subject_id' => $template->id,
+        ]);
+    }
+
     public function test_leadership_report_escalation_settings_require_review_permission(): void
     {
         $this->seed();
@@ -785,11 +1026,14 @@ class ModuleRoutesTest extends TestCase
             ->get(route('leadership-reports.index', ['tab' => 'settings']))
             ->assertOk()
             ->assertSee('Search reviewer by name, title, or email')
+            ->assertDontSee('Eligible Reviewer Roles')
             ->assertDontSee('Escalation Window');
 
         $this->actingAs($viewOnlyUser)
             ->put(route('leadership-reports.settings.update'), [
                 'default_reviewer_id' => $admin->id,
+                'reviewer_role_filter_present' => '1',
+                'reviewer_role_ids' => [$viewOnlyRole->id],
                 'weekly_due_day' => 'monday',
                 'auto_reminders' => '1',
                 'require_action_items' => '1',
@@ -800,11 +1044,106 @@ class ModuleRoutesTest extends TestCase
         $viewOnlyUser->refresh();
         $this->assertSame('monday', data_get($viewOnlyUser->account_settings, 'leadership_reports.weekly_due_day'));
         $this->assertSame(96, data_get($viewOnlyUser->account_settings, 'leadership_reports.escalation_hours'));
+        $this->assertNull(data_get($viewOnlyUser->church()->firstOrFail()->settings, 'leadership_reports.reviewer_role_ids'));
 
         $this->actingAs($viewOnlyUser)
             ->put(route('leadership-reports.review', $submittedReport), [
                 'decision' => 'approved',
                 'review_notes' => 'Should not be allowed.',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_administrator_can_restrict_leadership_report_reviewers_by_role(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@kingdomhub.test')->firstOrFail();
+        $eligibleRole = Role::query()->create([
+            'name' => 'Leadership Review Board',
+            'slug' => 'leadership-review-board',
+            'description' => 'May be selected to review leadership reports.',
+        ]);
+        $excludedRole = Role::query()->create([
+            'name' => 'Leadership Report Observer',
+            'slug' => 'leadership-report-observer',
+            'description' => 'May view reports but cannot be selected as reviewer.',
+        ]);
+        $eligibleReviewer = User::factory()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'name' => 'Eligible Reviewer Example',
+            'email' => 'eligible.reviewer@example.test',
+        ]);
+        $excludedReviewer = User::factory()->create([
+            'church_id' => $admin->church_id,
+            'campus_id' => $admin->campus_id,
+            'name' => 'Excluded Reviewer Example',
+            'email' => 'excluded.reviewer@example.test',
+        ]);
+        $eligibleReviewer->roles()->attach($eligibleRole);
+        $excludedReviewer->roles()->attach($excludedRole);
+
+        $this->actingAs($admin)
+            ->put(route('leadership-reports.settings.update'), [
+                'default_reviewer_id' => $eligibleReviewer->id,
+                'reviewer_role_filter_present' => '1',
+                'reviewer_role_ids' => [$eligibleRole->id],
+                'weekly_due_day' => 'friday',
+                'auto_reminders' => '1',
+                'require_action_items' => '1',
+                'escalation_hours' => 72,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Leadership report settings saved.');
+
+        $this->assertSame(
+            [$eligibleRole->id],
+            data_get($admin->church()->firstOrFail()->refresh()->settings, 'leadership_reports.reviewer_role_ids'),
+        );
+
+        $this->actingAs($admin)
+            ->get(route('leadership-reports.index', ['tab' => 'settings']))
+            ->assertOk()
+            ->assertSee('Eligible Reviewer Roles')
+            ->assertSee('Leadership Review Board')
+            ->assertSee('Eligible Reviewer Example')
+            ->assertDontSee('Excluded Reviewer Example');
+
+        $reportPayload = [
+            'title' => 'Role Filtered Leadership Report',
+            'report_type' => 'weekly',
+            'campus_id' => $admin->campus_id,
+            'period_start' => now()->startOfWeek()->toDateString(),
+            'period_end' => now()->endOfWeek()->toDateString(),
+            'priority' => 'normal',
+            'summary' => 'Confirms that only users in administrator-selected roles may review this report.',
+            'attendance_score' => 80,
+            'discipleship_score' => 80,
+            'care_followups' => 2,
+            'volunteer_coverage' => 80,
+            'submit' => '0',
+        ];
+
+        $this->actingAs($admin)
+            ->post(route('leadership-reports.store'), $reportPayload + ['assigned_to' => $excludedReviewer->id])
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->post(route('leadership-reports.store'), $reportPayload + ['assigned_to' => $eligibleReviewer->id])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('leadership_reports', [
+            'title' => 'Role Filtered Leadership Report',
+            'assigned_to' => $eligibleReviewer->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('leadership-reports.settings.update'), [
+                'default_reviewer_id' => $excludedReviewer->id,
+                'weekly_due_day' => 'friday',
+                'auto_reminders' => '1',
+                'require_action_items' => '1',
+                'escalation_hours' => 72,
             ])
             ->assertForbidden();
     }
@@ -1016,6 +1355,8 @@ class ModuleRoutesTest extends TestCase
 
         $program = Program::query()->firstOrFail();
         $event = Event::query()->where('program_id', $program->id)->firstOrFail();
+        $linkedMember = Member::query()->where('email', 'victor.adams@members.klgc.org')->firstOrFail();
+        $user->forceFill(['member_id' => $linkedMember->id])->save();
 
         $this->actingAs($user)
             ->post(route('event-sessions.store', [$program, $event]), [

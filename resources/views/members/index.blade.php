@@ -50,6 +50,7 @@
                 </div>
             </div>
             <div class="flex flex-wrap gap-2">
+                <x-share-registration-link />
                 <a href="{{ route('member-imports.index') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
                     <i data-lucide="upload" class="size-4"></i>
                     Import Members
@@ -74,7 +75,7 @@
 
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <x-stat-card :metric="['label' => 'Total Members', 'value' => number_format($stats['total']), 'change' => null, 'period' => 'View all members', 'icon' => 'users-round', 'color' => 'purple', 'route' => 'members.index']" />
-            <x-stat-card :metric="['label' => 'Active Members', 'value' => number_format($stats['active']), 'change' => null, 'period' => $stats['total'] ? round(($stats['active'] / max($stats['total'], 1)) * 100, 1).'% of total' : 'No members', 'icon' => 'user-check', 'color' => 'emerald', 'route' => 'members.index']" />
+            <x-stat-card :metric="['label' => 'Active Members', 'value' => number_format($stats['active']), 'change' => null, 'period' => $stats['total'] ? __(':percent% of total', ['percent' => round(($stats['active'] / max($stats['total'], 1)) * 100, 1)]) : 'No members', 'icon' => 'user-check', 'color' => 'emerald', 'route' => 'members.index']" />
             <x-stat-card :metric="['label' => 'New This Month', 'value' => number_format($stats['new']), 'change' => $stats['new'] ? '+'.$stats['new'] : null, 'period' => 'new records', 'icon' => 'sparkles', 'color' => 'indigo', 'route' => 'members.index']" />
             <x-stat-card :metric="['label' => 'First-Time Guests', 'value' => number_format($stats['guests']), 'change' => null, 'period' => 'This month', 'icon' => 'user-round', 'color' => 'teal', 'route' => 'members.index']" />
             <x-stat-card :metric="['label' => 'Retention Rate', 'value' => $stats['retention'].'%', 'change' => $stats['retention'] > 80 ? '+ Good' : null, 'period' => 'active ratio', 'icon' => 'chart-column', 'color' => 'orange', 'route' => 'members.index']" />
@@ -147,7 +148,7 @@
                     <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex items-center gap-2">
                             <h2 class="text-base font-semibold text-slate-950">Members Directory</h2>
-                            <span class="rounded-md bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700">{{ number_format($members->total()) }} members</span>
+                            <span class="rounded-md bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700">{{ __(':count members', ['count' => number_format($members->total())]) }}</span>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             <select name="action" class="h-10 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-600" required>
@@ -259,7 +260,7 @@
                     @endif
                 </form>
                 <div class="flex flex-col gap-3 border-t border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-sm text-slate-500">Showing {{ number_format($members->firstItem() ?? 0) }} to {{ number_format($members->lastItem() ?? 0) }} of {{ number_format($members->total()) }} members</p>
+                    <p class="text-sm text-slate-500">{{ __('Showing :first to :last of :total members', ['first' => number_format($members->firstItem() ?? 0), 'last' => number_format($members->lastItem() ?? 0), 'total' => number_format($members->total())]) }}</p>
                     {{ $members->links() }}
                 </div>
                 @foreach ($members as $member)
@@ -285,7 +286,7 @@
                 </section>
 
                 <section class="dashboard-card">
-                    <div class="mb-4 flex items-center justify-between gap-3"><h2 class="text-base font-semibold text-slate-950">Members by {{ $terminology['campus_singular'] }}</h2><a href="{{ route('campuses.index') }}" class="text-xs font-medium text-violet-600">View Report</a></div>
+                        <div class="mb-4 flex items-center justify-between gap-3"><h2 class="text-base font-semibold text-slate-950">{{ __('Members by :campus', ['campus' => $terminology['campus_singular']]) }}</h2><a href="{{ route('campuses.index') }}" class="text-xs font-medium text-violet-600">View Report</a></div>
                     <div class="space-y-3">
                         @foreach ($campusDistribution as $item)
                             <div class="grid grid-cols-[1fr_auto] items-center gap-3 text-sm">

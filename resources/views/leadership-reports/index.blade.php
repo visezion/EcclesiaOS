@@ -19,7 +19,7 @@
             ['label' => 'Reports Reviewed', 'value' => $stats['reviewed'], 'note' => '+ 8% from last week', 'icon' => 'check-circle-2', 'tone' => 'bg-emerald-50 text-emerald-600 ring-emerald-100'],
             ['label' => 'Pending Review', 'value' => $stats['pending_review'], 'note' => 'awaiting decision', 'icon' => 'clock3', 'tone' => 'bg-orange-50 text-orange-600 ring-orange-100'],
             ['label' => 'Requires Action', 'value' => $stats['requires_action'], 'note' => 'returned or rejected', 'icon' => 'triangle-alert', 'tone' => 'bg-rose-50 text-rose-600 ring-rose-100'],
-            ['label' => 'Average Review Time', 'value' => $stats['average_review_time'].' days', 'note' => 'submitted to review', 'icon' => 'clock', 'tone' => 'bg-violet-50 text-violet-600 ring-violet-100'],
+            ['label' => 'Average Review Time', 'value' => __(':count days', ['count' => $stats['average_review_time']]), 'note' => 'submitted to review', 'icon' => 'clock', 'tone' => 'bg-violet-50 text-violet-600 ring-violet-100'],
         ];
         $flowTotal = max(collect($flow)->sum('count'), 1);
         $activeTab = $filters['tab'];
@@ -356,42 +356,114 @@
         @endif
 
         @if($activeTab === 'templates')
-            <section class="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+            <section class="mb-5">
+                <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-base font-semibold text-slate-950">My templates</h2>
+                            <span class="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-700">Private</span>
+                        </div>
+                        <p class="mt-1 text-xs text-slate-500">Saved report formats visible only to you.</p>
+                    </div>
+                    <span class="text-xs font-semibold text-slate-500">{{ $personalTemplates->count() }} saved</span>
+                </div>
+
+                @if($personalTemplates->isEmpty())
+                    <div class="flex items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
+                        <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-violet-50 text-violet-600"><i data-lucide="bookmark-plus" class="size-4"></i></span>
+                        <span>Open one of your reports and choose <strong class="text-slate-700">Save as template</strong> to add it here.</span>
+                    </div>
+                @else
+                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        @foreach($personalTemplates as $personalTemplate)
+                            <article class="dashboard-card flex min-h-[235px] flex-col p-4 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="flex min-w-0 items-start gap-3">
+                                        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600 ring-1 ring-violet-100"><i data-lucide="bookmark-check" class="size-5"></i></span>
+                                        <div class="min-w-0">
+                                            <h3 class="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">{{ $personalTemplate->name }}</h3>
+                                            <div class="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-600">My {{ Str::headline($personalTemplate->report_type) }} template</div>
+                                        </div>
+                                    </div>
+                                    <form method="POST" action="{{ route('leadership-report-templates.destroy', $personalTemplate) }}" onsubmit="return confirm('Delete this personal template?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="grid size-8 shrink-0 place-items-center rounded-lg border border-rose-100 text-rose-500 transition hover:bg-rose-50 hover:text-rose-700" title="Delete personal template" aria-label="Delete {{ $personalTemplate->name }}"><i data-lucide="trash-2" class="size-4"></i></button>
+                                    </form>
+                                </div>
+
+                                <p class="mt-4 min-h-10 text-xs leading-5 text-slate-600">{{ Str::limit($personalTemplate->description ?: 'A reusable private copy of your report structure, narrative, indicators, and actions.', 116) }}</p>
+
+                                <div class="mt-3 grid grid-cols-2 gap-2 text-[10px]">
+                                    <div class="rounded-lg bg-slate-50 px-2.5 py-2"><span class="block text-slate-400">Priority</span><strong class="mt-0.5 block text-slate-700">{{ Str::headline($personalTemplate->priority) }}</strong></div>
+                                    <div class="rounded-lg bg-slate-50 px-2.5 py-2"><span class="block text-slate-400">Saved</span><strong class="mt-0.5 block text-slate-700">{{ $personalTemplate->created_at->format('M d, Y') }}</strong></div>
+                                </div>
+
+                                <form method="POST" action="{{ route('leadership-report-templates.use', $personalTemplate) }}" class="mt-auto pt-4">
+                                    @csrf
+                                    <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700"><i data-lucide="file-plus-2" class="size-4"></i>Use template</button>
+                                </form>
+                            </article>
+                        @endforeach
+                    </div>
+                @endif
+            </section>
+
+            <div class="mb-3 flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold text-slate-950">Built-in templates</h2>
+                    <p class="mt-1 text-xs text-slate-500">Ready-made reporting structures available to your church.</p>
+                </div>
+                <span class="text-xs font-semibold text-slate-500">{{ count($templates) }} available</span>
+            </div>
+
+            <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 @foreach($templates as $template)
-                    <form method="POST" action="{{ route('leadership-reports.store') }}" class="dashboard-card flex flex-col">
+                    <form method="POST" action="{{ route('leadership-reports.store') }}" class="dashboard-card flex min-h-[260px] flex-col p-4 transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md">
                         @csrf
-                        <input type="hidden" name="title" value="{{ $template['name'].' - '.now()->format('M d, Y') }}">
+                        <input type="hidden" name="title" value="{{ $template['title'] }}">
                         <input type="hidden" name="report_type" value="{{ $template['type'] }}">
                         <input type="hidden" name="priority" value="{{ $template['priority'] }}">
                         <input type="hidden" name="assigned_to" value="{{ $reportSettings['default_reviewer_id'] }}">
-                        <input type="hidden" name="period_start" value="{{ now()->startOfWeek()->toDateString() }}">
-                        <input type="hidden" name="period_end" value="{{ now()->endOfWeek()->toDateString() }}">
+                        <input type="hidden" name="period_start" value="{{ $template['period_start'] }}">
+                        <input type="hidden" name="period_end" value="{{ $template['period_end'] }}">
                         <input type="hidden" name="summary" value="{{ $template['summary'] }}">
+                        <input type="hidden" name="service_notes" value="{{ $template['service_notes'] }}">
+                        <input type="hidden" name="issues" value="{{ $template['issues'] }}">
+                        <input type="hidden" name="plans" value="{{ $template['plans'] }}">
+                        <input type="hidden" name="supporting_links" value="">
                         <input type="hidden" name="action_items" value="{{ $template['actions'] }}">
                         <input type="hidden" name="attendance_score" value="{{ $template['metrics'][0] }}">
                         <input type="hidden" name="discipleship_score" value="{{ $template['metrics'][1] }}">
                         <input type="hidden" name="care_followups" value="{{ $template['metrics'][2] }}">
                         <input type="hidden" name="volunteer_coverage" value="{{ $template['metrics'][3] }}">
+                        <input type="hidden" name="from_template" value="1">
                         <div class="flex items-start gap-3">
-                            <span class="grid size-12 place-items-center rounded-xl ring-1 {{ $template['tone'] }}"><i data-lucide="{{ $template['icon'] }}" class="size-6"></i></span>
-                            <div>
-                                <h2 class="font-semibold text-slate-950">{{ $template['name'] }}</h2>
-                                <div class="mt-1 text-xs font-semibold uppercase text-slate-400">{{ Str::headline($template['type']) }} template</div>
+                            <span class="grid size-10 shrink-0 place-items-center rounded-xl ring-1 {{ $template['tone'] }}"><i data-lucide="{{ $template['icon'] }}" class="size-5"></i></span>
+                            <div class="min-w-0 flex-1">
+                                <h2 class="text-sm font-semibold leading-5 text-slate-950">{{ $template['name'] }}</h2>
+                                <div class="mt-0.5 text-[10px] font-semibold uppercase tracking-wide {{ ($template['is_sample'] ?? false) ? 'text-cyan-700' : 'text-slate-400' }}">{{ $template['cadence'] }} template</div>
                             </div>
                         </div>
-                        <p class="mt-4 min-h-20 text-sm leading-6 text-slate-600">{{ $template['description'] }}</p>
-                        <div class="mt-4 space-y-2 text-xs text-slate-600">
-                            @foreach(explode("\n", $template['actions']) as $action)
-                                <div class="flex gap-2"><i data-lucide="check-circle-2" class="size-4 shrink-0 text-emerald-600"></i>{{ $action }}</div>
+
+                        <p class="mt-4 min-h-12 text-xs leading-5 text-slate-600">{{ Str::limit($template['description'], 126) }}</p>
+
+                        <ul class="mt-3 space-y-1.5 text-[11px] text-slate-600">
+                            @foreach(array_slice($template['sections'], 0, 3) as $section)
+                                <li class="flex items-center gap-2"><i data-lucide="circle-check" class="size-3.5 shrink-0 text-emerald-500"></i><span>{{ $section }}</span></li>
                             @endforeach
+                        </ul>
+
+                        <div class="mt-auto pt-4">
+                            <button name="submit" value="0" class="inline-flex w-full items-center justify-center rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700">Use template</button>
                         </div>
-                        <button name="submit" value="0" class="mt-5 rounded-lg border border-violet-200 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50">Use Template</button>
                     </form>
                 @endforeach
             </section>
         @endif
 
         @if($activeTab === 'settings')
+            @php($selectedReviewerRoleIds = collect($reportSettings['reviewer_role_ids'] ?? [])->map(fn ($roleId) => (int) $roleId)->all())
             <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <form method="POST" action="{{ route('leadership-reports.settings.update') }}" class="dashboard-card">
                     @csrf
@@ -399,10 +471,35 @@
                     <div class="mb-5 flex items-start justify-between gap-4">
                         <div>
                             <h2 class="text-lg font-semibold text-slate-950">Leadership Report Settings</h2>
-                            <p class="mt-1 text-sm text-slate-500">{{ $canReviewLeadershipReports ? 'Controls your default reviewer, due dates, reminders, and escalation behavior when you create reports.' : 'Controls your default reviewer, due dates, and reminder preferences when you create reports.' }}</p>
+                            <p class="mt-1 text-sm text-slate-500">{{ $canManageReviewerRoles ? 'Control eligible reviewer roles, your default reviewer, due dates, reminders, and escalation behavior.' : ($canReviewLeadershipReports ? 'Controls your default reviewer, due dates, reminders, and escalation behavior.' : 'Controls your default reviewer, due dates, and reminder preferences when you create reports.') }}</p>
                         </div>
                         <span class="grid size-12 place-items-center rounded-xl bg-violet-50 text-violet-600 ring-1 ring-violet-100"><i data-lucide="settings" class="size-6"></i></span>
                     </div>
+                    @if($canManageReviewerRoles)
+                        <section class="mb-5 rounded-xl border border-violet-200 bg-violet-50/40 p-4">
+                            <input type="hidden" name="reviewer_role_filter_present" value="1">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <h3 class="flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="shield-check" class="size-4 text-violet-600"></i>Eligible Reviewer Roles</h3>
+                                    <p class="mt-1 text-xs leading-5 text-slate-500">Select the roles whose users may appear in both <strong>Reviewer</strong> and <strong>Default Reviewer</strong> searches. Leave all roles unchecked to allow every user in scope.</p>
+                                </div>
+                                <span class="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-100">{{ count($selectedReviewerRoleIds) > 0 ? __(':count selected', ['count' => count($selectedReviewerRoleIds)]) : 'All roles' }}</span>
+                            </div>
+                            <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                @forelse($reviewerRoles as $role)
+                                    <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 transition hover:border-violet-200 hover:bg-violet-50/50">
+                                        <input name="reviewer_role_ids[]" type="checkbox" value="{{ $role->id }}" @checked(in_array((int) $role->id, $selectedReviewerRoleIds, true)) class="rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-sm font-semibold text-slate-900">{{ $role->name }}</span>
+                                            <span class="mt-1 block text-xs text-slate-500">{{ $role->eligible_users_count === 1 ? __(':count church user', ['count' => number_format($role->eligible_users_count)]) : __(':count church users', ['count' => number_format($role->eligible_users_count)]) }}</span>
+                                        </span>
+                                    </label>
+                                @empty
+                                    <div class="rounded-lg bg-white p-3 text-sm text-slate-500 sm:col-span-2 xl:col-span-3">No roles are configured yet.</div>
+                                @endforelse
+                            </div>
+                        </section>
+                    @endif
                     <div class="grid gap-4 md:grid-cols-2">
                         <x-searchable-select
                             name="default_reviewer_id"
@@ -460,7 +557,8 @@
                             <div class="flex justify-between gap-3"><span class="text-slate-500">Default reviewer</span><span class="font-semibold text-slate-950">{{ $reporters->firstWhere('id', $reportSettings['default_reviewer_id'])?->name ?? 'Not assigned' }}</span></div>
                             <div class="flex justify-between gap-3"><span class="text-slate-500">Weekly due day</span><span class="font-semibold text-slate-950">{{ Str::headline($reportSettings['weekly_due_day']) }}</span></div>
                             @if($canReviewLeadershipReports)
-                                <div class="flex justify-between gap-3"><span class="text-slate-500">Escalation</span><span class="font-semibold text-slate-950">{{ $reportSettings['escalation_hours'] }} hours</span></div>
+                                <div class="flex justify-between gap-3"><span class="text-slate-500">Eligible roles</span><span class="max-w-48 text-right font-semibold text-slate-950">{{ count($selectedReviewerRoleIds) > 0 ? $reviewerRoles->whereIn('id', $selectedReviewerRoleIds)->pluck('name')->join(', ') : 'All roles' }}</span></div>
+                                <div class="flex justify-between gap-3"><span class="text-slate-500">Escalation</span><span class="font-semibold text-slate-950">{{ __(':count hours', ['count' => $reportSettings['escalation_hours']]) }}</span></div>
                             @endif
                             <div class="flex justify-between gap-3"><span class="text-slate-500">Last updated</span><span class="font-semibold text-slate-950">{{ $reportSettings['updated_at'] ?? 'System default' }}</span></div>
                         </div>
@@ -535,7 +633,7 @@
         </section>
 
         <div x-cloak x-show="createOpen" class="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4">
-            <form method="POST" action="{{ route('leadership-reports.store') }}" class="max-h-[92vh] w-full max-w-7xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+            <form method="POST" action="{{ route('leadership-reports.store') }}" enctype="multipart/form-data" class="max-h-[92vh] w-full max-w-7xl overflow-y-auto rounded-xl bg-white shadow-2xl">
                 @csrf
                 <div class="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>
@@ -751,9 +849,53 @@
 
                         <div x-show="createStep === 7" class="space-y-5">
                             <div>
-                                <h3 class="text-lg font-semibold text-slate-950">Plans & Supporting Links</h3>
-                                <p class="mt-1 text-sm text-slate-500">Add next steps and links to documents, folders, videos, or planning files.</p>
+                                <h3 class="text-lg font-semibold text-slate-950">Files, Plans & Supporting Links</h3>
+                                <p class="mt-1 text-sm text-slate-500">Upload supporting evidence and review selected files immediately before submitting the report.</p>
                             </div>
+                            <section class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                        <h4 class="flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="paperclip" class="size-4 text-violet-600"></i>Report Attachments</h4>
+                                        <p class="mt-1 text-xs leading-5 text-slate-500">Up to 8 files, 15 MB each. PDF, Word, Excel, PowerPoint, CSV, text, and common image formats are supported.</p>
+                                    </div>
+                                    <label class="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">
+                                        <i data-lucide="upload" class="size-4"></i>
+                                        Choose files
+                                        <input x-ref="reportFileInput" type="file" name="attachments[]" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.jpg,.jpeg,.png,.webp" class="sr-only" @change="handleReportFiles($event)">
+                                    </label>
+                                </div>
+
+                                <div x-show="reportFiles.length === 0" class="mt-4 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-center">
+                                    <i data-lucide="file-up" class="mx-auto size-7 text-slate-400"></i>
+                                    <p class="mt-2 text-sm font-semibold text-slate-700">No files selected</p>
+                                    <p class="mt-1 text-xs text-slate-500">Choose files to see their names, sizes, thumbnails, and instant preview actions here.</p>
+                                </div>
+
+                                <div x-show="reportFiles.length > 0" class="mt-4 grid gap-3 md:grid-cols-2">
+                                    <template x-for="(file, index) in reportFiles" :key="file.id">
+                                        <article class="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                            <template x-if="file.isImage">
+                                                <img :src="file.url" :alt="file.name" class="h-32 w-full bg-slate-100 object-cover">
+                                            </template>
+                                            <div class="flex items-start gap-3 p-3">
+                                                <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-violet-50 text-violet-600"><i data-lucide="file-text" class="size-4"></i></span>
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="truncate text-sm font-semibold text-slate-900" x-text="file.name"></div>
+                                                    <div class="mt-1 text-xs text-slate-500"><span x-text="formatReportFileSize(file.size)"></span><span> · </span><span x-text="file.label"></span></div>
+                                                    <div class="mt-3 flex flex-wrap gap-2">
+                                                        <button type="button" @click="openReportFile(file)" class="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-2.5 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"><i data-lucide="eye" class="size-3.5"></i>Review now</button>
+                                                        <button type="button" @click="removeReportFile(index)" class="inline-flex items-center gap-1.5 rounded-md bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"><i data-lucide="x" class="size-3.5"></i>Remove</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </article>
+                                    </template>
+                                </div>
+                                <div x-show="reportFiles.length > 0" class="mt-3 flex items-center justify-between gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
+                                    <span><span x-text="reportFiles.length"></span> file<span x-show="reportFiles.length !== 1">s</span> ready to upload</span>
+                                    <span>Ready for instant review</span>
+                                </div>
+                            </section>
                             <label class="space-y-1 text-xs font-semibold text-slate-500">Plans & Suggestions
                                 <textarea name="plans" rows="5" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Recommended next steps, ministry adjustments, decisions requested, and dates.">{{ old('plans') }}</textarea>
                                 <span class="{{ $hintClass }}">Recommended next steps. Example: Schedule volunteer training on Aug 3 and confirm care team assignments.</span>
@@ -773,6 +915,24 @@
                                 <textarea name="action_items" rows="5" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="One action item per line">{{ old('action_items') }}</textarea>
                                 <span class="{{ $hintClass }}">Specific follow-up tasks pastors or leaders can track. Example: Call first-time visitor families; confirm youth volunteer roster.</span>
                             </label>
+                            <section class="rounded-xl border border-violet-200 bg-violet-50/50 p-4">
+                                <div class="flex items-start gap-3">
+                                    <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-violet-600 ring-1 ring-violet-100"><i data-lucide="bookmark-plus" class="size-5"></i></span>
+                                    <div>
+                                        <h4 class="text-sm font-semibold text-slate-950">Save this setup for later</h4>
+                                        <p class="mt-1 text-xs leading-5 text-slate-500">The personal-template action saves this report structure without creating or submitting a report.</p>
+                                    </div>
+                                </div>
+                                <div class="mt-4 grid gap-3 md:grid-cols-2">
+                                    <label class="space-y-1 text-xs font-semibold text-slate-600">Template Name <span class="font-normal text-slate-400">optional</span>
+                                        <input name="personal_template_name" value="{{ old('personal_template_name') }}" maxlength="180" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" placeholder="Uses the report title when blank">
+                                    </label>
+                                    <label class="space-y-1 text-xs font-semibold text-slate-600">Template Description <span class="font-normal text-slate-400">optional</span>
+                                        <input name="personal_template_description" value="{{ old('personal_template_description') }}" maxlength="500" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" placeholder="When this template should be used">
+                                    </label>
+                                </div>
+                                <div class="mt-3 flex items-start gap-2 text-[11px] leading-5 text-violet-700"><i data-lucide="shield-check" class="mt-0.5 size-3.5 shrink-0"></i><span>Only you can view, use, or delete the saved template. Selected files and recorded attendance links are excluded.</span></div>
+                            </section>
                             <div class="grid gap-3 md:grid-cols-2">
                                 <div class="rounded-lg bg-violet-50 p-4 text-sm text-violet-800"><i data-lucide="shield-check" class="mb-2 size-5"></i>Submitted reports enter the leadership review queue immediately.</div>
                                 <div class="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800"><i data-lucide="save" class="mb-2 size-5"></i>Draft reports stay in the report queue until they are ready to submit.</div>
@@ -811,6 +971,7 @@
                     <div class="flex flex-col gap-2 sm:flex-row">
                         <button type="button" x-show="createStep > 1" @click="prevStep()" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Back</button>
                         <button type="button" x-show="createStep < createTotal" @click="nextStep()" class="inline-flex items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white">Continue <i data-lucide="arrow-right" class="size-4"></i></button>
+                        <button x-show="createStep === createTotal" name="save_as_template" value="1" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"><i data-lucide="bookmark-plus" class="size-4"></i>Save as Template</button>
                         <button x-show="createStep === createTotal" name="submit" value="0" class="rounded-lg border border-violet-200 px-4 py-2.5 text-sm font-semibold text-violet-700">Save Draft</button>
                         <button x-show="createStep === createTotal" name="submit" value="1" class="rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white">Submit Report</button>
                     </div>

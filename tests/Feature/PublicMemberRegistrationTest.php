@@ -5,7 +5,10 @@ namespace Tests\Feature;
 use App\Models\Campus;
 use App\Models\Church;
 use App\Models\Member;
+use App\Models\Ministry;
+use App\Models\Role;
 use App\Models\User;
+use App\Models\Volunteer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -17,7 +20,13 @@ class PublicMemberRegistrationTest extends TestCase
     public function test_public_registration_page_is_available_without_signing_in(): void
     {
         $church = Church::factory()->create(['name' => 'Grace Community Church']);
-        Campus::factory()->for($church)->create(['name' => 'Central Campus']);
+        $campus = Campus::factory()->for($church)->create(['name' => 'Central Campus']);
+        Ministry::query()->create([
+            'church_id' => $church->id,
+            'campus_id' => $campus->id,
+            'name' => 'Community Care Department',
+            'status' => 'active',
+        ]);
 
         $this->get(route('members.self-register'))
             ->assertOk()
@@ -27,7 +36,131 @@ class PublicMemberRegistrationTest extends TestCase
             ->assertSee('Create my member login')
             ->assertSee('Securing your registration')
             ->assertSee('Please wait while we safely save your details', false)
-            ->assertSee('Central Campus');
+            ->assertSee('Central Campus')
+            ->assertSee('Branch or Campus')
+            ->assertSee('Department or Ministry')
+            ->assertSee('Community Care Department')
+            ->assertSee('Select a branch or campus first')
+            ->assertDontSee('Church location');
+    }
+
+    public function test_public_registration_language_switches_and_persists_for_all_supported_languages(): void
+    {
+        $church = Church::factory()->create();
+        Campus::factory()->for($church)->create(['name' => 'Central Campus']);
+
+        $this->post(route('locale.update'), ['locale' => 'fr'])
+            ->assertRedirect()
+            ->assertSessionHas('locale', 'fr')
+            ->assertCookie('locale', 'fr');
+
+        $this->withSession(['locale' => 'fr'])
+            ->get(route('members.self-register'))
+            ->assertOk()
+            ->assertSee('<html lang="fr"', false)
+            ->assertSee('Bienvenue dans notre famille d’église.')
+            ->assertSee('Je suis déjà membre')
+            ->assertSee('Branche ou campus');
+
+        $this->withSession(['locale' => 'es'])
+            ->get(route('members.self-register'))
+            ->assertOk()
+            ->assertSee('<html lang="es"', false)
+            ->assertSee('Bienvenido a nuestra familia de la iglesia.')
+            ->assertSee('Ya soy miembro')
+            ->assertSee('Sede o campus');
+
+        $this->withSession(['locale' => 'en'])
+            ->get(route('members.self-register'))
+            ->assertOk()
+            ->assertSee('<html lang="en"', false)
+            ->assertSee('Welcome to our church family.')
+            ->assertSee('I’m already a member');
+    }
+
+    public function test_language_switch_rejects_unsupported_locales(): void
+    {
+        $this->post(route('locale.update'), ['locale' => 'de'])
+            ->assertSessionHasErrors('locale');
+    }
+
+    public function test_registration_validation_feedback_uses_the_selected_language(): void
+    {
+        $church = Church::factory()->create();
+        Campus::factory()->for($church)->create();
+
+        $this->withSession(['locale' => 'es'])
+            ->from(route('members.self-register'))
+            ->post(route('members.self-register.store'), [
+                'registration_type' => 'new',
+                'preferred_contact' => 'email',
+                'privacy_consent' => '0',
+            ])
+            ->assertRedirect(route('members.self-register'))
+            ->assertSessionHasErrors([
+                'first_name' => 'El campo nombre es obligatorio.',
+                'last_name' => 'El campo apellido es obligatorio.',
+                'email' => 'Introduce un correo electrónico o un número de teléfono.',
+                'privacy_consent' => 'Confirma que la iglesia puede utilizar estos datos de forma segura para membresía y cuidado pastoral.',
+            ]);
+    }
+
+    public function test_authenticated_language_switch_updates_the_account_preference(): void
+    {
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id, 'account_settings' => []]);
+        $role = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($role);
+
+        $this->actingAs($user)
+            ->post(route('locale.update'), ['locale' => 'es'])
+            ->assertRedirect()
+            ->assertSessionHas('locale', 'es');
+
+        $this->assertSame('es', data_get($user->fresh()->account_settings, 'preferences.language'));
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('<html lang="es"', false)
+            ->assertSee('¡Bienvenido de nuevo')
+            ->assertSee('Panel de control')
+            ->assertSee('Miembros')
+            ->assertSee('Acciones rápidas');
+
+        $this->actingAs($user)
+            ->post(route('locale.update'), ['locale' => 'fr'])
+            ->assertRedirect()
+            ->assertSessionHas('locale', 'fr');
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('<html lang="fr"', false)
+            ->assertSee('Bon retour')
+            ->assertSee('Tableau de bord')
+            ->assertSee('Membres')
+            ->assertSee('Actions rapides');
+    }
+
+    public function test_admin_can_share_registration_link_from_members_and_dashboard(): void
+    {
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $role = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($role);
+
+        $this->actingAs($user)
+            ->get(route('members.index'))
+            ->assertOk()
+            ->assertSee('Share registration link')
+            ->assertSee('data-registration-share', false)
+            ->assertSee('member-registration');
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-registration-share', false)
+            ->assertSee('Share member registration link');
     }
 
     public function test_new_member_can_self_register_and_optionally_check_in(): void
@@ -84,8 +217,15 @@ class PublicMemberRegistrationTest extends TestCase
     public function test_returning_member_is_matched_without_creating_a_duplicate(): void
     {
         $church = Church::factory()->create();
-        $campus = Campus::factory()->for($church)->create();
-        $member = Member::factory()->for($church)->for($campus)->create([
+        $originalCampus = Campus::factory()->for($church)->create(['name' => 'Original Campus']);
+        $selectedCampus = Campus::factory()->for($church)->create(['name' => 'North Branch']);
+        $ministry = Ministry::query()->create([
+            'church_id' => $church->id,
+            'campus_id' => $selectedCampus->id,
+            'name' => 'Hospitality Department',
+            'status' => 'active',
+        ]);
+        $member = Member::factory()->for($church)->for($originalCampus)->create([
             'first_name' => 'Taylor',
             'last_name' => 'Morgan',
             'email' => null,
@@ -97,23 +237,69 @@ class PublicMemberRegistrationTest extends TestCase
             'first_name' => 'taylor',
             'last_name' => 'MORGAN',
             'phone' => '15553219876',
-            'campus_id' => $campus->id,
+            'campus_id' => $selectedCampus->id,
+            'ministry_id' => $ministry->id,
             'preferred_contact' => 'phone',
             'interests' => ['small_groups'],
             'check_in_today' => '1',
             'privacy_consent' => '1',
         ])
             ->assertRedirect(route('members.self-register'))
-            ->assertSessionHas('registration_complete');
+            ->assertSessionHas('registration_complete')
+            ->assertSessionHas('registration_complete.campus_name', 'North Branch')
+            ->assertSessionHas('registration_complete.ministry_name', 'Hospitality Department');
 
         $this->assertSame(1, Member::query()->count());
+        $this->assertSame($selectedCampus->id, $member->refresh()->campus_id);
+        $assignment = Volunteer::query()->where('member_id', $member->id)->where('ministry_id', $ministry->id)->firstOrFail();
+        $this->assertSame($selectedCampus->id, $assignment->campus_id);
+        $this->assertSame('Team Member', $assignment->role);
+        $this->assertSame('active', $assignment->status);
         $this->assertDatabaseHas('attendance_records', [
             'member_id' => $member->id,
+            'campus_id' => $selectedCampus->id,
             'service_date' => today()->startOfDay()->toDateTimeString(),
         ]);
         $this->assertDatabaseHas('activity_logs', [
             'subject_id' => $member->id,
             'action' => 'member_self_registration_returned',
+        ]);
+    }
+
+    public function test_returning_member_cannot_select_a_ministry_from_another_branch_or_campus(): void
+    {
+        $church = Church::factory()->create();
+        $selectedCampus = Campus::factory()->for($church)->create(['name' => 'Central Campus']);
+        $otherCampus = Campus::factory()->for($church)->create(['name' => 'South Campus']);
+        $otherMinistry = Ministry::query()->create([
+            'church_id' => $church->id,
+            'campus_id' => $otherCampus->id,
+            'name' => 'South Campus Media',
+            'status' => 'active',
+        ]);
+        $member = Member::factory()->for($church)->for($selectedCampus)->create([
+            'first_name' => 'Taylor',
+            'last_name' => 'Morgan',
+            'email' => 'taylor@example.test',
+        ]);
+
+        $this->from(route('members.self-register'))
+            ->post(route('members.self-register.store'), [
+                'registration_type' => 'returning',
+                'first_name' => 'Taylor',
+                'last_name' => 'Morgan',
+                'email' => 'taylor@example.test',
+                'campus_id' => $selectedCampus->id,
+                'ministry_id' => $otherMinistry->id,
+                'preferred_contact' => 'email',
+                'privacy_consent' => '1',
+            ])
+            ->assertRedirect(route('members.self-register'))
+            ->assertSessionHasErrors('ministry_id');
+
+        $this->assertDatabaseMissing('volunteers', [
+            'member_id' => $member->id,
+            'ministry_id' => $otherMinistry->id,
         ]);
     }
 

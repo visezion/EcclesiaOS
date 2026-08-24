@@ -10,4 +10,4 @@
     };
 @endphp
 
-<span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 {{ $classes }}">{{ $status }}</span>
+<span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 {{ $classes }}">{{ $term($status) }}</span>

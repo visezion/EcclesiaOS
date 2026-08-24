@@ -201,6 +201,7 @@
                                     @php
                                         $meta = $verification->metadata ?? [];
                                         $isSuccess = $verification->status === 'success';
+                                        $isPending = $verification->status === 'pending_review';
                                     @endphp
                                     <tr class="hover:bg-slate-50/70">
                                         <td class="px-5 py-4">
@@ -211,14 +212,21 @@
                                         </td>
                                         <td class="px-5 py-4">{{ Str::headline($verification->provider ?? 'system') }}</td>
                                         <td class="px-5 py-4">
-                                            <span class="rounded-full px-2.5 py-1 text-xs ring-1 {{ $isSuccess ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : 'bg-rose-50 text-rose-700 ring-rose-100' }}">{{ Str::headline($verification->status) }}</span>
+                                            <span class="rounded-full px-2.5 py-1 text-xs ring-1 {{ $isSuccess ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : ($isPending ? 'bg-amber-50 text-amber-700 ring-amber-100' : 'bg-rose-50 text-rose-700 ring-rose-100') }}">{{ Str::headline($verification->status) }}</span>
                                         </td>
                                         <td class="px-5 py-4">{{ $verification->verified_at?->format('M d, h:i A') }}</td>
                                         <td class="max-w-sm px-5 py-4 text-xs text-slate-500">
                                             @if($verification->method === 'geolocation')
                                                 Lat {{ $meta['latitude'] ?? 'n/a' }}, Lng {{ $meta['longitude'] ?? 'n/a' }}
                                             @elseif($verification->method === 'face')
-                                                Face ref {{ $meta['face_reference'] ?? 'stored' }}
+                                                @if($meta['face_evidence_path'] ?? null)
+                                                    <a href="{{ route('attendance.verifications.face-evidence', $verification) }}" target="_blank" class="group inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-2 text-violet-700 hover:border-violet-200 hover:bg-violet-50">
+                                                        <img src="{{ route('attendance.verifications.face-evidence', $verification) }}" alt="Face evidence for verification" class="size-12 rounded-md object-cover ring-1 ring-slate-200">
+                                                        <span><strong class="block">Review face evidence</strong><span class="block text-[11px] font-normal text-slate-500">{{ $meta['face_evidence_name'] ?? 'Captured image' }}</span></span>
+                                                    </a>
+                                                @else
+                                                    Face ref {{ $meta['face_reference'] ?? 'stored' }}
+                                                @endif
                                             @elseif($meta['auto_online'] ?? false)
                                                 Online room presence verified automatically.
                                             @else

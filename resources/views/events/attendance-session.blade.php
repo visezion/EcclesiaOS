@@ -87,7 +87,7 @@
             @endforeach
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-[390px_1fr_320px]">
+        <section class="grid gap-4 2xl:grid-cols-[390px_minmax(0,1fr)_320px]">
             <form method="POST" action="{{ route('event-sessions.attendance.update', $session) }}" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 @csrf
                 @method('PUT')
@@ -187,7 +187,7 @@
                 </button>
             </form>
 
-            <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <section class="min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div class="flex flex-col gap-2 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h2 class="text-base font-semibold text-slate-950">Final Attendance Records</h2>
