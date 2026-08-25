@@ -28,11 +28,16 @@ final class YouTubeSermonSyncTest extends TestCase
         ]);
         $completedOnSecondSync = false;
         Http::fake(function ($request) use (&$completedOnSecondSync) {
-            if (str_contains($request->url(), '/channels')) return Http::response(['items' => [['id' => 'channel-1', 'snippet' => ['title' => 'Test Church TV'], 'contentDetails' => ['relatedPlaylists' => ['uploads' => 'uploads-1']]]]]);
-            if (str_contains($request->url(), '/playlistItems')) return Http::response(['items' => array_map(fn ($id) => ['contentDetails' => ['videoId' => $id]], ['normal-1', 'upcoming-1', 'live-1', 'completed-1'])]);
+            if (str_contains($request->url(), '/channels')) {
+                return Http::response(['items' => [['id' => 'channel-1', 'snippet' => ['title' => 'Test Church TV'], 'contentDetails' => ['relatedPlaylists' => ['uploads' => 'uploads-1']]]]]);
+            }
+            if (str_contains($request->url(), '/playlistItems')) {
+                return Http::response(['items' => array_map(fn ($id) => ['contentDetails' => ['videoId' => $id]], ['normal-1', 'upcoming-1', 'live-1', 'completed-1'])]);
+            }
             if (str_contains($request->url(), '/videos')) {
                 $liveStatus = $completedOnSecondSync ? ['liveBroadcastContent' => 'none', 'publishedAt' => '2026-08-20T09:00:00Z'] : ['liveBroadcastContent' => 'live', 'publishedAt' => '2026-08-20T09:00:00Z'];
                 $liveDetails = ['actualStartTime' => '2026-08-20T09:01:00Z'] + ($completedOnSecondSync ? ['actualEndTime' => '2026-08-20T10:01:00Z'] : []);
+
                 return Http::response(['items' => [
                     ['id' => 'normal-1', 'snippet' => ['title' => 'Sunday teaching', 'description' => 'A normal upload.', 'publishedAt' => '2026-08-10T09:00:00Z', 'thumbnails' => ['high' => ['url' => 'https://img.test/normal.jpg'], 'liveBroadcastContent' => 'none']], 'status' => []],
                     ['id' => 'upcoming-1', 'snippet' => ['title' => 'Sunday live', 'description' => 'Scheduled stream.', 'publishedAt' => '2026-08-20T09:00:00Z', 'liveBroadcastContent' => 'upcoming'], 'liveStreamingDetails' => ['scheduledStartTime' => '2026-08-30T09:00:00Z']],
@@ -40,6 +45,7 @@ final class YouTubeSermonSyncTest extends TestCase
                     ['id' => 'completed-1', 'snippet' => ['title' => 'Completed live', 'description' => 'Finished stream.', 'publishedAt' => '2026-08-19T09:00:00Z', 'liveBroadcastContent' => 'none'], 'liveStreamingDetails' => ['actualStartTime' => '2026-08-19T09:01:00Z', 'actualEndTime' => '2026-08-19T10:01:00Z']],
                 ]]);
             }
+
             return Http::response([], 404);
         });
 

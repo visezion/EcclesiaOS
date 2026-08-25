@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\ActivityLog;
+use App\Models\Approval;
 use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\AttendanceRecord;
@@ -31,6 +32,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Number;
+use Illuminate\Support\Str;
 
 final class DashboardService
 {
@@ -269,12 +271,13 @@ final class DashboardService
 
     public function getUpcomingEvents(): array
     {
-        return $this->query(Event::class)->where('starts_at', '>=', now())->orderBy('starts_at')->limit(5)->get()->map(fn (Event $event): array => [
+        return $this->query(Event::class)->with(['sessions' => fn ($query) => $query->orderBy('session_date')->orderBy('starts_at')->limit(1)])->where('starts_at', '>=', now())->orderBy('starts_at')->limit(5)->get()->map(fn (Event $event): array => [
             'date' => Carbon::parse($event->starts_at)->translatedFormat('M d'),
             'title' => $event->title,
             'time' => Carbon::parse($event->starts_at)->translatedFormat('l, g:i A'),
             'venue' => $event->venue,
             'type' => $event->category,
+            'url' => $event->sessions->first() ? route('event-sessions.meeting', $event->sessions->first()) : route('events.index'),
         ])->all();
     }
 
@@ -318,16 +321,46 @@ final class DashboardService
 
     public function getRecentActivities(): array
     {
-        return $this->query(ActivityLog::class)->latest()->limit(7)->get()->map(fn (ActivityLog $log): array => [
-            'description' => $log->description,
-            'time' => $log->created_at->translatedFormat('M d, Y - g:i A'),
-            'module' => $log->module,
-            'icon' => match ($log->module) {
-                'Authentication' => 'shield-check',
-                'Access Control' => 'user-check',
-                default => 'message-square-check',
-            },
-        ])->all();
+        return $this->query(ActivityLog::class)
+            ->with('subject')
+            ->latest()
+            ->limit(7)
+            ->get()
+            ->map(fn (ActivityLog $log): array => [
+                'description' => $this->activityDescription($log),
+                'time' => $log->created_at->translatedFormat('M d, Y - g:i A'),
+                'module' => $log->module,
+                'icon' => match ($log->module) {
+                    'Authentication' => 'shield-check',
+                    'Access Control' => 'user-check',
+                    default => 'message-square-check',
+                },
+            ])->all();
+    }
+
+    private function activityDescription(ActivityLog $log): string
+    {
+        if (! $log->subject instanceof Approval) {
+            return (string) $log->description;
+        }
+
+        $approval = $log->subject;
+        $resource = $approval->approvable;
+        $label = match (true) {
+            $resource instanceof Event => 'Event: '.($resource->title ?: 'Untitled event'),
+            $resource instanceof EventSession => 'Meeting: '.($resource->title ?: 'Untitled meeting'),
+            $resource instanceof EventRecurrenceRule => 'Recurring meeting: '.($resource->title ?: 'Untitled meeting'),
+            $resource instanceof FinancialAssistanceRequest => 'Financial assistance: '.($resource->title ?: $resource->reference),
+            $resource instanceof BookstoreLibraryLoan => 'Library request: '.($resource->loan_number ?: 'Loan'),
+            $resource instanceof ProgramSectionAssignment => 'Program assignment',
+            default => Str::headline((string) ($approval->action ?: 'Workflow request')),
+        };
+
+        return match ($log->action) {
+            'approval_step_approved' => $label.' advanced to the next approval step.',
+            'approval_rejected' => $label.' was rejected.',
+            default => $label.' was approved.',
+        };
     }
 
     public function getQuickActions(): array

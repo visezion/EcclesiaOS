@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Models\Church;
 use App\Models\Sermon;
-use App\Models\YouTubeConnection;
 use App\Models\YouTubeAppCredential;
+use App\Models\YouTubeConnection;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -28,7 +27,7 @@ final class YouTubeSermonSyncService
                 'part' => 'snippet,contentDetails',
                 'mine' => 'true',
             ])['items'][0] ?? null;
-            if (!$channel) {
+            if (! $channel) {
                 throw new RuntimeException('YouTube did not return a channel for this connection.');
             }
 
@@ -91,13 +90,16 @@ final class YouTubeSermonSyncService
                 'part' => 'snippet,contentDetails',
                 'mine' => 'true',
             ])['items'][0] ?? null;
-            if (!$channel) throw new RuntimeException('YouTube did not return a channel for this connection.');
+            if (! $channel) {
+                throw new RuntimeException('YouTube did not return a channel for this connection.');
+            }
             $result = ['channel_title' => (string) data_get($channel, 'snippet.title', 'YouTube channel'), 'channel_id' => (string) $channel['id']];
             $connection->update([
                 'last_connection_tested_at' => now(),
                 'last_connection_test_status' => 'passed',
                 'last_connection_test_message' => 'YouTube API responded successfully.',
             ]);
+
             return $result;
         } catch (\Throwable $exception) {
             $connection->update([
@@ -117,6 +119,7 @@ final class YouTubeSermonSyncService
             'client_secret' => config('services.youtube.client_secret'),
             'redirect_uri' => config('services.youtube.redirect_uri'),
         ]);
+
         return Http::asForm()->post('https://oauth2.googleapis.com/token', [
             'code' => $code,
             'client_id' => $credentials->client_id,
@@ -128,10 +131,10 @@ final class YouTubeSermonSyncService
 
     private function validAccessToken(YouTubeConnection $connection): string
     {
-        if ($connection->access_token && (!$connection->token_expires_at || $connection->token_expires_at->isFuture())) {
+        if ($connection->access_token && (! $connection->token_expires_at || $connection->token_expires_at->isFuture())) {
             return $connection->access_token;
         }
-        if (!$connection->refresh_token) {
+        if (! $connection->refresh_token) {
             throw new RuntimeException('The YouTube connection has expired. Please connect it again.');
         }
 
@@ -157,10 +160,14 @@ final class YouTubeSermonSyncService
         $pageToken = null;
         do {
             $query = ['part' => 'contentDetails', 'playlistId' => $playlistId, 'maxResults' => 50];
-            if ($pageToken) $query['pageToken'] = $pageToken;
+            if ($pageToken) {
+                $query['pageToken'] = $pageToken;
+            }
             $page = $this->youtube($token, 'playlistItems', $query);
             foreach ($page['items'] ?? [] as $item) {
-                if (!empty($item['contentDetails']['videoId'])) $ids[] = $item['contentDetails']['videoId'];
+                if (! empty($item['contentDetails']['videoId'])) {
+                    $ids[] = $item['contentDetails']['videoId'];
+                }
             }
             $pageToken = $page['nextPageToken'] ?? null;
         } while ($pageToken);
@@ -203,9 +210,16 @@ final class YouTubeSermonSyncService
     private function liveStatus(array $snippet, array $live): string
     {
         $broadcast = $snippet['liveBroadcastContent'] ?? 'none';
-        if ($broadcast === 'upcoming' || (!empty($live['scheduledStartTime']) && empty($live['actualStartTime']))) return 'upcoming';
-        if (!empty($live['actualEndTime'])) return 'completed';
-        if ($broadcast === 'live' || !empty($live['actualStartTime'])) return 'live';
+        if ($broadcast === 'upcoming' || (! empty($live['scheduledStartTime']) && empty($live['actualStartTime']))) {
+            return 'upcoming';
+        }
+        if (! empty($live['actualEndTime'])) {
+            return 'completed';
+        }
+        if ($broadcast === 'live' || ! empty($live['actualStartTime'])) {
+            return 'live';
+        }
+
         return 'none';
     }
 }

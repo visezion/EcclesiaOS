@@ -12,14 +12,14 @@ use App\Models\Ministry;
 use App\Models\Sermon;
 use App\Models\WebsitePage;
 use App\Services\WebsiteStarterContent;
+use App\Support\ModuleRegistry;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
-use App\Support\ModuleRegistry;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 final class ChurchWebsiteController extends Controller
@@ -35,6 +35,9 @@ final class ChurchWebsiteController extends Controller
         return view('website-studio.index', [
             'church' => $church,
             'settings' => $settings,
+            'navigation' => is_array($settings['navigation'] ?? null)
+                ? collect($settings['navigation'])->values()->all()
+                : $this->websiteNavigation($church),
             'media' => collect($settings['media_library'] ?? [])->sortByDesc('uploaded_at')->values(),
             'homepage' => $homepage,
             'pages' => $church->websitePages()->latest('updated_at')->get(),
@@ -64,6 +67,11 @@ final class ChurchWebsiteController extends Controller
             'logo_file' => ['nullable', 'image', 'max:10240'],
             'hero_image_file' => ['nullable', 'image', 'max:15360'],
             'hero_video_file' => ['nullable', 'mimetypes:video/mp4,video/webm,video/ogg', 'max:51200'],
+            'navigation_configured' => ['nullable', 'boolean'],
+            'navigation' => ['nullable', 'array', 'max:8'],
+            'navigation.*.label' => ['required', 'string', 'max:60'],
+            'navigation.*.url' => ['required', 'string', 'max:500', 'regex:/^(#|\\/|https?:\\/\\/)/i'],
+            'navigation.*.visible' => ['nullable', 'boolean'],
             'primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'accent_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'color_scheme' => ['nullable', 'in:dark,light'],
@@ -149,6 +157,14 @@ final class ChurchWebsiteController extends Controller
         $settings = array_merge($this->websiteSettings($church), $validated, [
             'enabled' => $request->boolean('enabled'),
         ]);
+        if ($request->boolean('navigation_configured')) {
+            $settings['navigation'] = collect($validated['navigation'] ?? [])->map(fn (array $item): array => [
+                'label' => trim((string) $item['label']),
+                'url' => trim((string) $item['url']),
+                'visible' => (bool) ($item['visible'] ?? false),
+            ])->filter(fn (array $item): bool => $item['label'] !== '' && $item['url'] !== '')->values()->all();
+        }
+        unset($settings['navigation_configured']);
         unset($settings['landing_page_enabled']);
 
         foreach (['logo_file' => 'logo_url', 'hero_image_file' => 'hero_image_url', 'hero_video_file' => 'hero_video_url'] as $fileKey => $settingKey) {
@@ -406,6 +422,55 @@ final class ChurchWebsiteController extends Controller
         abort_if($websitePage === null, 404);
 
         return $this->renderWebsite($church, $websitePage);
+    }
+
+    public function showEvent(Church $church, Event $event): View
+    {
+        $settings = $this->websiteSettings($church);
+        abort_unless((bool) ($settings['enabled'] ?? true), 404);
+        abort_unless($event->church_id === $church->id && $event->show_on_website && in_array($event->status, ['scheduled', 'published'], true), 404);
+
+        $event->load([
+            'campus',
+            'program',
+            'sessions' => fn ($query) => $query->whereIn('status', ['scheduled', 'published'])->with('campus')->orderBy('session_date')->orderBy('starts_at'),
+        ]);
+
+        $assetUrl = static function (?string $value): ?string {
+            if (! filled($value)) {
+                return null;
+            }
+
+            $value = trim($value);
+            if (str_starts_with($value, 'http') || str_starts_with($value, '//')) {
+                return $value;
+            }
+
+            $value = ltrim($value, '/');
+            if (($storagePosition = strpos($value, 'storage/')) !== false) {
+                $value = substr($value, $storagePosition + strlen('storage/'));
+            }
+
+            return asset('storage/'.ltrim($value, '/'));
+        };
+
+        return view('website.templates.main.event', [
+            'church' => $church,
+            'settings' => $settings,
+            'event' => $event,
+            'logoUrl' => $assetUrl($settings['logo_url'] ?? null),
+            'posterUrl' => $event->poster_path ? url('storage/'.ltrim($event->poster_path, '/')) : null,
+            'navigation' => $this->websiteNavigation($church),
+            'relatedEvents' => Event::query()
+                ->where('church_id', $church->id)
+                ->where('show_on_website', true)
+                ->whereIn('status', ['scheduled', 'published'])
+                ->whereKeyNot($event->getKey())
+                ->where('starts_at', '>', now())
+                ->orderBy('starts_at')
+                ->limit(3)
+                ->get(),
+        ]);
     }
 
     public function showSermon(Church $church, Sermon $sermon): View
@@ -794,6 +859,7 @@ final class ChurchWebsiteController extends Controller
                     $this->storeComponentFiles($group, $legacyFiles, $imageFiles, $videoFiles, $church);
                 }
                 unset($group);
+
                 return;
             }
             foreach ($node['columns'] as &$column) {
@@ -818,6 +884,7 @@ final class ChurchWebsiteController extends Controller
                 }
             }
             unset($slide);
+
             return;
         }
 
@@ -834,6 +901,7 @@ final class ChurchWebsiteController extends Controller
                 }
             }
             unset($slide);
+
             return;
         }
 
@@ -979,6 +1047,18 @@ final class ChurchWebsiteController extends Controller
     /** @return list<array{label: string, url: string}> */
     private function websiteNavigation(Church $church): array
     {
+        $configured = data_get($this->websiteSettings($church), 'navigation');
+        if (is_array($configured)) {
+            return collect($configured)
+                ->filter(fn ($item): bool => is_array($item) && ($item['visible'] ?? true) && filled($item['label'] ?? null) && filled($item['url'] ?? null))
+                ->map(fn (array $item): array => [
+                    'label' => Str::limit(trim((string) $item['label']), 60, ''),
+                    'url' => trim((string) $item['url']),
+                ])
+                ->values()
+                ->all();
+        }
+
         $slugs = ['ministries', 'about', 'our-sermons', 'our-locations', 'events', 'contact', 'store'];
         $pages = $church->websitePages()->whereIn('slug', $slugs)->where('status', 'published')->get()->keyBy('slug');
 
@@ -993,6 +1073,7 @@ final class ChurchWebsiteController extends Controller
                 'url' => route('website.public', $slug === 'home'
                     ? ['church' => $church->slug]
                     : ['church' => $church->slug, 'page' => $slug]),
+                'visible' => true,
             ];
         })->filter()->values()->all();
     }

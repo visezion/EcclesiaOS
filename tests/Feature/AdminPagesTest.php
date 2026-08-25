@@ -689,7 +689,7 @@ class AdminPagesTest extends TestCase
             ->assertOk()
             ->assertSee('Ministries')
             ->assertSee('x-show="addOpen"', false)
-            ->assertSee("xl:grid-cols-[minmax(0,1fr)_390px]", false)
+            ->assertSee('xl:grid-cols-[minmax(0,1fr)_390px]', false)
             ->assertSee('x-on:click="addOpen = false"', false)
             ->assertSee($ownCampus->name)
             ->assertDontSee('Other Branch Media Team');

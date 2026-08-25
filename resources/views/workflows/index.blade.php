@@ -308,6 +308,25 @@
                     @forelse($recentActivity as $activity)
                         @php
                             $activityTone = ['bg-blue-50 text-blue-600 ring-blue-100', 'bg-blue-50 text-blue-700', 'calendar-days'];
+                            $approvalResource = $activity->subject instanceof \App\Models\Approval
+                                ? $activity->subject->approvable
+                                : null;
+                            $approvalLabel = match (true) {
+                                $approvalResource instanceof \App\Models\Event => 'Event: '.($approvalResource->title ?: 'Untitled event'),
+                                $approvalResource instanceof \App\Models\EventSession => 'Meeting: '.($approvalResource->title ?: 'Untitled meeting'),
+                                $approvalResource instanceof \App\Models\EventRecurrenceRule => 'Recurring meeting: '.($approvalResource->title ?: 'Untitled meeting'),
+                                $approvalResource instanceof \App\Models\FinancialAssistanceRequest => 'Financial assistance: '.($approvalResource->title ?: $approvalResource->reference),
+                                $approvalResource instanceof \App\Models\BookstoreLibraryLoan => 'Library request: '.($approvalResource->loan_number ?: 'Loan'),
+                                $approvalResource instanceof \App\Models\ProgramSectionAssignment => 'Program assignment',
+                                default => null,
+                            };
+                            $activityDescription = $approvalLabel
+                                ? $approvalLabel.' '.(str_contains((string) $activity->action, 'reject')
+                                    ? 'was rejected.'
+                                    : (str_contains((string) $activity->action, 'step')
+                                        ? 'advanced to the next approval step.'
+                                        : 'was approved.'))
+                                : $activity->description;
 
                             if (str_contains((string) $activity->action, 'reject')) {
                                 $activityTone = ['bg-rose-50 text-rose-600 ring-rose-100', 'bg-rose-50 text-rose-700', 'circle-alert'];
@@ -317,15 +336,15 @@
                                 $activityTone = ['bg-emerald-50 text-emerald-600 ring-emerald-100', 'bg-emerald-50 text-emerald-700', 'book-open'];
                             }
                         @endphp
-                        <div class="workflow-activity-row relative border-b border-slate-100 p-4 text-sm last:border-b-0">
+                        <div class="workflow-activity-row relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 border-b border-slate-100 p-4 text-sm last:border-b-0">
                             @if(! $loop->last)
                                 <span class="workflow-activity-line absolute bottom-0 top-12 w-px bg-slate-200"></span>
                             @endif
                             <span class="relative z-10 grid size-10 place-items-center rounded-lg ring-1 {{ $activityTone[0] }}"><i data-lucide="{{ $activityTone[2] }}" class="size-4"></i></span>
-                            <div>
+                            <div class="min-w-0">
                                 <span class="mb-1 inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold {{ $activityTone[1] }}">{{ Str::headline(Str::before($activity->action, '_')) }}</span>
-                                <div class="font-medium text-slate-950">{{ $activity->description }}</div>
-                                <div class="text-xs text-slate-500">{{ $activity->module }}</div>
+                                <div class="break-words font-medium leading-5 text-slate-950 [overflow-wrap:anywhere]">{{ $activityDescription }}</div>
+                                <div class="truncate text-xs text-slate-500">{{ $activity->module }}</div>
                             </div>
                             <div class="text-right text-xs text-slate-500">{{ $activity->created_at->format('M d, Y') }}<br>{{ $activity->created_at->format('h:i A') }}</div>
                         </div>

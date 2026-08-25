@@ -4,7 +4,7 @@
     $eventStyle = in_array($component['event_style'] ?? 'list', ['list', 'gallery'], true) ? ($component['event_style'] ?? 'list') : 'list';
     $eventsUrl = route('website.public', ['church' => $church->slug, 'page' => 'events']);
 @endphp
-<section class="content-events-widget content-events-widget-{{ $eventStyle }}" style="--event-button-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['event_button_color'] ?? '') ? $component['event_button_color'] : '#6d4aff' }};--event-button-text-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['event_button_text_color'] ?? '') ? $component['event_button_text_color'] : '#ffffff' }};">
+<section class="content-events-widget content-events-widget-{{ $eventStyle }}" style="--event-button-color: var(--primary, {{ $settings['primary_color'] ?? '#6d4aff' }});--event-button-text-color: #ffffff;">
     <div class="content-events-widget-header">
         <h2 class="content-events-widget-title"><span>Upcoming</span> <em>Events</em></h2>
         @if ($eventItems->isNotEmpty())<a class="content-events-view-all content-events-view-all-top" href="{{ $eventsUrl }}">View all events <span>↗</span></a>@endif
@@ -15,8 +15,9 @@
             $startDate = $event->starts_at?->format('F j, Y');
             $endDate = $event->ends_at?->format('F j, Y');
             $dateLabel = $endDate && $endDate !== $startDate ? $startDate.' – '.$endDate : $startDate;
+            $eventUrl = route('website.public.events.show', ['church' => $church->slug, 'event' => $event]);
         @endphp
-        <a class="content-event-widget" href="{{ $eventsUrl }}">
+        <a class="content-event-widget" href="{{ $eventUrl }}">
             <div class="content-event-poster">
                 @if (!empty($event->poster_path))
                     <img src="{{ $assetUrl($event->poster_path) }}" alt="{{ $event->title }}" loading="lazy">

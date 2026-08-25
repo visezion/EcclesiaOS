@@ -14,7 +14,7 @@
                 <i data-lucide="external-link" class="size-4"></i>
                 Open public website
             </a>
-            <a href="{{ route('website-studio.pages.edit', $homepage) }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm font-bold text-violet-700 hover:bg-violet-50" data-page-edit-popup data-page-edit-title="{{ $homepage->title }}">
+            <a href="{{ route('website-studio.pages.edit', $homepage) }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm font-bold text-violet-700 hover:bg-violet-50">
                 <i data-lucide="palette" class="size-4"></i>
                 Design homepage
             </a>
@@ -76,6 +76,39 @@
                             <span class="mt-1 block text-xs leading-5 text-slate-500">{{ $template['description'] }}</span>
                         </label>
                     @endforeach
+                </div>
+            </section>
+
+            <section id="navigation-settings" class="dashboard-card website-navigation-panel space-y-4">
+                <div class="website-navigation-heading">
+                    <div class="flex min-w-0 items-start gap-3">
+                        <span class="website-navigation-icon"><i data-lucide="menu" class="size-4"></i></span>
+                        <div class="min-w-0"><p class="website-studio-card-label">Navigation builder</p><h2>Edit public website menu</h2><p>Arrange the links visitors use to explore your church website.</p></div>
+                    </div>
+                    <span class="website-navigation-count">Up to 8 links</span>
+                </div>
+                <input type="hidden" name="navigation_configured" value="1">
+                <div class="website-navigation-list" data-navigation-list>
+                    @foreach ($navigation as $index => $item)
+                        <div class="website-navigation-row" data-navigation-row>
+                            <label><span class="field-label">Menu label</span><input name="navigation[{{ $index }}][label]" value="{{ old('navigation.'.$index.'.label', $item['label']) }}" class="field-input" maxlength="60"></label>
+                            <label><span class="field-label">Link</span><input name="navigation[{{ $index }}][url]" value="{{ old('navigation.'.$index.'.url', $item['url']) }}" class="field-input" maxlength="500" placeholder="/site/church/about or https://..."></label>
+                            <label class="website-navigation-visible"><input type="hidden" name="navigation[{{ $index }}][visible]" value="0"><input type="checkbox" name="navigation[{{ $index }}][visible]" value="1" @checked($item['visible'] ?? true) class="size-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"><span>Visible</span></label>
+                            <button type="button" data-navigation-remove class="website-navigation-remove" aria-label="Remove menu item" title="Remove menu item"><i data-lucide="trash-2" class="size-3.5"></i><span>Remove</span></button>
+                        </div>
+                    @endforeach
+                </div>
+                <template data-navigation-template>
+                    <div class="website-navigation-row" data-navigation-row>
+                        <label><span class="field-label">Menu label</span><input name="navigation[__INDEX__][label]" class="field-input" maxlength="60"></label>
+                        <label><span class="field-label">Link</span><input name="navigation[__INDEX__][url]" class="field-input" maxlength="500" placeholder="/site/church/about or https://..."></label>
+                        <label class="website-navigation-visible"><input type="hidden" name="navigation[__INDEX__][visible]" value="0"><input type="checkbox" name="navigation[__INDEX__][visible]" value="1" checked class="size-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"><span>Visible</span></label>
+                        <button type="button" data-navigation-remove class="website-navigation-remove" aria-label="Remove menu item" title="Remove menu item"><i data-lucide="trash-2" class="size-3.5"></i><span>Remove</span></button>
+                    </div>
+                </template>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <p class="website-navigation-hint"><i data-lucide="info" class="size-3.5"></i>Use a page path, full URL, or section anchor.</p>
+                    <button type="button" data-navigation-add class="website-navigation-add"><i data-lucide="plus" class="size-3.5"></i>Add menu item</button>
                 </div>
             </section>
 
@@ -193,7 +226,7 @@
                             @method('PUT')
                             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                 <div class="flex min-w-0 items-start gap-3"><span class="grid size-10 shrink-0 place-items-center rounded-xl {{ $page->status === 'published' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600' }}"><i data-lucide="{{ $page->slug === 'home' ? 'house' : 'file-text' }}" class="size-4"></i></span><div class="min-w-0"><input name="title" value="{{ $page->title }}" class="w-full border-0 bg-transparent p-0 text-sm font-bold text-slate-950 focus:ring-0"><div class="mt-1 text-xs text-slate-400">/site/{{ $church->slug }}/{{ $page->slug }}</div></div></div>
-                                <div class="flex items-center gap-2"><a href="{{ route('website-studio.pages.edit', $page) }}" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-violet-600" title="Design page" data-page-edit-popup data-page-edit-title="{{ $page->title }}"><i data-lucide="palette" class="size-4"></i></a><a href="{{ route('website-studio.preview', $page) }}" target="_blank" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-violet-600" title="Preview"><i data-lucide="eye" class="size-4"></i></a>@if ($page->slug !== 'home')<button type="submit" form="delete-page-{{ $page->id }}" class="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Archive"><i data-lucide="archive" class="size-4"></i></button>@endif</div>
+                                <div class="flex items-center gap-2"><a href="{{ route('website-studio.pages.edit', $page) }}" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-violet-600" title="Edit page"><i data-lucide="palette" class="size-4"></i></a><a href="{{ route('website-studio.preview', $page) }}" target="_blank" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-violet-600" title="Preview"><i data-lucide="eye" class="size-4"></i></a>@if ($page->slug !== 'home')<button type="submit" form="delete-page-{{ $page->id }}" class="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Archive"><i data-lucide="archive" class="size-4"></i></button>@endif</div>
                             </div>
                             <div class="website-page-card-fields"><input name="slug" value="{{ $page->slug }}" class="field-input"><select name="status" class="field-input"><option value="draft" @selected($page->status === 'draft')>Draft</option><option value="published" @selected($page->status === 'published')>Published</option></select></div>
                             <textarea name="body" rows="2" placeholder="Optional page introduction" class="field-input website-page-card-body">{{ $page->body }}</textarea>
@@ -211,27 +244,28 @@
     </div>
 
     <div class="website-modal-backdrop" data-studio-modal-backdrop hidden></div>
-    <div class="website-page-modal" data-page-modal role="dialog" aria-modal="true" aria-labelledby="website-page-modal-title" hidden>
-        <div class="website-page-modal-panel">
-            <div class="website-page-modal-header">
-                <div>
-                    <p class="website-studio-card-label">Page designer</p>
-                    <h2 id="website-page-modal-title" data-page-modal-title>Edit page</h2>
-                </div>
-                <div class="website-page-modal-actions">
-                    <a href="#" target="_blank" rel="noreferrer" data-page-modal-open><i data-lucide="external-link" class="size-4"></i><span>Open full editor</span></a>
-                    <button type="button" data-page-modal-close aria-label="Close page editor"><i data-lucide="x" class="size-5"></i></button>
-                </div>
-            </div>
-            <div class="website-page-modal-body">
-                <iframe src="about:blank" title="Page editor" data-page-modal-frame></iframe>
-            </div>
-        </div>
-    </div>
     <style>
         .field-label { display:block; margin-bottom:.4rem; font-size:.72rem; font-weight:700; color:#475569; }
         .field-input { display:block; width:100%; border-radius:.7rem; border:1px solid #e2e8f0; background:#fff; padding:.65rem .75rem; font-size:.875rem; color:#0f172a; outline:none; }
         .field-input:focus { border-color:#8b5cf6; box-shadow:0 0 0 3px rgb(139 92 246 / .12); }
+        .website-navigation-panel { border:1px solid rgb(109 74 255 / .16); background:linear-gradient(145deg,#fff 0%,#fcfbff 100%); }
+        .website-navigation-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding-bottom:.15rem; }
+        .website-navigation-heading h2 { margin:0; color:#101828; font-size:1rem; font-weight:800; }
+        .website-navigation-heading p:not(.website-studio-card-label) { margin:.3rem 0 0; color:#667085; font-size:.76rem; line-height:1.45; }
+        .website-navigation-icon { display:grid; width:2.15rem; height:2.15rem; flex:0 0 auto; place-items:center; border:1px solid rgb(109 74 255 / .16); border-radius:.7rem; background:#f5f3ff; color:#6941c6; }
+        .website-navigation-count { flex:0 0 auto; border:1px solid #e9d7fe; border-radius:999px; background:#faf5ff; padding:.3rem .55rem; color:#6941c6; font-size:.65rem; font-weight:800; white-space:nowrap; }
+        .website-navigation-list { display:flex; flex-direction:column; gap:.55rem; }
+        .website-navigation-row { display:grid; grid-template-columns:minmax(9rem,1fr) minmax(13rem,1.55fr) auto auto; align-items:end; gap:.65rem; padding:.65rem; border:1px solid #e4e7ec; border-radius:.75rem; background:#fff; transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease; }
+        .website-navigation-row:hover { border-color:#cdb4fe; box-shadow:0 5px 16px rgb(15 23 42 / .06); transform:translateY(-1px); }
+        .website-navigation-row .field-label { margin-bottom:.28rem; font-size:.65rem; text-transform:uppercase; letter-spacing:.04em; color:#98a2b3; }
+        .website-navigation-row .field-input { min-height:2.35rem; padding:.5rem .65rem; font-size:.78rem; }
+        .website-navigation-visible { display:inline-flex; min-height:2.35rem; align-items:center; gap:.4rem; padding:0 .2rem .05rem; color:#475569; font-size:.72rem; font-weight:750; white-space:nowrap; }
+        .website-navigation-remove, .website-navigation-add { display:inline-flex; min-height:2.35rem; align-items:center; justify-content:center; gap:.35rem; border-radius:.6rem; padding:.5rem .65rem; font-size:.7rem; font-weight:800; transition:background .15s ease,color .15s ease,border-color .15s ease; }
+        .website-navigation-remove { border:1px solid #fecdd3; background:#fff; color:#e11d48; }
+        .website-navigation-remove:hover { background:#fff1f2; border-color:#fda4af; }
+        .website-navigation-add { border:1px solid #ddd6fe; background:#f5f3ff; color:#6941c6; }
+        .website-navigation-add:hover { background:#ede9fe; border-color:#c4b5fd; }
+        .website-navigation-hint { display:inline-flex; align-items:center; gap:.35rem; margin:0; color:#98a2b3; font-size:.68rem; }
         .website-studio-overview { align-items:stretch; }
         .website-studio-overview .dashboard-card { border:1px solid #e6eaf2; border-radius:1rem; background:#fff; box-shadow:0 8px 24px rgb(15 23 42 / .04); }
         .website-status-card, .website-template-card { display:flex; gap:1rem; align-items:flex-start; padding:1.25rem; }
@@ -271,16 +305,7 @@
         .website-editor-cancel { border:1px solid #d0d5dd; background:#fff; color:#344054; }
         .website-editor-save { border:1px solid #7c3aed; background:#7c3aed; color:#fff; box-shadow:0 5px 14px rgb(124 58 237 / .2); }
         .website-modal-backdrop { position:fixed; inset:0; z-index:1000; background:rgb(15 23 42 / .62); backdrop-filter:blur(5px); }
-        .website-modal-backdrop[hidden], .website-page-modal[hidden] { display:none !important; }
-        .website-page-modal { position:fixed; inset:0; z-index:1001; display:grid; place-items:center; padding:1rem; pointer-events:none; }
-        .website-page-modal-panel { display:grid; width:min(1180px,calc(100vw - 2rem)); height:min(92vh,920px); grid-template-rows:auto minmax(0,1fr); overflow:hidden; border:1px solid rgb(255 255 255 / .22); border-radius:1.1rem; background:#fff; box-shadow:0 30px 100px rgb(15 23 42 / .38); pointer-events:auto; }
-        .website-page-modal-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; border-bottom:1px solid #eaecf0; padding:.9rem 1rem; }
-        .website-page-modal-header h2 { margin:0; color:#101828; font-size:1rem; font-weight:800; }
-        .website-page-modal-actions { display:flex; align-items:center; gap:.5rem; }
-        .website-page-modal-actions a { display:inline-flex; align-items:center; gap:.4rem; border-radius:.65rem; background:#f5f3ff; padding:.55rem .75rem; color:#6941c6; font-size:.7rem; font-weight:800; text-decoration:none; }
-        .website-page-modal-actions button { display:grid; width:2.25rem; height:2.25rem; place-items:center; border:1px solid #e4e7ec; border-radius:.65rem; background:#fff; color:#475467; }
-        .website-page-modal-body { min-height:0; background:#f8fafc; }
-        .website-page-modal-body iframe { display:block; width:100%; height:100%; border:0; background:#fff; }
+        .website-modal-backdrop[hidden] { display:none !important; }
         .website-page-actions { display:flex; align-items:center; gap:.6rem; }
         .website-page-actions label { display:flex; align-items:center; gap:.45rem; min-width:190px; border:1px solid #e4e7ec; border-radius:.65rem; background:#fff; padding:.48rem .65rem; color:#98a2b3; }
         .website-page-actions input { min-width:0; width:100%; border:0; padding:0; color:#344054; font-size:.75rem; outline:none; box-shadow:none; }
@@ -302,17 +327,17 @@
         .website-page-status.is-draft { background:#fff7ed; color:#c2410c; }
         @media (max-width: 1350px) { .website-studio-shell { grid-template-columns:minmax(0,1fr) 396px; } .website-preview-frame iframe { transform:scale(.297); } }
         @media (max-width: 1100px) { .website-studio-shell { grid-template-columns:1fr; } .website-preview-card { position:relative; top:auto; } .website-preview-frame { height:520px; } .website-preview-frame iframe { transform:scale(.42); } }
-        @media (max-width: 760px) { .website-shortcut-grid, .website-page-grid { grid-template-columns:1fr; } .website-studio-overview > div { grid-template-columns:1fr; } .website-page-actions { align-items:stretch; flex-direction:column; } .website-page-actions label { min-width:0; width:100%; } .website-preview-card { display:none; } .website-edit-panel.is-open, .website-create-page.is-open { inset:1rem auto auto 50%; width:calc(100vw - 2rem); max-height:calc(100vh - 2rem); padding:1rem; } .website-editor-actions { bottom:-1rem; margin:1rem -1rem -1rem; padding:.85rem 1rem; } .website-page-modal { padding:.5rem; } .website-page-modal-panel { width:calc(100vw - 1rem); height:calc(100vh - 1rem); border-radius:.85rem; } .website-page-modal-actions a span { display:none; } }
+        @media (max-width: 760px) { .website-shortcut-grid, .website-page-grid { grid-template-columns:1fr; } .website-studio-overview > div { grid-template-columns:1fr; } .website-page-actions { align-items:stretch; flex-direction:column; } .website-page-actions label { min-width:0; width:100%; } .website-preview-card { display:none; } .website-edit-panel.is-open, .website-create-page.is-open { inset:1rem auto auto 50%; width:calc(100vw - 2rem); max-height:calc(100vh - 2rem); padding:1rem; } .website-editor-actions { bottom:-1rem; margin:1rem -1rem -1rem; padding:.85rem 1rem; } .website-navigation-heading { gap:.65rem; } .website-navigation-count { font-size:.6rem; } .website-navigation-row { grid-template-columns:1fr 1fr; } .website-navigation-row > label:nth-child(2) { grid-column:1 / -1; } .website-navigation-visible { min-height:2.2rem; } .website-navigation-remove { min-height:2.2rem; } }
+        @media (max-width: 430px) { .website-navigation-heading { flex-direction:column; } .website-navigation-row { grid-template-columns:1fr; } .website-navigation-row > label:nth-child(2) { grid-column:auto; } .website-navigation-visible, .website-navigation-remove { width:100%; } .website-navigation-hint { max-width:15rem; } }
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const search = document.querySelector('[data-page-search]');
             const backdrop = document.querySelector('[data-studio-modal-backdrop]');
-            const pageModal = document.querySelector('[data-page-modal]');
-            const pageFrame = document.querySelector('[data-page-modal-frame]');
-            const pageTitle = document.querySelector('[data-page-modal-title]');
-            const pageOpen = document.querySelector('[data-page-modal-open]');
             const createModal = document.querySelector('[data-create-page-modal]');
+            const navigationList = document.querySelector('[data-navigation-list]');
+            const navigationTemplate = document.querySelector('[data-navigation-template]');
+            let navigationIndex = navigationList ? navigationList.querySelectorAll('[data-navigation-row]').length : 0;
             let activeSection = null;
 
             function lockPage() {
@@ -321,7 +346,7 @@
             }
 
             function unlockPage() {
-                if (activeSection || !pageModal.hidden || createModal.classList.contains('is-open')) return;
+                if (activeSection || createModal.classList.contains('is-open')) return;
                 backdrop.hidden = true;
                 document.documentElement.style.overflow = '';
             }
@@ -330,13 +355,6 @@
                 if (!activeSection) return;
                 activeSection.classList.remove('is-open');
                 activeSection = null;
-                unlockPage();
-            }
-
-            function closePageEditor() {
-                if (pageModal.hidden) return;
-                pageModal.hidden = true;
-                pageFrame.src = 'about:blank';
                 unlockPage();
             }
 
@@ -358,7 +376,6 @@
                     const panel = document.querySelector(link.getAttribute('href'));
                     if (!panel) return;
                     event.preventDefault();
-                    closePageEditor();
                     closeCreatePage();
                     closeSection();
                     activeSection = panel;
@@ -371,41 +388,32 @@
 
             document.addEventListener('click', function (event) {
                 if (event.target.closest('[data-editor-close]')) closeSection();
+                const removeNavigation = event.target.closest('[data-navigation-remove]');
+                if (removeNavigation) removeNavigation.closest('[data-navigation-row]')?.remove();
             });
 
-            document.querySelectorAll('[data-page-edit-popup]').forEach(function (link) {
-                link.addEventListener('click', function (event) {
-                    event.preventDefault();
-                    closeSection();
-                    closeCreatePage();
-                    pageTitle.textContent = 'Edit ' + (link.dataset.pageEditTitle || 'page');
-                    pageFrame.src = link.href;
-                    pageOpen.href = link.href;
-                    pageModal.hidden = false;
-                    lockPage();
-                });
+            document.querySelector('[data-navigation-add]')?.addEventListener('click', function () {
+                if (!navigationList || !navigationTemplate || navigationIndex >= 8) return;
+                navigationList.insertAdjacentHTML('beforeend', navigationTemplate.innerHTML.replaceAll('__INDEX__', navigationIndex));
+                navigationIndex++;
             });
 
             document.querySelector('[data-create-page-open]').addEventListener('click', function (event) {
                 event.preventDefault();
                 closeSection();
-                closePageEditor();
                 createModal.classList.add('is-open');
                 lockPage();
                 window.setTimeout(function () { createModal.querySelector('input[name="title"]').focus(); }, 80);
             });
 
-            document.querySelector('[data-page-modal-close]').addEventListener('click', closePageEditor);
             document.querySelector('[data-create-page-close]').addEventListener('click', closeCreatePage);
             backdrop.addEventListener('click', function () {
                 closeSection();
-                closePageEditor();
                 closeCreatePage();
             });
             document.addEventListener('keydown', function (event) {
                 if (event.key !== 'Escape') return;
                 closeSection();
-                closePageEditor();
                 closeCreatePage();
             });
 

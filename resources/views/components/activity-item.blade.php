@@ -5,7 +5,7 @@
         <i data-lucide="{{ $activity['icon'] }}" class="size-4"></i>
     </div>
     <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-semibold text-slate-800">{{ $activity['description'] }}</p>
+        <p class="break-words text-sm font-semibold leading-5 text-slate-800 [overflow-wrap:anywhere]">{{ $activity['description'] }}</p>
         <p class="text-xs text-slate-500">{{ $activity['time'] }}</p>
     </div>
 </div>

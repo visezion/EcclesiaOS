@@ -46,7 +46,7 @@
     @elseif (($component['type'] ?? '') === 'card')
         @php($cardVideoUrl = !empty($component['background_video']) ? $assetUrl($component['background_video']) : null)
         @if (!empty($component['link']))<a class="content-card-widget-link" href="{{ $component['link'] }}" aria-label="Open {{ $component['title'] ?? 'card' }}">@endif
-        <article class="content-card-widget {{ $cardVideoUrl || !empty($component['url']) ? 'has-media' : '' }}" style="--card-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : '#6d4aff' }};">
+        <article class="content-card-widget {{ $cardVideoUrl || !empty($component['url']) ? 'has-media' : '' }}" style="--card-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : ($settings['primary_color'] ?? '#6d4aff') }};">
             @if ($cardVideoUrl)
                 <video class="content-card-widget-background" autoplay muted loop playsinline preload="auto" data-background-video @if (!empty($component['url'])) poster="{{ $assetUrl($component['url']) }}" @endif>
                     <source src="{{ $cardVideoUrl }}">
@@ -63,7 +63,7 @@
         @if (!empty($component['link']))</a>@endif
     @elseif (($component['type'] ?? '') === 'icon')
         @php($iconAlign = in_array($component['align'] ?? 'left', ['left', 'center', 'right'], true) ? ($component['align'] ?? 'left') : 'left')
-        <a class="content-icon-widget" href="{{ $component['link'] ?? '' ?: '#' }}" @if (empty($component['link'])) onclick="return false" @endif style="justify-content: {{ $iconAlign === 'center' ? 'center' : ($iconAlign === 'right' ? 'flex-end' : 'flex-start') }};text-align: {{ $iconAlign }};--icon-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['icon_color'] ?? '') ? $component['icon_color'] : '#6d4aff' }};--icon-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : '#ede9fe' }};--icon-size: {{ max(24, min(160, (int) ($component['icon_size'] ?? 56))) }}px;">
+        <a class="content-icon-widget" href="{{ $component['link'] ?? '' ?: '#' }}" @if (empty($component['link'])) onclick="return false" @endif style="justify-content: {{ $iconAlign === 'center' ? 'center' : ($iconAlign === 'right' ? 'flex-end' : 'flex-start') }};text-align: {{ $iconAlign }};--icon-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['icon_color'] ?? '') ? $component['icon_color'] : ($settings['primary_color'] ?? '#6d4aff') }};--icon-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : 'color-mix(in srgb, '.($settings['primary_color'] ?? '#6d4aff').' 12%, #fff)' }};--icon-size: {{ max(24, min(160, (int) ($component['icon_size'] ?? 56))) }}px;">
             <span class="content-icon-mark">{{ $component['icon'] ?? '✦' }}</span>
         </a>
     @elseif (($component['type'] ?? '') === 'heading')

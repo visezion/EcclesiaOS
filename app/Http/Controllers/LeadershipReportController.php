@@ -1253,7 +1253,7 @@ Participant satisfaction: 4.6 out of 5 from 126 verified responses
 LEADERSHIP ASSESSMENT
 Mission alignment is strong. Programs are reaching the intended families, follow-up quality has improved, and the partnership pipeline is healthy. The department can sustain current weekend delivery, but weekday services need six additional trained volunteers and one backup driver. No safeguarding, financial control, or reputational breach was recorded during the reporting period.
 TEXT,
-                'service_notes' => <<<TEXT
+                'service_notes' => <<<'TEXT'
 PROGRAM DELIVERY AND IMPACT
 
 Community Food Support

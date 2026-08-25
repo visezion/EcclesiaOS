@@ -89,6 +89,7 @@ Route::get('give', [PublicGivingController::class, 'create'])->name('giving.crea
 Route::post('give/checkout', [PublicGivingController::class, 'checkout'])->middleware('throttle:10,1')->name('giving.checkout');
 Route::get('give/success', [PublicGivingController::class, 'success'])->name('giving.success');
 Route::get('give/cancel', [PublicGivingController::class, 'cancel'])->name('giving.cancel');
+Route::get('site/{church:slug}/events/{event}', [ChurchWebsiteController::class, 'showEvent'])->name('website.public.events.show');
 Route::get('site/{church:slug}/{page?}', [ChurchWebsiteController::class, 'show'])->where('page', '[A-Za-z0-9_-]+')->name('website.public');
 Route::get('site/{church:slug}/sermons/{sermon}', [ChurchWebsiteController::class, 'showSermon'])->name('website.public.sermons.show');
 Route::post('webhooks/stripe', StripeWebhookController::class)->middleware('throttle:120,1')->name('webhooks.stripe');
@@ -223,6 +224,8 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('programs/{program}/events/{event}/template', [EventFlowController::class, 'storeEventTemplate'])->name('programs.events.template.store');
     Route::get('events', [EventFlowController::class, 'events'])->name('events.index');
     Route::post('events', [EventFlowController::class, 'storeEvent'])->name('events.store');
+    Route::put('events/{event}', [EventFlowController::class, 'updateEvent'])->name('events.update');
+    Route::delete('events/{event}', [EventFlowController::class, 'destroyEvent'])->name('events.destroy');
     Route::post('events/{event}/submit-approval', [EventFlowController::class, 'submitEventForApproval'])->name('events.submit-approval');
     Route::get('programs/{program}/events/{event}/sessions', [EventFlowController::class, 'sessions'])->name('event-sessions.index');
     Route::post('programs/{program}/events/{event}/sessions', [EventFlowController::class, 'storeSession'])->name('event-sessions.store');

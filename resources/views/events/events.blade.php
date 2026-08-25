@@ -14,9 +14,35 @@
             ['label' => 'Drafts', 'value' => $stats['draft'] ?? 0, 'hint' => 'needs review', 'icon' => 'file-text', 'tone' => 'bg-amber-50 text-amber-600 ring-amber-100'],
         ];
         $selectedEvent = $events->getCollection()->first();
+        $eventData = $events->getCollection()->map(function ($event): array {
+            $session = $event->sessions->first();
+            $manageUrl = $event->program
+                ? route('event-sessions.index', [$event->program, $event])
+                : ($session ? route('event-sessions.meeting', $session) : route('events.index'));
+
+            return [
+                'id' => (string) $event->getRouteKey(),
+                'title' => $event->title,
+                'description' => $event->description,
+                'type' => $event->event_type ?? $event->category ?? 'Event',
+                'status' => $event->status,
+                'statusLabel' => Str::headline($event->status),
+                'startsAt' => $event->starts_at?->format('Y-m-d\TH:i'),
+                'endsAt' => $event->ends_at?->format('Y-m-d\TH:i'),
+                'dateLabel' => $event->starts_at?->format('M d, Y') ?? 'Not set',
+                'timeLabel' => $event->starts_at?->format('h:i A').($event->ends_at ? ' - '.$event->ends_at->format('h:i A') : ''),
+                'venue' => $event->venue ?: 'Not set',
+                'showOnWebsite' => (bool) $event->show_on_website,
+                'manageUrl' => $manageUrl,
+                'updateUrl' => route('events.update', $event),
+                'deleteUrl' => route('events.destroy', $event),
+                'submitUrl' => $event->program ? route('programs.events.submit-approval', [$event->program, $event]) : route('events.submit-approval', $event),
+            ];
+        })->values()->all();
+        $selectedEventData = collect($eventData)->first();
     @endphp
 
-    <div x-data="{ createOpen: {{ $errors->any() ? 'true' : 'false' }}, cloneOpen: false, templateOpen: false, cloneAction: '', templateAction: '', cloneTitle: '', templateName: '' }" class="space-y-5">
+    <div x-data="{ createOpen: {{ $errors->any() ? 'true' : 'false' }}, cloneOpen: false, templateOpen: false, editOpen: false, selectedEvent: @js($selectedEventData), events: @js($eventData), cloneAction: '', templateAction: '', cloneTitle: '', templateName: '', selectEvent(id) { this.selectedEvent = this.events.find((event) => event.id === String(id)) || this.selectedEvent; this.editOpen = false; } }" class="space-y-5">
         <div class="responsive-page-header">
             <div class="responsive-page-title">
                 <div class="grid size-12 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-600 sm:size-14">
@@ -142,9 +168,10 @@
                             </thead>
                             <tbody class="divide-y divide-slate-100">
                                 @forelse($events as $event)
-                                    <tr class="hover:bg-slate-50/70">
+                                    @php($eventManageUrl = $event->program ? route('event-sessions.index', [$event->program, $event]) : ($event->sessions->first() ? route('event-sessions.meeting', $event->sessions->first()) : route('events.index')))
+                                    <tr @click="selectEvent('{{ $event->getRouteKey() }}')" :class="selectedEvent && selectedEvent.id === '{{ $event->getRouteKey() }}' ? 'bg-violet-50/70' : ''" class="cursor-pointer hover:bg-slate-50/70">
                                         <td class="max-w-sm px-5 py-4">
-                                            <a href="{{ $event->program ? route('event-sessions.index', [$event->program, $event]) : ($event->sessions->first() ? route('event-sessions.meeting', $event->sessions->first()) : route('events.index')) }}" class="font-medium text-slate-950 hover:text-violet-600">{{ $event->title }}</a>
+                                            <button type="button" @click.stop="selectEvent('{{ $event->getRouteKey() }}')" class="text-left font-medium text-slate-950 hover:text-violet-600">{{ $event->title }}</button>
                                             <div class="mt-1 line-clamp-2 text-xs text-slate-500">{{ $event->description ?: ($event->venue ?: 'No description recorded.') }}</div>
                                         </td>
                                         <td class="px-5 py-4">{{ $event->program?->name ?? 'Standalone event' }}</td>
@@ -165,13 +192,16 @@
                                             @endif
                                         </td>
                                         <td class="px-5 py-4 text-right">
+                                            <a href="{{ $eventManageUrl }}" @click.stop class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Manage event"><i data-lucide="settings-2" class="size-4"></i></a>
                                             @if($event->program)
-                                                <a href="{{ route('event-sessions.index', [$event->program, $event]) }}" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="View sessions"><i data-lucide="eye" class="size-4"></i></a>
+                                                <button type="button" @click.stop="selectEvent('{{ $event->getRouteKey() }}')" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Open event"><i data-lucide="eye" class="size-4"></i></button>
                                                 <a href="{{ route('event-sessions.index', [$event->program, $event]) }}#new-session" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Add session"><i data-lucide="plus" class="size-4"></i></a>
                                                 <button type="button" @click="cloneAction = '{{ route('programs.events.clone', [$event->program, $event]) }}'; cloneTitle = @js($event->title.' (Copy)'); cloneOpen = true" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Clone event"><i data-lucide="copy" class="size-4"></i></button>
                                                 <button type="button" @click="templateAction = '{{ route('programs.events.template.store', [$event->program, $event]) }}'; templateName = @js($event->title.' Template'); templateOpen = true" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Save as template"><i data-lucide="bookmark-plus" class="size-4"></i></button>
                                             @elseif($event->sessions->first())
-                                                <a href="{{ route('event-sessions.meeting', $event->sessions->first()) }}" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Open meeting"><i data-lucide="eye" class="size-4"></i></a>
+                                                <button type="button" @click.stop="selectEvent('{{ $event->getRouteKey() }}')" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Open event"><i data-lucide="eye" class="size-4"></i></button>
+                                            @else
+                                                <button type="button" @click.stop="selectEvent('{{ $event->getRouteKey() }}')" class="inline-grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-violet-50 hover:text-violet-600" title="Open event"><i data-lucide="eye" class="size-4"></i></button>
                                             @endif
                                         </td>
                                     </tr>
@@ -204,27 +234,31 @@
                     </div>
                 </section>
 
-                <section class="dashboard-card">
-                    <h2 class="text-base font-semibold text-slate-950">Selected Event</h2>
-                    @if($selectedEvent)
-                        <div class="mt-4 rounded-lg bg-violet-50 p-4 ring-1 ring-violet-100">
-                            <span class="rounded-full px-2.5 py-1 text-xs ring-1 {{ $statusStyles[$selectedEvent->status] ?? 'bg-slate-100 text-slate-700 ring-slate-200' }}">{{ Str::headline($selectedEvent->status) }}</span>
-                            <h3 class="mt-3 text-base font-semibold text-slate-950">{{ $selectedEvent->title }}</h3>
-                            <p class="mt-1 text-sm text-slate-600">{{ Str::limit($selectedEvent->description ?: $selectedEvent->venue, 130) }}</p>
-                            @if($selectedEvent->program)
-                                <a href="{{ route('event-sessions.index', [$selectedEvent->program, $selectedEvent]) }}" class="mt-4 inline-flex items-center gap-2 text-sm font-medium text-violet-600">Open sessions <i data-lucide="arrow-right" class="size-4"></i></a>
-                            @endif
-                            @if($selectedEvent->status === 'draft')
-                                <form method="POST" action="{{ $selectedEvent->program ? route('programs.events.submit-approval', [$selectedEvent->program, $selectedEvent]) : route('events.submit-approval', $selectedEvent) }}" class="mt-3">
-                                    @csrf
-                                    <button class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700"><i data-lucide="send" class="size-3.5"></i>Submit for approval</button>
-                                </form>
-                            @endif
-                        </div>
-                    @else
-                        <p class="mt-3 text-sm text-slate-500">No event is available for the current filters.</p>
-                    @endif
+                <section class="dashboard-card" x-cloak x-show="selectedEvent" x-transition>
+                    <div class="flex items-start justify-between gap-3">
+                        <div><p class="text-xs font-bold uppercase tracking-wide text-violet-600">Event details</p><h2 class="mt-1 text-base font-semibold text-slate-950" x-text="selectedEvent?.title"></h2></div>
+                        <button type="button" @click="editOpen = !editOpen" class="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100"><i data-lucide="pencil" class="size-3.5"></i><span x-text="editOpen ? 'Close edit' : 'Edit'"></span></button>
+                    </div>
+                    <div class="mt-4 rounded-lg bg-violet-50 p-4 ring-1 ring-violet-100">
+                        <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200" x-text="selectedEvent?.statusLabel"></span>
+                        <p class="mt-3 text-sm leading-6 text-slate-600" x-text="selectedEvent?.description || selectedEvent?.venue || 'No description recorded.'"></p>
+                        <dl class="mt-4 space-y-2 text-xs text-slate-600"><div class="flex justify-between gap-3"><dt>Date</dt><dd class="font-semibold text-slate-900" x-text="selectedEvent?.dateLabel"></dd></div><div class="flex justify-between gap-3"><dt>Time</dt><dd class="font-semibold text-slate-900" x-text="selectedEvent?.timeLabel || 'Not set'"></dd></div><div class="flex justify-between gap-3"><dt>Venue</dt><dd class="text-right font-semibold text-slate-900" x-text="selectedEvent?.venue"></dd></div></dl>
+                        <div class="mt-4 flex flex-wrap gap-2"><a :href="selectedEvent?.manageUrl" class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700"><i data-lucide="settings-2" class="size-3.5"></i>Manage sessions</a><template x-if="selectedEvent?.status === 'draft'"><form method="POST" :action="selectedEvent?.submitUrl">@csrf<button class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50"><i data-lucide="send" class="size-3.5"></i>Submit approval</button></form></template></div>
+                    </div>
+                    <form x-show="editOpen" x-transition method="POST" :action="selectedEvent?.updateUrl" enctype="multipart/form-data" class="mt-4 space-y-3 border-t border-slate-100 pt-4">
+                        @csrf @method('PUT')
+                        <label class="block text-xs font-semibold text-slate-600">Event name<input x-model="selectedEvent.title" name="title" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
+                        <label class="block text-xs font-semibold text-slate-600">Description<textarea x-model="selectedEvent.description" name="description" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></textarea></label>
+                        <div class="grid gap-2 sm:grid-cols-2"><label class="block text-xs font-semibold text-slate-600">Type<input x-model="selectedEvent.type" name="event_type" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label><label class="block text-xs font-semibold text-slate-600">Status<select x-model="selectedEvent.status" name="status" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="draft">Draft</option><option value="scheduled">Scheduled</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label></div>
+                        <div class="grid gap-2 sm:grid-cols-2"><label class="block text-xs font-semibold text-slate-600">Starts<input x-model="selectedEvent.startsAt" type="datetime-local" name="starts_at" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label><label class="block text-xs font-semibold text-slate-600">Ends<input x-model="selectedEvent.endsAt" type="datetime-local" name="ends_at" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label></div>
+                        <label class="block text-xs font-semibold text-slate-600">Venue<input x-model="selectedEvent.venue" name="venue" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
+                        @if($websiteModuleEnabled)<label class="flex items-center gap-2 text-xs font-semibold text-slate-600"><input type="hidden" name="show_on_website" value="0"><input x-model="selectedEvent.showOnWebsite" type="checkbox" name="show_on_website" value="1" class="size-4 rounded border-slate-300 text-violet-600">Show on public website</label>@endif
+                        <div class="flex items-center justify-between gap-2"><button class="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700"><i data-lucide="save" class="size-3.5"></i>Save changes</button><button type="submit" formaction="" formmethod="POST" class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50" @click.prevent="if (confirm('Delete this event and its meetings?')) { const form = $event.currentTarget.form; form.action = selectedEvent.deleteUrl; form.querySelector('[name=_method]').value = 'DELETE'; form.submit(); }"><i data-lucide="trash-2" class="size-3.5"></i>Delete</button></div>
+                    </form>
                 </section>
+                @if(!$selectedEvent)
+                    <section class="dashboard-card"><p class="text-sm text-slate-500">No event is available for the current filters.</p></section>
+                @endif
                 <section class="dashboard-card">
                     <div class="flex items-center justify-between gap-3">
                         <div>

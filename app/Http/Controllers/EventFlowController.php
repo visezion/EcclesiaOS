@@ -246,6 +246,46 @@ final class EventFlowController extends Controller
             : redirect()->route('event-sessions.meeting', $session)->with('status', 'Event created.');
     }
 
+    public function updateEvent(Request $request, Event $event, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeEvent($request, $event);
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'poster' => ['nullable', 'image', 'max:10240'],
+            'event_type' => ['nullable', 'string', 'max:80'],
+            'starts_at' => ['required', 'date'],
+            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
+            'venue' => ['nullable', 'string', 'max:160'],
+            'status' => ['required', Rule::in(['scheduled', 'draft', 'completed', 'cancelled'])],
+            'show_on_website' => ['nullable', 'boolean'],
+        ]);
+
+        if ($request->hasFile('poster')) {
+            $validated['poster_path'] = $request->file('poster')->store('events/'.$event->church_id, 'public');
+        }
+        unset($validated['poster']);
+
+        $event->update([
+            ...$validated,
+            'category' => $validated['event_type'] ?: ($event->category ?: 'Event'),
+            'show_on_website' => $request->has('show_on_website') ? $request->boolean('show_on_website') : $event->show_on_website,
+        ]);
+        $activityLogger->log('Events', 'event_updated', $event->title.' was updated.', $event, ['resource' => 'Event', 'risk' => 'medium', 'status' => 'success'], $request);
+
+        return back()->with('status', 'Event updated.');
+    }
+
+    public function destroyEvent(Request $request, Event $event, ActivityLogger $activityLogger): RedirectResponse
+    {
+        $this->authorizeEvent($request, $event);
+        $title = $event->title;
+        $activityLogger->log('Events', 'event_deleted', $title.' was deleted.', $event, ['resource' => 'Event', 'risk' => 'high', 'status' => 'success'], $request);
+        $event->delete();
+
+        return back()->with('status', 'Event deleted.');
+    }
+
     public function submitEventForApproval(Request $request, Event $event, ActivityLogger $activityLogger, ?Program $program = null): RedirectResponse
     {
         $this->authorizeEvents($request);
@@ -3200,6 +3240,12 @@ final class EventFlowController extends Controller
     private function authorizeEvents(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage events'), 403);
+    }
+
+    private function authorizeEvent(Request $request, Event $event): void
+    {
+        $this->authorizeEvents($request);
+        abort_unless($request->user()?->canAccessChurch($event->church_id) && $request->user()?->canAccessCampus($event->campus_id), 403);
     }
 
     private function canManageStudioBackroom(Request $request): bool

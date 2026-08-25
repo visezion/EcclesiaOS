@@ -224,6 +224,11 @@ final class ChurchWebsiteTest extends TestCase
                 'hero_button_url' => '#visit',
                 'welcome_heading' => 'You have a place here.',
                 'welcome_body' => 'We are glad you are here.',
+                'navigation_configured' => '1',
+                'navigation' => [
+                    ['label' => 'Welcome', 'url' => '#welcome', 'visible' => '1'],
+                    ['label' => 'Visit us', 'url' => '#contact', 'visible' => '1'],
+                ],
                 'contact_email' => 'hello@harbour.test',
                 'contact_phone' => '+1 555 0100',
                 'contact_address' => '1 Harbour Lane',
@@ -251,13 +256,18 @@ final class ChurchWebsiteTest extends TestCase
         $this->actingAs($user)
             ->get(route('website-studio.pages.edit', $page))
             ->assertOk()
-            ->assertSee('Page-level design');
+            ->assertSee('Page-level design')
+            ->assertSee('Edit Website Page')
+            ->assertSee('app-shell');
 
         $this->actingAs($user)->get(route('website-studio.preview', $page))->assertOk()->assertSee('Our story starts here.');
         $this->get(route('website.public', ['church' => $church->slug]))
             ->assertOk()
             ->assertSee('A place to belong.')
-            ->assertSee('Harbour Light Church');
+            ->assertSee('Harbour Light Church')
+            ->assertSee('href="#welcome"', false)
+            ->assertSee('Welcome', false)
+            ->assertSee('Visit us', false);
         $this->get(route('website.public', ['church' => $church->slug, 'page' => 'about']))
             ->assertOk()
             ->assertSee('Learn about our mission');
@@ -330,5 +340,4 @@ final class ChurchWebsiteTest extends TestCase
             ->assertOk()
             ->assertSee('Grace for the road');
     }
-
 }

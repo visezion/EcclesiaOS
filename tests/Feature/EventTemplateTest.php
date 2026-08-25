@@ -102,6 +102,76 @@ final class EventTemplateTest extends TestCase
         $this->assertDatabaseHas('program_sections', ['event_id' => $clone->id, 'title' => 'Opening Prayer']);
     }
 
+    public function test_public_event_detail_page_is_separate_from_admin_event_view(): void
+    {
+        $admin = $this->administrator();
+        $event = Event::query()->create([
+            'church_id' => $admin->church_id,
+            'title' => 'Community Picnic',
+            'description' => 'Bring your family for an afternoon together.',
+            'event_type' => 'Community',
+            'starts_at' => now()->addDays(5),
+            'ends_at' => now()->addDays(5)->addHours(3),
+            'venue' => 'Riverside Park',
+            'status' => 'scheduled',
+            'show_on_website' => true,
+        ]);
+        EventSession::query()->create([
+            'church_id' => $admin->church_id,
+            'event_id' => $event->id,
+            'title' => 'Community Picnic Session',
+            'session_date' => now()->addDays(5)->toDateString(),
+            'starts_at' => now()->addDays(5)->format('Y-m-d H:i:s'),
+            'ends_at' => now()->addDays(5)->addHours(3)->format('Y-m-d H:i:s'),
+            'meeting_type' => 'physical',
+            'status' => 'scheduled',
+        ]);
+
+        $response = $this->get(route('website.public.events.show', ['church' => $admin->church->slug, 'event' => $event]));
+
+        $response->assertOk()
+            ->assertSee('Community Picnic')
+            ->assertSee('Everything you need to know')
+            ->assertSee('Available times')
+            ->assertDontSee('Event overview')
+            ->assertDontSee('Manage sessions');
+    }
+
+    public function test_admin_can_edit_and_delete_an_event_from_the_event_management_flow(): void
+    {
+        $admin = $this->administrator();
+        $event = Event::query()->create([
+            'church_id' => $admin->church_id,
+            'title' => 'Event Before Edit',
+            'starts_at' => now()->addDays(2),
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('events.update', $event), [
+                'title' => 'Event After Edit',
+                'description' => 'Updated event details.',
+                'event_type' => 'Workshop',
+                'starts_at' => now()->addDays(4)->format('Y-m-d H:i'),
+                'ends_at' => now()->addDays(4)->addHours(2)->format('Y-m-d H:i'),
+                'venue' => 'Community Hall',
+                'status' => 'scheduled',
+                'show_on_website' => '1',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Event updated.');
+
+        $this->assertSame('Event After Edit', $event->fresh()->title);
+        $this->assertSame('Workshop', $event->fresh()->event_type);
+
+        $this->actingAs($admin)
+            ->delete(route('events.destroy', $event))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Event deleted.');
+
+        $this->assertSoftDeleted('events', ['id' => $event->id]);
+    }
+
     public function test_admin_can_create_an_event_without_a_program(): void
     {
         $admin = $this->administrator();
@@ -148,6 +218,12 @@ final class EventTemplateTest extends TestCase
         $this->assertSame('draft', $session->status);
 
         $this->actingAs($admin)
+            ->post(route('events.submit-approval', $event))
+            ->assertRedirect();
+
+        $eventApproval = Approval::query()->where('approvable_type', Event::class)->where('approvable_id', $event->id)->firstOrFail();
+
+        $this->actingAs($admin)
             ->post(route('event-sessions.submit-approval', $session))
             ->assertRedirect();
 
@@ -159,14 +235,52 @@ final class EventTemplateTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame('scheduled', $session->fresh()->status);
-        $this->assertSame('draft', $event->fresh()->status);
+        $this->assertSame('scheduled', $event->fresh()->status);
         $this->assertSame('approved', $approval->fresh()->status);
+        $this->assertSame('approved', $eventApproval->fresh()->status);
 
         $publishedDeliveries = CommunicationDelivery::query()->count();
         $this->actingAs($admin)
             ->post(route('workflows.approvals.approve', $approval))
             ->assertStatus(422);
         $this->assertSame($publishedDeliveries, CommunicationDelivery::query()->count());
+    }
+
+    public function test_event_approval_approves_all_related_meetings(): void
+    {
+        $admin = $this->administrator();
+        $event = Event::query()->create([
+            'church_id' => $admin->church_id,
+            'title' => 'Linked Approval Event',
+            'starts_at' => now()->addDays(3),
+            'ends_at' => now()->addDays(3)->addHours(2),
+            'status' => 'draft',
+        ]);
+        $session = EventSession::query()->create([
+            'church_id' => $admin->church_id,
+            'event_id' => $event->id,
+            'title' => 'Linked Approval Meeting',
+            'session_date' => now()->addDays(3)->toDateString(),
+            'starts_at' => now()->addDays(3),
+            'ends_at' => now()->addDays(3)->addHours(2),
+            'meeting_type' => 'physical',
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($admin)->post(route('events.submit-approval', $event))->assertRedirect();
+        $this->actingAs($admin)->post(route('event-sessions.submit-approval', $session))->assertRedirect();
+
+        $eventApproval = Approval::query()->where('approvable_type', Event::class)->where('approvable_id', $event->id)->firstOrFail();
+        $meetingApproval = Approval::query()->where('approvable_type', EventSession::class)->where('approvable_id', $session->id)->firstOrFail();
+
+        $this->actingAs($admin)
+            ->post(route('workflows.approvals.approve', $eventApproval))
+            ->assertRedirect();
+
+        $this->assertSame('scheduled', $event->fresh()->status);
+        $this->assertSame('scheduled', $session->fresh()->status);
+        $this->assertSame('approved', $eventApproval->fresh()->status);
+        $this->assertSame('approved', $meetingApproval->fresh()->status);
     }
 
     private function administrator(): User

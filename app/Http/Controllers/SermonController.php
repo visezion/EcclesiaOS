@@ -6,8 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Church;
 use App\Models\Sermon;
-use App\Models\YouTubeConnection;
 use App\Models\YouTubeAppCredential;
+use App\Models\YouTubeConnection;
 use App\Services\YouTubeSermonSyncService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -64,7 +64,7 @@ final class SermonController extends Controller
         $credentials = $church->youtubeAppCredential;
         $clientId = $credentials?->client_id ?: config('services.youtube.client_id');
         $redirectUri = $credentials?->redirect_uri ?: config('services.youtube.redirect_uri');
-        if (!$clientId || (!$credentials?->client_secret && !config('services.youtube.client_secret'))) {
+        if (! $clientId || (! $credentials?->client_secret && ! config('services.youtube.client_secret'))) {
             return redirect()->route('sermons.index')->with('error', 'Add your Google OAuth client ID and client secret before connecting YouTube.');
         }
 
@@ -103,6 +103,7 @@ final class SermonController extends Controller
         );
         try {
             $result = $sync->sync($connection);
+
             return redirect()->route('sermons.index')->with('status', "YouTube connected. Imported {$result['imported']} new videos and updated {$result['updated']} existing videos.");
         } catch (\Throwable $exception) {
             return redirect()->route('sermons.index')->with('error', 'YouTube connected, but the first sync failed: '.$exception->getMessage());
@@ -119,7 +120,9 @@ final class SermonController extends Controller
             'client_secret' => [$existing ? 'nullable' : 'required', 'string', 'max:500'],
             'redirect_uri' => ['nullable', 'url', 'max:500'],
         ]);
-        if ($existing && blank($validated['client_secret'] ?? null)) unset($validated['client_secret']);
+        if ($existing && blank($validated['client_secret'] ?? null)) {
+            unset($validated['client_secret']);
+        }
         $validated['redirect_uri'] = $validated['redirect_uri'] ?? route('sermons.youtube.callback');
         YouTubeAppCredential::query()->updateOrCreate(['church_id' => $church->id], $validated + ['church_id' => $church->id]);
 
@@ -133,6 +136,7 @@ final class SermonController extends Controller
         abort_unless($connection, 422, 'Connect a YouTube channel before syncing.');
         try {
             $result = $sync->sync($connection);
+
             return back()->with('status', "YouTube sync complete. {$result['imported']} new, {$result['updated']} updated, {$result['total']} channel videos checked.");
         } catch (\Throwable $exception) {
             return back()->with('error', 'YouTube sync failed: '.$exception->getMessage());
@@ -143,9 +147,12 @@ final class SermonController extends Controller
     {
         $this->authorizeSettings($request);
         $connection = $this->churchForRequest($request)->youtubeConnection;
-        if (!$connection) return back()->with('error', 'Connect a YouTube channel before testing the API connection.');
+        if (! $connection) {
+            return back()->with('error', 'Connect a YouTube channel before testing the API connection.');
+        }
         try {
             $result = $sync->testConnection($connection);
+
             return back()->with('status', "Connection test passed. YouTube returned {$result['channel_title']}.");
         } catch (\Throwable $exception) {
             return back()->with('error', 'Connection test failed: '.$exception->getMessage());
@@ -156,6 +163,7 @@ final class SermonController extends Controller
     {
         $this->authorizeMedia($request);
         $this->churchForRequest($request)->youtubeConnection?->delete();
+
         return back()->with('status', 'YouTube channel disconnected. Imported sermons were kept in your library.');
     }
 

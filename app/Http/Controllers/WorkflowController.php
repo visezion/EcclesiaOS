@@ -102,7 +102,7 @@ final class WorkflowController extends Controller
             'pendingApprovals' => (clone $base)->where('status', 'pending')->latest('submitted_at')->limit(4)->get(),
             'statusBreakdown' => $statusBreakdown,
             'recentActivity' => ActivityLog::query()
-                ->with('user')
+                ->with(['user', 'subject'])
                 ->where(fn (Builder $query) => $this->scopeActivityQuery($query, $request))
                 ->whereIn('module', ['Workflow & Approvals', 'Program Sections', 'Event Sessions'])
                 ->latest()
@@ -284,7 +284,7 @@ final class WorkflowController extends Controller
                 ]);
             }
 
-            $activityLogger->log('Workflow & Approvals', 'approval_step_approved', 'Approval '.$approval->opaqueId().' advanced to '.($nextStep['label'] ?? 'next step').'.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
+            $activityLogger->log('Workflow & Approvals', 'approval_step_approved', $this->approvalActivityLabel($approval, $resource).' advanced to '.($nextStep['label'] ?? 'next step').'.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
             $this->notifyRequester($approval, 'Approval advanced', 'Your request passed one approval step and is awaiting the next approver.');
 
             return back()->with('status', 'Approval step approved and moved to the next approver.');
@@ -295,7 +295,7 @@ final class WorkflowController extends Controller
         if ($resource instanceof BookstoreLibraryLoan) {
             $this->approveLibraryLoan($request, $approval, $resource, $payload);
 
-            $activityLogger->log('Workflow & Approvals', 'approval_approved', 'Approval '.$approval->opaqueId().' was approved.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
+            $activityLogger->log('Workflow & Approvals', 'approval_approved', $this->approvalActivityLabel($approval, $resource).' was approved.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
             $this->notifyRequester($approval, 'Request approved', 'Your library request was approved.');
 
             return back()->with('status', 'Approval approved and library loan activated.');
@@ -316,11 +316,13 @@ final class WorkflowController extends Controller
         }
         if ($resource instanceof Event) {
             $resource->update(['status' => 'scheduled']);
-            $resource->sessions()->where('status', 'draft')->update(['status' => 'scheduled']);
+            $resource->sessions()->whereIn('status', ['draft', 'pending_approval'])->update(['status' => 'scheduled']);
+            $this->synchronizeEventMeetingApprovals($resource, $request->user()?->id, 'The related event was approved.');
             $this->notifyEventPublished($resource);
         }
         if ($resource instanceof EventSession) {
             $resource->update(['status' => 'scheduled']);
+            $this->synchronizeEventMeetingApprovals($resource, $request->user()?->id, 'The related meeting was approved.');
             $this->notifyMeetingPublished($resource, $approval);
         }
         if ($resource instanceof ProgramSectionAssignment) {
@@ -347,10 +349,62 @@ final class WorkflowController extends Controller
             ]);
         }
 
-        $activityLogger->log('Workflow & Approvals', 'approval_approved', 'Approval '.$approval->opaqueId().' was approved.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
+        $activityLogger->log('Workflow & Approvals', 'approval_approved', $this->approvalActivityLabel($approval, $resource).' was approved.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
         $this->notifyRequester($approval, 'Request approved', 'Your workflow request was approved.');
 
         return back()->with('status', 'Approval approved and resource updated.');
+    }
+
+    private function synchronizeEventMeetingApprovals(Event|EventSession $resource, ?int $approvedBy, string $reason): void
+    {
+        $event = $resource instanceof Event ? $resource : $resource->event;
+
+        if (! $event) {
+            return;
+        }
+
+        $event->update(['status' => 'scheduled']);
+        $event->sessions()->whereIn('status', ['draft', 'pending_approval'])->update(['status' => 'scheduled']);
+
+        $eventApproval = Approval::query()
+            ->where('church_id', $event->church_id)
+            ->where('approvable_type', Event::class)
+            ->where('approvable_id', $event->id)
+            ->where('action', 'publish_event')
+            ->where('status', 'pending')
+            ->get();
+
+        $meetingApprovals = Approval::query()
+            ->where('church_id', $event->church_id)
+            ->where('approvable_type', EventSession::class)
+            ->whereIn('approvable_id', $event->sessions()->pluck('id'))
+            ->where('action', 'publish_meeting')
+            ->where('status', 'pending')
+            ->get();
+
+        $eventApproval
+            ->merge($meetingApprovals)
+            ->each(fn (Approval $approval) => $approval->update([
+                'status' => 'approved',
+                'approved_by' => $approvedBy,
+                'approved_at' => now(),
+                'notes' => trim(($approval->notes ? $approval->notes.' ' : '').$reason),
+            ]));
+    }
+
+    private function approvalActivityLabel(Approval $approval, mixed $resource = null): string
+    {
+        $resource ??= $approval->approvable;
+
+        return match (true) {
+            $resource instanceof Event => 'Event: '.($resource->title ?: 'Untitled event'),
+            $resource instanceof EventSession => 'Meeting: '.($resource->title ?: 'Untitled meeting'),
+            $resource instanceof EventRecurrenceRule => 'Recurring meeting: '.($resource->title ?: 'Untitled meeting'),
+            $resource instanceof FinancialAssistanceRequest => 'Financial assistance: '.($resource->title ?: $resource->reference),
+            $resource instanceof BookstoreLibraryLoan => 'Library request: '.($resource->loan_number ?: 'Loan'),
+            $resource instanceof ProgramSectionAssignment => 'Program assignment',
+            default => Str::headline((string) ($approval->action ?: 'Workflow request')),
+        };
     }
 
     public function reject(Request $request, Approval $approval, ActivityLogger $activityLogger): RedirectResponse
@@ -402,7 +456,7 @@ final class WorkflowController extends Controller
             ]);
         }
 
-        $activityLogger->log('Workflow & Approvals', 'approval_rejected', 'Approval '.$approval->opaqueId().' was rejected.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
+        $activityLogger->log('Workflow & Approvals', 'approval_rejected', $this->approvalActivityLabel($approval, $resource).' was rejected.', $approval, ['resource' => 'Approval', 'risk' => 'medium', 'status' => 'success'], $request);
         $this->notifyRequester($approval, 'Request rejected', 'Your workflow request was rejected. Review the approval notes for details.');
 
         return back()->with('status', 'Approval rejected.');
