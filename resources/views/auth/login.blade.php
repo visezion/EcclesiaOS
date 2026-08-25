@@ -45,7 +45,8 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-        <title>Login - {{ $systemName }}</title>
+        <title>{{ $systemName }} - {{ $subtitle }}</title>
+        <meta name="description" content="{{ $systemName }} - {{ $subtitle }}. Sign in to manage your church in one place.">
         @if ($faviconUrl)
             <link rel="icon" href="{{ $faviconUrl }}">
             <link rel="shortcut icon" href="{{ $faviconUrl }}">

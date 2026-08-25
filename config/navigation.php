@@ -69,7 +69,6 @@ return [
             ['label' => 'Reusable Sections', 'route' => 'website-studio.sections', 'icon' => 'blocks', 'permission' => 'manage studio', 'active_routes' => ['website-studio.sections.edit']],
             ['label' => 'Create Section', 'route' => 'website-studio.sections.create', 'icon' => 'plus', 'permission' => 'manage studio'],
             ['label' => 'Media Library', 'route' => 'website-studio.media', 'icon' => 'image', 'permission' => 'manage studio'],
-            ['label' => 'Website Events', 'route' => 'events.index', 'icon' => 'calendar-days', 'permission' => 'manage events'],
             ['label' => 'Sermons & Media', 'route' => 'sermons.index', 'icon' => 'monitor-play', 'permission' => 'manage media'],
         ],
     ],

@@ -56,6 +56,7 @@ final class InstallerController extends Controller
 
         $data = Validator::make($request->all(), [
             'church_name' => ['required', 'string', 'max:255'],
+            'subtitle' => ['required', 'string', 'max:120'],
             'church_address' => ['nullable', 'string', 'max:255'],
             'church_timezone' => ['required', 'string', 'max:255'],
             'church_currency' => ['required', 'string', 'size:3'],
@@ -80,17 +81,16 @@ final class InstallerController extends Controller
             }
 
             DB::transaction(function () use ($data, &$installedChurch): void {
-                $church = Church::query()->updateOrCreate(
-                    ['slug' => Str::slug($data['church_name'])],
-                    [
-                        'name' => $data['church_name'],
-                        'timezone' => $data['church_timezone'],
-                        'currency' => strtoupper($data['church_currency']),
-                        'email' => $data['church_email'],
-                        'phone' => $data['church_phone'] ?? null,
-                        'address' => $data['church_address'] ?? null,
-                    ],
-                );
+                $church = Church::query()->firstOrNew(['slug' => Str::slug($data['church_name'])]);
+                $church->fill([
+                    'name' => $data['church_name'],
+                    'timezone' => $data['church_timezone'],
+                    'currency' => strtoupper($data['church_currency']),
+                    'email' => $data['church_email'],
+                    'phone' => $data['church_phone'] ?? null,
+                    'address' => $data['church_address'] ?? null,
+                    'settings' => array_merge($church->settings ?? [], ['subtitle' => $data['subtitle']]),
+                ])->save();
 
                 $campus = Campus::query()->firstOrCreate(
                     ['church_id' => $church->id, 'slug' => 'headquarters'],

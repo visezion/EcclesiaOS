@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 final class SystemSettingsController extends Controller
 {
@@ -52,6 +53,7 @@ final class SystemSettingsController extends Controller
 
         $validated = $request->validate([
             'system_name' => ['required', 'string', 'max:120'],
+            'subtitle' => ['required', 'string', 'max:120'],
             'admin_landing_page_enabled' => ['nullable', 'boolean'],
             'login_member_registration_link_enabled' => ['nullable', 'boolean'],
             'church_name' => ['required', 'string', 'max:120'],
@@ -62,7 +64,7 @@ final class SystemSettingsController extends Controller
             'timezone' => ['required', 'string', 'max:80'],
             'date_format' => ['required', 'string', 'max:40'],
             'currency' => ['required', 'string', 'max:20'],
-            'language' => ['required', 'string', 'max:30'],
+            'language' => ['required', Rule::in(['en', 'fr', 'es'])],
             'primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'secondary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'page_background' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
@@ -269,6 +271,7 @@ final class SystemSettingsController extends Controller
     {
         return [
             'system_name' => config('church.product_name', 'EcclesiaOS'),
+            'subtitle' => config('church.subtitle', 'Church Management System'),
             'admin_landing_page_enabled' => true,
             'login_member_registration_link_enabled' => true,
             'church_name' => $church->name ?: config('church.name'),
@@ -279,7 +282,7 @@ final class SystemSettingsController extends Controller
             'timezone' => $church->timezone ?: config('church.timezone'),
             'date_format' => 'M d, Y',
             'currency' => $church->currency ?: config('church.currency'),
-            'language' => 'English (US)',
+            'language' => 'en',
             'primary_color' => '#6C4DFF',
             'secondary_color' => '#A855F7',
             'page_background' => '#F6F8FC',

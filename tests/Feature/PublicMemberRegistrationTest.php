@@ -78,6 +78,17 @@ class PublicMemberRegistrationTest extends TestCase
             ->assertSee('I’m already a member');
     }
 
+    public function test_system_language_is_used_as_the_default_locale(): void
+    {
+        $church = Church::factory()->create(['settings' => ['language' => 'es']]);
+        Campus::factory()->for($church)->create(['name' => 'Central Campus']);
+
+        $this->get(route('members.self-register'))
+            ->assertOk()
+            ->assertSee('<html lang="es"', false)
+            ->assertSee('Bienvenido a nuestra familia de la iglesia.');
+    }
+
     public function test_language_switch_rejects_unsupported_locales(): void
     {
         $this->post(route('locale.update'), ['locale' => 'de'])

@@ -175,6 +175,10 @@ final class ModuleRegistry
         return collect(config('navigation'))
             ->map(fn (array $item): array => OrganizationTerminology::translateNavigationItem($item, $terminology))
             ->map(function (array $item) use ($disabled): ?array {
+                if ($disabled->contains($item['route'] ?? null)) {
+                    return null;
+                }
+
                 $children = collect($item['children'] ?? [])
                     ->reject(fn (array $child): bool => $disabled->contains($child['route'] ?? null))
                     ->values()

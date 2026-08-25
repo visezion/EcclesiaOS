@@ -88,7 +88,10 @@ class AuthenticationTest extends TestCase
 
     public function test_installer_is_available_until_a_user_account_exists(): void
     {
-        $this->get(route('install'))->assertOk();
+        $this->get(route('install'))
+            ->assertOk()
+            ->assertSee('Application Subtitle', false)
+            ->assertSee('name="subtitle"', false);
 
         Church::factory()->create();
 
@@ -246,6 +249,7 @@ class AuthenticationTest extends TestCase
         $this->get(route('login'))
             ->assertOk()
             ->assertSee('Custom Ministry OS', false)
+            ->assertSee('<title>Custom Ministry OS - Custom ministry platform</title>', false)
             ->assertSee('&copy; '.now()->year.' EcclesiaOS &middot; v'.config('updater.current_version').'. All rights reserved.', false)
             ->assertSee('Equipping churches to connect people, steward ministry, and serve with clarity.', false)
             ->assertSee('Custom ministry platform', false)

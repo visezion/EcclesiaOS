@@ -147,7 +147,8 @@
                                 <button type="button" @click="edit('#organization')" class="text-xs font-medium text-violet-600">Edit</button>
                             </div>
                             <div class="grid gap-3">
-                                <label class="space-y-1 text-xs font-medium text-slate-500">Application Name<input name="system_name" value="{{ old('system_name', $settings['system_name']) }}" maxlength="120" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"><p class="text-[11px] font-normal text-slate-400">Shown throughout the church’s app. The EcclesiaOS product footer remains unchanged.</p></label>
+                                <label class="space-y-1 text-xs font-medium text-slate-500">Application Name<input name="system_name" value="{{ old('system_name', $settings['system_name']) }}" maxlength="120" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"></label>
+                                <label class="space-y-1 text-xs font-medium text-slate-500">Application Subtitle<input name="subtitle" value="{{ old('subtitle', $settings['subtitle']) }}" maxlength="120" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"></label>
                                 <label class="space-y-1 text-xs font-medium text-slate-500">Church Name<input name="church_name" value="{{ old('church_name', $settings['church_name']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"></label>
                                 <div class="grid gap-3 md:grid-cols-2">
                                     <label class="space-y-1 text-xs font-medium text-slate-500">Primary Email<input name="primary_email" type="email" value="{{ old('primary_email', $settings['primary_email']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"></label>
@@ -163,7 +164,7 @@
                                 </div>
                                 <div class="grid gap-3 md:grid-cols-2">
                                     <label class="space-y-1 text-xs font-medium text-slate-500">Currency<select name="currency" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">@foreach (['USD' => 'USD ($)', 'EUR' => 'EUR (€)', 'GBP' => 'GBP (£)', 'NGN' => 'NGN (₦)'] as $value => $label)<option value="{{ $value }}" @selected(old('currency', $settings['currency']) === $value)>{{ $label }}</option>@endforeach</select></label>
-                                    <label class="space-y-1 text-xs font-medium text-slate-500">Language<select name="language" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">@foreach (['English (US)', 'English (UK)', 'French', 'Spanish'] as $value)<option value="{{ $value }}" @selected(old('language', $settings['language']) === $value)>{{ $value }}</option>@endforeach</select></label>
+                                    <label class="space-y-1 text-xs font-medium text-slate-500">Language<select name="language" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">@foreach (['en' => 'English (US)', 'fr' => 'French', 'es' => 'Spanish'] as $value => $label)<option value="{{ $value }}" @selected(old('language', $settings['language']) === $value)>{{ $label }}</option>@endforeach</select></label>
                                 </div>
                             </div>
                         </section>
@@ -307,6 +308,21 @@
                                     <span class="absolute left-0.5 size-6 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
                                 </span>
                             </label>
+                            <label class="mt-4 flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                                <span class="flex min-w-0 items-start gap-3">
+                                    <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700"><i data-lucide="user-plus" class="size-4"></i></span>
+                                    <span>
+                                        <span class="block text-xs font-semibold text-slate-900">Show member registration link on login</span>
+                                        <span class="mt-1 block text-xs font-normal leading-5 text-slate-500">Display “New or returning member? Register or check in” below the sign-in form.</span>
+                                    </span>
+                                </span>
+                                <span class="relative inline-flex shrink-0 items-center">
+                                    <input type="hidden" name="login_member_registration_link_enabled" value="0">
+                                    <input name="login_member_registration_link_enabled" type="checkbox" value="1" @checked(old('login_member_registration_link_enabled', $settings['login_member_registration_link_enabled'] ?? true)) class="peer sr-only">
+                                    <span class="h-7 w-12 rounded-full bg-slate-300 transition peer-checked:bg-violet-600"></span>
+                                    <span class="absolute left-0.5 size-6 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+                                </span>
+                            </label>
                             <div class="mt-4 grid gap-3 sm:grid-cols-2">
                                 <a href="{{ route('home') }}" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"><i data-lucide="external-link" class="size-4"></i>Open root page</a>
                                 <a href="{{ route('login') }}" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 py-2.5 text-xs font-semibold text-white hover:bg-violet-700"><i data-lucide="log-in" class="size-4"></i>Preview sign in</a>
@@ -320,21 +336,6 @@
                                 <button type="button" @click="edit('#authentication')" class="text-xs font-medium text-violet-600">Edit</button>
                             </div>
                             <div class="space-y-3">
-                                <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                                    <span class="flex min-w-0 items-start gap-3">
-                                        <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700"><i data-lucide="user-plus" class="size-4"></i></span>
-                                        <span>
-                                            <span class="block text-xs font-semibold text-slate-900">Show member registration link on login</span>
-                                            <span class="mt-1 block text-xs font-normal leading-5 text-slate-500">Display “New or returning member? Register or check in” below the sign-in form.</span>
-                                        </span>
-                                    </span>
-                                    <span class="relative inline-flex shrink-0 items-center">
-                                        <input type="hidden" name="login_member_registration_link_enabled" value="0">
-                                        <input name="login_member_registration_link_enabled" type="checkbox" value="1" @checked(old('login_member_registration_link_enabled', $settings['login_member_registration_link_enabled'] ?? true)) class="peer sr-only">
-                                        <span class="h-7 w-12 rounded-full bg-slate-300 transition peer-checked:bg-violet-600"></span>
-                                        <span class="absolute left-0.5 size-6 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
-                                    </span>
-                                </label>
                                 <label class="flex items-center justify-between gap-3 text-xs font-medium text-slate-500">Multi-Factor Authentication<input name="mfa_required" type="checkbox" value="1" @checked(old('mfa_required', $settings['mfa_required'])) class="rounded border-slate-300 text-violet-600"></label>
                                 <label class="space-y-1 text-xs font-medium text-slate-500">Password Policy<select name="password_policy" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900">@foreach (['Strong (Recommended)', 'Standard', 'Custom'] as $value)<option value="{{ $value }}" @selected(old('password_policy', $settings['password_policy']) === $value)>{{ $value }}</option>@endforeach</select></label>
                                 <label class="space-y-1 text-xs font-medium text-slate-500">Session Timeout<input name="session_timeout" type="number" min="5" max="1440" value="{{ old('session_timeout', $settings['session_timeout']) }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900"></label>

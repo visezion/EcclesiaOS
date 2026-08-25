@@ -43,6 +43,23 @@ class AdminPagesTest extends TestCase
             ->assertSee('No action is needed right now');
     }
 
+    public function test_disabled_website_studio_hides_the_parent_menu_and_its_events_entry(): void
+    {
+        $this->seed();
+        $church = Church::query()->firstOrFail();
+        $church->forceFill([
+            'settings' => array_merge($church->settings ?? [], [
+                'disabled_modules' => ['website-studio.index'],
+            ]),
+        ])->save();
+
+        $navigation = collect(ModuleRegistry::visibleNavigation($church));
+        $websiteStudio = collect(config('navigation'))->firstWhere('route', 'website-studio.index');
+
+        $this->assertNull($navigation->firstWhere('route', 'website-studio.index'));
+        $this->assertFalse(collect($websiteStudio['children'] ?? [])->contains('route', 'events.index'));
+    }
+
     public function test_database_backed_admin_pages_render(): void
     {
         $this->seed();
@@ -1297,6 +1314,7 @@ class AdminPagesTest extends TestCase
     {
         return [
             'system_name' => 'KingdomHub',
+            'subtitle' => 'Church Management System',
             'admin_landing_page_enabled' => '1',
             'login_member_registration_link_enabled' => '1',
             'church_name' => 'Kingdom Life Global Church',
@@ -1307,7 +1325,7 @@ class AdminPagesTest extends TestCase
             'timezone' => 'America/Chicago',
             'date_format' => 'M d, Y',
             'currency' => 'USD',
-            'language' => 'English (US)',
+            'language' => 'en',
             'primary_color' => '#6C4DFF',
             'secondary_color' => '#A855F7',
             'page_background' => '#F6F8FC',

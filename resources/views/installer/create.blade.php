@@ -2,7 +2,7 @@
     $branding = $branding ?? \App\Support\Branding::current();
     $systemName = $branding->systemName();
     $churchName = $branding->churchName();
-    $subtitle = 'Initial installation';
+    $subtitle = $branding->subtitle();
     $logoUrl = $branding->logo();
     $settings = $settings ?? $branding->settings;
     $sidebarImage = $branding->sidebarBackground() ?? asset('images/sidebar-church.png');
@@ -96,6 +96,11 @@
                             <label class="block text-sm font-semibold text-slate-700">
                                 Church Name
                                 <input name="church_name" value="{{ old('church_name', $settings['church_name'] ?? $churchName) }}" class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100">
+                            </label>
+                            <label class="block text-sm font-semibold text-slate-700">
+                                Application Subtitle
+                                <input name="subtitle" value="{{ old('subtitle', $settings['subtitle'] ?? $branding->subtitle()) }}" maxlength="120" required class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100">
+                                <span class="mt-1 block text-xs font-normal text-slate-500">Shown beside the application name on the landing page and login screen.</span>
                             </label>
                             <label class="block text-sm font-semibold text-slate-700">
                                 Church Email
