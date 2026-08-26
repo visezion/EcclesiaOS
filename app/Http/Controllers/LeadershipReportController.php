@@ -497,15 +497,23 @@ final class LeadershipReportController extends Controller
             ? collect($validated['reviewer_role_ids'] ?? [])->map(fn ($id): int => (int) $id)->unique()->values()->all()
             : $this->reviewerRoleIds($request);
 
-        if (! empty($validated['default_reviewer_id'])) {
-            abort_unless($this->visibleReporters($request, $reviewerRoleIds)->whereKey($validated['default_reviewer_id'])->exists(), 403);
+        $defaultReviewerId = ! empty($validated['default_reviewer_id'])
+            ? (int) $validated['default_reviewer_id']
+            : null;
+
+        if ($defaultReviewerId !== null && ! $this->visibleReporters($request, $reviewerRoleIds)->whereKey($defaultReviewerId)->exists()) {
+            if ($roleFilterCanBeUpdated) {
+                $defaultReviewerId = null;
+            } else {
+                abort(403);
+            }
         }
 
         $user = $request->user();
         $settings = $user->account_settings ?? [];
         $currentReportSettings = $this->reportSettings($request);
         $settings['leadership_reports'] = [
-            'default_reviewer_id' => $validated['default_reviewer_id'] ?? null,
+            'default_reviewer_id' => $defaultReviewerId,
             'weekly_due_day' => $validated['weekly_due_day'],
             'auto_reminders' => $request->boolean('auto_reminders'),
             'require_action_items' => $request->boolean('require_action_items'),

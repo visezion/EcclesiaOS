@@ -13,7 +13,6 @@
         $attendanceScore = min(100, (int) round(($attendanceLast90->count() / 12) * 100));
         $donationsLastSixMonths = $member->donations->filter(fn ($donation) => $donation->received_at && $donation->received_at->gte(now()->subMonths(6)));
         $givingConsistency = min(100, (int) round(($donationsLastSixMonths->count() / 6) * 100));
-        $volunteerHours = (int) $profile['volunteerHours'];
         $profileAddress = collect([$profile['addressLine'], $profile['city'], $profile['state'], $profile['postalCode'], $profile['country']])->filter()->join(', ');
         $profileAddress = $profileAddress !== '' ? $profileAddress : ($member->family?->address ?? 'No address on file');
         $preferences = $profile['communicationPreferences'];
@@ -209,12 +208,6 @@
                 </div>
                 <p class="mt-2 text-sm text-emerald-600">{{ $givingConsistency >= 50 ? 'Faithful' : 'Developing' }}</p>
                 <p class="text-xs text-slate-500">Last 6 months</p>
-            </div>
-            <div class="rounded-lg border border-slate-200 bg-white p-5 text-center shadow-sm">
-                <p class="text-xs text-slate-500">Volunteer Hours</p>
-                <div class="mt-7 text-4xl text-slate-950">{{ $volunteerHours }}</div>
-                <p class="mt-2 text-sm text-slate-500">Hours</p>
-                <p class="text-xs text-slate-500">This year</p>
             </div>
             <div class="rounded-lg border border-slate-200 bg-white p-5 text-center shadow-sm">
                 <p class="text-xs text-slate-500">Profile Completeness</p>

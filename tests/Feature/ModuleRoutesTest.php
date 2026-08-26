@@ -1082,10 +1082,13 @@ class ModuleRoutesTest extends TestCase
         ]);
         $eligibleReviewer->roles()->attach($eligibleRole);
         $excludedReviewer->roles()->attach($excludedRole);
+        $adminSettings = $admin->account_settings ?? [];
+        data_set($adminSettings, 'leadership_reports.default_reviewer_id', $excludedReviewer->id);
+        $admin->forceFill(['account_settings' => $adminSettings])->save();
 
         $this->actingAs($admin)
             ->put(route('leadership-reports.settings.update'), [
-                'default_reviewer_id' => $eligibleReviewer->id,
+                'default_reviewer_id' => $excludedReviewer->id,
                 'reviewer_role_filter_present' => '1',
                 'reviewer_role_ids' => [$eligibleRole->id],
                 'weekly_due_day' => 'friday',
@@ -1100,6 +1103,7 @@ class ModuleRoutesTest extends TestCase
             [$eligibleRole->id],
             data_get($admin->church()->firstOrFail()->refresh()->settings, 'leadership_reports.reviewer_role_ids'),
         );
+        $this->assertNull(data_get($admin->refresh()->account_settings, 'leadership_reports.default_reviewer_id'));
 
         $this->actingAs($admin)
             ->get(route('leadership-reports.index', ['tab' => 'settings']))
