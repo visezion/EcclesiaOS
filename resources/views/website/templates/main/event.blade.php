@@ -1,4 +1,13 @@
 @php
+    $assetUrl = static function (?string $value): ?string {
+        if (! filled($value)) return null;
+        $value = trim($value);
+        if (str_starts_with($value, 'http') || str_starts_with($value, '//')) return $value;
+        $value = ltrim($value, '/');
+        if (($storagePosition = strpos($value, 'storage/')) !== false) $value = substr($value, $storagePosition + 8);
+        return asset('storage/'.ltrim($value, '/'));
+    };
+    $faviconUrl = $assetUrl($settings['favicon_url'] ?? null);
     $colorScheme = in_array($settings['color_scheme'] ?? 'dark', ['dark', 'light'], true) ? $settings['color_scheme'] : 'dark';
     $eventDate = $event->starts_at?->format('F j, Y');
     $eventTime = $event->starts_at?->format('g:i A').($event->ends_at ? ' – '.$event->ends_at->format('g:i A') : '');
@@ -10,16 +19,17 @@
     <title>{{ $event->title }} · {{ $settings['site_name'] }}</title>
     <meta name="description" content="{{ Str::limit(strip_tags($event->description ?: $event->title), 155) }}">
     <meta name="theme-color" content="{{ $settings['primary_color'] }}">
+    @if ($faviconUrl)<link rel="icon" href="{{ $faviconUrl }}"><link rel="shortcut icon" href="{{ $faviconUrl }}">@endif
     <link rel="stylesheet" href="{{ asset('css/website/templates/main.css') }}?v={{ filemtime(public_path('css/website/templates/main.css')) }}">
 </head>
-<body class="theme-{{ $colorScheme }} public-event-page" data-default-theme="{{ $colorScheme }}" data-theme-key="ecclesia-site-theme-{{ $church->slug }}" style="--primary:{{ $settings['primary_color'] }};--accent:{{ $settings['accent_color'] }};--font:'{{ $settings['font'] ?? 'Manrope' }}',Arial,sans-serif">
+<body class="theme-{{ $colorScheme }} menu-style-{{ in_array($settings['menu_style'] ?? 'classic', ['classic', 'floating', 'centered', 'pill', 'accent'], true) ? ($settings['menu_style'] ?? 'classic') : 'classic' }} public-event-page" data-default-theme="{{ $colorScheme }}" data-theme-key="ecclesia-site-theme-{{ $church->slug }}" style="--primary:{{ $settings['primary_color'] }};--accent:{{ $settings['accent_color'] }};--font:'{{ $settings['font'] ?? 'Manrope' }}',Arial,sans-serif">
     <div class="site-shell">
         <header class="site-header">
             <div class="container nav-row">
-                <a class="brand" href="{{ route('website.public', ['church' => $church->slug]) }}"><span class="brand-mark">@if ($logoUrl)<img src="{{ $logoUrl }}" alt="">@else✦@endif</span><span><strong>{{ $settings['site_name'] }}</strong><small>{{ $settings['tagline'] }}</small></span></a>
+                <a class="brand" href="{{ route('website.public', ['church' => $church->slug]) }}"><span class="brand-mark {{ $logoUrl ? 'has-logo' : '' }}">@if ($logoUrl)<img src="{{ $logoUrl }}" alt="">@else✦@endif</span><span><strong>{{ $settings['site_name'] }}</strong><small>{{ $settings['tagline'] }}</small></span></a>
                 <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-menu-toggle><span>☰</span><span class="sr-only">Menu</span></button>
                 <label class="site-search"><span>⌕</span><input type="search" placeholder="Search" aria-label="Search this website" data-site-search></label>
-                <nav id="site-nav" class="site-nav" data-menu>@foreach ($navigation as $item)<a href="{{ $item['url'] }}">{{ $item['label'] }}</a>@endforeach</nav>
+                @include('website.templates.main._navigation')
                 <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to light mode" title="Switch website appearance"><span class="theme-toggle-sun" aria-hidden="true">☀</span><span class="theme-toggle-moon" aria-hidden="true">☾</span></button>
                 <a class="button button-small nav-action" href="{{ $settings['hero_button_url'] ?: '#contact' }}">{{ $settings['hero_button_label'] ?: 'Plan a visit' }}</a>
             </div>

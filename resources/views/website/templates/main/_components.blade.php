@@ -4,9 +4,14 @@
     @if (($component['type'] ?? '') === 'columns')
         <div class="component-group-stack">
             @foreach (($component['groups'] ?? [$component]) as $group)
-                <div class="component-columns nested-component-columns" style="grid-template-columns: {{ collect($group['columns'] ?? [])->map(fn ($column) => max(1, (int) ($column['width'] ?? 1)).'fr')->join(' ') }};">
+                @php($fullBleedColumn = count($group['columns'] ?? []) === 1 && (($group['columns'][0]['column_width'] ?? ($group['columns'][0]['content_width'] ?? 'default')) === 'full'))
+                <div class="component-columns nested-component-columns {{ $fullBleedColumn ? 'column-full-bleed' : '' }}" style="grid-template-columns: {{ collect($group['columns'] ?? [])->map(fn ($column) => max(1, (int) ($column['width'] ?? 1)).'fr')->join(' ') }};">
                     @foreach ($group['columns'] ?? [] as $column)
-                        <div class="component-column">
+                        @php($columnBackgroundImage = !empty($column['background_image']) ? $assetUrl($column['background_image']) : null)
+                        @php($columnBackgroundVideo = !empty($column['background_video']) ? $assetUrl($column['background_video']) : null)
+                        @php($columnBackgroundColor = (($column['background_color'] ?? null) === 'transparent' || !empty($column['background_transparent'])) ? 'transparent' : (preg_match('/^#[0-9a-fA-F]{6}$/', $column['background_color'] ?? '') ? $column['background_color'] : 'transparent'))
+                        <div class="component-column has-column-presentation {{ $columnBackgroundVideo ? 'has-column-video' : '' }}" style="--column-background-color:{{ $columnBackgroundColor }};--column-min-height:{{ ['auto' => 'auto', 'compact' => '240px', 'tall' => '560px', 'full' => '100%'][$column['height'] ?? 'auto'] ?? 'auto' }};--column-content-width:{{ ['default' => '92%', 'wide' => '100%', 'full' => '100%'][$column['column_width'] ?? ($column['content_width'] ?? 'default')] ?? '92%' }};{{ $columnBackgroundImage ? 'background-image:url('.$columnBackgroundImage.');' : '' }}">
+                            @if ($columnBackgroundVideo)<video class="component-column-background" autoplay muted loop playsinline preload="metadata"><source src="{{ $columnBackgroundVideo }}"></video>@endif
                             @include('website.templates.main._components', ['components' => $column['components'] ?? [], 'events' => $events ?? collect(), 'sermons' => $sermons ?? collect()])
                         </div>
                     @endforeach
@@ -46,7 +51,7 @@
     @elseif (($component['type'] ?? '') === 'card')
         @php($cardVideoUrl = !empty($component['background_video']) ? $assetUrl($component['background_video']) : null)
         @if (!empty($component['link']))<a class="content-card-widget-link" href="{{ $component['link'] }}" aria-label="Open {{ $component['title'] ?? 'card' }}">@endif
-        <article class="content-card-widget {{ $cardVideoUrl || !empty($component['url']) ? 'has-media' : '' }}" style="--card-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : ($settings['primary_color'] ?? '#6d4aff') }};">
+        <article class="content-card-widget content-card-shadow-{{ in_array($component['card_shadow'] ?? 'none', ['none', 'small', 'medium', 'large'], true) ? ($component['card_shadow'] ?? 'none') : 'none' }} {{ $cardVideoUrl || !empty($component['url']) ? 'has-media' : '' }}" style="--card-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : ($settings['primary_color'] ?? '#6d4aff') }};--card-border-width: {{ max(0, min(12, (int) ($component['card_border_width'] ?? 0))) }}px;--card-border-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['card_border_color'] ?? '') ? $component['card_border_color'] : '#ffffff' }};">
             @if ($cardVideoUrl)
                 <video class="content-card-widget-background" autoplay muted loop playsinline preload="auto" data-background-video @if (!empty($component['url'])) poster="{{ $assetUrl($component['url']) }}" @endif>
                     <source src="{{ $cardVideoUrl }}">

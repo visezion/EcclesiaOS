@@ -20,6 +20,77 @@ final class ChurchWebsiteTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_admin_can_manage_navigation_and_apply_a_public_menu_style(): void
+    {
+        $church = Church::factory()->create(['name' => 'Navigation Church']);
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $adminRole = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($adminRole);
+
+        $this->actingAs($user)
+            ->get(route('website-studio.navigation'))
+            ->assertOk()
+            ->assertSee('Navigation Builder')
+            ->assertSee('Floating glass')
+            ->assertSee('Bold brand');
+
+        $this->actingAs($user)
+            ->put(route('website-studio.navigation.update'), [
+                'menu_style' => 'accent',
+                'navigation' => [
+                    ['label' => 'Welcome', 'url' => '#welcome', 'visible' => '1'],
+                    ['label' => 'Private link', 'url' => '#private', 'visible' => '0'],
+                    ['label' => 'Visit', 'url' => '#contact', 'visible' => '1'],
+                ],
+            ])
+            ->assertRedirect();
+
+        $settings = data_get($church->fresh()->settings, 'website');
+        $this->assertSame('accent', data_get($settings, 'menu_style'));
+        $this->assertCount(3, data_get($settings, 'navigation'));
+
+        $this->get(route('website.public', ['church' => $church->slug]))
+            ->assertOk()
+            ->assertSee('menu-style-accent', false)
+            ->assertSee('Welcome')
+            ->assertSee('Visit')
+            ->assertDontSee('Private link');
+    }
+
+    public function test_admin_can_create_dropdown_and_mega_navigation_items(): void
+    {
+        $church = Church::factory()->create(['name' => 'Nested Navigation Church']);
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $adminRole = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($adminRole);
+
+        $this->actingAs($user)->put(route('website-studio.navigation.update'), [
+            'menu_style' => 'classic',
+            'navigation' => [
+                ['label' => 'About', 'url' => '#about', 'type' => 'dropdown', 'visible' => '1', 'children' => [
+                    ['label' => 'Our story', 'url' => '/story', 'description' => 'Learn who we are.', 'column' => '1', 'visible' => '1'],
+                    ['label' => 'Hidden child', 'url' => '/hidden', 'visible' => '0'],
+                ]],
+                ['label' => 'Explore', 'url' => '#explore', 'type' => 'mega', 'visible' => '1', 'children' => [
+                    ['label' => 'Ministries', 'url' => '/ministries', 'column' => '2', 'visible' => '1'],
+                ]],
+            ],
+        ])->assertRedirect();
+
+        $settings = data_get($church->fresh()->settings, 'website.navigation');
+        $this->assertSame('dropdown', data_get($settings, '0.type'));
+        $this->assertSame('Our story', data_get($settings, '0.children.0.label'));
+        $this->assertSame(2, data_get($settings, '1.children.0.column'));
+
+        $this->get(route('website.public', ['church' => $church->slug]))
+            ->assertOk()
+            ->assertSee('site-submenu-dropdown', false)
+            ->assertSee('site-submenu-mega', false)
+            ->assertSee('Our story')
+            ->assertSee('Ministries')
+            ->assertDontSee('Hidden child');
+    }
+
     public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void
     {
         Storage::fake('public');
@@ -52,6 +123,9 @@ final class ChurchWebsiteTest extends TestCase
                             'body' => 'Direct URL video',
                             'background_video' => $remoteVideo,
                             'background_color' => '#6d4aff',
+                            'card_border_width' => 3,
+                            'card_border_color' => '#F59E0B',
+                            'card_shadow' => 'large',
                         ],
                         [
                             'id' => $uploadedCardId,
@@ -99,6 +173,9 @@ final class ChurchWebsiteTest extends TestCase
         $uploadedSliderPath = data_get($slider, 'slides.0.video');
 
         $this->assertSame($remoteVideo, data_get($linkedCard, 'background_video'));
+        $this->assertSame(3, data_get($linkedCard, 'card_border_width'));
+        $this->assertSame('#F59E0B', data_get($linkedCard, 'card_border_color'));
+        $this->assertSame('large', data_get($linkedCard, 'card_shadow'));
         $this->assertNotEmpty($uploadedCardPath);
         $this->assertNotEmpty($uploadedSliderPath);
         Storage::disk('public')->assertExists($uploadedCardPath);
@@ -111,6 +188,9 @@ final class ChurchWebsiteTest extends TestCase
             ->assertSee(asset('storage/'.$uploadedCardPath), false)
             ->assertSee(asset('storage/'.$uploadedSliderPath), false)
             ->assertSee('content-card-widget-background', false)
+            ->assertSee('content-card-shadow-large', false)
+            ->assertSee('--card-border-width: 3px', false)
+            ->assertSee('--card-border-color: #F59E0B', false)
             ->assertSee('data-background-video', false)
             ->assertSee('autoplay muted loop', false);
     }

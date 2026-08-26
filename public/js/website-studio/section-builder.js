@@ -16,6 +16,24 @@ document.addEventListener('DOMContentLoaded', () => {
         events: 'Events',
         sermons: 'Sermons',
     };
+    const widgetIcons = {
+        subcolumns: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="6" height="14" rx="1"/><rect x="14" y="5" width="6" height="14" rx="1"/></svg>',
+        heading: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5v14M5 12h14M5 5h4M15 5h4M5 19h4M15 19h4"/></svg>',
+        text: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9"/></svg>',
+        quote: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8h4v4H7l-2 4M15 8h4v4h-4l-2 4"/></svg>',
+        image: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m5 17 4-4 3 3 2-2 5 4"/></svg>',
+        video: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>',
+        button: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 4 6 15 2-6 6-2z"/></svg>',
+        spacer: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"/></svg>',
+        carousel: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7H4v3M4 10a8 8 0 0 1 14-3M17 17h3v-3M20 14a8 8 0 0 1-14 3"/></svg>',
+        'video-slider': '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>',
+        gallery: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>',
+        card: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>',
+        divider: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/></svg>',
+        events: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>',
+        sermons: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/></svg>',
+    };
     const defaults = {
         heading: 'Section heading',
         text: 'Write a short message for your visitors.',
@@ -431,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
             );
         }
         if (item.type === 'card')
-            return `<div class="card-editor"><label>Card title<input data-card-field="title" value="${esc(item.title)}" placeholder="Card title"></label><label>Description<textarea data-card-field="body" rows="3" placeholder="Card description">${esc(item.body)}</textarea></label><label>Background image URL <span class="optional">(optional)</span><input data-field="url" value="${esc(item.url)}" placeholder="https://..."></label><label>Upload background image<input type="file" name="component_image_files[${item.id}]" accept="image/*"></label><label>Background video URL <span class="optional">(optional)</span><input data-field="background_video" value="${esc(item.background_video)}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_video_files[${item.id}]" accept="video/mp4,video/webm,video/ogg"></label><span class="widget-hint">Video backgrounds play muted and loop automatically.</span><div class="card-style-fields"><label>Background color<input type="color" data-field="background_color" value="${esc(item.background_color || '#6d4aff')}"></label><label>Card link <span class="optional">(optional)</span><input data-card-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div></div>`;
+            return `<div class="card-editor"><label>Card title<input data-card-field="title" value="${esc(item.title)}" placeholder="Card title"></label><label>Description<textarea data-card-field="body" rows="3" placeholder="Card description">${esc(item.body)}</textarea></label><label>Background image URL <span class="optional">(optional)</span><input data-field="url" value="${esc(item.url)}" placeholder="https://..."></label><label>Upload background image<input type="file" name="component_image_files[${item.id}]" accept="image/*"></label><label>Background video URL <span class="optional">(optional)</span><input data-field="background_video" value="${esc(item.background_video)}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_video_files[${item.id}]" accept="video/mp4,video/webm,video/ogg"></label><span class="widget-hint">Video backgrounds play muted and loop automatically.</span><div class="card-style-fields"><label>Background color<input type="color" data-field="background_color" value="${esc(item.background_color || '#6d4aff')}"></label><label>Border color<input type="color" data-field="card_border_color" value="${esc(item.card_border_color || '#ffffff')}"></label><label>Border size (px)<input type="number" min="0" max="12" data-field="card_border_width" value="${Math.max(0, Math.min(12, Number(item.card_border_width) || 0))}"></label><label>Shadow<select data-field="card_shadow"><option value="none" ${!item.card_shadow || item.card_shadow === 'none' ? 'selected' : ''}>None</option><option value="small" ${item.card_shadow === 'small' ? 'selected' : ''}>Small</option><option value="medium" ${item.card_shadow === 'medium' ? 'selected' : ''}>Medium</option><option value="large" ${item.card_shadow === 'large' ? 'selected' : ''}>Large</option></select></label><label class="card-link-field">Card link <span class="optional">(optional)</span><input data-card-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div></div>`;
         if (item.type === 'icon')
             return `<div class="icon-editor"><label>Icon symbol<input data-icon-field="icon" value="${esc(item.icon || '✦')}" maxlength="8" placeholder="✦"><button type="button" class="icon-library-button" data-open-icon-library>Choose from icon library</button></label><div class="icon-style-fields"><label>Icon color<input type="color" data-field="icon_color" value="${esc(item.icon_color || '#6d4aff')}"></label><label>Background<input type="color" data-field="background_color" value="${esc(item.background_color || '#ede9fe')}"></label><label>Size (px)<input type="number" min="24" max="160" data-field="icon_size" value="${Number(item.icon_size) || 56}"></label></div><label>Alignment<select data-field="align"><option value="left" ${!item.align || item.align === 'left' ? 'selected' : ''}>Left</option><option value="center" ${item.align === 'center' ? 'selected' : ''}>Center</option><option value="right" ${item.align === 'right' ? 'selected' : ''}>Right</option></select></label><label>Link <span class="optional">(optional)</span><input data-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div>`;
         if (item.type === 'image')
@@ -450,7 +468,14 @@ document.addEventListener('DOMContentLoaded', () => {
         type: 'columns',
         id: id(),
         columns: (columns.length ? columns : [{ components: [] }]).map((column, index) => ({
+            id: column.id || id(),
             width: Number(widths[index] || column.width) || 1,
+            background_color: column.background_color || 'transparent',
+            background_transparent: column.background_color === 'transparent' || Boolean(column.background_transparent),
+            background_image: column.background_image || '',
+            background_video: column.background_video || '',
+            height: column.height || 'auto',
+            column_width: column.column_width || column.content_width || 'default',
             components: column.components || [],
         })),
     });
@@ -521,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             list.addEventListener('dragover', (event) => event.preventDefault());
             row.querySelector('[data-add-column]').addEventListener('click', () => {
-                container.columns.push({ width: 1, components: [] });
+                container.columns.push({ id: id(), width: 1, background_color: 'transparent', background_transparent: true, background_image: '', background_video: '', height: 'auto', column_width: 'default', components: [] });
                 render();
             });
             row.querySelector('[data-remove-column]').addEventListener('click', () => {
@@ -535,11 +560,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 columnEl.className = 'nested-column';
                 columnEl.draggable = true;
                 columnEl.dataset.columnIndex = columnIndex;
-                columnEl.innerHTML = `<div class="nested-column-heading"><strong><span class="column-drag-handle" title="Drag column">⠿</span> Column ${columnIndex + 1}</strong><label><span>Width <b data-width-value>—</b></span><input type="number" min="1" max="95" value="${column.width}" data-width aria-label="Column ${columnIndex + 1} width"></label></div><div class="nested-column-actions"><button type="button" data-add-subcolumns>+ Sub-columns</button>${Object.keys(
+                columnEl.innerHTML = `<div class="nested-column-heading"><strong><span class="column-drag-handle" title="Drag column">⠿</span> Column ${columnIndex + 1}</strong><label><span>Width <b data-width-value>—</b></span><input type="number" min="1" max="95" value="${column.width}" data-width aria-label="Column ${columnIndex + 1} width"></label></div><div class="nested-column-actions"><button type="button" data-add-subcolumns><span class="widget-action-icon">${widgetIcons.subcolumns}</span><span>+ Sub-columns</span></button>${Object.keys(
                     labels,
                 )
-                    .map((type) => `<button type="button" data-add="${type}">+ ${labels[type]}</button>`)
+                    .map((type) => `<button type="button" data-add="${type}"><span class="widget-action-icon">${widgetIcons[type]}</span><span>+ ${labels[type]}</span></button>`)
                     .join('')}</div><div class="nested-column-content"></div>`;
+                columnEl.querySelector('.nested-column-heading').insertAdjacentHTML('afterend', `<div class="column-style-fields"><label>Background color<input type="color" data-column-field="background_color" value="${esc(column.background_color === 'transparent' ? '#ffffff' : (column.background_color || '#ffffff'))}"><span class="column-transparent-toggle"><input type="checkbox" data-column-field="background_transparent" ${column.background_transparent ? 'checked' : ''}> Transparent</span></label><label>Background image URL<input data-column-field="background_image" value="${esc(column.background_image || '')}" placeholder="https://..."></label><label>Upload background image<input type="file" name="component_image_files[${column.id || id()}]" accept="image/*"></label><label>Background video URL<input data-column-field="background_video" value="${esc(column.background_video || '')}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_video_files[${column.id || id()}]" accept="video/mp4,video/webm,video/ogg"></label><label>Column height<select data-column-field="height"><option value="auto" ${!column.height || column.height === 'auto' ? 'selected' : ''}>Fit content</option><option value="compact" ${column.height === 'compact' ? 'selected' : ''}>Compact</option><option value="tall" ${column.height === 'tall' ? 'selected' : ''}>Tall</option><option value="full" ${column.height === 'full' ? 'selected' : ''}>Full height</option></select></label><label>Column width<select data-column-field="column_width"><option value="default" ${!column.column_width || column.column_width === 'default' ? 'selected' : ''}>Default width</option><option value="wide" ${column.column_width === 'wide' ? 'selected' : ''}>Wide</option><option value="full" ${column.column_width === 'full' ? 'selected' : ''}>Full width</option></select></label></div>`);
+                columnEl.querySelector('.column-style-fields').insertAdjacentHTML('afterbegin', '<div class="column-style-header"><span class="column-style-icon">▧</span><div><strong>Background</strong><small>Set the background style and add content blocks to build your layout.</small></div></div>');
+                ['image', 'video'].forEach((mediaType) => {
+                    const fieldName = mediaType === 'image' ? 'background_image' : 'background_video';
+                    const field = columnEl.querySelector(`[data-column-field="${fieldName}"]`);
+                    const uploadField = columnEl.querySelectorAll('.column-style-fields input[type="file"]')[mediaType === 'image' ? 0 : 1];
+                    if (!field) return;
+                    const uploadLabel = uploadField?.closest('label');
+                    if (uploadLabel) {
+                        uploadLabel.classList.add('column-upload-label');
+                        const labelText = [...uploadLabel.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+                        if (labelText) {
+                            const title = document.createElement('span');
+                            title.className = 'column-upload-title';
+                            title.textContent = mediaType === 'image' ? 'Background image' : 'Background video';
+                            labelText.replaceWith(title);
+                        }
+                        const uploadIcon = document.createElement('span');
+                        uploadIcon.className = `column-upload-icon ${mediaType}`;
+                        uploadIcon.innerHTML = mediaType === 'image'
+                            ? '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m5 17 4-4 3 3 2-2 5 4"/></svg>'
+                            : '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>';
+                        uploadLabel.prepend(uploadIcon);
+                    }
+                    const removeButton = document.createElement('button');
+                    removeButton.type = 'button';
+                    removeButton.className = 'column-remove-background';
+                    removeButton.textContent = 'Remove';
+                    removeButton.hidden = !column[fieldName];
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = `remove_column_background_${mediaType}s[${column.id}]`;
+                    hidden.value = '0';
+                    if (uploadLabel) {
+                        const mediaControl = document.createElement('div');
+                        mediaControl.className = 'column-media-control';
+                        uploadLabel.parentNode.insertBefore(mediaControl, uploadLabel);
+                        mediaControl.append(uploadLabel, removeButton);
+                    } else {
+                        field.closest('label').after(removeButton);
+                    }
+                    field.closest('label').after(hidden);
+                    removeButton.addEventListener('click', () => {
+                        hidden.value = '1';
+                        field.value = '';
+                        removeButton.textContent = 'Removed on save';
+                        removeButton.classList.add('is-removed');
+                    });
+                });
+                columnEl.querySelectorAll('[data-column-field]').forEach((field) => {
+                    const updateColumnField = () => {
+                        column[field.dataset.columnField] = field.type === 'checkbox' ? field.checked : field.value;
+                        if (field.dataset.columnField === 'background_color') {
+                            column.background_transparent = false;
+                            const transparencyToggle = columnEl.querySelector('[data-column-field="background_transparent"]');
+                            if (transparencyToggle) transparencyToggle.checked = false;
+                        }
+                        if (field.dataset.columnField === 'background_transparent') {
+                            column.background_transparent = field.checked;
+                        }
+                        sync();
+                    };
+                    field.addEventListener('input', updateColumnField);
+                    field.addEventListener('change', updateColumnField);
+                });
                 columnEl.addEventListener('dragstart', (event) => {
                     if (event.target.closest('.nested-column') !== columnEl) return;
                     if (event.target.closest('.widget-block')) return;
@@ -593,8 +683,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         id: id(),
                         type: 'columns',
                         columns: [
-                            { width: 1, components: [] },
-                            { width: 1, components: [] },
+                            { id: id(), width: 1, background_color: 'transparent', background_transparent: true, background_image: '', background_video: '', height: 'auto', column_width: 'default', components: [] },
+                            { id: id(), width: 1, background_color: 'transparent', background_transparent: true, background_image: '', background_video: '', height: 'auto', column_width: 'default', components: [] },
                         ],
                     });
                     render();
@@ -622,6 +712,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             body: type === 'card' ? defaults.card : '',
                             background_color: type === 'card' ? '#6d4aff' : '',
                             background_video: type === 'card' ? '' : '',
+                            card_border_width: type === 'card' ? 0 : 0,
+                            card_border_color: type === 'card' ? '#ffffff' : '',
+                            card_shadow: type === 'card' ? 'none' : '',
                             link: '',
                             align: 'left',
                             button_color: type === 'button' ? '#6d4aff' : '',

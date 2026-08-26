@@ -50,6 +50,7 @@ return [
         'contact_help' => 'Please provide at least an email address or phone number.',
         'create_login' => 'Create my member login',
         'create_login_copy' => 'Use the Bible, messages, and other member services with the safe default Member role.',
+        'create_login_returning_copy' => 'Create a secure portal login and connect it to your existing church member record.',
         'password' => 'Password', 'password_placeholder' => 'At least 8 characters',
         'show_password' => 'Show password', 'hide_password' => 'Hide password',
         'confirm_password' => 'Confirm password', 'confirm_password_placeholder' => 'Enter it again',

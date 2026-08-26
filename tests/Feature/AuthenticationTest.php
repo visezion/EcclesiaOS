@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Church;
+use App\Models\Permission;
+use App\Models\Role;
 use App\Models\SocialAccount;
 use App\Models\User;
 use App\Services\TotpService;
@@ -54,6 +56,27 @@ class AuthenticationTest extends TestCase
             ->assertDontSee('Register or check in');
 
         $this->get(route('members.self-register'))->assertOk();
+    }
+
+    public function test_member_sidebar_hides_programs_and_attendance_without_module_permissions(): void
+    {
+        $church = Church::factory()->create();
+        $memberRole = Role::query()->create(['name' => 'Portal Member', 'slug' => 'portal-member']);
+        $memberRole->permissions()->attach(Permission::query()->firstOrCreate(
+            ['name' => 'view dashboard'],
+            ['slug' => 'view-dashboard'],
+        ));
+        $member = User::factory()->create([
+            'church_id' => $church->id,
+            'title' => 'Member',
+        ]);
+        $member->roles()->attach($memberRole);
+
+        $this->actingAs($member)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Programs &amp; Attendance', false)
+            ->assertDontSee('Programs & Attendance', false);
     }
 
     public function test_public_features_page_is_available_to_guests(): void

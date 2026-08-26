@@ -577,6 +577,75 @@
         --tw-ring-color: color-mix(in srgb, var(--brand-primary, #6d4aff) 28%, transparent) !important;
     }
 
+    /* Website Studio follows the application palette instead of shipping a
+       separate violet theme. These mappings are intentionally scoped so the
+       website design colors remain independent from the admin interface. */
+    .website-studio-admin {
+        --studio-primary: var(--brand-primary, #6d4aff);
+        --studio-secondary: var(--brand-secondary, #a855f7);
+    }
+
+    .website-studio-admin .bg-violet-50\/60,
+    .website-studio-admin .bg-violet-50\/50,
+    .website-studio-admin .bg-violet-100,
+    .website-studio-admin .hover\:bg-violet-100:hover {
+        background-color: color-mix(in srgb, var(--studio-primary) 12%, #fff) !important;
+    }
+
+    .website-studio-admin .border-violet-100,
+    .website-studio-admin .border-violet-200,
+    .website-studio-admin .border-violet-300,
+    .website-studio-admin .hover\:border-violet-200:hover,
+    .website-studio-admin .hover\:border-violet-300:hover {
+        border-color: color-mix(in srgb, var(--studio-primary) 30%, #fff) !important;
+    }
+
+    .website-studio-admin .shadow-violet-100,
+    .website-studio-admin .shadow-violet-200 {
+        --tw-shadow-color: color-mix(in srgb, var(--studio-primary) 20%, transparent) !important;
+    }
+
+    .website-studio-admin .from-violet-50 {
+        --tw-gradient-from: color-mix(in srgb, var(--studio-primary) 10%, #fff) var(--tw-gradient-from-position) !important;
+        --tw-gradient-to: color-mix(in srgb, var(--studio-primary) 0%, transparent) var(--tw-gradient-to-position) !important;
+        --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+    }
+
+    .website-studio-admin .to-cyan-50 {
+        --tw-gradient-to: color-mix(in srgb, var(--studio-secondary) 10%, #fff) var(--tw-gradient-to-position) !important;
+    }
+
+    .website-studio-admin .from-violet-700 {
+        --tw-gradient-from: color-mix(in srgb, var(--studio-primary) 86%, #020617) var(--tw-gradient-from-position) !important;
+        --tw-gradient-to: color-mix(in srgb, var(--studio-primary) 0%, transparent) var(--tw-gradient-to-position) !important;
+        --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+    }
+
+    .website-studio-admin .via-indigo-700 {
+        --tw-gradient-via: color-mix(in srgb, var(--studio-secondary) 72%, #111827) var(--tw-gradient-via-position) !important;
+        --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to) !important;
+    }
+
+    .website-studio-admin .text-violet-100,
+    .website-studio-admin .text-violet-200 {
+        color: color-mix(in srgb, var(--studio-primary) 12%, #fff) !important;
+    }
+
+    .website-studio-admin .bg-cyan-50,
+    .website-studio-admin .hover\:bg-cyan-100:hover {
+        background-color: color-mix(in srgb, var(--studio-secondary) 11%, #fff) !important;
+    }
+
+    .website-studio-admin .border-cyan-100,
+    .website-studio-admin .border-cyan-200 {
+        border-color: color-mix(in srgb, var(--studio-secondary) 28%, #fff) !important;
+    }
+
+    .website-studio-admin .text-cyan-800,
+    .website-studio-admin .text-cyan-900 {
+        color: color-mix(in srgb, var(--studio-secondary) 68%, #111827) !important;
+    }
+
     html[data-theme="dark"] body,
     html[data-theme="dark"] .app-shell {
         --page-bg: #0f172a;

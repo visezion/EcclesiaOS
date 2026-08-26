@@ -5,8 +5,18 @@
         && ($user?->isSuperAdministrator()
             || (! empty($item['permissions_any']) && $user?->hasAnyPermission($item['permissions_any']))
             || (empty($item['permissions_any']) && (empty($item['permission']) || $user?->hasPermission($item['permission']))));
+    $shouldShowNavigationItem = function (array $item) use ($canAccessNavigationItem): bool {
+        $children = collect($item['children'] ?? []);
+
+        if ($children->isNotEmpty()) {
+            return $children->contains($canAccessNavigationItem)
+                || ((! empty($item['permission']) || ! empty($item['permissions_any'])) && $canAccessNavigationItem($item));
+        }
+
+        return $canAccessNavigationItem($item);
+    };
     $items = collect(\App\Support\ModuleRegistry::visibleNavigation($user?->church))
-        ->filter(fn (array $item): bool => $canAccessNavigationItem($item) || collect($item['children'] ?? [])->contains($canAccessNavigationItem))
+        ->filter($shouldShowNavigationItem)
         ->all();
     $sections = collect($items)->groupBy(fn (array $item): string => $item['section'] ?? 'Other');
     $configuredSidebarColor = (string) data_get($branding->settings, 'sidebar_middle_color', '#082851');

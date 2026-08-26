@@ -150,14 +150,8 @@ final class PublicMemberRegistrationController extends Controller
                 ->withInput();
         }
 
-        if ($validated['registration_type'] === 'returning' && ! $existingMember) {
-            return back()
-                ->withErrors(['identity' => __('registration.validation.identity_returning')])
-                ->withInput();
-        }
-
         $reference = Str::upper(Str::random(10));
-        $isReturning = $existingMember !== null;
+        $isReturning = $validated['registration_type'] === 'returning' || $existingMember !== null;
         $accountCreated = false;
         $registeredMember = null;
         $registeredUser = null;
@@ -170,12 +164,25 @@ final class PublicMemberRegistrationController extends Controller
                 'last_name' => Str::title(trim($validated['last_name'])),
                 'email' => filled($validated['email'] ?? null) ? Str::lower(trim($validated['email'])) : null,
                 'phone' => filled($validated['phone'] ?? null) ? trim($validated['phone']) : null,
-                'status' => 'new',
+                'status' => $isReturning ? 'active' : 'new',
                 'joined_at' => today(),
             ]);
 
             if ($isReturning && ! empty($validated['campus_id']) && (int) $member->campus_id !== (int) $campus?->id) {
                 $member->forceFill(['campus_id' => $campus?->id])->save();
+            }
+
+            if ($isReturning) {
+                $contactUpdates = [];
+                if (filled($validated['email'] ?? null)) {
+                    $contactUpdates['email'] = Str::lower(trim($validated['email']));
+                }
+                if (filled($validated['phone'] ?? null)) {
+                    $contactUpdates['phone'] = trim($validated['phone']);
+                }
+                if ($contactUpdates !== []) {
+                    $member->forceFill($contactUpdates)->save();
+                }
             }
 
             $this->syncProfile($member, $validated, $isReturning);

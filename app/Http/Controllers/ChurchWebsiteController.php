@@ -35,9 +35,6 @@ final class ChurchWebsiteController extends Controller
         return view('website-studio.index', [
             'church' => $church,
             'settings' => $settings,
-            'navigation' => is_array($settings['navigation'] ?? null)
-                ? collect($settings['navigation'])->values()->all()
-                : $this->websiteNavigation($church),
             'media' => collect($settings['media_library'] ?? [])->sortByDesc('uploaded_at')->values(),
             'homepage' => $homepage,
             'pages' => $church->websitePages()->latest('updated_at')->get(),
@@ -52,6 +49,56 @@ final class ChurchWebsiteController extends Controller
         ]);
     }
 
+    public function navigation(Request $request): View
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $settings = $this->websiteSettings($church);
+
+        return view('website-studio.navigation', [
+            'church' => $church,
+            'settings' => $settings,
+            'navigation' => is_array($settings['navigation'] ?? null)
+                ? collect($settings['navigation'])->values()->all()
+                : $this->websiteNavigation($church),
+            'menuStyles' => $this->menuStyles(),
+            'publicUrl' => route('website.public', ['church' => $church->slug]),
+            'breadcrumbs' => [
+                ['label' => 'Dashboard', 'url' => route('dashboard')],
+                ['label' => 'Website Studio', 'url' => route('website-studio.index')],
+                ['label' => 'Navigation Builder', 'url' => null],
+            ],
+        ]);
+    }
+
+    public function updateNavigation(Request $request): RedirectResponse
+    {
+        $this->authorizeStudio($request);
+        $church = $this->studioChurch($request);
+        $validated = $request->validate([
+            'menu_style' => ['required', Rule::in(array_keys($this->menuStyles()))],
+            'navigation' => ['nullable', 'array', 'max:8'],
+            'navigation.*.label' => ['required', 'string', 'max:60'],
+            'navigation.*.url' => ['required', 'string', 'max:500', 'regex:/^(#|\/|https?:\/\/)/i'],
+            'navigation.*.visible' => ['nullable', 'boolean'],
+            'navigation.*.type' => ['nullable', Rule::in(['link', 'dropdown', 'mega'])],
+            'navigation.*.children' => ['nullable', 'array', 'max:16'],
+            'navigation.*.children.*.label' => ['required', 'string', 'max:60'],
+            'navigation.*.children.*.url' => ['required', 'string', 'max:500', 'regex:/^(#|\/|https?:\/\/)/i'],
+            'navigation.*.children.*.visible' => ['nullable', 'boolean'],
+            'navigation.*.children.*.description' => ['nullable', 'string', 'max:120'],
+            'navigation.*.children.*.column' => ['nullable', 'integer', 'between:1,4'],
+        ]);
+
+        $settings = $this->websiteSettings($church);
+        $settings['menu_style'] = $validated['menu_style'];
+        $settings['navigation'] = $this->normalizeNavigationItems($validated['navigation'] ?? []);
+
+        $church->forceFill(['settings' => array_merge($church->settings ?? [], ['website' => $settings])])->save();
+
+        return back()->with('status', 'Website navigation saved.');
+    }
+
     public function updateSettings(Request $request): RedirectResponse
     {
         $this->authorizeStudio($request);
@@ -64,6 +111,16 @@ final class ChurchWebsiteController extends Controller
             'logo_url' => ['nullable', 'string', 'max:500'],
             'hero_image_url' => ['nullable', 'string', 'max:500'],
             'hero_video_url' => ['nullable', 'string', 'max:500'],
+            'hero_slides' => ['nullable', 'array', 'max:12'],
+            'hero_slides.*' => ['array'],
+            'hero_slides.*.type' => ['nullable', Rule::in(['image', 'video'])],
+            'hero_slides.*.url' => ['nullable', 'string', 'max:500'],
+            'hero_slides.*.poster' => ['nullable', 'string', 'max:500'],
+            'hero_slides_configured' => ['nullable', 'boolean'],
+            'hero_slide_files' => ['nullable', 'array', 'max:12'],
+            'hero_slide_files.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,mp4,webm,ogg', 'max:51200'],
+            'hero_slide_poster_files' => ['nullable', 'array', 'max:12'],
+            'hero_slide_poster_files.*' => ['nullable', 'image', 'max:15360'],
             'logo_file' => ['nullable', 'image', 'max:10240'],
             'hero_image_file' => ['nullable', 'image', 'max:15360'],
             'hero_video_file' => ['nullable', 'mimetypes:video/mp4,video/webm,video/ogg', 'max:51200'],
@@ -72,9 +129,17 @@ final class ChurchWebsiteController extends Controller
             'navigation.*.label' => ['required', 'string', 'max:60'],
             'navigation.*.url' => ['required', 'string', 'max:500', 'regex:/^(#|\\/|https?:\\/\\/)/i'],
             'navigation.*.visible' => ['nullable', 'boolean'],
+            'navigation.*.type' => ['nullable', Rule::in(['link', 'dropdown', 'mega'])],
+            'navigation.*.children' => ['nullable', 'array', 'max:16'],
+            'navigation.*.children.*.label' => ['required', 'string', 'max:60'],
+            'navigation.*.children.*.url' => ['required', 'string', 'max:500', 'regex:/^(#|\\/|https?:\\/\\/)/i'],
+            'navigation.*.children.*.visible' => ['nullable', 'boolean'],
+            'navigation.*.children.*.description' => ['nullable', 'string', 'max:120'],
+            'navigation.*.children.*.column' => ['nullable', 'integer', 'between:1,4'],
             'primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'accent_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'color_scheme' => ['nullable', 'in:dark,light'],
+            'menu_style' => ['nullable', Rule::in(array_keys($this->menuStyles()))],
             'font' => ['required', 'in:Inter,Manrope,DM Sans,Playfair Display'],
             'hero_eyebrow' => ['nullable', 'string', 'max:100'],
             'hero_heading' => ['required', 'string', 'max:180'],
@@ -157,12 +222,29 @@ final class ChurchWebsiteController extends Controller
         $settings = array_merge($this->websiteSettings($church), $validated, [
             'enabled' => $request->boolean('enabled'),
         ]);
+        if ($request->boolean('hero_slides_configured')) {
+            $submittedSlides = $validated['hero_slides'] ?? [];
+            foreach ($submittedSlides as $index => &$slide) {
+                if (! is_array($slide)) {
+                    continue;
+                }
+                $key = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) ($slide['key'] ?? $index));
+                $mediaFile = $request->file('hero_slide_files.'.$key);
+                if ($mediaFile instanceof UploadedFile) {
+                    $slide['url'] = $this->storeWebsiteAsset($mediaFile, $church);
+                    $slide['type'] = str_starts_with((string) $mediaFile->getMimeType(), 'video/') ? 'video' : 'image';
+                }
+                $posterFile = $request->file('hero_slide_poster_files.'.$key);
+                if ($posterFile instanceof UploadedFile) {
+                    $slide['poster'] = $this->storeWebsiteAsset($posterFile, $church);
+                }
+            }
+            unset($slide);
+            $settings['hero_slides'] = $this->normalizeHeroSlides($submittedSlides);
+        }
+        unset($settings['hero_slide_files'], $settings['hero_slide_poster_files']);
         if ($request->boolean('navigation_configured')) {
-            $settings['navigation'] = collect($validated['navigation'] ?? [])->map(fn (array $item): array => [
-                'label' => trim((string) $item['label']),
-                'url' => trim((string) $item['url']),
-                'visible' => (bool) ($item['visible'] ?? false),
-            ])->filter(fn (array $item): bool => $item['label'] !== '' && $item['url'] !== '')->values()->all();
+            $settings['navigation'] = $this->normalizeNavigationItems($validated['navigation'] ?? []);
         }
         unset($settings['navigation_configured']);
         unset($settings['landing_page_enabled']);
@@ -573,17 +655,22 @@ final class ChurchWebsiteController extends Controller
     /** @return array<string, mixed> */
     private function websiteSettings(Church $church): array
     {
+        $globalSettings = is_array($church->settings) ? $church->settings : [];
+
         $settings = array_merge([
             'enabled' => true,
             'template' => 'main',
-            'site_name' => $church->name,
+            'site_name' => data_get($globalSettings, 'church_name') ?: $church->name,
             'tagline' => 'A place to belong, become, and believe.',
-            'logo_url' => null,
+            'logo_url' => data_get($globalSettings, 'logo'),
+            'favicon_url' => data_get($globalSettings, 'favicon'),
             'hero_image_url' => null,
             'hero_video_url' => null,
+            'hero_slides' => [],
             'primary_color' => '#4338CA',
             'accent_color' => '#F59E0B',
             'color_scheme' => 'dark',
+            'menu_style' => 'classic',
             'font' => 'Manrope',
             'hero_eyebrow' => 'You are welcome here',
             'hero_heading' => 'Find hope. Find community. Find your next step.',
@@ -666,11 +753,33 @@ final class ChurchWebsiteController extends Controller
             'media_library' => [],
         ], data_get($church->settings, 'website', []));
 
+        // Setup branding is the public fallback; Website Studio values may still
+        // override it when a church has configured a dedicated website asset.
+        $settings['site_name'] = (string) (data_get($globalSettings, 'church_name') ?: $settings['site_name']);
+        $settings['logo_url'] = $settings['logo_url'] ?: data_get($globalSettings, 'logo');
+        $settings['favicon_url'] = $settings['favicon_url'] ?: data_get($globalSettings, 'favicon');
+
         // Only the main public template is production-ready. Normalize legacy
         // experimental template values so older churches keep rendering safely.
         $settings['template'] = 'main';
 
         return $settings;
+    }
+
+    /** @return list<array{type: string, url: string, poster: string}> */
+    private function normalizeHeroSlides(mixed $slides): array
+    {
+        if (is_string($slides)) {
+            $slides = json_decode($slides, true);
+        }
+
+        return collect(is_array($slides) ? $slides : [])->filter(fn ($slide): bool => is_array($slide))
+            ->map(fn (array $slide): array => [
+                'type' => ($slide['type'] ?? 'image') === 'video' ? 'video' : 'image',
+                'url' => trim((string) ($slide['url'] ?? '')),
+                'poster' => trim((string) ($slide['poster'] ?? '')),
+            ])->filter(fn (array $slide): bool => $slide['url'] !== '')
+            ->take(12)->values()->all();
     }
 
     /** @return array<string, mixed> */
@@ -686,6 +795,8 @@ final class ChurchWebsiteController extends Controller
             'video_url' => ['nullable', 'string', 'max:500'],
             'image_file' => ['nullable', 'image', 'max:15360'],
             'video_file' => ['nullable', 'mimetypes:video/mp4,video/webm,video/ogg', 'max:51200'],
+            'background_image_file' => ['nullable', 'image', 'max:15360'],
+            'background_video_file' => ['nullable', 'mimetypes:video/mp4,video/webm,video/ogg', 'max:51200'],
             'page_slugs' => ['nullable', 'array'],
             'page_slugs.*' => ['string', 'alpha_dash', 'max:100'],
             'components' => ['nullable', 'string', 'max:50000'],
@@ -697,6 +808,10 @@ final class ChurchWebsiteController extends Controller
             'component_image_files.*' => ['file', 'mimes:jpg,jpeg,png,gif,webp', 'max:15360'],
             'component_video_files' => ['nullable', 'array'],
             'component_video_files.*' => ['file', 'mimes:mp4,webm,ogg', 'max:51200'],
+            'remove_column_background_images' => ['nullable', 'array'],
+            'remove_column_background_images.*' => ['string', 'max:80'],
+            'remove_column_background_videos' => ['nullable', 'array'],
+            'remove_column_background_videos.*' => ['string', 'max:80'],
         ]);
         $data['page_slugs'] = array_values($data['page_slugs'] ?? ['home']);
         $data['components'] = $this->normalizeSectionComponents($data['components'] ?? null);
@@ -712,13 +827,18 @@ final class ChurchWebsiteController extends Controller
             $request->file('component_video_files', []),
             $church,
         );
+        $this->removeColumnBackgrounds(
+            $data['components'],
+            array_keys($data['remove_column_background_images'] ?? []),
+            array_keys($data['remove_column_background_videos'] ?? []),
+        );
         if ($request->hasFile('image_file')) {
             $data['image_url'] = $this->storeWebsiteAsset($request->file('image_file'), $church);
         }
         if ($request->hasFile('video_file')) {
             $data['video_url'] = $this->storeWebsiteAsset($request->file('video_file'), $church);
         }
-        unset($data['image_file'], $data['video_file'], $data['component_files'], $data['component_image_files'], $data['component_video_files']);
+        unset($data['image_file'], $data['video_file'], $data['background_image_file'], $data['background_video_file'], $data['component_files'], $data['component_image_files'], $data['component_video_files'], $data['remove_column_background_images'], $data['remove_column_background_videos']);
 
         return $data;
     }
@@ -754,6 +874,9 @@ final class ChurchWebsiteController extends Controller
                 'body' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['body'] ?? ''), 1000, '') : '',
                 'background_color' => in_array($type, ['card', 'icon'], true) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['background_color'] ?? '')) ? $component['background_color'] : ($type === 'icon' ? '#ede9fe' : '#6d4aff'),
                 'background_video' => $type === 'card' ? Str::limit((string) ($component['background_video'] ?? ''), 500, '') : '',
+                'card_border_width' => $type === 'card' ? max(0, min(12, (int) ($component['card_border_width'] ?? 0))) : 0,
+                'card_border_color' => $type === 'card' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['card_border_color'] ?? '')) ? $component['card_border_color'] : '#ffffff',
+                'card_shadow' => $type === 'card' && in_array($component['card_shadow'] ?? null, ['none', 'small', 'medium', 'large'], true) ? $component['card_shadow'] : 'none',
                 'align' => in_array($component['align'] ?? null, ['left', 'center', 'right', 'justify'], true) ? $component['align'] : 'left',
                 'icon' => $type === 'icon' ? Str::limit((string) ($component['icon'] ?? '✦'), 8, '') : '',
                 'icon_color' => $type === 'icon' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['icon_color'] ?? '')) ? $component['icon_color'] : '#6d4aff',
@@ -794,7 +917,14 @@ final class ChurchWebsiteController extends Controller
             $column = is_array($column) ? $column : [];
 
             return [
+                'id' => (string) ($column['id'] ?? Str::uuid()),
                 'width' => max(1, min(95, (int) ($column['width'] ?? 1))),
+                'background_color' => ($column['background_color'] ?? null) === 'transparent' || filter_var($column['background_transparent'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 'transparent' : (preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($column['background_color'] ?? '')) ? $column['background_color'] : 'transparent'),
+                'background_transparent' => ($column['background_color'] ?? null) === 'transparent' || filter_var($column['background_transparent'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'background_image' => Str::limit((string) ($column['background_image'] ?? ''), 500, ''),
+                'background_video' => Str::limit((string) ($column['background_video'] ?? ''), 500, ''),
+                'height' => in_array($column['height'] ?? 'auto', ['auto', 'compact', 'tall', 'full'], true) ? ($column['height'] ?? 'auto') : 'auto',
+                'column_width' => in_array($column['column_width'] ?? ($column['content_width'] ?? 'default'), ['default', 'wide', 'full'], true) ? ($column['column_width'] ?? ($column['content_width'] ?? 'default')) : 'default',
                 'components' => collect($column['components'] ?? [])->filter(fn ($component): bool => is_array($component))->map(function (array $component): array {
                     if (($component['type'] ?? null) === 'columns') {
                         return $this->normalizeColumnNode($component);
@@ -818,6 +948,9 @@ final class ChurchWebsiteController extends Controller
                         'body' => in_array($type, ['card', 'icon'], true) ? Str::limit((string) ($component['body'] ?? ''), 1000, '') : '',
                         'background_color' => in_array($type, ['card', 'icon'], true) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['background_color'] ?? '')) ? $component['background_color'] : ($type === 'icon' ? '#ede9fe' : '#6d4aff'),
                         'background_video' => $type === 'card' ? Str::limit((string) ($component['background_video'] ?? ''), 500, '') : '',
+                        'card_border_width' => $type === 'card' ? max(0, min(12, (int) ($component['card_border_width'] ?? 0))) : 0,
+                        'card_border_color' => $type === 'card' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['card_border_color'] ?? '')) ? $component['card_border_color'] : '#ffffff',
+                        'card_shadow' => $type === 'card' && in_array($component['card_shadow'] ?? null, ['none', 'small', 'medium', 'large'], true) ? $component['card_shadow'] : 'none',
                         'align' => in_array($component['align'] ?? null, ['left', 'center', 'right', 'justify'], true) ? $component['align'] : 'left',
                         'icon' => $type === 'icon' ? Str::limit((string) ($component['icon'] ?? '✦'), 8, '') : '',
                         'icon_color' => $type === 'icon' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['icon_color'] ?? '')) ? $component['icon_color'] : '#6d4aff',
@@ -847,8 +980,38 @@ final class ChurchWebsiteController extends Controller
         return [
             'id' => (string) ($node['id'] ?? Str::uuid()),
             'type' => 'columns',
-            'columns' => $columns === [] ? [['width' => 1, 'components' => []]] : $columns,
+            'columns' => $columns === [] ? [['id' => (string) Str::uuid(), 'width' => 1, 'background_color' => 'transparent', 'background_transparent' => true, 'background_image' => '', 'background_video' => '', 'height' => 'auto', 'column_width' => 'default', 'components' => []]] : $columns,
         ];
+    }
+
+    private function removeColumnBackgrounds(array &$node, array $removeImages, array $removeVideos): void
+    {
+        if (($node['type'] ?? null) !== 'columns') {
+            return;
+        }
+
+        if (isset($node['groups'])) {
+            foreach ($node['groups'] as &$group) {
+                $this->removeColumnBackgrounds($group, $removeImages, $removeVideos);
+            }
+            unset($group);
+            return;
+        }
+
+        foreach ($node['columns'] ?? [] as &$column) {
+            $columnId = (string) ($column['id'] ?? '');
+            if (in_array($columnId, $removeImages, true)) {
+                $column['background_image'] = '';
+            }
+            if (in_array($columnId, $removeVideos, true)) {
+                $column['background_video'] = '';
+            }
+            foreach ($column['components'] ?? [] as &$component) {
+                $this->removeColumnBackgrounds($component, $removeImages, $removeVideos);
+            }
+            unset($component);
+        }
+        unset($column);
     }
 
     private function storeComponentFiles(array &$node, array $legacyFiles, array $imageFiles, array $videoFiles, Church $church): void
@@ -863,6 +1026,15 @@ final class ChurchWebsiteController extends Controller
                 return;
             }
             foreach ($node['columns'] as &$column) {
+                $columnId = (string) ($column['id'] ?? '');
+                $columnImageFile = $imageFiles[$columnId] ?? null;
+                if ($columnImageFile instanceof UploadedFile) {
+                    $column['background_image'] = $this->storeWebsiteAsset($columnImageFile, $church);
+                }
+                $columnVideoFile = $videoFiles[$columnId] ?? null;
+                if ($columnVideoFile instanceof UploadedFile) {
+                    $column['background_video'] = $this->storeWebsiteAsset($columnVideoFile, $church);
+                }
                 foreach ($column['components'] as &$component) {
                     $this->storeComponentFiles($component, $legacyFiles, $imageFiles, $videoFiles, $church);
                 }
@@ -1044,19 +1216,52 @@ final class ChurchWebsiteController extends Controller
         }
     }
 
-    /** @return list<array{label: string, url: string}> */
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return list<array<string, mixed>>
+     */
+    private function normalizeNavigationItems(array $items, bool $visibleOnly = false): array
+    {
+        return collect($items)->filter(fn ($item): bool => is_array($item))->map(function (array $item) use ($visibleOnly): array {
+            $type = in_array($item['type'] ?? 'link', ['link', 'dropdown', 'mega'], true)
+                ? (string) ($item['type'] ?? 'link')
+                : 'link';
+            $children = collect($item['children'] ?? [])->filter(fn ($child): bool => is_array($child))
+                ->map(fn (array $child): array => [
+                    'label' => Str::limit(trim((string) ($child['label'] ?? '')), 60, ''),
+                    'url' => trim((string) ($child['url'] ?? '')),
+                    'visible' => (bool) ($child['visible'] ?? false),
+                    'description' => Str::limit(trim((string) ($child['description'] ?? '')), 120, ''),
+                    'column' => max(1, min(4, (int) ($child['column'] ?? 1))),
+                ])
+                ->filter(fn (array $child): bool => $child['label'] !== '' && $child['url'] !== '')
+                ->when($visibleOnly, fn ($children) => $children->where('visible', true))
+                ->values()
+                ->all();
+
+            if ($type !== 'link' && $visibleOnly && $children === []) {
+                $type = 'link';
+            }
+
+            return [
+                'label' => Str::limit(trim((string) ($item['label'] ?? '')), 60, ''),
+                'url' => trim((string) ($item['url'] ?? '')),
+                'visible' => (bool) ($item['visible'] ?? false),
+                'type' => $type,
+                'children' => $type === 'link' ? [] : $children,
+            ];
+        })->filter(fn (array $item): bool => $item['label'] !== '' && $item['url'] !== '')
+            ->when($visibleOnly, fn ($items) => $items->where('visible', true))
+            ->values()
+            ->all();
+    }
+
+    /** @return list<array<string, mixed>> */
     private function websiteNavigation(Church $church): array
     {
         $configured = data_get($this->websiteSettings($church), 'navigation');
         if (is_array($configured)) {
-            return collect($configured)
-                ->filter(fn ($item): bool => is_array($item) && ($item['visible'] ?? true) && filled($item['label'] ?? null) && filled($item['url'] ?? null))
-                ->map(fn (array $item): array => [
-                    'label' => Str::limit(trim((string) $item['label']), 60, ''),
-                    'url' => trim((string) $item['url']),
-                ])
-                ->values()
-                ->all();
+            return $this->normalizeNavigationItems($configured, true);
         }
 
         $slugs = ['ministries', 'about', 'our-sermons', 'our-locations', 'events', 'contact', 'store'];
@@ -1074,6 +1279,8 @@ final class ChurchWebsiteController extends Controller
                     ? ['church' => $church->slug]
                     : ['church' => $church->slug, 'page' => $slug]),
                 'visible' => true,
+                'type' => 'link',
+                'children' => [],
             ];
         })->filter()->values()->all();
     }
@@ -1086,12 +1293,40 @@ final class ChurchWebsiteController extends Controller
         ];
     }
 
+    /** @return array<string, array{label: string, description: string}> */
+    private function menuStyles(): array
+    {
+        return [
+            'classic' => [
+                'label' => 'Classic',
+                'description' => 'A balanced full-width header with clear navigation and actions.',
+            ],
+            'floating' => [
+                'label' => 'Floating glass',
+                'description' => 'A premium rounded header that floats above the page.',
+            ],
+            'centered' => [
+                'label' => 'Centered',
+                'description' => 'A refined layout with the menu centered between the brand and actions.',
+            ],
+            'pill' => [
+                'label' => 'Navigation pill',
+                'description' => 'Menu links sit inside a modern, softly elevated capsule.',
+            ],
+            'accent' => [
+                'label' => 'Bold brand',
+                'description' => 'A confident color-forward topbar using your website palette.',
+            ],
+        ];
+    }
+
     /** @return array<string, string> */
     private function sectionTypes(): array
     {
         return [
             'hero' => 'Welcome hero',
             'welcome' => 'Welcome message',
+            'experience' => 'Experience cards',
             'services' => 'Service times',
             'events' => 'Upcoming events',
             'ministries' => 'Ministry cards',
@@ -1120,11 +1355,12 @@ final class ChurchWebsiteController extends Controller
             'status' => ['required', 'in:draft,published'],
             'body' => ['nullable', 'string', 'max:30000'],
             'section_types' => ['nullable', 'array'],
-            'section_types.*' => ['string', 'in:hero,welcome,services,events,ministries,locations,sermons,store,giving,contact'],
+            'section_types.*' => ['string', Rule::in(array_keys($this->sectionTypes()))],
             'section_order' => ['nullable', 'array'],
             'section_order.*' => ['string', Rule::in($sectionOrderOptions)],
             'custom_section_ids' => ['nullable', 'array'],
             'custom_section_ids.*' => ['string', 'max:80', Rule::in($customSectionIds)],
+            'section_selection_configured' => ['nullable', 'boolean'],
             'page_template' => ['nullable', Rule::in(array_merge(['inherit'], array_keys($this->templates())))],
             'page_primary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'page_accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
@@ -1143,7 +1379,9 @@ final class ChurchWebsiteController extends Controller
         }
 
         $validated['slug'] = $slug;
-        $selectedSections = array_values($validated['section_types'] ?? ['welcome', 'contact']);
+        $selectedSections = $request->boolean('section_selection_configured')
+            ? array_values($validated['section_types'] ?? [])
+            : array_values($validated['section_types'] ?? ['welcome', 'contact']);
         $selectedSections = array_values(array_unique(array_merge($selectedSections, $validated['custom_section_ids'] ?? [])));
         $orderedSections = array_values($validated['section_order'] ?? []);
         $validated['sections'] = array_values(array_unique(array_merge(
@@ -1153,6 +1391,7 @@ final class ChurchWebsiteController extends Controller
         unset($validated['section_types']);
         unset($validated['section_order']);
         unset($validated['custom_section_ids']);
+        unset($validated['section_selection_configured']);
 
         $page = $request->route('page') instanceof WebsitePage ? $request->route('page') : null;
         $design = $page?->design ?? [];

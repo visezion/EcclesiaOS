@@ -1,5 +1,5 @@
 <x-app-layout title="Media Library" :breadcrumbs="$breadcrumbs">
-    <div class="mx-auto max-w-[1500px] space-y-6">
+    <div class="website-studio-admin mx-auto max-w-[1500px] space-y-6">
         <div class="flex flex-col gap-4 rounded-3xl bg-gradient-to-br from-violet-700 via-indigo-700 to-slate-950 px-6 py-8 text-white shadow-xl shadow-violet-100 sm:flex-row sm:items-end sm:justify-between sm:px-10"><div><p class="text-xs font-black uppercase tracking-[.18em] text-violet-200">Website Studio / Media</p><h1 class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Central media library</h1><p class="mt-3 max-w-2xl text-sm leading-6 text-violet-100">Upload images once, reuse them across sections, and keep your website assets organized.</p></div><a href="{{ route('website-studio.sections') }}" class="rounded-xl bg-white/10 px-4 py-3 text-sm font-bold text-white ring-1 ring-white/25 hover:bg-white/20">Back to sections</a></div>
         @if (session('status'))<div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{{ session('status') }}</div>@endif
         @if ($errors->any())<div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{{ $errors->first() }}</div>@endif

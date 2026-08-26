@@ -1,0 +1,9 @@
+<div class="navigation-child" data-submenu-row>
+    <span class="navigation-child-grip" aria-hidden="true"><i data-lucide="grip-vertical" class="size-3.5"></i></span>
+    <label><span class="field-label">{{ __('Menu label') }}</span><input name="navigation[{{ $parentIndex }}][children][{{ $childIndex }}][label]" value="{{ $child['label'] ?? '' }}" class="field-input" maxlength="60" required data-child-label></label>
+    <label><span class="field-label">{{ __('Link') }}</span><input name="navigation[{{ $parentIndex }}][children][{{ $childIndex }}][url]" value="{{ $child['url'] ?? '' }}" class="field-input" maxlength="500" required></label>
+    <label><span class="field-label">{{ __('Description') }}</span><input name="navigation[{{ $parentIndex }}][children][{{ $childIndex }}][description]" value="{{ $child['description'] ?? '' }}" class="field-input" maxlength="120"></label>
+    <label class="child-column"><span class="field-label">{{ __('Column') }}</span><select name="navigation[{{ $parentIndex }}][children][{{ $childIndex }}][column]" class="field-input"><option value="1" @selected(($child['column'] ?? 1) == 1)>1</option><option value="2" @selected(($child['column'] ?? 1) == 2)>2</option><option value="3" @selected(($child['column'] ?? 1) == 3)>3</option><option value="4" @selected(($child['column'] ?? 1) == 4)>4</option></select></label>
+    <label class="visibility-toggle"><input type="hidden" name="navigation[{{ $parentIndex }}][children][{{ $childIndex }}][visible]" value="0"><input type="checkbox" name="navigation[{{ $parentIndex }}][children][{{ $childIndex }}][visible]" value="1" @checked($child['visible'] ?? true)><span><i data-lucide="eye" class="size-3.5"></i>{{ __('Visible') }}</span></label>
+    <button type="button" class="navigation-icon-button is-danger" data-submenu-remove title="{{ __('Remove') }}"><i data-lucide="trash-2" class="size-4"></i></button>
+</div>

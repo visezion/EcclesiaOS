@@ -277,6 +277,42 @@ class PublicMemberRegistrationTest extends TestCase
         ]);
     }
 
+    public function test_returning_member_can_create_a_portal_login_for_the_existing_member_record(): void
+    {
+        $church = Church::factory()->create();
+        $campus = Campus::factory()->for($church)->create();
+        $member = Member::factory()->for($church)->for($campus)->create([
+            'first_name' => 'Morgan',
+            'last_name' => 'Reed',
+            'email' => null,
+            'phone' => '+1 (555) 800-1234',
+        ]);
+
+        $this->post(route('members.self-register.store'), [
+            'registration_type' => 'returning',
+            'first_name' => 'Morgan',
+            'last_name' => 'Reed',
+            'email' => 'morgan.reed@example.test',
+            'phone' => '+1 (555) 800-1234',
+            'campus_id' => $campus->id,
+            'preferred_contact' => 'email',
+            'create_account' => '1',
+            'password' => 'SecurePass9',
+            'password_confirmation' => 'SecurePass9',
+            'privacy_consent' => '1',
+        ])->assertRedirect(route('members.self-register'))
+            ->assertSessionHas('registration_complete.account_created', true);
+
+        $member->refresh();
+        $user = User::query()->where('email', 'morgan.reed@example.test')->firstOrFail();
+
+        $this->assertSame('morgan.reed@example.test', $member->email);
+        $this->assertSame($member->id, $user->member_id);
+        $this->assertSame($church->id, $user->church_id);
+        $this->assertTrue(Hash::check('SecurePass9', $user->password));
+        $this->assertSame(1, Member::query()->count());
+    }
+
     public function test_returning_member_cannot_select_a_ministry_from_another_branch_or_campus(): void
     {
         $church = Church::factory()->create();
@@ -339,24 +375,31 @@ class PublicMemberRegistrationTest extends TestCase
         $this->assertSame(1, Member::query()->count());
     }
 
-    public function test_returning_path_uses_a_generic_error_when_no_member_matches(): void
+    public function test_returning_path_creates_a_member_when_no_existing_record_matches(): void
     {
         $church = Church::factory()->create();
         Campus::factory()->for($church)->create();
 
-        $this->from(route('members.self-register'))
-            ->post(route('members.self-register.store'), [
+        $this->post(route('members.self-register.store'), [
                 'registration_type' => 'returning',
                 'first_name' => 'Unknown',
                 'last_name' => 'Person',
                 'email' => 'unknown@example.test',
                 'preferred_contact' => 'email',
+                'create_account' => '1',
+                'password' => 'SecurePass9',
+                'password_confirmation' => 'SecurePass9',
                 'privacy_consent' => '1',
             ])
             ->assertRedirect(route('members.self-register'))
-            ->assertSessionHasErrors('identity');
+            ->assertSessionHas('registration_complete.account_created', true);
 
-        $this->assertDatabaseCount('members', 0);
+        $member = Member::query()->where('email', 'unknown@example.test')->firstOrFail();
+        $this->assertSame('active', $member->status);
+        $this->assertDatabaseHas('users', [
+            'email' => 'unknown@example.test',
+            'member_id' => $member->id,
+        ]);
     }
 
     public function test_new_member_can_create_a_login_with_the_default_member_role(): void

@@ -45,6 +45,7 @@ return [
         'route' => 'programs.index',
         'icon' => 'calendar-clock',
         'section' => 'Planning & Attendance',
+        'permissions_any' => ['manage events', 'manage attendance', 'manage studio'],
         'children' => [
             ['label' => 'Programs', 'route' => 'programs.index', 'icon' => 'layout-list', 'permission' => 'manage events', 'planned' => $planned['programs.index']],
             ['label' => 'Events', 'route' => 'events.index', 'icon' => 'calendar-plus', 'permission' => 'manage events', 'planned' => $planned['events.index'], 'active_routes' => ['programs.events', 'event-sessions.index']],
@@ -66,6 +67,7 @@ return [
         'description' => 'Choose a church website template, manage branding, build pages, and publish a beautiful public site.',
         'children' => [
             ['label' => 'Overview & Pages', 'route' => 'website-studio.index', 'icon' => 'layout-dashboard', 'permission' => 'manage studio', 'active_routes' => ['website-studio.pages.edit', 'website-studio.preview']],
+            ['label' => 'Navigation Builder', 'route' => 'website-studio.navigation', 'icon' => 'menu', 'permission' => 'manage studio'],
             ['label' => 'Reusable Sections', 'route' => 'website-studio.sections', 'icon' => 'blocks', 'permission' => 'manage studio', 'active_routes' => ['website-studio.sections.edit']],
             ['label' => 'Create Section', 'route' => 'website-studio.sections.create', 'icon' => 'plus', 'permission' => 'manage studio'],
             ['label' => 'Media Library', 'route' => 'website-studio.media', 'icon' => 'image', 'permission' => 'manage studio'],

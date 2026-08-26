@@ -302,7 +302,7 @@
                                     <input name="create_account" type="checkbox" value="1" x-model="createAccount" class="mt-1 size-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500">
                                     <span>
                                         <strong class="flex items-center gap-2 text-sm text-slate-950"><i data-lucide="key-round" class="size-4 text-violet-600"></i>{{ __('registration.form.create_login') }}</strong>
-                                        <span class="mt-1 block text-xs leading-5 text-slate-600">{{ __('registration.form.create_login_copy') }}</span>
+                                        <span class="mt-1 block text-xs leading-5 text-slate-600" x-text="registrationType === 'returning' ? @js(__('registration.form.create_login_returning_copy')) : @js(__('registration.form.create_login_copy'))">{{ __('registration.form.create_login_copy') }}</span>
                                     </span>
                                 </label>
 

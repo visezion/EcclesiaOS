@@ -50,6 +50,7 @@ return [
         'contact_help' => 'Veuillez fournir au moins une adresse e-mail ou un numéro de téléphone.',
         'create_login' => 'Créer mon compte membre',
         'create_login_copy' => 'Accédez à la Bible, aux messages et aux autres services membres avec le rôle Membre sécurisé par défaut.',
+        'create_login_returning_copy' => 'Créez une connexion sécurisée au portail et associez-la à votre dossier de membre existant.',
         'password' => 'Mot de passe', 'password_placeholder' => 'Au moins 8 caractères',
         'show_password' => 'Afficher le mot de passe', 'hide_password' => 'Masquer le mot de passe',
         'confirm_password' => 'Confirmer le mot de passe', 'confirm_password_placeholder' => 'Saisissez-le à nouveau',
