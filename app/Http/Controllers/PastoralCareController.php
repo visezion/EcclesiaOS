@@ -9,6 +9,7 @@ use App\Models\Member;
 use App\Models\PrayerRequest;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Support\AccessScope;
 use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
@@ -143,46 +144,24 @@ final class PastoralCareController extends Controller
     private function authorizeTaskRecord(Request $request, CareTask $task): void
     {
         $user = $request->user();
-        abort_unless($user?->canAccessChurch($task->church_id) && $user->canAccessCampus($task->campus_id), 403);
+        $allowed = AccessScope::isMinistryLeader($user)
+            ? $this->visibleMembers($request)->whereKey($task->member_id)->exists()
+            : AccessScope::canAccessRecord($user, $task);
+        abort_unless($allowed, 403);
     }
 
     private function scopeTasks(Builder $query, Request $request): Builder
     {
-        $user = $request->user();
-
-        if ($user?->isSuperAdministrator()) {
-            return $query;
+        if (AccessScope::isMinistryLeader($request->user())) {
+            return $query->whereHas('member', fn (Builder $memberQuery) => AccessScope::scope($memberQuery, $request->user()));
         }
 
-        $query->where('church_id', $user?->church_id);
-
-        if ($user?->campus_id !== null) {
-            $query->where(fn (Builder $campusQuery) => $campusQuery
-                ->whereNull('campus_id')
-                ->orWhere('campus_id', $user->campus_id));
-        }
-
-        return $query;
+        return AccessScope::scope($query, $request->user());
     }
 
     private function visibleMembers(Request $request): Builder
     {
-        $query = Member::query()->orderBy('last_name')->orderBy('first_name');
-        $user = $request->user();
-
-        if ($user?->isSuperAdministrator()) {
-            return $query;
-        }
-
-        $query->where('church_id', $user?->church_id);
-
-        if ($user?->campus_id !== null) {
-            $query->where(fn (Builder $campusQuery) => $campusQuery
-                ->whereNull('campus_id')
-                ->orWhere('campus_id', $user->campus_id));
-        }
-
-        return $query;
+        return AccessScope::scope(Member::query(), $request->user())->orderBy('last_name')->orderBy('first_name');
     }
 
     private function visibleCampuses(Request $request): Builder
@@ -190,7 +169,7 @@ final class PastoralCareController extends Controller
         $query = Campus::query()->orderBy('name');
         $user = $request->user();
 
-        if ($user?->isSuperAdministrator()) {
+        if (AccessScope::isChurchAdministrator($user) || $user?->isSuperAdministrator()) {
             return $query;
         }
 
@@ -208,11 +187,15 @@ final class PastoralCareController extends Controller
         $query = User::query()->orderBy('name');
         $user = $request->user();
 
-        if ($user?->isSuperAdministrator()) {
+        if (AccessScope::isChurchAdministrator($user) || $user?->isSuperAdministrator()) {
             return $query;
         }
 
         $query->where('church_id', $user?->church_id);
+
+        if (AccessScope::isMinistryLeader($user)) {
+            return $query->whereHas('member', fn (Builder $memberQuery) => AccessScope::scope($memberQuery, $user));
+        }
 
         if ($user?->campus_id !== null) {
             $query->where(fn (Builder $campusQuery) => $campusQuery
@@ -328,11 +311,15 @@ final class PastoralCareController extends Controller
     {
         $user = $request->user();
 
-        if ($user?->isSuperAdministrator()) {
+        if (AccessScope::isChurchAdministrator($user) || $user?->isSuperAdministrator()) {
             return $query;
         }
 
         $query->where('church_id', $user?->church_id);
+
+        if (AccessScope::isMinistryLeader($user)) {
+            return $query->whereIn('member_id', AccessScope::scope(Member::query(), $user)->select('id'));
+        }
 
         if ($user?->campus_id !== null) {
             $query->where(fn (Builder $campusQuery) => $campusQuery

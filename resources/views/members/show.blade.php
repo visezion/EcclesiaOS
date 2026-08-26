@@ -129,11 +129,13 @@
                                 @csrf
                                 <button class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-slate-700 hover:bg-violet-50 hover:text-violet-700"><i data-lucide="badge-check" class="size-4"></i>Record check-in</button>
                             </form>
-                            <form method="POST" action="{{ route('members.destroy', $member) }}" onsubmit="return confirm('Delete this member and remove the profile from active reports?')">
-                                @csrf
-                                @method('DELETE')
-                                <button class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-rose-600 hover:bg-rose-50"><i data-lucide="trash-2" class="size-4"></i>Delete member</button>
-                            </form>
+                            @if ($canDeleteMembers)
+                                <form method="POST" action="{{ route('members.destroy', $member) }}" onsubmit="return confirm('Delete this member and remove the profile from active reports?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-rose-600 hover:bg-rose-50"><i data-lucide="trash-2" class="size-4"></i>Delete member</button>
+                                </form>
+                            @endif
                         </div>
                     </div>
                 </div>

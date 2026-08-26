@@ -15,7 +15,7 @@ final class Asset extends Model
     use SoftDeletes;
     use UsesOpaqueRouteKeys;
 
-    protected $fillable = ['church_id', 'campus_id', 'asset_category_id', 'name', 'serial_number', 'status', 'condition', 'purchased_at', 'purchase_amount'];
+    protected $fillable = ['church_id', 'campus_id', 'asset_category_id', 'created_by_user_id', 'name', 'serial_number', 'status', 'condition', 'purchased_at', 'purchase_amount'];
 
     protected function casts(): array
     {
@@ -35,6 +35,11 @@ final class Asset extends Model
     public function campus(): BelongsTo
     {
         return $this->belongsTo(Campus::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
     }
 
     public function bookings(): HasMany

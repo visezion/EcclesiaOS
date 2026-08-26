@@ -1033,6 +1033,68 @@ class AdminPagesTest extends TestCase
         $this->assertStringContainsString('follow-up,48', $response->streamedContent());
     }
 
+    public function test_non_administrators_cannot_delete_members_individually_or_in_bulk(): void
+    {
+        $this->seed();
+        $membershipOfficer = User::query()->where('email', 'amanda.brown@klgc.org')->firstOrFail();
+        $member = Member::query()->create([
+            'church_id' => $membershipOfficer->church_id,
+            'campus_id' => $membershipOfficer->campus_id,
+            'first_name' => 'Protected',
+            'last_name' => 'Member',
+            'email' => 'protected.member@klgc.org',
+            'phone' => '+1 (555) 333-0000',
+            'status' => 'active',
+            'joined_at' => '2026-07-06',
+        ]);
+
+        $this->actingAs($membershipOfficer)
+            ->get(route('members.index'))
+            ->assertOk()
+            ->assertDontSee('id="delete-member-'.$member->opaqueId().'"', false)
+            ->assertDontSee('<option value="delete">Delete selected</option>', false);
+
+        $this->actingAs($membershipOfficer)
+            ->get(route('members.show', $member))
+            ->assertOk()
+            ->assertDontSee('Delete member');
+
+        $this->actingAs($membershipOfficer)
+            ->delete(route('members.destroy', $member))
+            ->assertForbidden();
+
+        $this->actingAs($membershipOfficer)
+            ->post(route('members.bulk'), [
+                'action' => 'delete',
+                'members' => [$member->opaqueId()],
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('members', ['id' => $member->id, 'deleted_at' => null]);
+    }
+
+    public function test_church_administrators_can_delete_members(): void
+    {
+        $this->seed();
+        $churchAdministrator = User::query()->where('email', 'sarah.johnson@klgc.org')->firstOrFail();
+        $member = Member::query()->create([
+            'church_id' => $churchAdministrator->church_id,
+            'campus_id' => $churchAdministrator->campus_id,
+            'first_name' => 'Administrator',
+            'last_name' => 'Delete',
+            'email' => 'administrator.delete@klgc.org',
+            'phone' => '+1 (555) 333-0001',
+            'status' => 'active',
+            'joined_at' => '2026-07-06',
+        ]);
+
+        $this->actingAs($churchAdministrator)
+            ->delete(route('members.destroy', $member))
+            ->assertRedirect(route('members.index'));
+
+        $this->assertSoftDeleted('members', ['id' => $member->id]);
+    }
+
     public function test_members_can_be_imported_from_csv(): void
     {
         $this->seed();

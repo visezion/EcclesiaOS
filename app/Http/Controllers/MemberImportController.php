@@ -9,6 +9,7 @@ use App\Models\Campus;
 use App\Models\Church;
 use App\Models\MemberImport;
 use App\Models\MemberImportProfile;
+use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\MemberImport\MemberImportFileReader;
 use App\Services\MemberImport\MemberImportMapper;
@@ -273,6 +274,7 @@ final class MemberImportController extends Controller
 
     public function rollback(Request $request, MemberImport $memberImport, ActivityLogger $logger): RedirectResponse
     {
+        abort_unless($this->canDeleteMembers($request->user()), 403);
         $this->authorizeRecord($request, $memberImport);
         abort_unless(in_array($memberImport->status, ['completed', 'completed_with_errors'], true), 409);
         $result = $this->processor->rollback($memberImport, $request->user()->id);
@@ -286,6 +288,11 @@ final class MemberImportController extends Controller
     private function authorizeImport(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage members'), 403);
+    }
+
+    private function canDeleteMembers(?User $user): bool
+    {
+        return $user?->hasAnyRole(['Super Administrator', 'Church Administrator']) ?? false;
     }
 
     private function authorizeRecord(Request $request, MemberImport $import): void

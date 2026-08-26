@@ -12,6 +12,7 @@ use App\Models\Member;
 use App\Models\Ministry;
 use App\Models\PaymentGatewayTransaction;
 use App\Services\ActivityLogger;
+use App\Support\AccessScope;
 use App\Support\Csv;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -64,7 +65,7 @@ final class FinanceController extends Controller
             'donations' => $donations,
             'transactions' => $transactions,
             'funds' => $funds,
-            'members' => $this->visibleMembers($request)->limit(300)->get(),
+            'members' => $this->financeVisibleMembers($request)->limit(300)->get(),
             'ministries' => $this->visibleMinistries($request)->with('campus')->get(),
             'campuses' => $this->visibleCampuses($request)->get(),
             'methods' => self::METHODS,
@@ -309,7 +310,7 @@ final class FinanceController extends Controller
             : 'GIV-'.now()->format('YmdHis').'-'.random_int(100, 999);
 
         if (! empty($validated['member_id'])) {
-            abort_unless($this->visibleMembers($request)->whereKey($validated['member_id'])->exists(), 403);
+            abort_unless($this->financeVisibleMembers($request)->whereKey($validated['member_id'])->exists(), 403);
             $member = Member::query()->find($validated['member_id']);
             $validated['campus_id'] ??= $member?->campus_id;
         }
@@ -389,7 +390,7 @@ final class FinanceController extends Controller
         return [
             'donation' => $donation,
             'funds' => $this->fundQuery($request)->orderBy('name')->get(),
-            'members' => $this->visibleMembers($request)->limit(300)->get(),
+            'members' => $this->financeVisibleMembers($request)->limit(300)->get(),
             'ministries' => $this->visibleMinistries($request)->with('campus')->get(),
             'campuses' => $this->visibleCampuses($request)->get(),
             'methods' => self::METHODS,
@@ -398,6 +399,15 @@ final class FinanceController extends Controller
             'financeCapabilities' => $this->financeCapabilities($request),
             'currency' => $this->currency($request),
         ];
+    }
+
+    private function financeVisibleMembers(Request $request): Builder
+    {
+        $limited = $this->hasFinancePermission($request, ['record ministry contributions'])
+            && ! $this->hasFinancePermission($request, ['manage finance', 'record finance entries']);
+
+        return AccessScope::scopeMembers($request->user(), null, ! $limited)
+            ->orderBy('last_name')->orderBy('first_name');
     }
 
     private function validatedFund(Request $request, ?Fund $fund = null): array

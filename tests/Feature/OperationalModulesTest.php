@@ -332,6 +332,7 @@ class OperationalModulesTest extends TestCase
         $this->seed();
         $leader = User::query()->where('email', 'emily.davis@klgc.org')->firstOrFail();
         $member = Member::query()->where('campus_id', $leader->campus_id)->firstOrFail();
+        $leader->forceFill(['member_id' => $member->id])->save();
         $fund = Fund::query()->firstOrFail();
         $ministry = Ministry::query()->firstOrCreate(
             [
@@ -341,6 +342,7 @@ class OperationalModulesTest extends TestCase
             ],
             ['status' => 'active'],
         );
+        $ministry->forceFill(['leader_id' => $member->id])->save();
 
         $this->actingAs($leader)
             ->get(route('finance.index'))

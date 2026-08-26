@@ -157,7 +157,9 @@
                                 <option value="follow-up">Mark follow-up</option>
                                 <option value="inactive">Mark inactive</option>
                                 <option value="archive">Archive selected</option>
-                                <option value="delete">Delete selected</option>
+                                @if ($canDeleteMembers)
+                                    <option value="delete">Delete selected</option>
+                                @endif
                             </select>
                             <button class="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 disabled:opacity-50" :disabled="selected.length === 0">
                                 <i data-lucide="check" class="size-4"></i>
@@ -247,7 +249,9 @@
                                                     <a href="mailto:{{ $member['email'] }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Email member"><i data-lucide="mail" class="size-4"></i></a>
                                                     <a href="{{ route('members.show', ['member' => $member['key']]) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="View member"><i data-lucide="eye" class="size-4"></i></a>
                                                     <a href="{{ route('members.show', ['member' => $member['key'], 'edit' => 1]) }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Edit member"><i data-lucide="pencil" class="size-4"></i></a>
-                                                    <button type="submit" form="delete-member-{{ $member['key'] }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-rose-500 hover:bg-rose-50" title="Delete member"><i data-lucide="x" class="size-4"></i></button>
+                                                    @if ($canDeleteMembers)
+                                                        <button type="submit" form="delete-member-{{ $member['key'] }}" class="grid size-8 place-items-center rounded-lg border border-slate-200 text-rose-500 hover:bg-rose-50" title="Delete member"><i data-lucide="x" class="size-4"></i></button>
+                                                    @endif
                                                 </div>
                                             </td>
                                         </tr>
@@ -263,12 +267,14 @@
                     <p class="text-sm text-slate-500">{{ __('Showing :first to :last of :total members', ['first' => number_format($members->firstItem() ?? 0), 'last' => number_format($members->lastItem() ?? 0), 'total' => number_format($members->total())]) }}</p>
                     {{ $members->links() }}
                 </div>
-                @foreach ($members as $member)
-                    <form id="delete-member-{{ $member['key'] }}" method="POST" action="{{ route('members.destroy', ['member' => $member['key']]) }}" class="hidden" onsubmit="return confirm('Remove this member from the directory?')">
-                        @csrf
-                        @method('DELETE')
-                    </form>
-                @endforeach
+                @if ($canDeleteMembers)
+                    @foreach ($members as $member)
+                        <form id="delete-member-{{ $member['key'] }}" method="POST" action="{{ route('members.destroy', ['member' => $member['key']]) }}" class="hidden" onsubmit="return confirm('Remove this member from the directory?')">
+                            @csrf
+                            @method('DELETE')
+                        </form>
+                    @endforeach
+                @endif
             </section>
 
             <aside class="space-y-4">

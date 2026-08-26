@@ -18,6 +18,7 @@ final class BookstoreProduct extends Model
     protected $fillable = [
         'church_id',
         'campus_id',
+        'created_by_user_id',
         'name',
         'sku',
         'category',
@@ -55,6 +56,11 @@ final class BookstoreProduct extends Model
     public function campus(): BelongsTo
     {
         return $this->belongsTo(Campus::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
     }
 
     public function orderItems(): HasMany

@@ -248,6 +248,7 @@ final class AssetInventoryController extends Controller
 
         $validated['church_id'] = $this->defaultChurchId($request);
         $validated['campus_id'] = $this->validatedCampusId($request, $validated['campus_id'] ?? null);
+        $validated['created_by_user_id'] = $asset?->created_by_user_id ?? $request->user()?->id;
 
         if (! empty($validated['asset_category_id'])) {
             abort_unless($this->categoryQuery($request)->whereKey($validated['asset_category_id'])->exists(), 403);

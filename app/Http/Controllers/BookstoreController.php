@@ -561,6 +561,7 @@ final class BookstoreController extends Controller
 
         $validated['church_id'] = $this->defaultChurchId($request);
         $validated['campus_id'] = $this->validatedCampusId($request, $validated['campus_id'] ?? null);
+        $validated['created_by_user_id'] = $product?->created_by_user_id ?? $request->user()?->id;
         $validated['is_library_item'] = (bool) ($validated['is_library_item'] ?? false);
         $validated['borrowable'] = (bool) ($validated['borrowable'] ?? false);
         $validated['rentable'] = (bool) ($validated['rentable'] ?? false);

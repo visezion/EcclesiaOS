@@ -186,6 +186,11 @@
         transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
     }
 
+    /* Search menus must be able to extend beyond a card near the page footer. */
+    .dashboard-card:has(.searchable-select) {
+        overflow: visible;
+    }
+
     .dashboard-card:hover {
         border-color: color-mix(in srgb, var(--brand-primary, #6d4aff) 18%, var(--card-border, #dfe6f2));
         box-shadow: 0 14px 34px rgb(15 23 42 / 0.075);

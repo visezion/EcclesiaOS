@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\Volunteer;
 use App\Services\ActivityLogger;
 use App\Services\Communications\DomainNotificationService;
+use App\Support\AccessScope;
 use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
@@ -72,7 +73,7 @@ final class MemberManagementController extends Controller
     {
         $this->authorizeMembers($request);
 
-        $query = Member::query()
+        $query = AccessScope::scope(Member::query(), $request->user())
             ->with(['church', 'campus', 'family', 'volunteers.ministry', 'memberProfile'])
             ->withCount([
                 'attendanceRecords as attendance_30_days_count' => fn ($query) => $query
@@ -115,9 +116,10 @@ final class MemberManagementController extends Controller
             'ministries' => $this->visibleMinistries($request)->get(),
             'statusDistribution' => $this->statusDistribution($request),
             'campusDistribution' => $this->campusDistribution($request),
-            'recentActivity' => ActivityLog::query()->with('user')->where('module', 'Members')->latest()->limit(6)->get(),
+            'recentActivity' => $this->recentMemberActivity($request),
             'selectedMember' => $selectedMember,
             'selectedMode' => $selectedMode,
+            'canDeleteMembers' => $this->canDeleteMembers($request->user()),
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
                 ['label' => 'Members', 'url' => null],
@@ -154,6 +156,7 @@ final class MemberManagementController extends Controller
         return view('members.show', [
             'member' => $member,
             'profile' => $this->memberRow($member),
+            'canDeleteMembers' => $this->canDeleteMembers($request->user()),
             'churches' => $this->visibleChurches($request)->get(),
             'campuses' => $this->visibleCampuses($request)->get(),
             'families' => $this->visibleFamilies($request)->get(),
@@ -217,6 +220,7 @@ final class MemberManagementController extends Controller
 
     public function destroy(Request $request, Member $member, ActivityLogger $activityLogger): RedirectResponse
     {
+        $this->authorizeMemberDeletion($request);
         $this->authorizeMembers($request);
         $this->authorizeMemberRecord($request, $member);
 
@@ -277,6 +281,10 @@ final class MemberManagementController extends Controller
         $memberIds = OpaqueId::decodeMany($validated['members'], Member::class);
         if ($memberIds === []) {
             throw ValidationException::withMessages(['members' => 'Select at least one valid member.']);
+        }
+
+        if ($validated['action'] === 'delete') {
+            $this->authorizeMemberDeletion($request);
         }
 
         $members = $this->scopeMembers(Member::query()->whereIn('id', $memberIds), $request)->get();
@@ -426,29 +434,25 @@ final class MemberManagementController extends Controller
         abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('manage members'), 403);
     }
 
+    private function authorizeMemberDeletion(Request $request): void
+    {
+        abort_unless($this->canDeleteMembers($request->user()), 403);
+    }
+
+    private function canDeleteMembers(?User $user): bool
+    {
+        return $user?->hasAnyRole(['Super Administrator', 'Church Administrator']) ?? false;
+    }
+
     private function authorizeMemberRecord(Request $request, Member $member): void
     {
         $this->authorizeMembers($request);
-
-        $user = $request->user();
-        abort_unless($user?->canAccessChurch($member->church_id) && $user->canAccessCampus($member->campus_id), 403);
+        abort_unless(AccessScope::canAccessRecord($request->user(), $member), 403);
     }
 
     private function scopeMembers(Builder $query, Request $request): Builder
     {
-        $user = $request->user();
-
-        if ($user?->isSuperAdministrator()) {
-            return $query;
-        }
-
-        $query->where('church_id', $user?->church_id);
-
-        if ($user?->campus_id !== null) {
-            $query->where('campus_id', $user->campus_id);
-        }
-
-        return $query;
+        return AccessScope::scope($query, $request->user());
     }
 
     private function visibleCampuses(Request $request): Builder
@@ -456,7 +460,7 @@ final class MemberManagementController extends Controller
         $query = Campus::query()->orderBy('name');
         $user = $request->user();
 
-        if ($user?->isSuperAdministrator()) {
+        if (AccessScope::isChurchAdministrator($user)) {
             return $query;
         }
 
@@ -474,7 +478,7 @@ final class MemberManagementController extends Controller
         $query = Church::query()->orderBy('name');
         $user = $request->user();
 
-        if ($user?->isSuperAdministrator()) {
+        if (AccessScope::isChurchAdministrator($user)) {
             return $query;
         }
 
@@ -486,7 +490,7 @@ final class MemberManagementController extends Controller
         $query = Family::query()->orderBy('name');
         $user = $request->user();
 
-        if ($user?->isSuperAdministrator()) {
+        if (AccessScope::isChurchAdministrator($user)) {
             return $query;
         }
 
@@ -504,7 +508,7 @@ final class MemberManagementController extends Controller
         $query = Ministry::query()->where('status', 'active')->orderBy('name');
         $user = $request->user();
 
-        if ($user?->isSuperAdministrator()) {
+        if (AccessScope::isChurchAdministrator($user)) {
             return $query;
         }
 
@@ -514,27 +518,16 @@ final class MemberManagementController extends Controller
             $query->where('campus_id', $user->campus_id);
         }
 
+        if (AccessScope::isMinistryLeader($user)) {
+            $query->whereIn('id', AccessScope::ministryIds($user));
+        }
+
         return $query;
     }
 
     private function visibleUsers(Request $request): Builder
     {
-        $query = User::query()->orderBy('name');
-        $user = $request->user();
-
-        if ($user?->isSuperAdministrator()) {
-            return $query;
-        }
-
-        $query->where('church_id', $user?->church_id);
-
-        if ($user?->campus_id !== null) {
-            $query->where(fn (Builder $campusQuery) => $campusQuery
-                ->whereNull('campus_id')
-                ->orWhere('campus_id', $user->campus_id));
-        }
-
-        return $query;
+        return AccessScope::scope(User::query(), $request->user())->orderBy('name');
     }
 
     private function validatedMember(Request $request, ?Member $member = null): array
@@ -588,7 +581,7 @@ final class MemberManagementController extends Controller
         $actor = $request->user();
         if (! $actor?->isSuperAdministrator()) {
             $validated['church_id'] = $actor?->church_id;
-            if ($actor?->campus_id !== null) {
+            if ($actor?->campus_id !== null && ! AccessScope::isChurchAdministrator($actor)) {
                 $validated['campus_id'] = $actor->campus_id;
             }
         }
@@ -598,7 +591,15 @@ final class MemberManagementController extends Controller
         $validated['campus_id'] = $validated['campus_id'] ?? Campus::query()->where('church_id', $church->id)->value('id');
         $validated['joined_at'] = $validated['joined_at'] ?? now()->toDateString();
 
-        abort_unless($actor?->canAccessChurch((int) $validated['church_id']) && $actor->canAccessCampus($validated['campus_id'] ?? null), 403);
+        abort_unless(
+            $this->visibleChurches($request)->whereKey($validated['church_id'])->exists()
+                && (! $validated['campus_id'] || $this->visibleCampuses($request)->whereKey($validated['campus_id'])->exists()),
+            403,
+        );
+
+        if (AccessScope::isMinistryLeader($actor)) {
+            abort_unless(filled($validated['ministry_id'] ?? null), 403);
+        }
 
         if (! empty($validated['family_id'])) {
             abort_unless($this->visibleFamilies($request)->where('id', $validated['family_id'])->exists(), 403);
@@ -661,6 +662,20 @@ final class MemberManagementController extends Controller
             'retention' => $retention,
             'follow_up' => $followUp,
         ];
+    }
+
+    private function recentMemberActivity(Request $request)
+    {
+        $query = ActivityLog::query()->with('user')->where('module', 'Members');
+
+        if (AccessScope::isMinistryLeader($request->user())) {
+            $query->where('subject_type', (new Member)->getMorphClass())
+                ->whereIn('subject_id', $this->scopeMembers(Member::query(), $request)->select('id'));
+        } else {
+            AccessScope::scope($query, $request->user());
+        }
+
+        return $query->latest()->limit(6)->get();
     }
 
     private function statusDistribution(Request $request): array

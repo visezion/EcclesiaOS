@@ -8,6 +8,7 @@ use App\Models\Church;
 use App\Models\Family;
 use App\Models\Member;
 use App\Services\ActivityLogger;
+use App\Support\AccessScope;
 use App\Support\Csv;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
@@ -26,9 +27,14 @@ final class FamilyManagementController extends Controller
         $query = $this->scopeFamilies(Family::query(), $request)->with(['campus', 'primaryContact', 'members'])->withCount('members');
         $query->when($request->filled('q'), function ($query) use ($request): void {
             $term = '%'.$request->string('q')->toString().'%';
-            $query->where('name', 'like', $term)
+            $query->where(fn (Builder $searchQuery) => $searchQuery
+                ->where('name', 'like', $term)
                 ->orWhere('address', 'like', $term)
-                ->orWhereHas('primaryContact', fn ($query) => $query->where('first_name', 'like', $term)->orWhere('last_name', 'like', $term)->orWhere('email', 'like', $term)->orWhere('phone', 'like', $term));
+                ->orWhereHas('primaryContact', fn (Builder $memberQuery) => $memberQuery
+                    ->where('first_name', 'like', $term)
+                    ->orWhere('last_name', 'like', $term)
+                    ->orWhere('email', 'like', $term)
+                    ->orWhere('phone', 'like', $term)));
         });
         $query->when($this->queryId($request, 'campus_id', Campus::class), fn ($query, int $campusId) => $query->where('campus_id', $campusId));
 
@@ -44,7 +50,7 @@ final class FamilyManagementController extends Controller
             'members' => $this->visibleMembers($request)->get(),
             'campusDistribution' => $this->campusDistribution($request),
             'familyTypeDistribution' => $this->familyTypeDistribution($request),
-            'recentActivity' => ActivityLog::query()->with('user')->where('module', 'Families')->latest()->limit(6)->get(),
+            'recentActivity' => $this->recentFamilyActivity($request),
             'stats' => $this->stats($request),
             'breadcrumbs' => [
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
@@ -123,47 +129,23 @@ final class FamilyManagementController extends Controller
 
     private function authorizeFamilyRecord(Request $request, Family $family): void
     {
-        $user = $request->user();
-        abort_unless($user?->canAccessChurch($family->church_id) && $user->canAccessCampus($family->campus_id), 403);
+        abort_unless($this->scopeFamilies(Family::query(), $request)->whereKey($family->id)->exists(), 403);
     }
 
     private function scopeFamilies(Builder $query, Request $request): Builder
     {
         $user = $request->user();
 
-        if ($user?->isSuperAdministrator()) {
-            return $query;
+        if (AccessScope::isMinistryLeader($user)) {
+            return $query->whereHas('members', fn (Builder $memberQuery) => AccessScope::scope($memberQuery, $user));
         }
 
-        $query->where('church_id', $user?->church_id);
-
-        if ($user?->campus_id !== null) {
-            $query->where(fn (Builder $campusQuery) => $campusQuery
-                ->whereNull('campus_id')
-                ->orWhere('campus_id', $user->campus_id));
-        }
-
-        return $query;
+        return AccessScope::scope($query, $user);
     }
 
     private function visibleMembers(Request $request): Builder
     {
-        $query = Member::query()->orderBy('last_name')->orderBy('first_name');
-        $user = $request->user();
-
-        if ($user?->isSuperAdministrator()) {
-            return $query;
-        }
-
-        $query->where('church_id', $user?->church_id);
-
-        if ($user?->campus_id !== null) {
-            $query->where(fn (Builder $campusQuery) => $campusQuery
-                ->whereNull('campus_id')
-                ->orWhere('campus_id', $user->campus_id));
-        }
-
-        return $query;
+        return AccessScope::scope(Member::query(), $request->user())->orderBy('last_name')->orderBy('first_name');
     }
 
     private function visibleCampuses(Request $request): Builder
@@ -171,7 +153,7 @@ final class FamilyManagementController extends Controller
         $query = Campus::query()->orderBy('name');
         $user = $request->user();
 
-        if ($user?->isSuperAdministrator()) {
+        if (AccessScope::isChurchAdministrator($user) || $user?->isSuperAdministrator()) {
             return $query;
         }
 
@@ -189,7 +171,7 @@ final class FamilyManagementController extends Controller
         $query = Church::query()->orderBy('name');
         $user = $request->user();
 
-        if ($user?->isSuperAdministrator()) {
+        if (AccessScope::isChurchAdministrator($user) || $user?->isSuperAdministrator()) {
             return $query;
         }
 
@@ -210,7 +192,7 @@ final class FamilyManagementController extends Controller
             'address' => ['nullable', 'string', 'max:255'],
         ]) + ['church_id' => $church->id];
 
-        if (! $user?->isSuperAdministrator() && $user?->campus_id !== null) {
+        if (! AccessScope::isChurchAdministrator($user) && ! $user?->isSuperAdministrator() && $user?->campus_id !== null) {
             $validated['campus_id'] = $user->campus_id;
         }
 
@@ -246,6 +228,20 @@ final class FamilyManagementController extends Controller
             'follow_up' => $this->visibleMembers($request)->whereIn('status', ['inactive', 'follow-up'])->whereNotNull('family_id')->count(),
             'top_campus' => $this->visibleCampuses($request)->withCount('members')->orderByDesc('members_count')->first()?->name ?? 'No campus',
         ];
+    }
+
+    private function recentFamilyActivity(Request $request)
+    {
+        $query = ActivityLog::query()->with('user')->where('module', 'Families');
+
+        if (AccessScope::isMinistryLeader($request->user())) {
+            $query->where('subject_type', (new Family)->getMorphClass())
+                ->whereIn('subject_id', $this->scopeFamilies(Family::query(), $request)->select('id'));
+        } else {
+            AccessScope::scope($query, $request->user());
+        }
+
+        return $query->latest()->limit(6)->get();
     }
 
     private function campusDistribution(Request $request): array

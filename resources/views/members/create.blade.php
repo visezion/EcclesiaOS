@@ -66,6 +66,7 @@
                                 name="church_id"
                                 label="Church"
                                 :required="true"
+                                :inline-menu="true"
                                 placeholder="Search churches"
                                 :selected="old('church_id', $churches->first()?->id)"
                                 :options="$churches->map(fn ($church) => [
@@ -78,6 +79,7 @@
                             <x-searchable-select
                                 name="campus_id"
                                 label="Campus"
+                                :inline-menu="true"
                                 empty-label="Select later"
                                 placeholder="Search campuses"
                                 :options="$campuses->map(fn ($campus) => [
@@ -90,6 +92,7 @@
                             <x-searchable-select
                                 name="ministry_id"
                                 label="Ministry"
+                                :inline-menu="true"
                                 empty-label="Assign later"
                                 placeholder="Search ministries"
                                 :options="$ministries->map(fn ($ministry) => [
