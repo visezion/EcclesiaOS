@@ -643,10 +643,6 @@ final class LeadershipReportController extends Controller
             $query->whereHas('roles', fn ($roles) => $roles->whereIn('roles.id', $reviewerRoleIds));
         }
 
-        if (! $this->hasBroadLeadershipCampusScope($request) && $request->user()?->campus_id !== null) {
-            $query->where('campus_id', $request->user()->campus_id);
-        }
-
         return $query;
     }
 

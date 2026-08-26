@@ -85,7 +85,9 @@
                 <p class="mt-1 text-sm text-slate-500">Oversee, review, and act on reports from pastors, ministries, departments, and campuses.</p>
             </div>
             <div class="flex flex-wrap gap-2">
-                <a href="{{ route('ai-copilot.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm hover:bg-violet-100"><i data-lucide="sparkles" class="size-4"></i>Ask Copilot</a>
+                @if(auth()->user()?->isSuperAdministrator() || auth()->user()?->hasPermission('use ai copilot'))
+                    <a href="{{ route('ai-copilot.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm hover:bg-violet-100"><i data-lucide="sparkles" class="size-4"></i>Ask Copilot</a>
+                @endif
                 <form method="POST" action="{{ route('leadership-reports.summary') }}">
                     @csrf
                     <button class="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm hover:bg-violet-50">
@@ -481,7 +483,7 @@
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
                                     <h3 class="flex items-center gap-2 text-sm font-semibold text-slate-950"><i data-lucide="shield-check" class="size-4 text-violet-600"></i>Eligible Reviewer Roles</h3>
-                                    <p class="mt-1 text-xs leading-5 text-slate-500">Select the roles whose users may appear in both <strong>Reviewer</strong> and <strong>Default Reviewer</strong> searches. Leave all roles unchecked to allow every user in scope.</p>
+                                    <p class="mt-1 text-xs leading-5 text-slate-500">Select the roles whose users may appear in both <strong>Reviewer</strong> and <strong>Default Reviewer</strong> searches. Eligible users can be selected from any campus, department, or ministry in this church. Leave all roles unchecked to allow every church user.</p>
                                 </div>
                                 <span class="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-100">{{ count($selectedReviewerRoleIds) > 0 ? __(':count selected', ['count' => count($selectedReviewerRoleIds)]) : 'All roles' }}</span>
                             </div>
@@ -507,7 +509,7 @@
                             empty-label="No default reviewer"
                             placeholder="Search reviewer by name, title, or email"
                             :selected="$reportSettings['default_reviewer_id']"
-                            hint="Preselects the reviewer on new reports. Example: Senior Pastor or Campus Overseer."
+                            hint="Preselects an eligible reviewer from anywhere in this church, regardless of campus, department, or ministry."
                             class="text-xs font-semibold text-slate-500"
                             :options="$reporters->map(fn ($reporter) => [
                                 'value' => $reporter->id,
@@ -725,7 +727,7 @@
                                         'initials' => Str::of($reporter->name)->explode(' ')->filter()->map(fn ($part) => Str::substr($part, 0, 1))->take(2)->join(''),
                                     ])->values()"
                                     class="text-xs font-semibold text-slate-500 md:col-span-2"
-                                    hint="The person responsible for reviewing and approving, returning, or rejecting the report."
+                                    hint="Choose any church user whose role is allowed by the administrator, regardless of campus, department, or ministry."
                                 />
                             </div>
                         </div>

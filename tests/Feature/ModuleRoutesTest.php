@@ -1152,6 +1152,74 @@ class ModuleRoutesTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_report_users_can_select_eligible_reviewers_across_campuses(): void
+    {
+        $this->seed();
+        $reporter = User::query()->where('email', 'david.wilson@klgc.org')->firstOrFail();
+        $otherCampus = Campus::query()
+            ->where('church_id', $reporter->church_id)
+            ->whereKeyNot($reporter->campus_id)
+            ->firstOrFail();
+        $eligibleRole = Role::query()->create([
+            'name' => 'Church-wide Leadership Reviewer',
+            'slug' => 'church-wide-leadership-reviewer',
+            'description' => 'May receive leadership reports from any campus in the church.',
+        ]);
+        $eligibleReviewer = User::factory()->create([
+            'church_id' => $reporter->church_id,
+            'campus_id' => $otherCampus->id,
+            'name' => 'Cross Campus Eligible Reviewer',
+            'email' => 'cross.campus.reviewer@example.test',
+        ]);
+        $eligibleReviewer->roles()->attach($eligibleRole);
+
+        $church = $reporter->church()->firstOrFail();
+        $churchSettings = $church->settings ?? [];
+        data_set($churchSettings, 'leadership_reports.reviewer_role_ids', [$eligibleRole->id]);
+        $church->forceFill(['settings' => $churchSettings])->save();
+
+        $this->actingAs($reporter)
+            ->get(route('leadership-reports.index', ['tab' => 'settings']))
+            ->assertOk()
+            ->assertSee('Cross Campus Eligible Reviewer');
+
+        $this->actingAs($reporter)
+            ->put(route('leadership-reports.settings.update'), [
+                'default_reviewer_id' => $eligibleReviewer->id,
+                'weekly_due_day' => 'friday',
+                'auto_reminders' => '1',
+                'require_action_items' => '1',
+                'escalation_hours' => 72,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Leadership report settings saved.');
+
+        $this->assertSame(
+            $eligibleReviewer->id,
+            data_get($reporter->refresh()->account_settings, 'leadership_reports.default_reviewer_id'),
+        );
+
+        $this->actingAs($reporter)
+            ->post(route('leadership-reports.store'), [
+                'title' => 'Cross Campus Reviewer Assignment',
+                'report_type' => 'campus',
+                'campus_id' => $reporter->campus_id,
+                'assigned_to' => $eligibleReviewer->id,
+                'period_start' => now()->startOfWeek()->toDateString(),
+                'period_end' => now()->endOfWeek()->toDateString(),
+                'priority' => 'normal',
+                'summary' => 'Confirms eligible reviewers can receive reports across campus boundaries.',
+                'submit' => '1',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('leadership_reports', [
+            'title' => 'Cross Campus Reviewer Assignment',
+            'submitted_by' => $reporter->id,
+            'assigned_to' => $eligibleReviewer->id,
+        ]);
+    }
+
     public function test_campus_leader_reports_are_limited_to_assigned_campus_ministries(): void
     {
         $this->seed();

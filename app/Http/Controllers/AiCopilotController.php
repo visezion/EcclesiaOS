@@ -116,7 +116,7 @@ final class AiCopilotController extends Controller
 
     private function authorizeCopilot(Request $request): void
     {
-        abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasAnyPermission(['use ai copilot', 'manage members', 'manage attendance', 'view finance', 'manage finance', 'view ministry finance', 'view leadership reports', 'view reports', 'manage events', 'manage prayer', 'manage volunteers', 'manage ministries', 'manage assets', 'manage facilities', 'manage communications', 'manage counselling', 'manage financial assistance', 'manage support', 'manage workflows', 'manage bookstore']), 403);
+        abort_unless($request->user()?->isSuperAdministrator() || $request->user()?->hasPermission('use ai copilot'), 403);
     }
 
     private function authorizeSettings(Request $request): void

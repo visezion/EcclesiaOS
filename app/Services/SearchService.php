@@ -134,6 +134,6 @@ final class SearchService
     private function canUseCopilot(?User $actor): bool
     {
         return $actor?->isSuperAdministrator()
-            || $actor?->hasAnyPermission(['use ai copilot', 'manage members', 'manage attendance', 'view finance', 'manage finance', 'view leadership reports', 'view reports', 'manage communications']);
+            || $actor?->hasPermission('use ai copilot');
     }
 }
