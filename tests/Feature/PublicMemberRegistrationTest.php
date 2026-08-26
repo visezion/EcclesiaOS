@@ -381,16 +381,16 @@ class PublicMemberRegistrationTest extends TestCase
         Campus::factory()->for($church)->create();
 
         $this->post(route('members.self-register.store'), [
-                'registration_type' => 'returning',
-                'first_name' => 'Unknown',
-                'last_name' => 'Person',
-                'email' => 'unknown@example.test',
-                'preferred_contact' => 'email',
-                'create_account' => '1',
-                'password' => 'SecurePass9',
-                'password_confirmation' => 'SecurePass9',
-                'privacy_consent' => '1',
-            ])
+            'registration_type' => 'returning',
+            'first_name' => 'Unknown',
+            'last_name' => 'Person',
+            'email' => 'unknown@example.test',
+            'preferred_contact' => 'email',
+            'create_account' => '1',
+            'password' => 'SecurePass9',
+            'password_confirmation' => 'SecurePass9',
+            'privacy_consent' => '1',
+        ])
             ->assertRedirect(route('members.self-register'))
             ->assertSessionHas('registration_complete.account_created', true);
 

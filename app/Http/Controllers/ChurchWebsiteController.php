@@ -995,6 +995,7 @@ final class ChurchWebsiteController extends Controller
                 $this->removeColumnBackgrounds($group, $removeImages, $removeVideos);
             }
             unset($group);
+
             return;
         }
 
