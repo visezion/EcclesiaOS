@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\AuthenticationSettingsController;
+use App\Http\Controllers\BackupDisasterRecoveryController;
 use App\Http\Controllers\BibleController;
 use App\Http\Controllers\BiblePlanManagementController;
 use App\Http\Controllers\BibleStudyController;
@@ -495,6 +496,22 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::post('administration/system-updates/check', [SystemUpdateController::class, 'check'])->middleware('throttle:6,1')->name('system-updates.check');
     Route::post('administration/system-updates/{systemUpdate}/approve', [SystemUpdateController::class, 'approve'])->middleware('throttle:3,1')->name('system-updates.approve');
     Route::post('administration/system-updates/{systemUpdate}/skip', [SystemUpdateController::class, 'skip'])->middleware('throttle:6,1')->name('system-updates.skip');
+    Route::get('administration/backups', [BackupDisasterRecoveryController::class, 'index'])->name('backups.index');
+    Route::post('administration/backups', [BackupDisasterRecoveryController::class, 'store'])->middleware('throttle:6,1')->name('backups.store');
+    Route::get('administration/backups/{backup}/status', [BackupDisasterRecoveryController::class, 'status'])->name('backups.status');
+    Route::get('administration/backups/{backup}/download', [BackupDisasterRecoveryController::class, 'download'])->middleware('throttle:10,1')->name('backups.download');
+    Route::post('administration/backups/{backup}/verify', [BackupDisasterRecoveryController::class, 'verify'])->middleware('throttle:6,1')->name('backups.verify');
+    Route::delete('administration/backups/{backup}', [BackupDisasterRecoveryController::class, 'destroy'])->middleware('throttle:3,1')->name('backups.destroy');
+    Route::put('administration/backups/schedule/settings', [BackupDisasterRecoveryController::class, 'updateSchedule'])->name('backups.schedule.update');
+    Route::post('administration/backups/destinations', [BackupDisasterRecoveryController::class, 'storeDestination'])->name('backups.destinations.store');
+    Route::post('administration/backups/destinations/{destination}/test', [BackupDisasterRecoveryController::class, 'testDestination'])->name('backups.destinations.test');
+    Route::delete('administration/backups/destinations/{destination}', [BackupDisasterRecoveryController::class, 'destroyDestination'])->name('backups.destinations.destroy');
+    Route::post('administration/backups/uploads', [BackupDisasterRecoveryController::class, 'startUpload'])->middleware('throttle:20,1')->name('backups.uploads.start');
+    Route::post('administration/backups/uploads/{upload}/chunks', [BackupDisasterRecoveryController::class, 'uploadChunk'])->middleware('throttle:120,1')->name('backups.uploads.chunk');
+    Route::get('administration/backups/uploads/{upload}', [BackupDisasterRecoveryController::class, 'uploadStatus'])->name('backups.uploads.status');
+    Route::post('administration/backups/uploads/{upload}/complete', [BackupDisasterRecoveryController::class, 'completeUpload'])->name('backups.uploads.complete');
+    Route::post('administration/backups/uploads/{upload}/validate', [BackupDisasterRecoveryController::class, 'validateUpload'])->middleware('throttle:6,1')->name('backups.uploads.validate');
+    Route::post('administration/backups/restores/{restore}/authorize-production', [BackupDisasterRecoveryController::class, 'requestProductionRestore'])->middleware('throttle:3,1')->name('backups.restores.authorize-production');
     Route::get('administration/audit-logs', AuditLogController::class)->name('audit-logs.index');
     Route::get('administration/audit-logs/export', [AuditLogController::class, 'export'])->name('audit-logs.export');
     Route::get('workflows', [WorkflowController::class, 'index'])->name('workflows.index');
@@ -519,6 +536,9 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
+        if (($item['route'] ?? null) === 'backups.index') {
+            continue;
+        }
         if (in_array(($item['route'] ?? null), ['dashboard', 'ai-copilot.index', 'ai-copilot.settings', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'sermons.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'website-studio.index', 'website-studio.navigation', 'website-studio.sections', 'website-studio.sections.create', 'website-studio.media', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'youtube-integration.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.celebrations', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index', 'support.tickets.index', 'support.community', 'support.knowledge', 'support.live', 'central-support.index'], true)) {
             continue;
         }

@@ -761,6 +761,77 @@
             radial-gradient(circle at 63% 42%, rgb(34 197 94 / 0.16), transparent 4%),
             linear-gradient(160deg, #eef2f7, #f8fafc);
     }
+
+    /* Backup center: give the recovery workflow the same calm, spacious
+       visual language as the rest of the administration shell. */
+    .backup-center.backup-tab-automation > section.dashboard-card {
+        padding: 1.25rem;
+        border-color: #dfe6f2;
+        box-shadow: 0 12px 30px rgb(15 23 42 / 0.055);
+    }
+
+    .backup-center.backup-tab-automation > section.dashboard-card > div:first-child {
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #edf2f7;
+    }
+
+    .backup-center.backup-tab-automation form > div:first-of-type {
+        gap: 1.25rem;
+    }
+
+    .backup-center.backup-tab-automation form select,
+    .backup-center.backup-tab-automation form input[type="time"] {
+        min-height: 2.75rem;
+        border-radius: 0.75rem;
+        background-color: #fff;
+    }
+
+    .backup-center.backup-tab-automation form fieldset > div {
+        min-height: 2.75rem;
+        align-items: center;
+    }
+
+    .backup-center.backup-tab-automation form > div:nth-of-type(2) > label {
+        display: flex;
+        min-height: 5.5rem;
+        flex-direction: column;
+        justify-content: center;
+        gap: 0.2rem;
+        border-radius: 0.75rem;
+        border: 1px solid #dfe6f2;
+        padding: 0.75rem 1rem;
+        background: #fff;
+    }
+
+    .backup-center.backup-tab-automation form > div:nth-of-type(2) > label input[type="number"] {
+        width: 4.5rem;
+        border: 0;
+        padding: 0;
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #081225;
+        box-shadow: none;
+    }
+
+    .backup-center.backup-tab-automation form input[type="number"] {
+        min-height: 2rem;
+    }
+
+    .backup-center.backup-tab-automation form > div:last-child button[type="submit"] {
+        box-shadow: 0 8px 18px color-mix(in srgb, var(--brand-primary, #6d4aff) 22%, transparent);
+    }
+
+    @media (min-width: 640px) {
+        .backup-center.backup-tab-automation > section.dashboard-card {
+            padding: 1.5rem;
+        }
+    }
+
+    @media (min-width: 1024px) {
+        .backup-center.backup-tab-automation > section.dashboard-card {
+            padding: 1.75rem;
+        }
+    }
 }
 
 @layer utilities {

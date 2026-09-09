@@ -162,6 +162,7 @@ return [
             ['label' => 'Audit Logs', 'route' => 'audit-logs.index', 'icon' => 'clipboard-list', 'permission' => 'view audit log'],
         ],
     ],
+    ['label' => 'Backup & Recovery', 'route' => 'backups.index', 'icon' => 'database', 'section' => 'Administration', 'permission' => 'backup.view', 'implemented' => true, 'description' => 'Encrypted backups, restore validation, external storage, automation, and retention.'],
     [
         'label' => 'Support Center',
         'route' => 'support.index',

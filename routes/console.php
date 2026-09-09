@@ -34,6 +34,11 @@ Schedule::command('messages:enforce-retention')
     ->withoutOverlapping()
     ->onOneServer();
 
+Schedule::command('backups:run-scheduled')
+    ->everyMinute()
+    ->withoutOverlapping(120)
+    ->onOneServer();
+
 if (config('updater.install_enabled')) {
     Schedule::command('app:update --pending')
         ->everyMinute()

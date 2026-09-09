@@ -53,4 +53,19 @@ final class Church extends Model
     {
         return $this->hasOne(YouTubeAppCredential::class);
     }
+
+    public function backups(): HasMany
+    {
+        return $this->hasMany(BackupRecord::class);
+    }
+
+    public function backupDestinations(): HasMany
+    {
+        return $this->hasMany(BackupDestination::class);
+    }
+
+    public function backupSchedule(): HasOne
+    {
+        return $this->hasOne(BackupSchedule::class);
+    }
 }

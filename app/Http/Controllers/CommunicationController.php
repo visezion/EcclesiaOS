@@ -1163,7 +1163,7 @@ final class CommunicationController extends Controller
         return back()->with('status', 'WhatsApp group added.');
     }
 
-    public function testIntegration(Request $request, string $channel, ActivityLogger $activityLogger): RedirectResponse
+    public function testIntegration(Request $request, string $channel, ActivityLogger $activityLogger, CommunicationDeliveryDispatcher $dispatcher): RedirectResponse
     {
         $this->authorizeCommunicationIntegrations($request);
         abort_unless(in_array($channel, self::CHANNELS, true), 404);
@@ -1180,9 +1180,30 @@ final class CommunicationController extends Controller
             $validationError = 'No delivery driver is installed for '.$setting->provider.'.';
         }
         $status = $setting->enabled && $driverSupported && $validationError === null && $probeError === null ? 'success' : 'failed';
+
+        if ($channel === 'email' && $status === 'success') {
+            $delivery = CommunicationDelivery::query()->create([
+                'church_id' => $this->churchId($request),
+                'channel' => 'email',
+                'provider' => $setting->provider,
+                'recipient_name' => $request->user()?->name ?? 'System User',
+                'recipient_contact' => $request->user()?->email,
+                'subject' => 'EcclesiaOS email provider test',
+                'body_excerpt' => 'Your EcclesiaOS email provider is configured and working.',
+                'event_type' => 'ProviderTest',
+                'status' => 'queued',
+                'retry_status' => 'queued',
+                'attempt' => 0,
+                'sent_at' => now(),
+            ]);
+            $delivery = $dispatcher->dispatch($delivery);
+            $status = $delivery->status === 'delivered' ? 'success' : 'failed';
+            $probeError = $delivery->error ?: ($status === 'failed' ? 'The mailer rejected the test message.' : null);
+        }
         $setting->update(['last_tested_at' => now(), 'last_test_status' => $status]);
 
-        CommunicationDelivery::query()->create([
+        if ($channel !== 'email' || $status !== 'success') {
+            CommunicationDelivery::query()->create([
             'church_id' => $this->churchId($request),
             'channel' => $channel,
             'provider' => $setting->provider,
@@ -1199,7 +1220,8 @@ final class CommunicationController extends Controller
             'error' => $status === 'success' ? null : ($probeError ?? $validationError ?? 'Enable the channel before testing.'),
             'sent_at' => now(),
             'delivered_at' => $status === 'success' ? now() : null,
-        ]);
+            ]);
+        }
 
         $activityLogger->log('Communications', 'integration_tested', Str::headline($channel).' integration was tested.', $setting, ['resource' => 'Communication Provider', 'status' => $status], $request);
 
@@ -2461,6 +2483,26 @@ final class CommunicationController extends Controller
             }
             if ($setting->channel === 'sms' && blank($settings['device_id'] ?? null) && blank($settings['gateway_id'] ?? null)) {
                 return 'Zender SMS requires a device unique ID or gateway unique ID.';
+            }
+        }
+
+        if ($setting->channel === 'email' && Str::contains($provider, 'smtp')) {
+            if (blank($settings['endpoint_url'] ?? null)) {
+                return 'SMTP host is required.';
+            }
+            if (blank($settings['account_id'] ?? null)) {
+                return 'SMTP username is required.';
+            }
+            if (blank($settings['api_key_encrypted'] ?? null)) {
+                return 'SMTP password is required.';
+            }
+            $port = (int) ($settings['device_id'] ?? 0);
+            if ($port < 1 || $port > 65535) {
+                return 'SMTP port must be between 1 and 65535.';
+            }
+            $sender = $setting->sender_identity ?: ($settings['sender_number'] ?? null);
+            if (filled($sender) && filter_var($sender, FILTER_VALIDATE_EMAIL) === false) {
+                return 'Sender email must be a valid email address.';
             }
         }
 

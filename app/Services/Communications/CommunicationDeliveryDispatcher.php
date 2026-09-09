@@ -169,14 +169,39 @@ final class CommunicationDeliveryDispatcher
             return $this->failed('Invalid recipient', 'A valid recipient email address is required.');
         }
 
+        $mailer = Mail::getFacadeRoot();
+        if ($setting && Str::contains(Str::lower((string) $setting->provider), 'smtp')) {
+            $settings = $setting->settings ?? [];
+            $password = $this->apiKey($setting);
+            $host = trim((string) ($settings['endpoint_url'] ?? ''));
+            $username = trim((string) ($settings['account_id'] ?? ''));
+            $port = (int) ($settings['device_id'] ?? 587);
+
+            if ($host === '' || $username === '' || $password === null || $port < 1 || $port > 65535) {
+                return $this->failed('Configuration check failed', 'SMTP host, port, username, and password are required.');
+            }
+
+            $scheme = (int) $port === 465 ? 'smtps' : 'smtp';
+            $mailer = Mail::build([
+                'transport' => 'smtp',
+                'host' => $host,
+                'port' => $port,
+                'username' => $username,
+                'password' => $password,
+                'scheme' => $scheme,
+                'timeout' => 20,
+            ]);
+        }
+
         $mail = new CommunicationMail(
             $delivery->subject ?: 'Notification from EcclesiaOS',
             $delivery->body ?: $delivery->body_excerpt ?: '',
         );
-        if (filled($setting?->sender_identity) && filter_var($setting->sender_identity, FILTER_VALIDATE_EMAIL)) {
-            $mail->from($setting->sender_identity);
+        $sender = $setting?->sender_identity ?: data_get($setting?->settings, 'sender_number');
+        if (filled($sender) && filter_var($sender, FILTER_VALIDATE_EMAIL)) {
+            $mail->from($sender);
         }
-        Mail::to($delivery->recipient_contact, $delivery->recipient_name)->send($mail);
+        $mailer->to($delivery->recipient_contact, $delivery->recipient_name)->send($mail);
 
         return $this->delivered('Mailer accepted');
     }
