@@ -170,7 +170,11 @@ final class CommunicationDeliveryDispatcher
         }
 
         $mailer = Mail::getFacadeRoot();
-        if ($setting && Str::contains(Str::lower((string) $setting->provider), 'smtp')) {
+        if ($setting
+            && Str::contains(Str::lower((string) $setting->provider), 'smtp')
+            && (filled(data_get($setting->settings, 'endpoint_url'))
+                || filled(data_get($setting->settings, 'account_id'))
+                || filled(data_get($setting->settings, 'api_key_encrypted')))) {
             $settings = $setting->settings ?? [];
             $password = $this->apiKey($setting);
             $host = trim((string) ($settings['endpoint_url'] ?? ''));
