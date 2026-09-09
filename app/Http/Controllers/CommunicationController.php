@@ -1204,22 +1204,22 @@ final class CommunicationController extends Controller
 
         if ($channel !== 'email' || $status !== 'success') {
             CommunicationDelivery::query()->create([
-            'church_id' => $this->churchId($request),
-            'channel' => $channel,
-            'provider' => $setting->provider,
-            'recipient_name' => $request->user()?->name ?? 'System User',
-            'recipient_contact' => $request->user()?->email,
-            'subject' => 'Communication channel test',
-            'body_excerpt' => 'Provider configuration test from EcclesiaOS.',
-            'event_type' => 'ProviderTest',
-            'status' => $status === 'success' ? 'delivered' : 'failed',
-            'retry_status' => $status === 'success' ? 'none' : 'queued',
-            'attempt' => 1,
-            'latency_ms' => $status === 'success' ? 0 : null,
-            'response_code' => $status === 'success' ? '200 OK' : 'Configuration check failed',
-            'error' => $status === 'success' ? null : ($probeError ?? $validationError ?? 'Enable the channel before testing.'),
-            'sent_at' => now(),
-            'delivered_at' => $status === 'success' ? now() : null,
+                'church_id' => $this->churchId($request),
+                'channel' => $channel,
+                'provider' => $setting->provider,
+                'recipient_name' => $request->user()?->name ?? 'System User',
+                'recipient_contact' => $request->user()?->email,
+                'subject' => 'Communication channel test',
+                'body_excerpt' => 'Provider configuration test from EcclesiaOS.',
+                'event_type' => 'ProviderTest',
+                'status' => $status === 'success' ? 'delivered' : 'failed',
+                'retry_status' => $status === 'success' ? 'none' : 'queued',
+                'attempt' => 1,
+                'latency_ms' => $status === 'success' ? 0 : null,
+                'response_code' => $status === 'success' ? '200 OK' : 'Configuration check failed',
+                'error' => $status === 'success' ? null : ($probeError ?? $validationError ?? 'Enable the channel before testing.'),
+                'sent_at' => now(),
+                'delivered_at' => $status === 'success' ? now() : null,
             ]);
         }
 
