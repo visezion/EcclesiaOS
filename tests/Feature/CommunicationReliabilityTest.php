@@ -89,6 +89,31 @@ final class CommunicationReliabilityTest extends TestCase
         Notification::assertSentToTimes($user, CommunicationDeliveryNotification::class, 1);
     }
 
+    public function test_domain_notifications_include_email_when_in_app_is_requested_by_default(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id, 'status' => 'active']);
+
+        $deliveries = app(DomainNotificationService::class)->user(
+            $user,
+            'MemberCreated',
+            'registration',
+            'Welcome',
+            'Your member profile is ready.',
+            ['in_app'],
+        );
+
+        $this->assertEqualsCanonicalizing(['in_app', 'email'], $deliveries->pluck('channel')->all());
+        $this->assertDatabaseHas('communication_deliveries', [
+            'user_id' => $user->id,
+            'channel' => 'email',
+            'status' => 'delivered',
+        ]);
+        Mail::assertSent(CommunicationMail::class, fn (CommunicationMail $mail): bool => $mail->hasTo($user->email));
+    }
+
     public function test_email_delivery_uses_the_configured_laravel_mailer(): void
     {
         Mail::fake();

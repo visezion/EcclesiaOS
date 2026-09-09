@@ -4,11 +4,41 @@ declare(strict_types=1);
 
 namespace App\Services\Communications;
 
+use App\Models\User;
 use App\Models\UserNotificationPreference;
 use Illuminate\Support\Carbon;
 
 final class NotificationPreferenceResolver
 {
+    public function emailEnabled(User $user, string $category): bool
+    {
+        if (blank($user->email)) {
+            return false;
+        }
+
+        $preference = UserNotificationPreference::query()
+            ->where('church_id', $user->church_id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($preference === null) {
+            return true;
+        }
+
+        if (($preference->digest_mode ?? 'instant') === 'off' || filled($preference->opted_out_at)) {
+            return false;
+        }
+
+        $channels = (array) ($preference->channels ?? []);
+        if ($channels !== [] && ! in_array('email', $channels, true)) {
+            return false;
+        }
+
+        $categoryChannels = (array) data_get($preference->category_channels, $category, []);
+
+        return $categoryChannels === [] || in_array('email', $categoryChannels, true);
+    }
+
     /**
      * @return array{allowed: bool, reason: ?string, available_at: ?Carbon, contact: ?string}
      */

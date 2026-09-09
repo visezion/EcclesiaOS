@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Symfony\Component\Mime\Address;
 use Throwable;
 
 final class CommunicationDeliveryDispatcher
@@ -201,8 +202,16 @@ final class CommunicationDeliveryDispatcher
             $delivery->subject ?: 'Notification from EcclesiaOS',
             $delivery->body ?: $delivery->body_excerpt ?: '',
         );
-        $sender = $setting?->sender_identity ?: data_get($setting?->settings, 'sender_number');
-        if (filled($sender) && filter_var($sender, FILTER_VALIDATE_EMAIL)) {
+        $senderIdentity = trim((string) ($setting?->sender_identity ?? ''));
+        $senderEmail = trim((string) data_get($setting?->settings, 'sender_number', ''));
+        try {
+            $sender = str_contains($senderIdentity, '<') || str_contains($senderIdentity, '@')
+                ? Address::create($senderIdentity)
+                : ($senderEmail !== '' ? new Address($senderEmail, $senderIdentity) : null);
+        } catch (Throwable) {
+            $sender = null;
+        }
+        if ($sender instanceof Address) {
             $mail->from($sender);
         }
         $mailer->to($delivery->recipient_contact, $delivery->recipient_name)->send($mail);

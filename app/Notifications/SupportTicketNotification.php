@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Notifications;
 
 use App\Models\SupportTicket;
+use App\Models\User;
+use App\Services\Communications\NotificationPreferenceResolver;
 use Illuminate\Bus\Queueable;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 final class SupportTicketNotification extends Notification
@@ -20,7 +23,12 @@ final class SupportTicketNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if ($notifiable instanceof User && app(NotificationPreferenceResolver::class)->emailEnabled($notifiable, 'system')) {
+            $channels[] = 'mail';
+        }
+
+        return $channels;
     }
 
     public function toArray(object $notifiable): array
@@ -31,5 +39,14 @@ final class SupportTicketNotification extends Notification
             'message' => $this->message,
             'url' => route('support.tickets.show', $this->ticket),
         ];
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        return (new MailMessage)
+            ->subject($this->title)
+            ->greeting('Hello '.$notifiable->name.',')
+            ->line($this->message)
+            ->action('Open Support Ticket', route('support.tickets.show', $this->ticket));
     }
 }

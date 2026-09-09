@@ -40,6 +40,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\Mime\Address;
 use Throwable;
 
 final class CommunicationController extends Controller
@@ -2500,8 +2501,18 @@ final class CommunicationController extends Controller
             if ($port < 1 || $port > 65535) {
                 return 'SMTP port must be between 1 and 65535.';
             }
-            $sender = $setting->sender_identity ?: ($settings['sender_number'] ?? null);
-            if (filled($sender) && filter_var($sender, FILTER_VALIDATE_EMAIL) === false) {
+            $senderIdentity = trim((string) ($setting->sender_identity ?? ''));
+            $senderEmail = trim((string) ($settings['sender_number'] ?? ''));
+            if ($senderIdentity === '' && $senderEmail === '') {
+                return 'Sender email is required.';
+            }
+            try {
+                if ($senderIdentity !== '' && (str_contains($senderIdentity, '<') || str_contains($senderIdentity, '@'))) {
+                    Address::create($senderIdentity);
+                } elseif ($senderEmail !== '') {
+                    new Address($senderEmail);
+                }
+            } catch (Throwable) {
                 return 'Sender email must be a valid email address.';
             }
         }

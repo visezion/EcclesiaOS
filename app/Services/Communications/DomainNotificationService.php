@@ -243,6 +243,10 @@ final class DomainNotificationService
     private function applyRule(?NotificationAutomationRule $rule, string $subject, string $message, array $channels, bool $critical, array $metadata): array
     {
         if ($rule === null) {
+            if (in_array('in_app', $channels, true) && ! in_array('email', $channels, true)) {
+                $channels[] = 'email';
+            }
+
             return [$subject, $message, $channels, $critical];
         }
 

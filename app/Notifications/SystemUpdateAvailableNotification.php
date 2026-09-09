@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Notifications;
 
 use App\Models\SystemUpdate;
+use App\Models\User;
+use App\Services\Communications\NotificationPreferenceResolver;
 use Illuminate\Bus\Queueable;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 final class SystemUpdateAvailableNotification extends Notification
@@ -19,7 +22,12 @@ final class SystemUpdateAvailableNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['database'];
+        if ($notifiable instanceof User && app(NotificationPreferenceResolver::class)->emailEnabled($notifiable, 'system')) {
+            $channels[] = 'mail';
+        }
+
+        return $channels;
     }
 
     /**
@@ -34,5 +42,14 @@ final class SystemUpdateAvailableNotification extends Notification
             'version' => $this->update->version,
             'url' => route('system-updates.index'),
         ];
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        return (new MailMessage)
+            ->subject('EcclesiaOS update available')
+            ->greeting('Hello '.$notifiable->name.',')
+            ->line("Version {$this->update->version} is ready for review.")
+            ->action('Review System Update', route('system-updates.index'));
     }
 }
