@@ -27,7 +27,10 @@ final class PasswordResetLinkController extends Controller
             'status' => $status,
         ], request: $request);
 
-        // Always return the same response so account existence cannot be enumerated.
-        return back()->with('status', __(Password::RESET_LINK_SENT));
+        // Keep the response generic so account existence cannot be enumerated, but do
+        // not claim delivery when the configured mail transport rejected the request.
+        return in_array($status, [Password::RESET_LINK_SENT, Password::INVALID_USER], true)
+            ? back()->with('status', __(Password::RESET_LINK_SENT))
+            : back()->withErrors(['email' => __($status)]);
     }
 }
