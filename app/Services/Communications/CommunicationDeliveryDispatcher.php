@@ -160,7 +160,11 @@ final class CommunicationDeliveryDispatcher
         $setting = CommunicationProviderSetting::query()
             ->where('church_id', $delivery->church_id)
             ->where('channel', 'email')
-            ->first();
+            ->first()
+            ?? CommunicationProviderSetting::query()
+                ->where('channel', 'email')
+                ->where('enabled', true)
+                ->first();
 
         if ($setting && ! $setting->enabled) {
             return $this->failed('Provider disabled', 'The email channel is disabled.');

@@ -12,7 +12,12 @@
     $themeMode = in_array($settings['theme_mode'] ?? 'light', ['light', 'dark', 'system'], true) ? ($settings['theme_mode'] ?? 'light') : 'light';
     $cssVariables = ['--brand-primary' => $settings['primary_color'] ?? '#1D4ED8', '--brand-secondary' => $settings['secondary_color'] ?? '#7C3AED', '--page-bg' => $settings['page_background'] ?? '#F5F7FB', '--font-app' => $fontStacks[$settings['font_family'] ?? 'Inter'] ?? $fontStacks['Inter'], '--app-font-size' => $fontSizes[$settings['font_scale'] ?? 'default'] ?? $fontSizes['default']];
     $cssStyle = collect($cssVariables)->map(fn ($value, $key): string => $key.': '.e($value))->implode('; ');
-    $mailPreviewOnly = config('mail.default') === 'log';
+    $mailPreviewOnly = config('mail.default') === 'log'
+        && ! \App\Models\CommunicationProviderSetting::query()
+            ->where('channel', 'email')
+            ->where('enabled', true)
+            ->where('provider', 'SMTP / Mailer')
+            ->exists();
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="{{ $themeMode }}" style="font-size: {{ $branding->interfaceZoom() }}%;">
@@ -48,7 +53,7 @@
                     <div class="flex items-center gap-3 xl:hidden">@if ($logoUrl)<img src="{{ $logoUrl }}" alt="{{ $churchName }} logo" class="size-12 rounded-xl object-contain">@else<div class="grid size-12 place-items-center rounded-xl bg-slate-950 text-white"><i data-lucide="shield-check" class="size-7"></i></div>@endif<div><div class="text-xl font-black leading-tight text-slate-950">{{ $systemName }}</div><div class="text-sm leading-5 text-slate-500">{{ $subtitle }}</div></div></div>
                     <div class="mt-6"><div class="brand-bar h-1.5 w-16 rounded-full"></div><h2 class="mt-5 text-3xl font-black tracking-tight text-slate-950">Reset your password</h2><p class="mt-2 text-sm leading-6 text-slate-500">Enter your account email and we’ll send a secure reset link.</p></div>
                     @if (session('status'))<div class="mt-5 flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700"><i data-lucide="circle-check" class="mt-0.5 size-4 shrink-0"></i><span>{{ session('status') }}</span></div>@endif
-                    @if ($mailPreviewOnly)<div class="mt-5 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800"><i data-lucide="info" class="mt-0.5 size-4 shrink-0"></i><span>Development mail mode is active. The reset message is written to <code>storage/logs/laravel.log</code>, not delivered.</span></div>@endif
+                    @if ($mailPreviewOnly)<div class="mt-5 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800"><i data-lucide="info" class="mt-0.5 size-4 shrink-0"></i><span>Email delivery is not configured yet. An administrator can enable SMTP in Communications &rarr; Integrations.</span></div>@endif
                     <form method="POST" action="{{ route('password.email') }}" class="mt-6 space-y-4">@csrf<label class="block"><span class="text-sm font-semibold text-slate-700">Email address</span><input id="email" name="email" type="email" value="{{ old('email') }}" required autofocus autocomplete="email" placeholder="you@example.org" class="focus-ring mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400">@error('email')<span class="mt-2 block text-sm text-rose-600">{{ $message }}</span>@enderror</label><button class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-slate-800"><i data-lucide="send" class="size-4"></i>Send reset link</button></form>
                     <a href="{{ route('login') }}" class="mt-5 flex items-center justify-center gap-2 text-sm font-semibold text-slate-600 hover:text-violet-700"><i data-lucide="arrow-left" class="size-4"></i>Return to sign in</a>
                 </div></section>

@@ -3,15 +3,18 @@
 namespace App\Models;
 
 use App\Models\Concerns\UsesOpaqueRouteKeys;
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
+use Throwable;
 
 class User extends Authenticatable
 {
@@ -19,6 +22,67 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     use UsesOpaqueRouteKeys;
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->configurePasswordResetMailer();
+        $this->notify(new ResetPassword($token));
+    }
+
+    private function configurePasswordResetMailer(): void
+    {
+        $setting = CommunicationProviderSetting::query()
+            ->where('church_id', $this->church_id)
+            ->where('channel', 'email')
+            ->where('enabled', true)
+            ->first()
+            ?? CommunicationProviderSetting::query()
+                ->where('channel', 'email')
+                ->where('enabled', true)
+                ->first();
+
+        if (! $setting || ! str_contains(strtolower((string) $setting->provider), 'smtp')) {
+            return;
+        }
+
+        $settings = $setting->settings ?? [];
+        $host = trim((string) ($settings['endpoint_url'] ?? ''));
+        $username = trim((string) ($settings['account_id'] ?? ''));
+        $port = (int) ($settings['device_id'] ?? 587);
+        $encryptedPassword = $settings['api_key_encrypted'] ?? null;
+
+        if ($host === '' || $username === '' || $port < 1 || $port > 65535 || ! is_string($encryptedPassword) || $encryptedPassword === '') {
+            return;
+        }
+
+        try {
+            $password = Crypt::decryptString($encryptedPassword);
+        } catch (Throwable) {
+            return;
+        }
+
+        config([
+            'mail.default' => 'password_reset',
+            'mail.mailers.password_reset' => [
+                'transport' => 'smtp',
+                'host' => $host,
+                'port' => $port,
+                'username' => $username,
+                'password' => $password,
+                'scheme' => $port === 465 ? 'smtps' : 'smtp',
+                'timeout' => 20,
+            ],
+        ]);
+
+        $senderIdentity = trim((string) ($setting->sender_identity ?? ''));
+        $senderEmail = trim((string) ($settings['sender_number'] ?? ''));
+        if ($senderEmail !== '') {
+            config(['mail.from.address' => $senderEmail]);
+        }
+        if ($senderIdentity !== '') {
+            config(['mail.from.name' => $senderIdentity]);
+        }
+    }
 
     /**
      * The attributes that are mass assignable.
