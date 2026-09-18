@@ -6,6 +6,7 @@ namespace App\Notifications;
 
 use App\Models\MessageThread;
 use App\Models\UserNotificationPreference;
+use App\Support\ChurchMailBranding;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -44,11 +45,11 @@ final class NewMessageNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return (new MailMessage)
+        return app(ChurchMailBranding::class)->apply((new MailMessage)
             ->subject($this->customMessage ? 'Conversation update' : 'New internal message')
             ->greeting('Hello '.$notifiable->name.',')
             ->line($this->customMessage ?: (($this->senderName ? $this->senderName.' sent a message: ' : '').($this->thread->subject ?: 'New conversation')))
             ->action('Open Message Center', route('messages.show', $this->thread))
-            ->line('This notification was sent according to your communication preferences.');
+            ->line('This notification was sent according to your communication preferences.'), $notifiable);
     }
 }

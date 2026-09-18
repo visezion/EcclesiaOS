@@ -7,6 +7,7 @@ namespace App\Notifications;
 use App\Models\SystemUpdate;
 use App\Models\User;
 use App\Services\Communications\NotificationPreferenceResolver;
+use App\Support\ChurchMailBranding;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -46,10 +47,10 @@ final class SystemUpdateAvailableNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return (new MailMessage)
+        return app(ChurchMailBranding::class)->apply((new MailMessage)
             ->subject('EcclesiaOS update available')
             ->greeting('Hello '.$notifiable->name.',')
             ->line("Version {$this->update->version} is ready for review.")
-            ->action('Review System Update', route('system-updates.index'));
+            ->action('Review System Update', route('system-updates.index')), $notifiable);
     }
 }

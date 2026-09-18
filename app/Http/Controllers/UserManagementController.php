@@ -8,6 +8,7 @@ use App\Models\Church;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Services\Communications\EmailProviderManager;
 use App\Support\OpaqueId;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -348,12 +349,16 @@ final class UserManagementController extends Controller
 
     private function sendInvitationEmail(User $user): bool
     {
+        $churchName = trim((string) $user->church?->name) ?: config('app.name', 'EcclesiaOS');
+        $emailProviders = app(EmailProviderManager::class);
+        $providerState = $emailProviders->configureFor($user->church_id);
+
         try {
             Mail::raw(
-                "Hello {$user->name},\n\nYour KingdomHub account has been created. You can sign in with this email address and the temporary password provided by your administrator.\n\n".route('login'),
+                "Hello {$user->name},\n\nYour {$churchName} account has been created. You can sign in with this email address and the temporary password provided by your administrator.\n\n".route('login'),
                 fn ($message) => $message
                     ->to($user->email, $user->name)
-                    ->subject('Your KingdomHub invitation'),
+                    ->subject("Your {$churchName} invitation"),
             );
 
             return true;
@@ -361,11 +366,16 @@ final class UserManagementController extends Controller
             report($exception);
 
             return false;
+        } finally {
+            $emailProviders->restore($providerState);
         }
     }
 
     private function sendDirectEmail(User $user, string $subject, string $body): bool
     {
+        $emailProviders = app(EmailProviderManager::class);
+        $providerState = $emailProviders->configureFor($user->church_id);
+
         try {
             Mail::raw(
                 $body,
@@ -379,6 +389,8 @@ final class UserManagementController extends Controller
             report($exception);
 
             return false;
+        } finally {
+            $emailProviders->restore($providerState);
         }
     }
 

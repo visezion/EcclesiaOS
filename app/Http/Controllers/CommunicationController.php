@@ -2517,6 +2517,20 @@ final class CommunicationController extends Controller
             }
         }
 
+        if ($setting->channel === 'email' && (Str::contains($provider, 'sendgrid') || Str::contains($provider, 'mailgun'))) {
+            if (blank($settings['api_key_encrypted'] ?? null)) {
+                return str_contains($provider, 'sendgrid')
+                    ? 'SendGrid API key is required.'
+                    : 'Mailgun API key is required.';
+            }
+            if (Str::contains($provider, 'mailgun') && blank($settings['account_id'] ?? null)) {
+                return 'Mailgun domain is required.';
+            }
+            if (blank($settings['sender_number'] ?? null) || ! filter_var($settings['sender_number'], FILTER_VALIDATE_EMAIL)) {
+                return 'A valid sender email is required.';
+            }
+        }
+
         if ($setting->channel === 'push') {
             if (blank($settings['endpoint_url'] ?? null) && blank($settings['account_id'] ?? null)) {
                 return 'Firebase endpoint URL or project ID is required.';

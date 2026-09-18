@@ -157,14 +157,12 @@ final class CommunicationDeliveryDispatcher
 
     private function sendEmail(CommunicationDelivery $delivery): array
     {
+        $emailProviders = app(EmailProviderManager::class);
         $setting = CommunicationProviderSetting::query()
             ->where('church_id', $delivery->church_id)
             ->where('channel', 'email')
             ->first()
-            ?? CommunicationProviderSetting::query()
-                ->where('channel', 'email')
-                ->where('enabled', true)
-                ->first();
+            ?? $emailProviders->forChurch($delivery->church_id);
 
         if ($setting && ! $setting->enabled) {
             return $this->failed('Provider disabled', 'The email channel is disabled.');
@@ -175,31 +173,8 @@ final class CommunicationDeliveryDispatcher
         }
 
         $mailer = Mail::getFacadeRoot();
-        if ($setting
-            && Str::contains(Str::lower((string) $setting->provider), 'smtp')
-            && (filled(data_get($setting->settings, 'endpoint_url'))
-                || filled(data_get($setting->settings, 'account_id'))
-                || filled(data_get($setting->settings, 'api_key_encrypted')))) {
-            $settings = $setting->settings ?? [];
-            $password = $this->apiKey($setting);
-            $host = trim((string) ($settings['endpoint_url'] ?? ''));
-            $username = trim((string) ($settings['account_id'] ?? ''));
-            $port = (int) ($settings['device_id'] ?? 587);
-
-            if ($host === '' || $username === '' || $password === null || $port < 1 || $port > 65535) {
-                return $this->failed('Configuration check failed', 'SMTP host, port, username, and password are required.');
-            }
-
-            $scheme = (int) $port === 465 ? 'smtps' : 'smtp';
-            $mailer = Mail::build([
-                'transport' => 'smtp',
-                'host' => $host,
-                'port' => $port,
-                'username' => $username,
-                'password' => $password,
-                'scheme' => $scheme,
-                'timeout' => 20,
-            ]);
+        if ($setting?->enabled && ($configuredMailer = $emailProviders->mailerFor($delivery->church_id)) !== null) {
+            $mailer = $configuredMailer;
         }
 
         $mail = new CommunicationMail(

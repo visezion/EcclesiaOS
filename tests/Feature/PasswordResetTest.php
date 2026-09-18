@@ -5,7 +5,8 @@ namespace Tests\Feature;
 use App\Models\Church;
 use App\Models\CommunicationProviderSetting;
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
+use App\Notifications\PasswordResetNotification;
+use App\Services\Communications\EmailProviderManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Notification;
@@ -23,7 +24,7 @@ class PasswordResetTest extends TestCase
 
         $this->post(route('password.email'), ['email' => $user->email])->assertSessionHas('status');
 
-        Notification::assertSentTo($user, ResetPassword::class);
+        Notification::assertSentTo($user, PasswordResetNotification::class);
         $this->assertDatabaseHas('activity_logs', ['action' => 'password_reset_requested']);
     }
 
@@ -35,6 +36,18 @@ class PasswordResetTest extends TestCase
 
         $response->assertSessionHas('status')->assertSessionHasNoErrors();
         Notification::assertNothingSent();
+    }
+
+    public function test_password_reset_email_uses_the_church_name(): void
+    {
+        $church = Church::factory()->create(['name' => 'Grace Community Church']);
+        $user = User::factory()->for($church)->create();
+
+        $message = (new PasswordResetNotification('test-token'))->toMail($user);
+        $html = (string) $message->render();
+
+        $this->assertStringContainsString('Grace Community Church', $html);
+        $this->assertStringNotContainsString('KingdomHub', $html);
     }
 
     public function test_password_reset_uses_the_church_smtp_provider_when_configured(): void
@@ -60,8 +73,8 @@ class PasswordResetTest extends TestCase
 
         $this->post(route('password.email'), ['email' => $user->email])->assertSessionHas('status');
 
-        $this->assertSame('password_reset', config('mail.default'));
-        $this->assertSame('smtp.example.test', config('mail.mailers.password_reset.host'));
-        Notification::assertSentTo($user, ResetPassword::class);
+        $setting = CommunicationProviderSetting::query()->where('church_id', $user->church_id)->firstOrFail();
+        $this->assertSame('smtp.example.test', app(EmailProviderManager::class)->transport($setting)['host']);
+        Notification::assertSentTo($user, PasswordResetNotification::class);
     }
 }

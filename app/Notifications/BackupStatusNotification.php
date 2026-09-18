@@ -7,6 +7,7 @@ namespace App\Notifications;
 use App\Models\BackupRecord;
 use App\Models\User;
 use App\Services\Communications\NotificationPreferenceResolver;
+use App\Support\ChurchMailBranding;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -50,12 +51,12 @@ final class BackupStatusNotification extends Notification
     {
         $completed = $this->backup->status === 'completed';
 
-        return (new MailMessage)
+        return app(ChurchMailBranding::class)->apply((new MailMessage)
             ->subject($completed ? 'Backup completed successfully' : 'Backup failed')
             ->greeting('Hello '.$notifiable->name.',')
             ->line($completed
                 ? 'Your '.Str::headline($this->backup->type).' backup is encrypted, stored, and ready for recovery.'
                 : 'Your '.Str::headline($this->backup->type).' backup failed. Review the recovery center for details.')
-            ->action('Open Backup Center', route('backups.index', ['tab' => 'backups']));
+            ->action('Open Backup Center', route('backups.index', ['tab' => 'backups'])), $notifiable);
     }
 }

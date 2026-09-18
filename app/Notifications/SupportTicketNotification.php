@@ -7,6 +7,7 @@ namespace App\Notifications;
 use App\Models\SupportTicket;
 use App\Models\User;
 use App\Services\Communications\NotificationPreferenceResolver;
+use App\Support\ChurchMailBranding;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -43,10 +44,10 @@ final class SupportTicketNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return (new MailMessage)
+        return app(ChurchMailBranding::class)->apply((new MailMessage)
             ->subject($this->title)
             ->greeting('Hello '.$notifiable->name.',')
             ->line($this->message)
-            ->action('Open Support Ticket', route('support.tickets.show', $this->ticket));
+            ->action('Open Support Ticket', route('support.tickets.show', $this->ticket)), $notifiable);
     }
 }
