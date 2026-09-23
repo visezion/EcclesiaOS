@@ -1,6 +1,6 @@
 <x-app-layout title="Reusable Sections" :breadcrumbs="$breadcrumbs">
     <link rel="stylesheet" href="{{ asset('css/website-studio/section-builder.css') }}?v={{ filemtime(public_path('css/website-studio/section-builder.css')) }}">
-    <div class="website-studio-admin mx-auto max-w-[1500px] space-y-6">
+    <div class="website-studio-admin w-full space-y-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><div class="mb-2 inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-violet-700"><i data-lucide="blocks" class="size-3.5"></i>Website Studio · Reusable sections</div><h1 class="text-3xl font-semibold tracking-tight text-slate-950">Create and reuse sections</h1><p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Build a section once, assign it to one or many pages, and update it from one place.</p></div><a href="{{ route('website-studio.index') }}" class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700">Back to Website Studio</a></div>
         @if (session('status'))<div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{{ session('status') }}</div>@endif
         @if ($errors->any())<div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{{ $errors->first() }}</div>@endif

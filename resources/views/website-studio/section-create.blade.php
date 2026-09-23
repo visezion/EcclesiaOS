@@ -1,6 +1,6 @@
 <x-app-layout title="New Section" :breadcrumbs="$breadcrumbs">
     <link rel="stylesheet" href="{{ asset('css/website-studio/section-builder.css') }}?v={{ filemtime(public_path('css/website-studio/section-builder.css')) }}">
-    <div class="website-studio-admin section-create-page mx-auto max-w-[1500px] space-y-6">
+    <div class="website-studio-admin section-create-page w-full space-y-5">
         <a href="{{ route('website-studio.media') }}" class="inline-flex rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100">Open central media library →</a>
         <div class="rounded-3xl bg-gradient-to-br from-violet-700 via-indigo-700 to-slate-950 px-6 py-8 text-white shadow-xl shadow-violet-100 sm:px-10"><div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-black uppercase tracking-[.18em] text-violet-200">Website Studio / Reusable sections</p><h1 class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Create a new section</h1><p class="mt-3 max-w-2xl text-sm leading-6 text-violet-100">Build a reusable section once, then place it on as many pages as you need.</p></div><a href="{{ route('website-studio.sections') }}" class="rounded-xl bg-white/10 px-4 py-3 text-sm font-bold text-white ring-1 ring-white/25 hover:bg-white/20">Cancel</a></div></div>
         @if ($errors->any())<div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{{ $errors->first() }}</div>@endif

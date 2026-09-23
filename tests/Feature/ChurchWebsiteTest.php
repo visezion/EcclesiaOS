@@ -126,6 +126,22 @@ final class ChurchWebsiteTest extends TestCase
             ->assertDontSee('media-library-hero', false);
     }
 
+    public function test_reusable_section_pages_use_the_full_website_studio_width(): void
+    {
+        $church = Church::factory()->create(['name' => 'Wide Sections Church']);
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $adminRole = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($adminRole);
+
+        foreach ([route('website-studio.sections'), route('website-studio.sections.create')] as $url) {
+            $this->actingAs($user)
+                ->get($url)
+                ->assertOk()
+                ->assertSee('w-full space-y-5', false)
+                ->assertDontSee('max-w-[1500px]', false);
+        }
+    }
+
     public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void
     {
         Storage::fake('public');
