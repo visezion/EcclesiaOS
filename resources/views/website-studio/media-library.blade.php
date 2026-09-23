@@ -1,5 +1,5 @@
 <x-app-layout title="Media Library" :breadcrumbs="$breadcrumbs">
-    <div class="website-studio-admin mx-auto max-w-[1500px] space-y-6">
+    <div class="website-studio-admin w-full space-y-5">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
                 <div class="mb-2 inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-violet-700">

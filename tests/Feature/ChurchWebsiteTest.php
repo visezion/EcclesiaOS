@@ -121,6 +121,8 @@ final class ChurchWebsiteTest extends TestCase
             ->assertSee('Manage your website media')
             ->assertSee('Back to Website Studio')
             ->assertSee(route('website-studio.index'), false)
+            ->assertSee('website-studio-admin w-full space-y-5', false)
+            ->assertDontSee('max-w-[1500px]', false)
             ->assertDontSee('media-library-hero', false);
     }
 
