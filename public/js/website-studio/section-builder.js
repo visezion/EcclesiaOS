@@ -576,13 +576,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     const uploadLabel = uploadField?.closest('label');
                     if (uploadLabel) {
                         uploadLabel.classList.add('column-upload-label');
+                        const defaultTitle = mediaType === 'image' ? 'Background image' : 'Background video';
                         const labelText = [...uploadLabel.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
                         if (labelText) {
                             const title = document.createElement('span');
                             title.className = 'column-upload-title';
-                            title.textContent = mediaType === 'image' ? 'Background image' : 'Background video';
+                            title.textContent = defaultTitle;
+                            title.title = defaultTitle;
                             labelText.replaceWith(title);
                         }
+                        uploadField.addEventListener('change', () => {
+                            const title = uploadLabel.querySelector('.column-upload-title');
+                            const selectedName = uploadField.files?.[0]?.name || defaultTitle;
+                            if (title) {
+                                title.textContent = selectedName;
+                                title.title = selectedName;
+                            }
+                        });
                         const uploadIcon = document.createElement('span');
                         uploadIcon.className = `column-upload-icon ${mediaType}`;
                         uploadIcon.innerHTML = mediaType === 'image'

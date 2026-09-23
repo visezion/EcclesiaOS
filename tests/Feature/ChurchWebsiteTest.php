@@ -153,6 +153,52 @@ final class ChurchWebsiteTest extends TestCase
             ->assertDontSee('.section-create-page .bg-gradient-to-br', false);
     }
 
+    public function test_reusable_section_edit_page_uses_the_wide_branded_editor(): void
+    {
+        $church = Church::factory()->create([
+            'name' => 'Editable Sections Church',
+            'settings' => [
+                'website' => [
+                    'custom_sections' => [[
+                        'id' => 'editable-section',
+                        'title' => 'Welcome section',
+                        'components' => [],
+                        'page_slugs' => ['home'],
+                        'order' => 0,
+                    ]],
+                ],
+            ],
+        ]);
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $adminRole = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($adminRole);
+
+        $this->actingAs($user)
+            ->get(route('website-studio.sections.edit', 'editable-section'))
+            ->assertOk()
+            ->assertSee('section-edit-page w-full space-y-5', false)
+            ->assertSee('Section details')
+            ->assertSee('Design columns and widgets')
+            ->assertSee('Publish location')
+            ->assertSee('Section appearance')
+            ->assertSee('Optional section media')
+            ->assertSee('xl:grid-cols-[minmax(0,1fr)_360px]', false)
+            ->assertSee('sticky bottom-3', false)
+            ->assertDontSee('max-w-[1500px]', false)
+            ->assertDontSee('aside&gt;.dashboard-card:nth-child(2)', false);
+    }
+
+    public function test_section_builder_upload_controls_respond_to_their_column_width(): void
+    {
+        $css = file_get_contents(public_path('css/website-studio/section-builder.css'));
+        $javascript = file_get_contents(public_path('js/website-studio/section-builder.js'));
+
+        $this->assertStringContainsString('container-type: inline-size', $css);
+        $this->assertStringContainsString('@container (max-width: 34rem)', $css);
+        $this->assertStringContainsString("uploadField.addEventListener('change'", $javascript);
+        $this->assertStringContainsString('selectedName', $javascript);
+    }
+
     public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void
     {
         Storage::fake('public');

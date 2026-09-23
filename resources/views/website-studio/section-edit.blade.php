@@ -1,42 +1,119 @@
 <x-app-layout title="Edit Section" :breadcrumbs="$breadcrumbs">
     <link rel="stylesheet" href="{{ asset('css/website-studio/section-builder.css') }}?v={{ filemtime(public_path('css/website-studio/section-builder.css')) }}">
-    <div class="website-studio-admin section-edit-page mx-auto max-w-[1500px] space-y-6">
-        <div class="rounded-3xl bg-gradient-to-br from-violet-700 via-indigo-700 to-slate-950 px-6 py-8 text-white shadow-xl shadow-violet-100 sm:px-10"><div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-black uppercase tracking-[.18em] text-violet-200">Website Studio / Reusable section</p><h1 class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Edit {{ $section['title'] }}</h1><p class="mt-3 max-w-2xl text-sm leading-6 text-violet-100">Build the section visually, choose where it appears, and save one reusable design for every page.</p></div><a href="{{ route('website-studio.sections') }}" class="rounded-xl bg-white/10 px-4 py-3 text-sm font-bold text-white ring-1 ring-white/25 hover:bg-white/20">Back to sections</a></div></div>
-        @if (session('status'))<div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{{ session('status') }}</div>@endif
-        @if ($errors->any())<div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{{ $errors->first() }}</div>@endif
+
+    <div class="website-studio-admin section-edit-page w-full space-y-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+                <div class="mb-2 inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-violet-700">
+                    <i data-lucide="blocks" class="size-3.5"></i>
+                    Website Studio &middot; Reusable sections
+                </div>
+                <h1 class="text-3xl font-semibold tracking-tight text-slate-950">Edit {{ $section['title'] }}</h1>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Update the content, layout, and publish locations for this reusable section.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('website-studio.media') }}" class="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-bold text-violet-700 transition hover:bg-violet-100"><i data-lucide="images" class="size-4"></i>Open media library</a>
+                <a href="{{ route('website-studio.sections') }}" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"><i data-lucide="arrow-left" class="size-4"></i>Back to sections</a>
+            </div>
+        </div>
+
+        @if (session('status'))
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{{ session('status') }}</div>
+        @endif
+        @if ($errors->any())
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{{ $errors->first() }}</div>
+        @endif
+
         <form id="delete-section" method="POST" action="{{ route('website-studio.sections.destroy', $section['id']) }}">@csrf @method('DELETE')</form>
         <form method="POST" action="{{ route('website-studio.sections.update', $section['id']) }}" enctype="multipart/form-data" class="space-y-5">
             @csrf @method('PUT')
-            <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <section class="dashboard-card space-y-4">
-                    <div><h2 class="text-lg font-bold text-slate-950">Section content</h2><p class="mt-1 text-sm text-slate-500">Start with the section title, then add widgets inside any column.</p></div>
-                    <div class="grid gap-4 sm:grid-cols-2"><label><span class="field-label">Section title</span><input name="title" value="{{ $section['title'] }}" required class="field-input"></label><label><span class="field-label">Small label</span><input name="eyebrow" value="{{ $section['eyebrow'] ?? '' }}" class="field-input" placeholder="Your next step"></label></div>
-                    <label><span class="field-label">Intro text</span><textarea name="body" rows="4" class="field-input" placeholder="Optional introduction">{{ $section['body'] ?? '' }}</textarea></label>
-                    <div class="builder-shell" data-builder><div class="mb-2 text-xs font-bold text-slate-700">Layout builder</div><div data-builder-canvas></div><input type="hidden" name="components" data-components-output><script type="application/json" data-components-seed>@json($section['components'] ?? [])</script></div>
-                </section>
-                <aside class="space-y-5">
-                    <section class="dashboard-card space-y-4"><div><h2 class="text-base font-bold text-slate-950">Show on pages</h2><p class="mt-1 text-xs leading-5 text-slate-500">This section updates every page selected here.</p></div><div class="space-y-2">@foreach ($pages as $page)<label class="flex items-start gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm font-semibold text-slate-700"><input type="checkbox" name="page_slugs[]" value="{{ $page->slug }}" @checked(in_array($page->slug, $section['page_slugs'] ?? [], true)) class="mt-1 rounded border-slate-300 text-violet-600"><span>{{ $page->title }}</span></label>@endforeach</div></section>
-                    <section class="dashboard-card space-y-4"><div><h2 class="text-base font-bold text-slate-950">Section appearance</h2><p class="mt-1 text-xs leading-5 text-slate-500">Give this section its own background and size without changing the rest of the page.</p></div><label><span class="field-label">Background color</span><input type="color" name="background_color" value="{{ $section['background_color'] ?? '#ffffff' }}" class="color-input"></label><label><span class="field-label">Background image URL <span class="optional">(optional)</span></span><input name="background_image_url" value="{{ $section['background_image_url'] ?? '' }}" class="field-input" placeholder="https://..."></label><label><span class="field-label">Upload background image <span class="optional">(optional)</span></span><input type="file" name="background_image_file" accept="image/*" class="field-input"></label><label><span class="field-label">Background video URL <span class="optional">(optional)</span></span><input name="background_video_url" value="{{ $section['background_video_url'] ?? '' }}" class="field-input" placeholder="https://..."></label><label><span class="field-label">Upload background video <span class="optional">(optional)</span></span><input type="file" name="background_video_file" accept="video/mp4,video/webm,video/ogg" class="field-input"></label><div class="grid gap-3 sm:grid-cols-2"><label><span class="field-label">Content width</span><select name="content_width" class="field-input"><option value="default" @selected(($section['content_width'] ?? 'default') === 'default')>Default</option><option value="wide" @selected(($section['content_width'] ?? '') === 'wide')>Wide</option><option value="full" @selected(($section['content_width'] ?? '') === 'full')>Full width</option></select></label><label><span class="field-label">Section height</span><select name="section_height" class="field-input"><option value="auto" @selected(($section['section_height'] ?? 'auto') === 'auto')>Fit content</option><option value="compact" @selected(($section['section_height'] ?? '') === 'compact')>Compact</option><option value="tall" @selected(($section['section_height'] ?? '') === 'tall')>Tall</option><option value="full" @selected(($section['section_height'] ?? '') === 'full')>Full screen</option></select></label></div></section><section class="dashboard-card space-y-4"><h2 class="text-base font-bold text-slate-950">Optional media</h2><label><span class="field-label">Image URL</span><input name="image_url" value="{{ $section['image_url'] ?? '' }}" class="field-input" placeholder="https://..."></label><label><span class="field-label">Replace image</span><input type="file" name="image_file" accept="image/*" class="field-input"></label><label><span class="field-label">Video URL</span><input name="video_url" value="{{ $section['video_url'] ?? '' }}" class="field-input" placeholder="https://..."></label><label><span class="field-label">Replace video</span><input type="file" name="video_file" accept="video/mp4,video/webm,video/ogg" class="field-input"></label></section>
+            <div class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div class="min-w-0 space-y-5">
+                    <section class="dashboard-card space-y-5">
+                        <div class="flex items-start gap-3">
+                            <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-violet-50 text-sm font-black text-violet-700">1</span>
+                            <div><h2 class="text-lg font-bold text-slate-950">Section details</h2><p class="mt-1 text-sm text-slate-500">Give this reusable section a clear name and optional introduction.</p></div>
+                        </div>
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <label><span class="field-label">Section title</span><input name="title" value="{{ old('title', $section['title']) }}" required class="field-input" placeholder="A place to belong"></label>
+                            <label><span class="field-label">Small label <span class="optional">(optional)</span></span><input name="eyebrow" value="{{ old('eyebrow', $section['eyebrow'] ?? '') }}" class="field-input" placeholder="Your next step"></label>
+                        </div>
+                        <label><span class="field-label">Intro text <span class="optional">(optional)</span></span><textarea name="body" rows="3" class="field-input" placeholder="Write a short introduction...">{{ old('body', $section['body'] ?? '') }}</textarea></label>
+                    </section>
+
+                    <section class="dashboard-card overflow-hidden p-0">
+                        <div class="border-b border-slate-100 bg-gradient-to-r from-violet-50 via-white to-cyan-50 p-5 sm:p-6">
+                            <div class="flex items-start gap-3">
+                                <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-sm font-black text-violet-700 shadow-sm ring-1 ring-violet-100">2</span>
+                                <div><h2 class="text-lg font-bold text-slate-950">Design columns and widgets</h2><p class="mt-1 text-sm text-slate-500">Arrange columns, backgrounds, text, images, videos, buttons, and other content blocks.</p></div>
+                            </div>
+                        </div>
+                        <div class="p-4 sm:p-6">
+                            <div class="builder-shell" data-builder><div data-builder-canvas></div><input type="hidden" name="components" data-components-output><script type="application/json" data-components-seed>@json($section['components'] ?? [])</script></div>
+                        </div>
+                    </section>
+                </div>
+
+                <aside class="space-y-5 xl:sticky xl:top-5 xl:self-start">
+                    <section class="dashboard-card space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-violet-50 text-sm font-black text-violet-700">3</span>
+                            <div><h2 class="text-base font-bold text-slate-950">Publish location</h2><p class="mt-1 text-xs leading-5 text-slate-500">Choose every page that should display this section.</p></div>
+                        </div>
+                        <div class="space-y-2">
+                            @foreach ($pages as $page)
+                                <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-violet-200 hover:bg-violet-50"><input type="checkbox" name="page_slugs[]" value="{{ $page->slug }}" @checked(in_array($page->slug, old('page_slugs', $section['page_slugs'] ?? []), true)) class="rounded border-slate-300 text-violet-600 focus:ring-violet-500"><span>{{ $page->title }}</span></label>
+                            @endforeach
+                        </div>
+                    </section>
+
+                    <section class="dashboard-card space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700"><i data-lucide="paintbrush" class="size-4"></i></span>
+                            <div><h2 class="text-base font-bold text-slate-950">Section appearance</h2><p class="mt-1 text-xs leading-5 text-slate-500">Set the background and size for the entire section.</p></div>
+                        </div>
+                        <label><span class="field-label">Background color</span><input type="color" name="background_color" value="{{ old('background_color', $section['background_color'] ?? '#ffffff') }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white p-1"></label>
+                        <label><span class="field-label">Background image URL <span class="optional">(optional)</span></span><input name="background_image_url" value="{{ old('background_image_url', $section['background_image_url'] ?? '') }}" class="field-input" placeholder="https://..."></label>
+                        <label><span class="field-label">Replace background image</span><input type="file" name="background_image_file" accept="image/*" class="field-input"></label>
+                        <label><span class="field-label">Background video URL <span class="optional">(optional)</span></span><input name="background_video_url" value="{{ old('background_video_url', $section['background_video_url'] ?? '') }}" class="field-input" placeholder="https://..."></label>
+                        <label><span class="field-label">Replace background video</span><input type="file" name="background_video_file" accept="video/mp4,video/webm,video/ogg" class="field-input"></label>
+                        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                            <label><span class="field-label">Content width</span><select name="content_width" class="field-input"><option value="default" @selected(old('content_width', $section['content_width'] ?? 'default') === 'default')>Default</option><option value="wide" @selected(old('content_width', $section['content_width'] ?? '') === 'wide')>Wide</option><option value="full" @selected(old('content_width', $section['content_width'] ?? '') === 'full')>Full width</option></select></label>
+                            <label><span class="field-label">Section height</span><select name="section_height" class="field-input"><option value="auto" @selected(old('section_height', $section['section_height'] ?? 'auto') === 'auto')>Fit content</option><option value="compact" @selected(old('section_height', $section['section_height'] ?? '') === 'compact')>Compact</option><option value="tall" @selected(old('section_height', $section['section_height'] ?? '') === 'tall')>Tall</option><option value="full" @selected(old('section_height', $section['section_height'] ?? '') === 'full')>Full screen</option></select></label>
+                        </div>
+                    </section>
+
+                    <section class="dashboard-card space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-cyan-50 text-cyan-800"><i data-lucide="image-plus" class="size-4"></i></span>
+                            <div><h2 class="text-base font-bold text-slate-950">Optional section media</h2><p class="mt-1 text-xs leading-5 text-slate-500">Add shared media for the whole section.</p></div>
+                        </div>
+                        <label><span class="field-label">Image URL</span><input name="image_url" value="{{ old('image_url', $section['image_url'] ?? '') }}" class="field-input" placeholder="https://..."></label>
+                        <label><span class="field-label">Replace image</span><input type="file" name="image_file" accept="image/*" class="field-input"></label>
+                        <label><span class="field-label">Video URL</span><input name="video_url" value="{{ old('video_url', $section['video_url'] ?? '') }}" class="field-input" placeholder="https://..."></label>
+                        <label><span class="field-label">Replace video</span><input type="file" name="video_file" accept="video/mp4,video/webm,video/ogg" class="field-input"></label>
+                    </section>
                 </aside>
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-3"><button type="submit" form="delete-section" class="rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-600">Delete section</button><button class="rounded-xl bg-violet-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-violet-200 hover:bg-violet-700">Save section</button></div>
+
+            <div class="sticky bottom-3 z-20 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+                <button type="submit" form="delete-section" class="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-5 py-3 text-sm font-bold text-rose-600 transition hover:bg-rose-50" onclick="return confirm('Delete this reusable section?')"><i data-lucide="trash-2" class="size-4"></i>Delete section</button>
+                <div class="flex gap-2">
+                    <a href="{{ route('website-studio.sections') }}" class="inline-flex flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 sm:flex-none">Cancel</a>
+                    <button class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-violet-200 transition hover:bg-violet-700 sm:flex-none"><i data-lucide="save" class="size-4"></i>Save section</button>
+                </div>
+            </div>
         </form>
     </div>
+
     <style>
-        .section-edit-page .bg-gradient-to-br{background:#fff!important;color:#0f172a!important;padding:0!important;box-shadow:none!important}.section-edit-page .bg-gradient-to-br p{color:#64748b!important}.section-edit-page .bg-gradient-to-br a{border:1px solid #e2e8f0;background:#fff;color:#334155;box-shadow:0 4px 12px rgb(15 23 42 / .04)}
-        .section-edit-page .dashboard-card{border:1px solid #e5e7eb;border-radius:1rem;background:#fff;box-shadow:0 8px 24px rgb(15 23 42 / .04);padding:1.25rem}.section-edit-page .builder-shell{border:1px solid color-mix(in srgb, var(--studio-primary, var(--brand-primary, #7c3aed)) 25%, #fff);border-radius:1rem;background:color-mix(in srgb, var(--studio-primary, var(--brand-primary, #7c3aed)) 4%, #fff);padding:1rem}.section-edit-page input[type=file]{min-height:4rem;border:1px dashed color-mix(in srgb, var(--studio-primary, var(--brand-primary, #7c3aed)) 38%, #fff);border-radius:.8rem;background:color-mix(in srgb, var(--studio-primary, var(--brand-primary, #7c3aed)) 4%, #fff);padding:.75rem;color:#64748b;font-size:.75rem}.section-edit-page input[type=file]::file-selector-button{margin-right:.6rem;border:0;border-radius:.5rem;background:color-mix(in srgb, var(--studio-primary, var(--brand-primary, #7c3aed)) 14%, #fff);padding:.45rem .65rem;color:var(--studio-primary, var(--brand-primary, #6d28d9));font-size:.72rem;font-weight:800}.section-edit-page aside .dashboard-card{box-shadow:0 8px 24px rgb(15 23 42 / .035)}
-        .section-edit-page .dashboard-card:first-child>div:first-child:before{content:'1';display:inline-grid;place-items:center;width:2rem;height:2rem;margin-bottom:.7rem;border-radius:.65rem;background:color-mix(in srgb, var(--studio-primary, var(--brand-primary, #7c3aed)) 14%, #fff);color:var(--studio-primary, var(--brand-primary, #6d28d9));font-size:.9rem;font-weight:900}.section-edit-page .builder-shell:before{content:'2';display:inline-grid;place-items:center;width:2rem;height:2rem;margin-bottom:.7rem;border-radius:.65rem;background:color-mix(in srgb, var(--studio-primary, var(--brand-primary, #7c3aed)) 14%, #fff);color:var(--studio-primary, var(--brand-primary, #6d28d9));font-size:.9rem;font-weight:900}.section-edit-page aside .dashboard-card:first-child:before{content:'3';display:inline-grid;place-items:center;width:2rem;height:2rem;margin-bottom:.7rem;border-radius:.65rem;background:color-mix(in srgb, var(--studio-primary, var(--brand-primary, #7c3aed)) 14%, #fff);color:var(--studio-primary, var(--brand-primary, #6d28d9));font-size:.9rem;font-weight:900}.section-edit-page aside .dashboard-card:last-child:before{content:'+';display:inline-grid;place-items:center;width:2rem;height:2rem;margin-bottom:.7rem;border-radius:.65rem;background:color-mix(in srgb, var(--studio-primary, var(--brand-primary, #7c3aed)) 14%, #fff);color:var(--studio-primary, var(--brand-primary, #6d28d9));font-size:.9rem;font-weight:900}
-        .field-label{display:block;margin-bottom:.35rem;font-size:.72rem;font-weight:700;color:#475569}.field-input{display:block;width:100%;border-radius:.7rem;border:1px solid #e2e8f0;background:#fff;padding:.65rem .75rem;font-size:.875rem;color:#0f172a;outline:none}.field-input:focus{border-color:var(--studio-primary, var(--brand-primary, #8b5cf6));box-shadow:0 0 0 3px color-mix(in srgb, var(--studio-primary, var(--brand-primary, #8b5cf6)) 12%, transparent)}
-        /* Refined editor chrome */
-        .section-edit-page{color:#172033}.section-edit-page>.inline-flex{margin-bottom:-.35rem;border-color:#dbe3f0;background:#fff;color:#475569;box-shadow:0 2px 8px rgb(15 23 42 / .04);font-size:.75rem}.section-edit-page>.inline-flex:hover{border-color:#c7d2fe;background:#f8faff;color:#4f46e5}
-        .section-edit-page>.bg-gradient-to-br{position:relative;overflow:hidden;border:1px solid #e3e8f1!important;border-radius:1.25rem!important;background:linear-gradient(135deg,#ffffff 0%,#fbfaff 58%,#f5f7ff 100%)!important;padding:1.4rem 1.6rem!important;box-shadow:0 10px 28px rgb(40 45 80 / .06)!important}.section-edit-page>.bg-gradient-to-br:after{content:'';position:absolute;right:-4rem;top:-6rem;width:15rem;height:15rem;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--studio-primary,#6d4aff) 12%,transparent),transparent 68%);pointer-events:none}.section-edit-page>.bg-gradient-to-br>div{position:relative;z-index:1;align-items:center!important;gap:1rem!important}.section-edit-page>.bg-gradient-to-br p:first-child{margin:0;color:#7c3aed!important;font-size:.65rem;letter-spacing:.16em}.section-edit-page>.bg-gradient-to-br h1{margin-top:.45rem;font-size:clamp(1.7rem,3vw,2.25rem);font-weight:800;letter-spacing:-.04em;color:#101827}.section-edit-page>.bg-gradient-to-br p:not(:first-child){margin-top:.45rem;max-width:42rem;color:#64748b!important;line-height:1.5}.section-edit-page>.bg-gradient-to-br a{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid #dbe3f0;background:#fff;color:#334155;box-shadow:0 3px 10px rgb(15 23 42 / .05);padding:.65rem .85rem}.section-edit-page>.bg-gradient-to-br a:hover{border-color:#c4b5fd;background:#faf8ff;color:#5b21b6}
-        .section-edit-page>.rounded-xl.border-emerald-200,.section-edit-page>.rounded-xl.border-rose-200{display:flex;align-items:center;gap:.55rem;border-radius:.75rem;padding:.7rem .9rem;font-size:.78rem;box-shadow:0 3px 10px rgb(15 23 42 / .03)}
-        .section-edit-page .dashboard-card{border-color:#e1e7f0;border-radius:1.1rem;padding:1.35rem;box-shadow:0 8px 24px rgb(15 23 42 / .045)}.section-edit-page .dashboard-card>div>h2,.section-edit-page .dashboard-card>h2{letter-spacing:-.02em}.section-edit-page .dashboard-card>div>p{color:#718096}.section-edit-page aside{align-self:start;position:sticky;top:1.25rem}.section-edit-page aside .dashboard-card{box-shadow:0 6px 18px rgb(15 23 42 / .04)}
-        .section-edit-page .builder-shell{margin-top:.25rem;border-color:#d9dff0;background:linear-gradient(180deg,#fafbff,#f7f8fc);padding:1.15rem}.section-edit-page .builder-shell:before{margin-bottom:.8rem}.section-edit-page .section-builder-toolbar,.section-edit-page [data-builder-canvas]>.builder-toolbar{border-color:#dce3ef;border-radius:.8rem;background:#fff}
-        .section-edit-page>form>div:last-child{position:sticky;bottom:0;z-index:10;margin:0 -1.25rem;padding:1rem 1.25rem;border-top:1px solid #e5eaf2;background:rgb(248 250 252 / .94);backdrop-filter:blur(12px)}.section-edit-page>form>div:last-child button{display:inline-flex;align-items:center;gap:.45rem;border-radius:.7rem;padding:.7rem 1rem;font-size:.8rem;font-weight:800;transition:.15s ease}.section-edit-page>form>div:last-child button:first-child{border-color:#fecdd3;color:#be123c}.section-edit-page>form>div:last-child button:first-child:hover{background:#fff1f2}.section-edit-page>form>div:last-child button:last-child{background:#5b45d6;box-shadow:0 6px 14px rgb(91 69 214 / .22)}.section-edit-page>form>div:last-child button:last-child:hover{background:#4935bd;transform:translateY(-1px)}
-        .section-edit-page>a[href*="website-studio.media"]{display:none!important}.section-edit-page>.bg-gradient-to-br{margin-top:0!important}.section-edit-page>.bg-gradient-to-br p:first-child,.section-edit-page>.bg-gradient-to-br p:not(:first-child){color:#0f172a!important}.section-edit-page>.bg-gradient-to-br p:first-child{font-weight:900!important}.section-edit-page>.bg-gradient-to-br h1{color:#020617!important}.section-edit-page>.bg-gradient-to-br a{color:#0f172a!important}.section-edit-page>.bg-gradient-to-br a:hover{color:#312e81!important}
-        .section-edit-page aside>.dashboard-card:nth-child(2){display:none!important}
-        @media (max-width:900px){.section-edit-page aside{position:static}.section-edit-page>.bg-gradient-to-br{padding:1.15rem!important}.section-edit-page>form>div:last-child{margin:0 -.5rem;padding:.8rem .5rem}}
+        .section-edit-page aside input[type=file]{min-height:4rem;border:1px dashed color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 38%,#fff);border-radius:.8rem;background:color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 4%,#fff);padding:.75rem;color:#64748b;font-size:.75rem}
+        .section-edit-page aside input[type=file]::file-selector-button{margin-right:.6rem;border:0;border-radius:.5rem;background:color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 14%,#fff);padding:.45rem .65rem;color:var(--studio-primary,var(--brand-primary,#6d28d9));font-size:.72rem;font-weight:800}
+        .section-edit-page .builder-shell{border-color:color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 22%,#fff);background:color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 3%,#fff)}
+        .field-label{display:block;margin-bottom:.35rem;font-size:.72rem;font-weight:700;color:#475569}
+        .field-input{display:block;width:100%;border-radius:.7rem;border:1px solid #e2e8f0;background:#fff;padding:.65rem .75rem;font-size:.875rem;color:#0f172a;outline:none}
+        .field-input:focus{border-color:var(--studio-primary,var(--brand-primary,#8b5cf6));box-shadow:0 0 0 3px color-mix(in srgb,var(--studio-primary,var(--brand-primary,#8b5cf6)) 12%,transparent)}
+        .optional{font-weight:400;color:#94a3b8}
     </style>
     <script src="{{ asset('js/website-studio/section-builder.js') }}?v={{ filemtime(public_path('js/website-studio/section-builder.js')) }}" defer></script>
 </x-app-layout>

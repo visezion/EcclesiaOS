@@ -127,8 +127,8 @@
     </div>
 
     <style>
-        .section-create-page input[type=file]{min-height:4rem;border:1px dashed color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 38%,#fff);border-radius:.8rem;background:color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 4%,#fff);padding:.75rem;color:#64748b;font-size:.75rem}
-        .section-create-page input[type=file]::file-selector-button{margin-right:.6rem;border:0;border-radius:.5rem;background:color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 14%,#fff);padding:.45rem .65rem;color:var(--studio-primary,var(--brand-primary,#6d28d9));font-size:.72rem;font-weight:800}
+        .section-create-page aside input[type=file]{min-height:4rem;border:1px dashed color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 38%,#fff);border-radius:.8rem;background:color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 4%,#fff);padding:.75rem;color:#64748b;font-size:.75rem}
+        .section-create-page aside input[type=file]::file-selector-button{margin-right:.6rem;border:0;border-radius:.5rem;background:color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 14%,#fff);padding:.45rem .65rem;color:var(--studio-primary,var(--brand-primary,#6d28d9));font-size:.72rem;font-weight:800}
         .section-create-page .builder-shell{border-color:color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 22%,#fff);background:color-mix(in srgb,var(--studio-primary,var(--brand-primary,#7c3aed)) 3%,#fff)}
         .field-label{display:block;margin-bottom:.35rem;font-size:.72rem;font-weight:700;color:#475569}
         .field-input{display:block;width:100%;border-radius:.7rem;border:1px solid #e2e8f0;background:#fff;padding:.65rem .75rem;font-size:.875rem;color:#0f172a;outline:none}
