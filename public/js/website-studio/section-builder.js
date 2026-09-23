@@ -58,14 +58,15 @@ document.addEventListener('DOMContentLoaded', () => {
             (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' })[char],
         );
     const appRoot = window.location.pathname.split('/public/')[0];
-    const mediaBase = `${window.location.origin}${appRoot}/public/storage/`;
+    const mediaConfig = window.ecclesiaMediaConfig || {};
+    const mediaBase = mediaConfig.storageUrl || `${window.location.origin}${appRoot}/storage/`;
     const mediaUrl = (value) =>
         value && (value.startsWith('http') || value.startsWith('//'))
             ? value
             : value
               ? `${mediaBase}${value.replace(/^\/+/, '')}`
               : '';
-    const mediaLibraryUrl = () => `${window.location.origin}${appRoot}/public/website-studio/media`;
+    const mediaLibraryUrl = () => mediaConfig.libraryUrl || `${window.location.origin}${appRoot}/website-studio/media`;
     const iconChoices = [
         ['Star', '★'],
         ['Spark', '✦'],

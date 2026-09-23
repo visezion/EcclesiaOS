@@ -91,6 +91,22 @@ final class ChurchWebsiteTest extends TestCase
             ->assertDontSee('Hidden child');
     }
 
+    public function test_website_studio_emits_canonical_media_urls(): void
+    {
+        $church = Church::factory()->create(['name' => 'Media URL Church']);
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $adminRole = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($adminRole);
+
+        $this->actingAs($user)
+            ->get(route('website-studio.index'))
+            ->assertOk()
+            ->assertSee('window.ecclesiaMediaConfig', false)
+            ->assertSee(route('website-studio.media'), false)
+            ->assertSee(route('website-studio.media.upload'), false)
+            ->assertSee('storageUrl', false);
+    }
+
     public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void
     {
         Storage::fake('public');

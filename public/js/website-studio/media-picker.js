@@ -2,11 +2,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const seed = document.querySelector('#website-media-library');
     let media = JSON.parse(seed?.textContent || '[]');
     const appRoot = window.location.pathname.split('/public/')[0];
-    const base = `${window.location.origin}${appRoot}/public/storage/`;
+    const config = window.ecclesiaMediaConfig || {};
+    const base = config.storageUrl || `${window.location.origin}${appRoot}/storage/`;
     const urlFor = (path) =>
         path?.startsWith('http') || path?.startsWith('//') ? path : `${base}${String(path || '').replace(/^\/+/, '')}`;
-    const libraryUrl = `${window.location.origin}${appRoot}/public/website-studio/media`;
-    const uploadUrl = libraryUrl;
+    const libraryUrl = config.libraryUrl || `${window.location.origin}${appRoot}/website-studio/media`;
+    const uploadUrl = config.uploadUrl || libraryUrl;
     const modal = document.createElement('div');
     modal.className = 'media-picker-modal';
     modal.innerHTML = `<div class="media-picker-backdrop" data-close-media></div><div class="media-picker-dialog"><div class="media-picker-head"><div><p>Website Studio <span>/</span> Media</p><h2>Choose an image</h2><small>Select an existing image or upload a new one.</small></div><button type="button" class="media-picker-close" data-close-media>×</button></div><div class="media-picker-toolbar"><button type="button" class="media-upload-button" data-upload-new>＋&nbsp; Upload new image</button><label class="media-search"><span>⌕</span><input type="search" placeholder="Search media..." data-media-search></label><a class="media-manage" href="${libraryUrl}" target="_blank">▱&nbsp; Manage media library ↗</a></div><div class="media-picker-tabs"><button type="button" class="is-active" data-media-tab="all">All media</button><button type="button" data-media-tab="images">Images</button><button type="button" data-media-tab="recent">Recently uploaded</button></div><div class="media-picker-grid"></div><div class="media-picker-footer"><button type="button" class="media-cancel" data-close-media>Cancel</button><button type="button" class="media-use" data-use-media disabled>✓&nbsp; Use selected image</button></div></div>`;
