@@ -1441,6 +1441,10 @@ final class ChurchWebsiteController extends Controller
     private function storeWebsiteAsset(UploadedFile $file, Church $church): string
     {
         $path = $file->store('website/'.$church->id, 'public');
+        if (! is_string($path) || $path === '') {
+            throw new \RuntimeException('The uploaded media could not be stored. Check the public storage disk permissions.');
+        }
+
         $settings = $this->websiteSettings($church);
         $settings['media_library'][] = [
             'id' => (string) Str::uuid(),

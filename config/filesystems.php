@@ -43,7 +43,9 @@ return [
             'root' => storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
-            'throw' => false,
+            // Upload failures must be visible to the application instead of
+            // being persisted as a false/empty path in production.
+            'throw' => env('FILESYSTEM_THROW', true),
             'report' => false,
         ],
 

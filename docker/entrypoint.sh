@@ -99,6 +99,17 @@ bootstrap_managed_layout() {
 
 bootstrap_managed_layout
 
+# The public disk is served through /storage. Recreate the link on every
+# container start so fresh production volumes and non-managed deployments can
+# serve uploaded images and videos immediately.
+run_as_app() {
+    if [ "$(id -u)" = "0" ]; then
+        gosu www-data "$@"
+    else
+        "$@"
+    fi
+}
+
 if [ "$(id -u)" = "0" ]; then
     chown -R www-data:www-data bootstrap/cache
 
@@ -109,13 +120,7 @@ if [ "$(id -u)" = "0" ]; then
     fi
 fi
 
-run_as_app() {
-    if [ "$(id -u)" = "0" ]; then
-        gosu www-data "$@"
-    else
-        "$@"
-    fi
-}
+run_as_app php artisan storage:link --force >/dev/null
 
 wait_for_database() {
     attempts=0
