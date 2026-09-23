@@ -107,7 +107,7 @@ final class ChurchWebsiteTest extends TestCase
             ->assertSee('storageUrl', false);
     }
 
-    public function test_media_library_hero_keeps_its_branded_production_background(): void
+    public function test_media_library_uses_the_shared_website_studio_header(): void
     {
         $church = Church::factory()->create(['name' => 'Media Design Church']);
         $user = User::factory()->create(['church_id' => $church->id]);
@@ -117,9 +117,11 @@ final class ChurchWebsiteTest extends TestCase
         $this->actingAs($user)
             ->get(route('website-studio.media'))
             ->assertOk()
-            ->assertSee('media-library-hero', false)
-            ->assertSee('linear-gradient(135deg, #0b1734 0%, #172554 52%, #312e81 100%)', false)
-            ->assertSee('Your church media, beautifully organized.');
+            ->assertSee('Website Studio · Media library')
+            ->assertSee('Manage your website media')
+            ->assertSee('Back to Website Studio')
+            ->assertSee(route('website-studio.index'), false)
+            ->assertDontSee('media-library-hero', false);
     }
 
     public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void
