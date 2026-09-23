@@ -1,6 +1,9 @@
 <x-app-layout title="Media Library" :breadcrumbs="$breadcrumbs">
     <div class="website-studio-admin mx-auto max-w-[1500px] space-y-6">
-        <section class="relative isolate overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#0b1734] via-[#172554] to-[#312e81] px-6 py-8 text-white shadow-xl shadow-indigo-950/15 sm:px-10 sm:py-10">
+        <section
+            class="media-library-hero relative isolate overflow-hidden rounded-[2rem] px-6 py-8 text-white shadow-xl shadow-indigo-950/15 sm:px-10 sm:py-10"
+            style="background: linear-gradient(135deg, #0b1734 0%, #172554 52%, #312e81 100%) !important; color: #ffffff !important; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);"
+        >
             <div class="pointer-events-none absolute -right-20 -top-24 -z-10 size-72 rounded-full bg-violet-500/25 blur-3xl"></div>
             <div class="pointer-events-none absolute -bottom-32 left-1/3 -z-10 size-80 rounded-full bg-cyan-400/10 blur-3xl"></div>
             <div class="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
