@@ -140,6 +140,17 @@ final class ChurchWebsiteTest extends TestCase
                 ->assertSee('w-full space-y-5', false)
                 ->assertDontSee('max-w-[1500px]', false);
         }
+
+        $this->actingAs($user)
+            ->get(route('website-studio.sections.create'))
+            ->assertOk()
+            ->assertSee('Section details')
+            ->assertSee('Design columns and widgets')
+            ->assertSee('Publish location')
+            ->assertSee('Optional section media')
+            ->assertSee('xl:grid-cols-[minmax(0,1fr)_360px]', false)
+            ->assertSee('sticky bottom-3', false)
+            ->assertDontSee('.section-create-page .bg-gradient-to-br', false);
     }
 
     public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void
