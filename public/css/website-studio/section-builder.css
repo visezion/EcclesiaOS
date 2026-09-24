@@ -517,10 +517,59 @@
     gap: 0.5rem;
 }
 .nested-group-toolbar {
+    flex-wrap: wrap;
     border-bottom: 1px solid #e2e8f0;
     padding-bottom: 0.5rem;
     color: #475569;
     font-size: 0.72rem;
+}
+.nested-group-spacing {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 0.45rem;
+    margin-left: auto;
+}
+.nested-group-actions {
+    display: flex;
+    gap: 0.4rem;
+}
+.nested-group-help {
+    margin: -0.25rem 0 0;
+    color: #64748b;
+    font-size: 0.62rem;
+}
+.nested-group-spacing label {
+    display: grid;
+    gap: 0.15rem;
+    color: #64748b;
+    font-size: 0.58rem;
+    font-weight: 800;
+}
+.nested-group-spacing input {
+    width: 5.25rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.4rem;
+    background: #fff;
+    padding: 0.3rem 0.4rem;
+    color: #334155;
+}
+@media (max-width: 760px) {
+    .nested-group-toolbar,
+    .nested-group-spacing,
+    .nested-group-actions {
+        align-items: stretch;
+        width: 100%;
+    }
+    .nested-group-spacing label {
+        flex: 1 1 8rem;
+    }
+    .nested-group-spacing input {
+        width: 100%;
+    }
+    .nested-group-actions button {
+        flex: 1 1 0;
+    }
 }
 .nested-group-toolbar button,
 .nested-column-actions button {

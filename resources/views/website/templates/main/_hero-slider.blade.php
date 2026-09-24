@@ -2,7 +2,7 @@
     <div class="hero-art hero-slider" data-hero-slider data-autoplay="true">
         <div class="hero-slider-track">
             @foreach ($heroSlides as $slide)
-                <div class="hero-slider-slide" data-hero-slide>
+                <div class="hero-slider-slide" data-hero-slide style="--hero-media-position:{{ $slide['position'] ?? 'center' }}">
                     @if (($slide['type'] ?? 'image') === 'video')
                         <video src="{{ $slide['url'] }}" @if (!empty($slide['poster'])) poster="{{ $slide['poster'] }}" @endif autoplay muted loop playsinline preload="metadata"></video>
                     @else

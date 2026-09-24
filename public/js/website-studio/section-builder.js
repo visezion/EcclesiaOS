@@ -450,7 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
             );
         }
         if (item.type === 'card')
-            return `<div class="card-editor"><label>Card title<input data-card-field="title" value="${esc(item.title)}" placeholder="Card title"></label><label>Description<textarea data-card-field="body" rows="3" placeholder="Card description">${esc(item.body)}</textarea></label><label>Background image URL <span class="optional">(optional)</span><input data-field="url" value="${esc(item.url)}" placeholder="https://..."></label><label>Upload background image<input type="file" name="component_image_files[${item.id}]" accept="image/*"></label><label>Background video URL <span class="optional">(optional)</span><input data-field="background_video" value="${esc(item.background_video)}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_video_files[${item.id}]" accept="video/mp4,video/webm,video/ogg"></label><span class="widget-hint">Video backgrounds play muted and loop automatically.</span><div class="card-style-fields"><label>Background color<input type="color" data-field="background_color" value="${esc(item.background_color || '#6d4aff')}"></label><label>Border color<input type="color" data-field="card_border_color" value="${esc(item.card_border_color || '#ffffff')}"></label><label>Border size (px)<input type="number" min="0" max="12" data-field="card_border_width" value="${Math.max(0, Math.min(12, Number(item.card_border_width) || 0))}"></label><label>Shadow<select data-field="card_shadow"><option value="none" ${!item.card_shadow || item.card_shadow === 'none' ? 'selected' : ''}>None</option><option value="small" ${item.card_shadow === 'small' ? 'selected' : ''}>Small</option><option value="medium" ${item.card_shadow === 'medium' ? 'selected' : ''}>Medium</option><option value="large" ${item.card_shadow === 'large' ? 'selected' : ''}>Large</option></select></label><label class="card-link-field">Card link <span class="optional">(optional)</span><input data-card-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div></div>`;
+            return `<div class="card-editor"><label>Card title<input data-card-field="title" value="${esc(item.title)}" placeholder="Card title"></label><label>Description<textarea data-card-field="body" rows="3" placeholder="Card description">${esc(item.body)}</textarea></label><label>Background image URL <span class="optional">(optional)</span><input data-field="url" value="${esc(item.url)}" placeholder="https://..."></label><label>Upload background image<input type="file" name="component_image_files[${item.id}]" accept="image/*"></label><label>Background video URL <span class="optional">(optional)</span><input data-field="background_video" value="${esc(item.background_video)}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_video_files[${item.id}]" accept="video/mp4,video/webm,video/ogg"></label><span class="widget-hint">Video backgrounds play muted and loop automatically.</span><div class="card-style-fields"><label>Background color<input type="color" data-field="background_color" value="${esc(item.background_color || '#6d4aff')}"></label><label>Border color<input type="color" data-field="card_border_color" value="${esc(item.card_border_color || '#ffffff')}"></label><label>Border size (px)<input type="number" min="0" max="12" data-field="card_border_width" value="${Math.max(0, Math.min(12, Number(item.card_border_width) || 0))}"></label><label>Corner radius (px)<input type="number" min="0" max="100" data-field="card_border_radius" value="${Math.max(0, Math.min(100, Number(item.card_border_radius) || 24))}"></label><label>Shadow<select data-field="card_shadow"><option value="none" ${!item.card_shadow || item.card_shadow === 'none' ? 'selected' : ''}>None</option><option value="small" ${item.card_shadow === 'small' ? 'selected' : ''}>Small</option><option value="medium" ${item.card_shadow === 'medium' ? 'selected' : ''}>Medium</option><option value="large" ${item.card_shadow === 'large' ? 'selected' : ''}>Large</option></select></label><label class="card-link-field">Card link <span class="optional">(optional)</span><input data-card-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div></div>`;
         if (item.type === 'icon')
             return `<div class="icon-editor"><label>Icon symbol<input data-icon-field="icon" value="${esc(item.icon || '✦')}" maxlength="8" placeholder="✦"><button type="button" class="icon-library-button" data-open-icon-library>Choose from icon library</button></label><div class="icon-style-fields"><label>Icon color<input type="color" data-field="icon_color" value="${esc(item.icon_color || '#6d4aff')}"></label><label>Background<input type="color" data-field="background_color" value="${esc(item.background_color || '#ede9fe')}"></label><label>Size (px)<input type="number" min="24" max="160" data-field="icon_size" value="${Number(item.icon_size) || 56}"></label></div><label>Alignment<select data-field="align"><option value="left" ${!item.align || item.align === 'left' ? 'selected' : ''}>Left</option><option value="center" ${item.align === 'center' ? 'selected' : ''}>Center</option><option value="right" ${item.align === 'right' ? 'selected' : ''}>Right</option></select></label><label>Link <span class="optional">(optional)</span><input data-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div>`;
         if (item.type === 'image')
@@ -468,6 +468,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const makeColumnGroup = (columns = [], widths = []) => ({
         type: 'columns',
         id: id(),
+        gap: 24,
+        margin: 0,
         columns: (columns.length ? columns : [{ components: [] }]).map((column, index) => ({
             id: column.id || id(),
             width: Number(widths[index] || column.width) || 1,
@@ -475,6 +477,9 @@ document.addEventListener('DOMContentLoaded', () => {
             background_transparent: column.background_color === 'transparent' || Boolean(column.background_transparent),
             background_image: column.background_image || '',
             background_video: column.background_video || '',
+            background_position: column.background_position || 'center',
+            border_radius: Number(column.border_radius) || 0,
+            padding: column.padding === 0 ? 0 : (Number(column.padding) || 16),
             height: column.height || 'auto',
             column_width: column.column_width || column.content_width || 'default',
             components: column.components || [],
@@ -503,7 +508,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return {
                 type: 'columns',
                 id: value.id || id(),
-                groups: groups.map((group) => makeColumnGroup(group.columns || [])),
+                groups: groups.map((group) => ({
+                    ...makeColumnGroup(group.columns || []),
+                    id: group.id || id(),
+                    gap: Math.max(0, Math.min(100, group.gap === undefined ? 24 : Number(group.gap) || 0)),
+                    margin: Math.max(0, Math.min(120, Number(group.margin) || 0)),
+                })),
             };
         }
         return { type: 'columns', id: id(), groups: [makeColumnGroup()] };
@@ -533,8 +543,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderContainer = (container, host) => {
             const row = document.createElement('div');
             row.className = 'nested-column-group';
-            row.innerHTML = `<div class="nested-group-toolbar"><strong>Column group</strong><button type="button" data-add-column>+ Add column</button><button type="button" data-remove-column>- Remove column</button></div><div class="nested-column-list"></div>`;
+            row.innerHTML = `<div class="nested-group-toolbar"><strong>Column group</strong><div class="nested-group-spacing"><label>Between columns (px)<input type="number" min="0" max="100" value="${Math.max(0, Math.min(100, Number(container.gap) || 0))}" data-group-spacing="gap"></label><label>Outside row (px)<input type="number" min="0" max="120" value="${Math.max(0, Math.min(120, Number(container.margin) || 0))}" data-group-spacing="margin"></label><button type="button" data-spacing-preset="flush" title="Remove gap, row margin, and padding from every column">No spacing</button><button type="button" data-spacing-preset="comfortable" title="Restore comfortable default spacing">Default spacing</button></div><div class="nested-group-actions"><button type="button" data-add-column>+ Add column</button><button type="button" data-remove-column>- Remove column</button></div></div><p class="nested-group-help">Use <strong>No spacing</strong> for edge-to-edge 50/50, three-column, or four-column rows.</p><div class="nested-column-list"></div>`;
             const list = row.querySelector('.nested-column-list');
+            row.querySelectorAll('[data-group-spacing]').forEach((field) => field.addEventListener('input', () => {
+                container[field.dataset.groupSpacing] = Math.max(0, Number(field.value) || 0);
+                sync();
+            }));
+            row.querySelectorAll('[data-spacing-preset]').forEach((button) => button.addEventListener('click', () => {
+                const flush = button.dataset.spacingPreset === 'flush';
+                container.gap = flush ? 0 : 24;
+                container.margin = 0;
+                container.columns.forEach((item) => { item.padding = flush ? 0 : 16; });
+                render();
+            }));
             const refreshColumnVisuals = () => {
                 const total = container.columns.reduce((sum, item) => sum + Math.max(1, Number(item.width) || 1), 0);
                 list.style.gridTemplateColumns = container.columns
@@ -547,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             list.addEventListener('dragover', (event) => event.preventDefault());
             row.querySelector('[data-add-column]').addEventListener('click', () => {
-                container.columns.push({ id: id(), width: 1, background_color: 'transparent', background_transparent: true, background_image: '', background_video: '', height: 'auto', column_width: 'default', components: [] });
+                container.columns.push({ id: id(), width: 1, background_color: 'transparent', background_transparent: true, background_image: '', background_video: '', background_position: 'center', border_radius: 0, padding: 16, height: 'auto', column_width: 'default', components: [] });
                 render();
             });
             row.querySelector('[data-remove-column]').addEventListener('click', () => {
@@ -566,7 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 )
                     .map((type) => `<button type="button" data-add="${type}"><span class="widget-action-icon">${widgetIcons[type]}</span><span>+ ${labels[type]}</span></button>`)
                     .join('')}</div><div class="nested-column-content"></div>`;
-                columnEl.querySelector('.nested-column-heading').insertAdjacentHTML('afterend', `<div class="column-style-fields"><label>Background color<input type="color" data-column-field="background_color" value="${esc(column.background_color === 'transparent' ? '#ffffff' : (column.background_color || '#ffffff'))}"><span class="column-transparent-toggle"><input type="checkbox" data-column-field="background_transparent" ${column.background_transparent ? 'checked' : ''}> Transparent</span></label><label>Background image URL<input data-column-field="background_image" value="${esc(column.background_image || '')}" placeholder="https://..."></label><label>Upload background image<input type="file" name="component_image_files[${column.id || id()}]" accept="image/*"></label><label>Background video URL<input data-column-field="background_video" value="${esc(column.background_video || '')}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_video_files[${column.id || id()}]" accept="video/mp4,video/webm,video/ogg"></label><label>Column height<select data-column-field="height"><option value="auto" ${!column.height || column.height === 'auto' ? 'selected' : ''}>Fit content</option><option value="compact" ${column.height === 'compact' ? 'selected' : ''}>Compact</option><option value="tall" ${column.height === 'tall' ? 'selected' : ''}>Tall</option><option value="full" ${column.height === 'full' ? 'selected' : ''}>Full height</option></select></label><label>Column width<select data-column-field="column_width"><option value="default" ${!column.column_width || column.column_width === 'default' ? 'selected' : ''}>Default width</option><option value="wide" ${column.column_width === 'wide' ? 'selected' : ''}>Wide</option><option value="full" ${column.column_width === 'full' ? 'selected' : ''}>Full width</option></select></label></div>`);
+                columnEl.querySelector('.nested-column-heading').insertAdjacentHTML('afterend', `<div class="column-style-fields"><label>Background color<input type="color" data-column-field="background_color" value="${esc(column.background_color === 'transparent' ? '#ffffff' : (column.background_color || '#ffffff'))}"><span class="column-transparent-toggle"><input type="checkbox" data-column-field="background_transparent" ${column.background_transparent ? 'checked' : ''}> Transparent</span></label><label>Background image URL<input data-column-field="background_image" value="${esc(column.background_image || '')}" placeholder="https://..."></label><label>Select or upload background image<input type="file" name="component_image_files[${column.id || id()}]" accept="image/*" data-media-url-field="background_image" aria-label="Select an existing image or upload a new column background image"></label><label>Image position<select data-column-field="background_position"><option value="center" ${!column.background_position || column.background_position === 'center' ? 'selected' : ''}>Center</option><option value="top" ${column.background_position === 'top' ? 'selected' : ''}>Top</option><option value="bottom" ${column.background_position === 'bottom' ? 'selected' : ''}>Bottom</option><option value="left" ${column.background_position === 'left' ? 'selected' : ''}>Left</option><option value="right" ${column.background_position === 'right' ? 'selected' : ''}>Right</option></select></label><label>Corner radius (px)<input type="number" min="0" max="100" data-column-field="border_radius" value="${Math.max(0, Math.min(100, Number(column.border_radius) || 0))}"></label><label>Inner padding (px)<input type="number" min="0" max="100" data-column-field="padding" value="${column.padding === 0 ? 0 : Math.max(0, Math.min(100, Number(column.padding) || 16))}"></label><label>Background video URL<input data-column-field="background_video" value="${esc(column.background_video || '')}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_video_files[${column.id || id()}]" accept="video/mp4,video/webm,video/ogg"></label><label>Column height<select data-column-field="height"><option value="auto" ${!column.height || column.height === 'auto' ? 'selected' : ''}>Fit content</option><option value="compact" ${column.height === 'compact' ? 'selected' : ''}>Compact</option><option value="tall" ${column.height === 'tall' ? 'selected' : ''}>Tall</option><option value="full" ${column.height === 'full' ? 'selected' : ''}>Full height</option></select></label><label>Column width<select data-column-field="column_width"><option value="default" ${!column.column_width || column.column_width === 'default' ? 'selected' : ''}>Default width</option><option value="wide" ${column.column_width === 'wide' ? 'selected' : ''}>Wide</option><option value="full" ${column.column_width === 'full' ? 'selected' : ''}>Full width</option></select></label></div>`);
                 columnEl.querySelector('.column-style-fields').insertAdjacentHTML('afterbegin', '<div class="column-style-header"><span class="column-style-icon">▧</span><div><strong>Background</strong><small>Set the background style and add content blocks to build your layout.</small></div></div>');
                 ['image', 'video'].forEach((mediaType) => {
                     const fieldName = mediaType === 'image' ? 'background_image' : 'background_video';
@@ -576,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const uploadLabel = uploadField?.closest('label');
                     if (uploadLabel) {
                         uploadLabel.classList.add('column-upload-label');
-                        const defaultTitle = mediaType === 'image' ? 'Background image' : 'Background video';
+                        const defaultTitle = mediaType === 'image' ? 'Select or upload image' : 'Background video';
                         const labelText = [...uploadLabel.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
                         if (labelText) {
                             const title = document.createElement('span');
@@ -694,8 +715,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         id: id(),
                         type: 'columns',
                         columns: [
-                            { id: id(), width: 1, background_color: 'transparent', background_transparent: true, background_image: '', background_video: '', height: 'auto', column_width: 'default', components: [] },
-                            { id: id(), width: 1, background_color: 'transparent', background_transparent: true, background_image: '', background_video: '', height: 'auto', column_width: 'default', components: [] },
+                            { id: id(), width: 1, background_color: 'transparent', background_transparent: true, background_image: '', background_video: '', background_position: 'center', border_radius: 0, padding: 16, height: 'auto', column_width: 'default', components: [] },
+                            { id: id(), width: 1, background_color: 'transparent', background_transparent: true, background_image: '', background_video: '', background_position: 'center', border_radius: 0, padding: 16, height: 'auto', column_width: 'default', components: [] },
                         ],
                     });
                     render();
@@ -725,6 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             background_video: type === 'card' ? '' : '',
                             card_border_width: type === 'card' ? 0 : 0,
                             card_border_color: type === 'card' ? '#ffffff' : '',
+                            card_border_radius: type === 'card' ? 24 : 0,
                             card_shadow: type === 'card' ? 'none' : '',
                             link: '',
                             align: 'left',

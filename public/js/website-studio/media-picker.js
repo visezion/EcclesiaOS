@@ -23,9 +23,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const query = (modal.querySelector('[data-media-search]').value || '').toLowerCase();
         const filtered = media.filter((item) => {
             const matchesTab = currentTab !== 'recent' || media.indexOf(item) < 8;
+            const isImage = String(item.type || '').startsWith('image');
             return (
                 matchesTab &&
-                (currentTab !== 'images' || (item.type || '').startsWith('image')) &&
+                isImage &&
                 (!query ||
                     String(item.name || '')
                         .toLowerCase()
@@ -89,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     '[data-gallery-field="url"][data-gallery-index="' + (start + offset) + '"]',
                 );
                 if (input) {
-                    input.value = urlFor(entry.path);
+                    input.value = entry.path;
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                 }
             });
@@ -98,6 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const slide = target.closest('.carousel-slide');
+        const heroSlide = target.closest('[data-hero-slide-row]');
+        const column = target.closest('.nested-column');
+        const explicitColumnField = target.dataset.mediaUrlField;
         const urlField = {
             image_file: 'image_url',
             logo_file: 'logo_url',
@@ -107,6 +111,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }[target.name];
         const urlInput =
             slide?.querySelector('[data-slide-field="image"]') ||
+            heroSlide?.querySelector('[data-hero-field="url"]') ||
+            (explicitColumnField ? column?.querySelector(`[data-column-field="${explicitColumnField}"]`) : null) ||
+            column?.querySelector('[data-column-field="background_image"]') ||
             (target.dataset.galleryImageIndex
                 ? block?.querySelector(
                       '[data-gallery-field="url"][data-gallery-index="' + target.dataset.galleryImageIndex + '"]',
@@ -115,7 +122,9 @@ document.addEventListener('DOMContentLoaded', () => {
             block?.querySelector('[data-field="url"]') ||
             (urlField ? target.form?.querySelector(`input[name="${urlField}"]`) : null);
         if (urlInput) {
-            urlInput.value = urlFor(selected.path);
+            // Keep stored media portable between local, staging, and production.
+            // The public renderer resolves this disk-relative path at request time.
+            urlInput.value = selected.path;
             urlInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
         target.value = '';

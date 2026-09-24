@@ -8,6 +8,19 @@
     --font: Manrope, Arial, sans-serif;
 }
 
+html,
+body {
+    max-width: 100%;
+    overflow-x: clip;
+}
+
+img,
+video,
+iframe,
+svg {
+    max-width: 100%;
+}
+
 /* Website Studio navigation styles. These variants preserve the same
    accessible mobile menu while giving desktop sites distinct personalities. */
 @media (min-width: 851px) {
@@ -347,7 +360,7 @@ video {
 }
 .hero-art {
     position: relative;
-    min-height: 430px;
+    min-height: var(--hero-media-height, 560px);
     overflow: hidden;
     border-radius: 30px;
     background: linear-gradient(145deg, var(--primary), #173b2b);
@@ -367,7 +380,8 @@ video {
 .hero-slider-slide { position:absolute; inset:0; display:none; }
 .hero-slider-slide.is-active { display:block; }
 .hero-slider-slide img,
-.hero-slider-slide video { width:100%; height:100%; object-fit:cover; }
+.hero-slider-slide video { width:100%; height:100%; object-fit:cover; object-position:var(--hero-media-position, center); }
+.hero-slider-slide img { object-position:var(--hero-media-position, center); }
 .hero-slider-control { position:absolute; z-index:3; top:50%; display:grid; width:42px; height:42px; place-items:center; border:1px solid rgb(255 255 255 / 30%); border-radius:50%; background:rgb(0 0 0 / 35%); color:#fff; cursor:pointer; font-size:28px; line-height:1; transform:translateY(-50%); }
 .hero-slider-control:hover { background:var(--primary); }
 .hero-slider-prev { left:22px; }.hero-slider-next { right:22px; }
@@ -789,8 +803,8 @@ footer {
     display: grid;
     grid-template-columns: repeat(1, minmax(0, 1fr));
     align-items: start;
-    gap: 24px;
-    margin-top: 0;
+    gap: var(--column-group-gap, 24px);
+    margin-block: var(--column-group-margin, 0);
 }
 
 .component-column {
@@ -900,7 +914,7 @@ footer {
     position: relative;
     overflow: hidden;
     min-height: 210px;
-    border-radius: 1.1rem;
+    border-radius: var(--card-border-radius, 24px);
     border: var(--card-border-width, 0) solid var(--card-border-color, transparent);
     background: var(--card-background, #6d4aff);
     color: #fff;
@@ -1005,11 +1019,12 @@ footer {
     min-height: var(--column-min-height, auto);
     overflow: hidden;
     background-color: var(--column-background-color, #fff);
-    background-position: center;
+    border-radius: var(--column-border-radius, 0);
+    background-position: var(--column-background-position, center);
     background-size: cover;
     background-repeat: no-repeat;
     isolation: isolate;
-    padding: 1rem;
+    padding: var(--column-padding, 16px);
 }
 .has-column-presentation > *:not(.component-column-background) {
     position: relative;
@@ -1026,6 +1041,7 @@ footer {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: var(--column-background-position, center);
     pointer-events: none;
 }
 .has-column-video::after {
@@ -1037,10 +1053,10 @@ footer {
     pointer-events: none;
 }
 .component-group-stack > .column-full-bleed {
-    width: 100vw;
-    max-width: 100vw;
-    margin-left: calc(50% - 50vw);
-    margin-right: calc(50% - 50vw);
+    width: 100%;
+    max-width: 100%;
+    margin-right: 0;
+    margin-left: 0;
 }
 .content-icon-widget {
     display: flex;
@@ -2255,7 +2271,9 @@ footer {
 }
 
 .hero-art {
-    min-height: min(760px, calc(100vh - 80px));
+    height: var(--hero-media-height, 560px);
+    min-height: var(--hero-media-height, 560px);
+    max-height: var(--hero-media-height, 560px);
     border-radius: 0;
     background: #252525;
     box-shadow: none;

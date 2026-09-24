@@ -25,6 +25,7 @@
         'type' => $slide['type'] ?? 'image',
         'url' => $assetUrl($slide['url'] ?? null),
         'poster' => $assetUrl($slide['poster'] ?? null),
+        'position' => in_array($slide['position'] ?? 'center', ['center', 'top', 'bottom', 'left', 'right'], true) ? ($slide['position'] ?? 'center') : 'center',
     ])->filter(fn (array $slide): bool => filled($slide['url']))->values()->all();
     if ($heroSlides === []) {
         $heroSlides = collect($heroVideoUrl ? [['type' => 'video', 'url' => $heroVideoUrl, 'poster' => $heroImageUrl]] : ($heroImageUrl ? [['type' => 'image', 'url' => $heroImageUrl, 'poster' => null]] : []))->all();
@@ -56,7 +57,7 @@
     @if ($faviconUrl)<link rel="icon" href="{{ $faviconUrl }}"><link rel="shortcut icon" href="{{ $faviconUrl }}">@endif
     <link rel="stylesheet" href="{{ asset('css/website/templates/main.css') }}?v={{ filemtime(public_path('css/website/templates/main.css')) }}">
 </head>
-<body class="theme-{{ $colorScheme }} menu-style-{{ in_array($settings['menu_style'] ?? 'classic', ['classic', 'floating', 'centered', 'pill', 'accent'], true) ? ($settings['menu_style'] ?? 'classic') : 'classic' }}" data-default-theme="{{ $colorScheme }}" data-theme-key="ecclesia-site-theme-{{ $church->slug }}" style="--primary:{{ $settings['primary_color'] }};--accent:{{ $settings['accent_color'] }};--font:'{{ $settings['font'] ?? 'Manrope' }}',Arial,sans-serif">
+<body class="theme-{{ $colorScheme }} menu-style-{{ in_array($settings['menu_style'] ?? 'classic', ['classic', 'floating', 'centered', 'pill', 'accent'], true) ? ($settings['menu_style'] ?? 'classic') : 'classic' }}" data-default-theme="{{ $colorScheme }}" data-theme-key="ecclesia-site-theme-{{ $church->slug }}" style="--primary:{{ $settings['primary_color'] }};--accent:{{ $settings['accent_color'] }};--font:'{{ $settings['font'] ?? 'Manrope' }}',Arial,sans-serif;--hero-media-height:{{ max(300, min(900, (int) ($settings['hero_height'] ?? 560))) }}px">
     @if ($preview)<div class="preview-bar">Preview mode · unpublished changes are visible only to you</div>@endif
     <div class="site-shell">
         <header class="site-header" data-header>

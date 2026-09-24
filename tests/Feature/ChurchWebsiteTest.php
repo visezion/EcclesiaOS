@@ -192,11 +192,24 @@ final class ChurchWebsiteTest extends TestCase
     {
         $css = file_get_contents(public_path('css/website-studio/section-builder.css'));
         $javascript = file_get_contents(public_path('js/website-studio/section-builder.js'));
+        $mediaPicker = file_get_contents(public_path('js/website-studio/media-picker.js'));
 
         $this->assertStringContainsString('container-type: inline-size', $css);
         $this->assertStringContainsString('@container (max-width: 34rem)', $css);
         $this->assertStringContainsString("uploadField.addEventListener('change'", $javascript);
         $this->assertStringContainsString('selectedName', $javascript);
+        $this->assertStringContainsString('data-media-url-field="background_image"', $javascript);
+        $this->assertStringContainsString('Select or upload image', $javascript);
+        $this->assertStringContainsString('data-spacing-preset="flush"', $javascript);
+        $this->assertStringContainsString('No spacing', $javascript);
+        $this->assertStringContainsString('container.columns.forEach', $javascript);
+        $this->assertStringContainsString('explicitColumnField', $mediaPicker);
+        $this->assertStringContainsString('urlInput.value = selected.path', $mediaPicker);
+
+        $publicCss = file_get_contents(public_path('css/website/templates/main.css'));
+        $this->assertStringContainsString('height: var(--hero-media-height, 560px)', $publicCss);
+        $this->assertStringContainsString('overflow-x: clip', $publicCss);
+        $this->assertStringNotContainsString('margin-left: calc(50% - 50vw)', $publicCss);
     }
 
     public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void
@@ -221,8 +234,14 @@ final class ChurchWebsiteTest extends TestCase
             'groups' => [[
                 'id' => 'group-one',
                 'type' => 'columns',
+                'gap' => 0,
+                'margin' => 0,
                 'columns' => [[
                     'width' => 1,
+                    'background_image' => 'website/library/portable-column.webp',
+                    'background_position' => 'top',
+                    'border_radius' => 36,
+                    'padding' => 0,
                     'components' => [
                         [
                             'id' => $linkedCardId,
@@ -233,6 +252,7 @@ final class ChurchWebsiteTest extends TestCase
                             'background_color' => '#6d4aff',
                             'card_border_width' => 3,
                             'card_border_color' => '#F59E0B',
+                            'card_border_radius' => 42,
                             'card_shadow' => 'large',
                         ],
                         [
@@ -275,6 +295,7 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertNotNull($section);
         $savedComponents = data_get($section, 'components.groups.0.columns.0.components');
         $linkedCard = collect($savedComponents)->firstWhere('id', $linkedCardId);
+        $savedColumn = data_get($section, 'components.groups.0.columns.0');
         $uploadedCard = collect($savedComponents)->firstWhere('id', $uploadedCardId);
         $slider = collect($savedComponents)->firstWhere('id', $sliderId);
         $uploadedCardPath = data_get($uploadedCard, 'background_video');
@@ -283,7 +304,12 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertSame($remoteVideo, data_get($linkedCard, 'background_video'));
         $this->assertSame(3, data_get($linkedCard, 'card_border_width'));
         $this->assertSame('#F59E0B', data_get($linkedCard, 'card_border_color'));
+        $this->assertSame(42, data_get($linkedCard, 'card_border_radius'));
         $this->assertSame('large', data_get($linkedCard, 'card_shadow'));
+        $this->assertSame('top', data_get($savedColumn, 'background_position'));
+        $this->assertSame(36, data_get($savedColumn, 'border_radius'));
+        $this->assertSame(0, data_get($savedColumn, 'padding'));
+        $this->assertSame(0, data_get($section, 'components.groups.0.gap'));
         $this->assertNotEmpty($uploadedCardPath);
         $this->assertNotEmpty($uploadedSliderPath);
         Storage::disk('public')->assertExists($uploadedCardPath);
@@ -299,6 +325,11 @@ final class ChurchWebsiteTest extends TestCase
             ->assertSee('content-card-shadow-large', false)
             ->assertSee('--card-border-width: 3px', false)
             ->assertSee('--card-border-color: #F59E0B', false)
+            ->assertSee('--card-border-radius:42px', false)
+            ->assertSee('--column-border-radius:36px', false)
+            ->assertSee('--column-background-position:top', false)
+            ->assertSee('--column-group-gap:0px', false)
+            ->assertSee('--column-padding:0px', false)
             ->assertSee('data-background-video', false)
             ->assertSee('autoplay muted loop', false);
     }
@@ -410,6 +441,15 @@ final class ChurchWebsiteTest extends TestCase
                 'hero_body' => 'Come worship with us.',
                 'hero_button_label' => 'Plan a visit',
                 'hero_button_url' => '#visit',
+                'hero_height' => 640,
+                'hero_slides_configured' => '1',
+                'hero_slides' => [
+                    'library-image' => [
+                        'type' => 'image',
+                        'url' => 'website/library/portable-hero.webp',
+                        'position' => 'right',
+                    ],
+                ],
                 'welcome_heading' => 'You have a place here.',
                 'welcome_body' => 'We are glad you are here.',
                 'navigation_configured' => '1',
@@ -427,6 +467,8 @@ final class ChurchWebsiteTest extends TestCase
         $homepage = WebsitePage::query()->where('church_id', $church->id)->where('slug', 'home')->firstOrFail();
         $this->assertSame('published', $homepage->status);
         $this->assertSame('main', data_get($church->fresh()->settings, 'website.template'));
+        $this->assertSame(640, data_get($church->fresh()->settings, 'website.hero_height'));
+        $this->assertSame('right', data_get($church->fresh()->settings, 'website.hero_slides.0.position'));
         $this->assertSame('main', data_get(WebsitePage::query()->where('church_id', $church->id)->where('slug', 'about')->firstOrFail()->design, 'starter_template'));
 
         $this->actingAs($user)
@@ -452,6 +494,8 @@ final class ChurchWebsiteTest extends TestCase
         $this->get(route('website.public', ['church' => $church->slug]))
             ->assertOk()
             ->assertSee('A place to belong.')
+            ->assertSee('--hero-media-height:640px', false)
+            ->assertSee('--hero-media-position:right', false)
             ->assertSee('Harbour Light Church')
             ->assertSee('href="#welcome"', false)
             ->assertSee('Welcome', false)

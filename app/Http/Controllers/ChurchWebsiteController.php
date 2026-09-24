@@ -116,6 +116,8 @@ final class ChurchWebsiteController extends Controller
             'hero_slides.*.type' => ['nullable', Rule::in(['image', 'video'])],
             'hero_slides.*.url' => ['nullable', 'string', 'max:500'],
             'hero_slides.*.poster' => ['nullable', 'string', 'max:500'],
+            'hero_slides.*.position' => ['nullable', Rule::in(['center', 'top', 'bottom', 'left', 'right'])],
+            'hero_height' => ['nullable', 'integer', 'between:300,900'],
             'hero_slides_configured' => ['nullable', 'boolean'],
             'hero_slide_files' => ['nullable', 'array', 'max:12'],
             'hero_slide_files.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,mp4,webm,ogg', 'max:51200'],
@@ -667,6 +669,7 @@ final class ChurchWebsiteController extends Controller
             'hero_image_url' => null,
             'hero_video_url' => null,
             'hero_slides' => [],
+            'hero_height' => 560,
             'primary_color' => '#4338CA',
             'accent_color' => '#F59E0B',
             'color_scheme' => 'dark',
@@ -766,7 +769,7 @@ final class ChurchWebsiteController extends Controller
         return $settings;
     }
 
-    /** @return list<array{type: string, url: string, poster: string}> */
+    /** @return list<array{type: string, url: string, poster: string, position: string}> */
     private function normalizeHeroSlides(mixed $slides): array
     {
         if (is_string($slides)) {
@@ -778,6 +781,7 @@ final class ChurchWebsiteController extends Controller
                 'type' => ($slide['type'] ?? 'image') === 'video' ? 'video' : 'image',
                 'url' => trim((string) ($slide['url'] ?? '')),
                 'poster' => trim((string) ($slide['poster'] ?? '')),
+                'position' => in_array($slide['position'] ?? 'center', ['center', 'top', 'bottom', 'left', 'right'], true) ? ($slide['position'] ?? 'center') : 'center',
             ])->filter(fn (array $slide): bool => $slide['url'] !== '')
             ->take(12)->values()->all();
     }
@@ -876,6 +880,7 @@ final class ChurchWebsiteController extends Controller
                 'background_video' => $type === 'card' ? Str::limit((string) ($component['background_video'] ?? ''), 500, '') : '',
                 'card_border_width' => $type === 'card' ? max(0, min(12, (int) ($component['card_border_width'] ?? 0))) : 0,
                 'card_border_color' => $type === 'card' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['card_border_color'] ?? '')) ? $component['card_border_color'] : '#ffffff',
+                'card_border_radius' => $type === 'card' ? max(0, min(100, (int) ($component['card_border_radius'] ?? 24))) : 0,
                 'card_shadow' => $type === 'card' && in_array($component['card_shadow'] ?? null, ['none', 'small', 'medium', 'large'], true) ? $component['card_shadow'] : 'none',
                 'align' => in_array($component['align'] ?? null, ['left', 'center', 'right', 'justify'], true) ? $component['align'] : 'left',
                 'icon' => $type === 'icon' ? Str::limit((string) ($component['icon'] ?? '✦'), 8, '') : '',
@@ -923,6 +928,9 @@ final class ChurchWebsiteController extends Controller
                 'background_transparent' => ($column['background_color'] ?? null) === 'transparent' || filter_var($column['background_transparent'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'background_image' => Str::limit((string) ($column['background_image'] ?? ''), 500, ''),
                 'background_video' => Str::limit((string) ($column['background_video'] ?? ''), 500, ''),
+                'background_position' => in_array($column['background_position'] ?? 'center', ['center', 'top', 'bottom', 'left', 'right'], true) ? ($column['background_position'] ?? 'center') : 'center',
+                'border_radius' => max(0, min(100, (int) ($column['border_radius'] ?? 0))),
+                'padding' => max(0, min(100, (int) ($column['padding'] ?? 16))),
                 'height' => in_array($column['height'] ?? 'auto', ['auto', 'compact', 'tall', 'full'], true) ? ($column['height'] ?? 'auto') : 'auto',
                 'column_width' => in_array($column['column_width'] ?? ($column['content_width'] ?? 'default'), ['default', 'wide', 'full'], true) ? ($column['column_width'] ?? ($column['content_width'] ?? 'default')) : 'default',
                 'components' => collect($column['components'] ?? [])->filter(fn ($component): bool => is_array($component))->map(function (array $component): array {
@@ -950,6 +958,7 @@ final class ChurchWebsiteController extends Controller
                         'background_video' => $type === 'card' ? Str::limit((string) ($component['background_video'] ?? ''), 500, '') : '',
                         'card_border_width' => $type === 'card' ? max(0, min(12, (int) ($component['card_border_width'] ?? 0))) : 0,
                         'card_border_color' => $type === 'card' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['card_border_color'] ?? '')) ? $component['card_border_color'] : '#ffffff',
+                        'card_border_radius' => $type === 'card' ? max(0, min(100, (int) ($component['card_border_radius'] ?? 24))) : 0,
                         'card_shadow' => $type === 'card' && in_array($component['card_shadow'] ?? null, ['none', 'small', 'medium', 'large'], true) ? $component['card_shadow'] : 'none',
                         'align' => in_array($component['align'] ?? null, ['left', 'center', 'right', 'justify'], true) ? $component['align'] : 'left',
                         'icon' => $type === 'icon' ? Str::limit((string) ($component['icon'] ?? '✦'), 8, '') : '',
@@ -980,6 +989,8 @@ final class ChurchWebsiteController extends Controller
         return [
             'id' => (string) ($node['id'] ?? Str::uuid()),
             'type' => 'columns',
+            'gap' => max(0, min(100, (int) ($node['gap'] ?? 24))),
+            'margin' => max(0, min(120, (int) ($node['margin'] ?? 0))),
             'columns' => $columns === [] ? [['id' => (string) Str::uuid(), 'width' => 1, 'background_color' => 'transparent', 'background_transparent' => true, 'background_image' => '', 'background_video' => '', 'height' => 'auto', 'column_width' => 'default', 'components' => []]] : $columns,
         ];
     }
