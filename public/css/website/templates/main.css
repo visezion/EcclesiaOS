@@ -284,17 +284,16 @@ video {
     padding: 14px 20px;
     border-radius: 99px;
     background: var(--primary);
+    background-image: none;
     color: #fff;
     font-size: 13px;
     font-weight: 900;
-    box-shadow: 0 10px 22px rgb(39 103 73 / 18%);
-    transition:
-        transform 0.2s,
-        box-shadow 0.2s;
+    box-shadow: none;
+    transition: transform 0.2s;
 }
 .button:hover {
     transform: translateY(-2px);
-    box-shadow: 0 14px 28px rgb(39 103 73 / 25%);
+    box-shadow: none;
 }
 .button-small {
     padding: 11px 16px;
@@ -1053,10 +1052,25 @@ footer {
     pointer-events: none;
 }
 .component-group-stack > .column-full-bleed {
+    width: 100vw;
+    max-width: none;
+    margin-block: 0;
+    margin-right: calc(50% - 50vw);
+    margin-left: calc(50% - 50vw);
+    gap: 0;
+}
+.component-group-stack > .column-full-bleed > .has-column-presentation {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+}
+.reusable-section:has(.column-full-bleed) {
+    border: 0;
+    padding: 0;
+}
+.reusable-section:has(.column-full-bleed) > .container {
     width: 100%;
-    max-width: 100%;
-    margin-right: 0;
-    margin-left: 0;
+    max-width: none;
 }
 .content-icon-widget {
     display: flex;
@@ -2962,7 +2976,7 @@ body .brand-mark.has-logo img {
 }
 
 .theme-light .button:hover {
-    box-shadow: 0 14px 30px color-mix(in srgb, var(--primary) 28%, transparent);
+    box-shadow: none;
 }
 
 .theme-light .button-light {

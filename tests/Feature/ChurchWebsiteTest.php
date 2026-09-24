@@ -207,6 +207,7 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertStringContainsString('data-field="font_size"', $javascript);
         $this->assertStringContainsString('Font size (px)', $javascript);
         $this->assertStringContainsString('data-field="icon_background_transparent"', $javascript);
+        $this->assertStringContainsString('Full screen (edge to edge)', $javascript);
         $this->assertStringContainsString('container.columns.forEach', $javascript);
         $this->assertStringContainsString('explicitColumnField', $mediaPicker);
         $this->assertStringContainsString('urlInput.value = selected.path', $mediaPicker);
@@ -215,7 +216,12 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertStringContainsString('height: var(--hero-media-height, 560px)', $publicCss);
         $this->assertStringContainsString('overflow-x: clip', $publicCss);
         $this->assertStringContainsString('justify-content: var(--divider-justify, flex-start)', $publicCss);
-        $this->assertStringNotContainsString('margin-left: calc(50% - 50vw)', $publicCss);
+        $this->assertStringContainsString(".button:hover {\n    transform: translateY(-2px);\n    box-shadow: none;", $publicCss);
+        $this->assertStringContainsString(".theme-light .button:hover {\n    box-shadow: none;", $publicCss);
+        $this->assertStringContainsString('width: 100vw', $publicCss);
+        $this->assertStringContainsString('margin-left: calc(50% - 50vw)', $publicCss);
+        $this->assertStringContainsString('.column-full-bleed > .has-column-presentation', $publicCss);
+        $this->assertStringContainsString('.reusable-section:has(.column-full-bleed)', $publicCss);
     }
 
     public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void
