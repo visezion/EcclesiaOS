@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\Role;
 use App\Models\SystemUpdate;
 use App\Models\User;
+use App\Notifications\SystemUpdateAvailableNotification;
 use App\Services\Updates\UpdateManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -63,6 +64,29 @@ final class SystemUpdateTest extends TestCase
             'status' => 'active',
         ]);
         $this->churchAdmin->roles()->attach($churchRole);
+    }
+
+    public function test_update_email_uses_only_ecclesiaos_branding(): void
+    {
+        config(['app.name' => 'KingdomHub']);
+        $this->admin->church()->update(['name' => 'Example Church Name']);
+        $update = SystemUpdate::query()->create([
+            'version' => '2.1.0',
+            'tag' => 'v2.1.0',
+            'name' => 'EcclesiaOS v2.1.0',
+            'status' => 'detected',
+            'current_version' => '1.0.0',
+            'release_url' => 'https://github.test/example/ecclesiaos/releases/tag/v2.1.0',
+        ]);
+
+        $message = (new SystemUpdateAvailableNotification($update))->toMail($this->admin);
+        $html = (string) $message->render();
+
+        $this->assertSame('EcclesiaOS update available', $message->subject);
+        $this->assertSame('EcclesiaOS', $message->from[1]);
+        $this->assertStringContainsString('EcclesiaOS', $html);
+        $this->assertStringNotContainsString('KingdomHub', $html);
+        $this->assertStringNotContainsString('Example Church Name', $html);
     }
 
     public function test_super_administrator_can_detect_and_review_an_immutable_release(): void

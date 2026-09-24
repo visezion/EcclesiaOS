@@ -1,4 +1,4 @@
-<x-mail::message>
+<x-mail::message :brand-name="$brandName ?? null">
 {{-- Greeting --}}
 @if (! empty($greeting))
 # {{ $greeting }}
