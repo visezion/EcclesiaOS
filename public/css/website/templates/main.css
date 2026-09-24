@@ -2971,8 +2971,7 @@ body .brand-mark.has-logo img {
 
 .theme-light .button {
     background: var(--primary);
-    color: #fff;
-    box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 20%, transparent);
+    color: #fff;    
 }
 
 .theme-light .button:hover {
