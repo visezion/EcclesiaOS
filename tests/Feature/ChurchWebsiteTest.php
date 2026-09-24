@@ -202,6 +202,11 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertStringContainsString('Select or upload image', $javascript);
         $this->assertStringContainsString('data-spacing-preset="flush"', $javascript);
         $this->assertStringContainsString('No spacing', $javascript);
+        $this->assertStringContainsString('data-field="divider_justify"', $javascript);
+        $this->assertStringContainsString('<option value="center"', $javascript);
+        $this->assertStringContainsString('data-field="font_size"', $javascript);
+        $this->assertStringContainsString('Font size (px)', $javascript);
+        $this->assertStringContainsString('data-field="icon_background_transparent"', $javascript);
         $this->assertStringContainsString('container.columns.forEach', $javascript);
         $this->assertStringContainsString('explicitColumnField', $mediaPicker);
         $this->assertStringContainsString('urlInput.value = selected.path', $mediaPicker);
@@ -209,6 +214,7 @@ final class ChurchWebsiteTest extends TestCase
         $publicCss = file_get_contents(public_path('css/website/templates/main.css'));
         $this->assertStringContainsString('height: var(--hero-media-height, 560px)', $publicCss);
         $this->assertStringContainsString('overflow-x: clip', $publicCss);
+        $this->assertStringContainsString('justify-content: var(--divider-justify, flex-start)', $publicCss);
         $this->assertStringNotContainsString('margin-left: calc(50% - 50vw)', $publicCss);
     }
 

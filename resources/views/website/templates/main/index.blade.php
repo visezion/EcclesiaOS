@@ -118,9 +118,9 @@
                             <div class="component-column">
                                 @foreach ($components as $component)
                                     @if (($component['type'] ?? '') === 'heading')
-                                        <h3 style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }}">{{ $component['text'] ?? '' }}</h3>
+                                        <h3 style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px' : '' }}">{{ $component['text'] ?? '' }}</h3>
                                     @elseif (($component['type'] ?? '') === 'text')
-                                        <p style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }}">{{ $component['text'] ?? '' }}</p>
+                                        <p style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px' : '' }}">{{ $component['text'] ?? '' }}</p>
                                     @elseif (($component['type'] ?? '') === 'quote')
                                         <blockquote>{{ $component['text'] ?? '' }}</blockquote>
                                     @elseif (($component['type'] ?? '') === 'image' && !empty($component['url']))
@@ -136,7 +136,7 @@
                                     @elseif (($component['type'] ?? '') === 'gallery')
                                         @include('website.templates.main._gallery', ['component' => $component])
                                     @elseif (($component['type'] ?? '') === 'divider')
-                                        <div class="content-divider-widget" style="--divider-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['divider_color'] ?? '') ? $component['divider_color'] : ($settings['primary_color'] ?? '#e2e8f0') }};--divider-width: {{ max(10, min(100, (int) ($component['divider_width'] ?? 100))) }}%;--divider-thickness: {{ max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) }}px;--divider-spacing: {{ max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) }}px;--divider-style: {{ in_array($component['divider_style'] ?? 'solid', ['solid', 'dashed', 'dotted'], true) ? ($component['divider_style'] ?? 'solid') : 'solid' }}" aria-hidden="true"><span></span></div>
+                                        <div class="content-divider-widget" style="--divider-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['divider_color'] ?? '') ? $component['divider_color'] : ($settings['primary_color'] ?? '#e2e8f0') }};--divider-width: {{ max(10, min(100, (int) ($component['divider_width'] ?? 100))) }}%;--divider-thickness: {{ max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) }}px;--divider-spacing: {{ max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) }}px;--divider-style: {{ in_array($component['divider_style'] ?? 'solid', ['solid', 'dashed', 'dotted'], true) ? ($component['divider_style'] ?? 'solid') : 'solid' }};--divider-justify: {{ ['left' => 'flex-start', 'center' => 'center', 'right' => 'flex-end'][$component['divider_justify'] ?? 'left'] ?? 'flex-start' }}" aria-hidden="true"><span></span></div>
                                     @elseif (($component['type'] ?? '') === 'events')
                                         @include('website.templates.main._events', ['component' => $component, 'events' => $events])
                                     @elseif (($component['type'] ?? '') === 'sermons')

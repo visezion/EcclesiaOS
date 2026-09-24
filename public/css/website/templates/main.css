@@ -1105,6 +1105,8 @@ footer {
     line-height: 1.55;
 }
 .content-divider-widget {
+    display: flex;
+    justify-content: var(--divider-justify, flex-start);
     width: 100%;
     margin: var(--divider-spacing, 24px) 0;
 }

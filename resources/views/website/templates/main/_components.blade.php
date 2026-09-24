@@ -43,7 +43,7 @@
     @elseif (($component['type'] ?? '') === 'gallery')
         @include('website.templates.main._gallery', ['component' => $component])
     @elseif (($component['type'] ?? '') === 'divider')
-        <div class="content-divider-widget" style="--divider-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['divider_color'] ?? '') ? $component['divider_color'] : '#e2e8f0' }};--divider-width: {{ max(10, min(100, (int) ($component['divider_width'] ?? 100))) }}%;--divider-thickness: {{ max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) }}px;--divider-spacing: {{ max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) }}px;--divider-style: {{ in_array($component['divider_style'] ?? 'solid', ['solid', 'dashed', 'dotted'], true) ? ($component['divider_style'] ?? 'solid') : 'solid' }}" aria-hidden="true"><span></span></div>
+        <div class="content-divider-widget" style="--divider-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['divider_color'] ?? '') ? $component['divider_color'] : '#e2e8f0' }};--divider-width: {{ max(10, min(100, (int) ($component['divider_width'] ?? 100))) }}%;--divider-thickness: {{ max(1, min(8, (int) ($component['divider_thickness'] ?? 1))) }}px;--divider-spacing: {{ max(0, min(120, (int) ($component['divider_spacing'] ?? 24))) }}px;--divider-style: {{ in_array($component['divider_style'] ?? 'solid', ['solid', 'dashed', 'dotted'], true) ? ($component['divider_style'] ?? 'solid') : 'solid' }};--divider-justify: {{ ['left' => 'flex-start', 'center' => 'center', 'right' => 'flex-end'][$component['divider_justify'] ?? 'left'] ?? 'flex-start' }}" aria-hidden="true"><span></span></div>
     @elseif (($component['type'] ?? '') === 'events')
         @include('website.templates.main._events', ['component' => $component, 'events' => $events ?? collect()])
     @elseif (($component['type'] ?? '') === 'sermons')
@@ -68,13 +68,13 @@
         @if (!empty($component['link']))</a>@endif
     @elseif (($component['type'] ?? '') === 'icon')
         @php($iconAlign = in_array($component['align'] ?? 'left', ['left', 'center', 'right'], true) ? ($component['align'] ?? 'left') : 'left')
-        <a class="content-icon-widget" href="{{ $component['link'] ?? '' ?: '#' }}" @if (empty($component['link'])) onclick="return false" @endif style="justify-content: {{ $iconAlign === 'center' ? 'center' : ($iconAlign === 'right' ? 'flex-end' : 'flex-start') }};text-align: {{ $iconAlign }};--icon-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['icon_color'] ?? '') ? $component['icon_color'] : ($settings['primary_color'] ?? '#6d4aff') }};--icon-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : 'color-mix(in srgb, '.($settings['primary_color'] ?? '#6d4aff').' 12%, #fff)' }};--icon-size: {{ max(24, min(160, (int) ($component['icon_size'] ?? 56))) }}px;">
+        <a class="content-icon-widget" href="{{ $component['link'] ?? '' ?: '#' }}" @if (empty($component['link'])) onclick="return false" @endif style="justify-content: {{ $iconAlign === 'center' ? 'center' : ($iconAlign === 'right' ? 'flex-end' : 'flex-start') }};text-align: {{ $iconAlign }};--icon-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['icon_color'] ?? '') ? $component['icon_color'] : ($settings['primary_color'] ?? '#6d4aff') }};--icon-background: {{ !empty($component['icon_background_transparent']) ? 'transparent' : (preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : 'color-mix(in srgb, '.($settings['primary_color'] ?? '#6d4aff').' 12%, #fff)') }};--icon-size: {{ max(24, min(160, (int) ($component['icon_size'] ?? 56))) }}px;">
             <span class="content-icon-mark">{{ $component['icon'] ?? '✦' }}</span>
         </a>
     @elseif (($component['type'] ?? '') === 'heading')
-        <h3 style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }}">{{ $component['text'] ?? '' }}</h3>
+        <h3 style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px' : '' }}">{{ $component['text'] ?? '' }}</h3>
     @elseif (($component['type'] ?? '') === 'text')
-        <p style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }}">{{ $component['text'] ?? '' }}</p>
+        <p style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px' : '' }}">{{ $component['text'] ?? '' }}</p>
     @elseif (($component['type'] ?? '') === 'quote')
         <blockquote>{{ $component['text'] ?? '' }}</blockquote>
     @elseif (($component['type'] ?? '') === 'image' && !empty($component['url']))
