@@ -226,10 +226,19 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertStringContainsString('data-field="divider_justify"', $javascript);
         $this->assertStringContainsString('<option value="center"', $javascript);
         $this->assertStringContainsString('data-field="font_size"', $javascript);
+        $this->assertStringContainsString('data-field="text_color"', $javascript);
+        $this->assertStringContainsString('typography-controls', $javascript);
+        $this->assertStringContainsString("['heading', 'text', 'quote'].includes(item.type)", $javascript);
         $this->assertStringContainsString('Font size (px)', $javascript);
         $this->assertStringContainsString('data-field="icon_background_transparent"', $javascript);
         $this->assertStringContainsString('Full screen (edge to edge)', $javascript);
         $this->assertStringContainsString('container.columns.forEach', $javascript);
+        $this->assertStringContainsString('dataset.deleteGroup', $javascript);
+        $this->assertStringContainsString('dataset.deleteColumn', $javascript);
+        $this->assertStringContainsString('Delete column group ${groupIndex + 1} and all widgets inside it?', $javascript);
+        $this->assertStringContainsString('container.columns.splice(columnIndex, 1)', $javascript);
+        $this->assertStringContainsString('Column gap', $javascript);
+        $this->assertStringContainsString('- Last column', $javascript);
         $this->assertStringContainsString('explicitColumnField', $mediaPicker);
         $this->assertStringContainsString('urlInput.value = selected.path', $mediaPicker);
 
@@ -247,6 +256,67 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertStringContainsString('.theme-dark .public-event-aside-card', $publicCss);
         $this->assertStringContainsString('.theme-dark .site-nav', $publicCss);
         $this->assertStringContainsString('.theme-dark .menu-toggle', $publicCss);
+
+        $builderCss = file_get_contents(public_path('css/website-studio/section-builder.css'));
+        $this->assertStringContainsString('.typography-controls', $builderCss);
+        $this->assertStringContainsString('@container (max-width: 42rem)', $builderCss);
+        $this->assertStringContainsString('grid-template-columns: repeat(2, minmax(0, 1fr))', $builderCss);
+        $this->assertStringContainsString('.widget-fields > .carousel-editor', $builderCss);
+        $this->assertStringContainsString('.card-editor > label:has(textarea)', $builderCss);
+        $this->assertStringContainsString('.gallery-image-fields', $builderCss);
+        $this->assertStringContainsString('.column-group-shell > .nested-column-group > .nested-group-toolbar', $builderCss);
+    }
+
+    public function test_heading_text_and_quote_widgets_save_and_render_custom_colours(): void
+    {
+        $church = Church::factory()->create(['name' => 'Colour Widget Church']);
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $adminRole = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($adminRole);
+
+        $this->actingAs($user)->get(route('website-studio.index'))->assertOk();
+
+        $components = [
+            'id' => 'root-columns',
+            'type' => 'columns',
+            'groups' => [[
+                'id' => 'group-one',
+                'type' => 'columns',
+                'columns' => [[
+                    'width' => 1,
+                    'components' => [
+                        ['id' => 'coloured-heading', 'type' => 'heading', 'text' => 'Mission and Vision', 'text_color' => '#F59E0B'],
+                        ['id' => 'coloured-text', 'type' => 'text', 'text' => 'A visible supporting message.', 'text_color' => '#38BDF8'],
+                        ['id' => 'coloured-quote', 'type' => 'quote', 'text' => 'Faith makes room for hope.', 'font_size' => 28, 'text_color' => '#A78BFA', 'align' => 'center'],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->actingAs($user)
+            ->post(route('website-studio.sections.store'), [
+                'title' => 'Colour controls section',
+                'page_slugs' => ['about'],
+                'components' => json_encode($components, JSON_THROW_ON_ERROR),
+            ])
+            ->assertRedirect();
+
+        $section = collect(data_get($church->fresh()->settings, 'website.custom_sections'))->firstWhere('title', 'Colour controls section');
+        $savedComponents = data_get($section, 'components.groups.0.columns.0.components');
+        $this->assertSame('#F59E0B', data_get($savedComponents, '0.text_color'));
+        $this->assertSame('#38BDF8', data_get($savedComponents, '1.text_color'));
+        $this->assertSame('#A78BFA', data_get($savedComponents, '2.text_color'));
+        $this->assertSame(28, data_get($savedComponents, '2.font_size'));
+        $this->assertSame('center', data_get($savedComponents, '2.align'));
+
+        $this->get(route('website.public', ['church' => $church->slug, 'page' => 'about']))
+            ->assertOk()
+            ->assertSee('Mission and Vision')
+            ->assertSee('color:#F59E0B;', false)
+            ->assertSee('A visible supporting message.')
+            ->assertSee('color:#38BDF8;', false)
+            ->assertSee('Faith makes room for hope.')
+            ->assertSee('text-align: center;font-size:28px;color:#A78BFA;', false);
     }
 
     public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void

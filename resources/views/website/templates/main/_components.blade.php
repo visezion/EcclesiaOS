@@ -72,11 +72,11 @@
             <span class="content-icon-mark">{{ $component['icon'] ?? '✦' }}</span>
         </a>
     @elseif (($component['type'] ?? '') === 'heading')
-        <h3 style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px' : '' }}">{{ $component['text'] ?? '' }}</h3>
+        <h3 style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px;' : '' }}{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['text_color'] ?? '') ? 'color:'.$component['text_color'].';' : '' }}">{{ $component['text'] ?? '' }}</h3>
     @elseif (($component['type'] ?? '') === 'text')
-        <p style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px' : '' }}">{{ $component['text'] ?? '' }}</p>
+        <p style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px;' : '' }}{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['text_color'] ?? '') ? 'color:'.$component['text_color'].';' : '' }}">{{ $component['text'] ?? '' }}</p>
     @elseif (($component['type'] ?? '') === 'quote')
-        <blockquote>{{ $component['text'] ?? '' }}</blockquote>
+        <blockquote style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px;' : '' }}{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['text_color'] ?? '') ? 'color:'.$component['text_color'].';' : '' }}">{{ $component['text'] ?? '' }}</blockquote>
     @elseif (($component['type'] ?? '') === 'image' && !empty($component['url']))
         <img src="{{ $assetUrl($component['url']) }}" alt="{{ $component['alt'] ?? '' }}" loading="lazy">
     @elseif (($component['type'] ?? '') === 'video' && !empty($component['url']))

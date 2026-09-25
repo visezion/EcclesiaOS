@@ -460,9 +460,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (item.type === 'button')
             return `<label>Button label<input data-field="text" value="${esc(item.text)}"></label><label>Button link<input data-field="url" value="${esc(item.url)}"></label><div class="button-style-fields"><label>Color<input type="color" data-field="button_color" value="${esc(item.button_color || '#6d4aff')}"></label><label>Size<select data-field="button_size"><option value="very-small" ${item.button_size === 'very-small' ? 'selected' : ''}>Very small</option><option value="small" ${item.button_size === 'small' ? 'selected' : ''}>Small</option><option value="medium" ${!item.button_size || item.button_size === 'medium' ? 'selected' : ''}>Medium</option><option value="big" ${item.button_size === 'big' ? 'selected' : ''}>Big</option><option value="very-big" ${item.button_size === 'very-big' ? 'selected' : ''}>Very big</option></select></label></div>`;
         const textLabel = item.type === 'heading' ? 'Heading' : item.type === 'quote' ? 'Quote' : 'Text';
-        const textField = `<label>${textLabel}<textarea data-field="text" rows="3">${esc(item.text)}</textarea></label>`;
-        if (item.type === 'heading' || item.type === 'text')
-            return `${textField}<div class="widget-field-grid"><label>Font size (px)<input type="number" min="10" max="120" step="1" data-field="font_size" value="${Math.max(10, Math.min(120, Number(item.font_size) || (item.type === 'heading' ? 46 : 16)))}"></label><label>Text alignment<select data-field="align"><option value="left" ${item.align === 'left' || !item.align ? 'selected' : ''}>Left</option><option value="center" ${item.align === 'center' ? 'selected' : ''}>Center</option><option value="right" ${item.align === 'right' ? 'selected' : ''}>Right</option><option value="justify" ${item.align === 'justify' ? 'selected' : ''}>Justify</option></select></label></div>`;
+        const textField = `<label>${textLabel}<textarea data-field="text" rows="2">${esc(item.text)}</textarea></label>`;
+        if (['heading', 'text', 'quote'].includes(item.type)) {
+            const defaultSize = item.type === 'heading' ? 46 : item.type === 'quote' ? 22 : 16;
+            const defaultColor = item.type === 'heading' ? '#ffffff' : '#a9aaa8';
+            return `${textField}<div class="typography-controls"><label>Font size (px)<input type="number" min="10" max="120" step="1" data-field="font_size" value="${Math.max(10, Math.min(120, Number(item.font_size) || defaultSize))}"></label><label>${textLabel} color<input type="color" data-field="text_color" value="${esc(item.text_color || defaultColor)}"></label><label>Alignment<select data-field="align"><option value="left" ${item.align === 'left' || !item.align ? 'selected' : ''}>Left</option><option value="center" ${item.align === 'center' ? 'selected' : ''}>Center</option><option value="right" ${item.align === 'right' ? 'selected' : ''}>Right</option><option value="justify" ${item.align === 'justify' ? 'selected' : ''}>Justify</option></select></label>${animationField(item)}</div>`;
+        }
         return textField;
     };
     const makeColumnGroup = (columns = [], widths = []) => ({
@@ -543,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderContainer = (container, host) => {
             const row = document.createElement('div');
             row.className = 'nested-column-group';
-            row.innerHTML = `<div class="nested-group-toolbar"><strong>Column group</strong><div class="nested-group-spacing"><label>Between columns (px)<input type="number" min="0" max="100" value="${Math.max(0, Math.min(100, Number(container.gap) || 0))}" data-group-spacing="gap"></label><label>Outside row (px)<input type="number" min="0" max="120" value="${Math.max(0, Math.min(120, Number(container.margin) || 0))}" data-group-spacing="margin"></label><button type="button" data-spacing-preset="flush" title="Remove gap, row margin, and padding from every column">No spacing</button><button type="button" data-spacing-preset="comfortable" title="Restore comfortable default spacing">Default spacing</button></div><div class="nested-group-actions"><button type="button" data-add-column>+ Add column</button><button type="button" data-remove-column>- Remove column</button></div></div><p class="nested-group-help">Use <strong>No spacing</strong> for edge-to-edge 50/50, three-column, or four-column rows.</p><div class="nested-column-list"></div>`;
+            row.innerHTML = `<div class="nested-group-toolbar"><strong>Column group</strong><div class="nested-group-spacing"><label>Column gap<input type="number" min="0" max="100" value="${Math.max(0, Math.min(100, Number(container.gap) || 0))}" data-group-spacing="gap"></label><label>Row margin<input type="number" min="0" max="120" value="${Math.max(0, Math.min(120, Number(container.margin) || 0))}" data-group-spacing="margin"></label><button type="button" data-spacing-preset="flush" title="Remove gap, row margin, and padding from every column">No spacing</button><button type="button" data-spacing-preset="comfortable" title="Restore comfortable default spacing">Default</button></div><div class="nested-group-actions"><button type="button" data-add-column>+ Add column</button><button type="button" data-remove-column>- Last column</button></div></div><p class="nested-group-help"><strong>Tip:</strong> No spacing creates an edge-to-edge row. Use Delete on a column to remove that exact column.</p><div class="nested-column-list"></div>`;
             const list = row.querySelector('.nested-column-list');
             row.querySelectorAll('[data-group-spacing]').forEach((field) => field.addEventListener('input', () => {
                 container[field.dataset.groupSpacing] = Math.max(0, Number(field.value) || 0);
@@ -571,11 +574,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 container.columns.push({ id: id(), width: 1, background_color: 'transparent', background_transparent: true, background_image: '', background_video: '', background_position: 'center', border_radius: 0, padding: 16, height: 'auto', column_width: 'default', components: [] });
                 render();
             });
-            row.querySelector('[data-remove-column]').addEventListener('click', () => {
-                if (container.columns.length > 0) {
-                    container.columns.pop();
-                    render();
-                }
+            const removeLastColumnButton = row.querySelector('[data-remove-column]');
+            removeLastColumnButton.disabled = container.columns.length <= 1;
+            removeLastColumnButton.addEventListener('click', () => {
+                if (container.columns.length <= 1) return;
+                const column = container.columns.at(-1);
+                if ((column.components || []).length && !window.confirm('Delete the last column and all widgets inside it?')) return;
+                container.columns.pop();
+                render();
             });
             container.columns.forEach((column, columnIndex) => {
                 const columnEl = document.createElement('div');
@@ -587,7 +593,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 )
                     .map((type) => `<button type="button" data-add="${type}"><span class="widget-action-icon">${widgetIcons[type]}</span><span>+ ${labels[type]}</span></button>`)
                     .join('')}</div><div class="nested-column-content"></div>`;
-                columnEl.querySelector('.nested-column-heading').insertAdjacentHTML('afterend', `<div class="column-style-fields"><label>Background color<input type="color" data-column-field="background_color" value="${esc(column.background_color === 'transparent' ? '#ffffff' : (column.background_color || '#ffffff'))}"><span class="column-transparent-toggle"><input type="checkbox" data-column-field="background_transparent" ${column.background_transparent ? 'checked' : ''}> Transparent</span></label><label>Background image URL<input data-column-field="background_image" value="${esc(column.background_image || '')}" placeholder="https://..."></label><label>Select or upload background image<input type="file" name="component_image_files[${column.id || id()}]" accept="image/*" data-media-url-field="background_image" aria-label="Select an existing image or upload a new column background image"></label><label>Image position<select data-column-field="background_position"><option value="center" ${!column.background_position || column.background_position === 'center' ? 'selected' : ''}>Center</option><option value="top" ${column.background_position === 'top' ? 'selected' : ''}>Top</option><option value="bottom" ${column.background_position === 'bottom' ? 'selected' : ''}>Bottom</option><option value="left" ${column.background_position === 'left' ? 'selected' : ''}>Left</option><option value="right" ${column.background_position === 'right' ? 'selected' : ''}>Right</option></select></label><label>Corner radius (px)<input type="number" min="0" max="100" data-column-field="border_radius" value="${Math.max(0, Math.min(100, Number(column.border_radius) || 0))}"></label><label>Inner padding (px)<input type="number" min="0" max="100" data-column-field="padding" value="${column.padding === 0 ? 0 : Math.max(0, Math.min(100, Number(column.padding) || 16))}"></label><label>Background video URL<input data-column-field="background_video" value="${esc(column.background_video || '')}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_video_files[${column.id || id()}]" accept="video/mp4,video/webm,video/ogg"></label><label>Column height<select data-column-field="height"><option value="auto" ${!column.height || column.height === 'auto' ? 'selected' : ''}>Fit content</option><option value="compact" ${column.height === 'compact' ? 'selected' : ''}>Compact</option><option value="tall" ${column.height === 'tall' ? 'selected' : ''}>Tall</option><option value="full" ${column.height === 'full' ? 'selected' : ''}>Full height</option></select></label><label>Column width<select data-column-field="column_width"><option value="default" ${!column.column_width || column.column_width === 'default' ? 'selected' : ''}>Default width</option><option value="wide" ${column.column_width === 'wide' ? 'selected' : ''}>Wide</option><option value="full" ${column.column_width === 'full' ? 'selected' : ''}>Full screen (edge to edge)</option></select></label></div>`);
+                const columnHeading = columnEl.querySelector('.nested-column-heading');
+                const columnHeadingActions = document.createElement('div');
+                columnHeadingActions.className = 'nested-column-heading-actions';
+                columnHeadingActions.appendChild(columnHeading.querySelector('label'));
+                const deleteColumnButton = document.createElement('button');
+                deleteColumnButton.type = 'button';
+                deleteColumnButton.className = 'delete-column-button';
+                deleteColumnButton.dataset.deleteColumn = '';
+                deleteColumnButton.textContent = 'Delete';
+                deleteColumnButton.disabled = container.columns.length <= 1;
+                deleteColumnButton.setAttribute('aria-label', `Delete column ${columnIndex + 1}`);
+                columnHeadingActions.appendChild(deleteColumnButton);
+                columnHeading.appendChild(columnHeadingActions);
+                columnHeading.insertAdjacentHTML('afterend', `<div class="column-style-fields"><label>Background color<input type="color" data-column-field="background_color" value="${esc(column.background_color === 'transparent' ? '#ffffff' : (column.background_color || '#ffffff'))}"><span class="column-transparent-toggle"><input type="checkbox" data-column-field="background_transparent" ${column.background_transparent ? 'checked' : ''}> Transparent</span></label><label>Background image URL<input data-column-field="background_image" value="${esc(column.background_image || '')}" placeholder="https://..."></label><label>Select or upload background image<input type="file" name="component_image_files[${column.id || id()}]" accept="image/*" data-media-url-field="background_image" aria-label="Select an existing image or upload a new column background image"></label><label>Image position<select data-column-field="background_position"><option value="center" ${!column.background_position || column.background_position === 'center' ? 'selected' : ''}>Center</option><option value="top" ${column.background_position === 'top' ? 'selected' : ''}>Top</option><option value="bottom" ${column.background_position === 'bottom' ? 'selected' : ''}>Bottom</option><option value="left" ${column.background_position === 'left' ? 'selected' : ''}>Left</option><option value="right" ${column.background_position === 'right' ? 'selected' : ''}>Right</option></select></label><label>Corner radius (px)<input type="number" min="0" max="100" data-column-field="border_radius" value="${Math.max(0, Math.min(100, Number(column.border_radius) || 0))}"></label><label>Inner padding (px)<input type="number" min="0" max="100" data-column-field="padding" value="${column.padding === 0 ? 0 : Math.max(0, Math.min(100, Number(column.padding) || 16))}"></label><label>Background video URL<input data-column-field="background_video" value="${esc(column.background_video || '')}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_video_files[${column.id || id()}]" accept="video/mp4,video/webm,video/ogg"></label><label>Column height<select data-column-field="height"><option value="auto" ${!column.height || column.height === 'auto' ? 'selected' : ''}>Fit content</option><option value="compact" ${column.height === 'compact' ? 'selected' : ''}>Compact</option><option value="tall" ${column.height === 'tall' ? 'selected' : ''}>Tall</option><option value="full" ${column.height === 'full' ? 'selected' : ''}>Full height</option></select></label><label>Column width<select data-column-field="column_width"><option value="default" ${!column.column_width || column.column_width === 'default' ? 'selected' : ''}>Default width</option><option value="wide" ${column.column_width === 'wide' ? 'selected' : ''}>Wide</option><option value="full" ${column.column_width === 'full' ? 'selected' : ''}>Full screen (edge to edge)</option></select></label></div>`);
                 columnEl.querySelector('.column-style-fields').insertAdjacentHTML('afterbegin', '<div class="column-style-header"><span class="column-style-icon">▧</span><div><strong>Background</strong><small>Set the background style and add content blocks to build your layout.</small></div></div>');
                 ['image', 'video'].forEach((mediaType) => {
                     const fieldName = mediaType === 'image' ? 'background_image' : 'background_video';
@@ -710,6 +729,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     refreshColumnVisuals();
                     sync();
                 });
+                columnEl.querySelector('[data-delete-column]').addEventListener('click', () => {
+                    if (container.columns.length <= 1) return;
+                    if ((column.components || []).length && !window.confirm(`Delete column ${columnIndex + 1} and all widgets inside it?`)) return;
+                    container.columns.splice(columnIndex, 1);
+                    render();
+                });
                 columnEl.querySelector('[data-add-subcolumns]').addEventListener('click', () => {
                     column.components.push({
                         id: id(),
@@ -751,6 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             link: '',
                             align: 'left',
                             font_size: 0,
+                            text_color: '',
                             button_color: type === 'button' ? '#6d4aff' : '',
                             button_size: type === 'button' ? 'medium' : '',
                             icon: type === 'icon' ? '✦' : '',
@@ -849,7 +875,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         content.classList.remove('is-drop-target');
                     });
                     block.innerHTML = `<div class="widget-top"><strong>${labels[item.type] || 'Text'}</strong><button type="button" data-remove>×</button></div><div class="widget-fields">${item.type === 'image' && item.url ? `<div class="widget-media-preview"><img src="${esc(mediaUrl(item.url))}" alt="${esc(item.alt)}"></div>` : ''}${item.type === 'video' && item.url ? `<div class="widget-media-preview"><video src="${esc(mediaUrl(item.url))}" controls></video></div>` : ''}${widgetFields(item)}</div>`;
-                    block.querySelector('.widget-fields')?.insertAdjacentHTML('beforeend', animationField(item));
+                    if (!['heading', 'text', 'quote'].includes(item.type))
+                        block.querySelector('.widget-fields')?.insertAdjacentHTML('beforeend', animationField(item));
                     block.querySelectorAll('[data-slide-field]').forEach((field) =>
                         field.addEventListener('input', () => {
                             const slide = item.slides?.[Number(field.dataset.slideIndex)];
@@ -943,6 +970,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 groupShell.className = 'column-group-shell';
                 groupShell.draggable = true;
                 groupShell.innerHTML = `<div class="column-group-order"><span class="group-drag-handle" title="Drag column group">⠿</span><strong>Column group ${groupIndex + 1}</strong></div>`;
+                const deleteGroupButton = document.createElement('button');
+                deleteGroupButton.type = 'button';
+                deleteGroupButton.className = 'delete-group-button';
+                deleteGroupButton.dataset.deleteGroup = '';
+                deleteGroupButton.textContent = 'Delete group';
+                deleteGroupButton.disabled = tree.groups.length <= 1;
+                deleteGroupButton.setAttribute('aria-label', `Delete column group ${groupIndex + 1}`);
+                groupShell.querySelector('.column-group-order').appendChild(deleteGroupButton);
+                deleteGroupButton.addEventListener('click', () => {
+                    if (tree.groups.length <= 1) return;
+                    const hasWidgets = (group.columns || []).some((column) => (column.components || []).length > 0);
+                    if (hasWidgets && !window.confirm(`Delete column group ${groupIndex + 1} and all widgets inside it?`)) return;
+                    tree.groups.splice(groupIndex, 1);
+                    render();
+                });
                 groupShell.addEventListener('dragstart', (event) => {
                     if (event.target.closest('.nested-column, .widget-block, input, textarea, button, a, select'))
                         return;
