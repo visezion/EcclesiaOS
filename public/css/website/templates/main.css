@@ -3390,6 +3390,41 @@ body .brand-mark.has-logo img {
 .public-event-related a { display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; padding: 13px 0; border-top: 1px solid var(--line); color: inherit; font-size: 12px; text-decoration: none; }
 .public-event-related a span { color: var(--primary); font-size: 11px; font-weight: 800; text-transform: uppercase; }
 .public-event-related a i { color: var(--primary); font-style: normal; font-weight: 900; }
+
+/* Keep content surfaces dark when the administrator selects dark mode. */
+.theme-dark .public-event-list-item,
+.theme-dark .public-event-aside-card,
+.theme-dark .public-event-related {
+    border-color: #292929;
+    background: var(--showcase-panel);
+    color: var(--showcase-text);
+}
+.theme-dark .public-event-aside-card h3,
+.theme-dark .public-event-related h3 {
+    color: var(--showcase-text);
+}
+.theme-dark .public-event-aside-card > p:not(.eyebrow),
+.theme-dark .public-event-session p {
+    color: var(--showcase-muted);
+}
+.theme-dark .public-event-session-icon {
+    background: color-mix(in srgb, var(--primary) 22%, var(--showcase-panel));
+    color: var(--showcase-text);
+}
+@media (max-width: 850px) {
+    .theme-dark .menu-toggle,
+    .theme-dark .site-nav {
+        border-color: #292929;
+        background: var(--showcase-panel);
+        box-shadow: 0 18px 40px rgb(0 0 0 / 35%);
+    }
+    .theme-dark .menu-toggle {
+        color: var(--showcase-text);
+    }
+    .theme-dark .site-submenu a {
+        color: var(--showcase-text);
+    }
+}
 @media (max-width: 800px) {
     .public-event-hero-grid, .public-event-content-grid { grid-template-columns: 1fr; }
     .public-event-copy { padding: 42px 0; }

@@ -141,6 +141,7 @@ final class ChurchWebsiteController extends Controller
             'primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'accent_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'color_scheme' => ['nullable', 'in:dark,light'],
+            'theme_switcher_enabled' => ['nullable', 'boolean'],
             'menu_style' => ['nullable', Rule::in(array_keys($this->menuStyles()))],
             'font' => ['required', 'in:Inter,Manrope,DM Sans,Playfair Display'],
             'hero_eyebrow' => ['nullable', 'string', 'max:100'],
@@ -223,6 +224,7 @@ final class ChurchWebsiteController extends Controller
 
         $settings = array_merge($this->websiteSettings($church), $validated, [
             'enabled' => $request->boolean('enabled'),
+            'theme_switcher_enabled' => $request->boolean('theme_switcher_enabled'),
         ]);
         if ($request->boolean('hero_slides_configured')) {
             $submittedSlides = $validated['hero_slides'] ?? [];
@@ -673,6 +675,7 @@ final class ChurchWebsiteController extends Controller
             'primary_color' => '#4338CA',
             'accent_color' => '#F59E0B',
             'color_scheme' => 'dark',
+            'theme_switcher_enabled' => true,
             'menu_style' => 'classic',
             'font' => 'Manrope',
             'hero_eyebrow' => 'You are welcome here',

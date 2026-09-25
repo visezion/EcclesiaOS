@@ -20,6 +20,27 @@ final class ChurchWebsiteTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_admin_can_lock_the_public_website_to_the_selected_theme(): void
+    {
+        $church = Church::factory()->create([
+            'name' => 'Theme Locked Church',
+            'settings' => ['website' => [
+                'color_scheme' => 'light',
+                'theme_switcher_enabled' => false,
+            ]],
+        ]);
+
+        $this->get(route('website.public', ['church' => $church->slug]))
+            ->assertOk()
+            ->assertSee('theme-light', false)
+            ->assertSee('data-theme-switcher-enabled="false"', false)
+            ->assertDontSee('data-theme-toggle', false);
+
+        $javascript = file_get_contents(public_path('js/website/templates/main.js'));
+        $this->assertStringContainsString("document.body.dataset.themeSwitcherEnabled !== 'false'", $javascript);
+        $this->assertStringContainsString('if (themeSwitcherEnabled)', $javascript);
+    }
+
     public function test_admin_can_manage_navigation_and_apply_a_public_menu_style(): void
     {
         $church = Church::factory()->create(['name' => 'Navigation Church']);
@@ -222,6 +243,10 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertStringContainsString('margin-left: calc(50% - 50vw)', $publicCss);
         $this->assertStringContainsString('.column-full-bleed > .has-column-presentation', $publicCss);
         $this->assertStringContainsString('.reusable-section:has(.column-full-bleed)', $publicCss);
+        $this->assertStringContainsString('.theme-dark .public-event-list-item', $publicCss);
+        $this->assertStringContainsString('.theme-dark .public-event-aside-card', $publicCss);
+        $this->assertStringContainsString('.theme-dark .site-nav', $publicCss);
+        $this->assertStringContainsString('.theme-dark .menu-toggle', $publicCss);
     }
 
     public function test_card_and_video_slider_support_uploaded_and_linked_videos_end_to_end(): void

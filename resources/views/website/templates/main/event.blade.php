@@ -22,7 +22,7 @@
     @if ($faviconUrl)<link rel="icon" href="{{ $faviconUrl }}"><link rel="shortcut icon" href="{{ $faviconUrl }}">@endif
     <link rel="stylesheet" href="{{ asset('css/website/templates/main.css') }}?v={{ filemtime(public_path('css/website/templates/main.css')) }}">
 </head>
-<body class="theme-{{ $colorScheme }} menu-style-{{ in_array($settings['menu_style'] ?? 'classic', ['classic', 'floating', 'centered', 'pill', 'accent'], true) ? ($settings['menu_style'] ?? 'classic') : 'classic' }} public-event-page" data-default-theme="{{ $colorScheme }}" data-theme-key="ecclesia-site-theme-{{ $church->slug }}" style="--primary:{{ $settings['primary_color'] }};--accent:{{ $settings['accent_color'] }};--font:'{{ $settings['font'] ?? 'Manrope' }}',Arial,sans-serif">
+<body class="theme-{{ $colorScheme }} menu-style-{{ in_array($settings['menu_style'] ?? 'classic', ['classic', 'floating', 'centered', 'pill', 'accent'], true) ? ($settings['menu_style'] ?? 'classic') : 'classic' }} public-event-page" data-default-theme="{{ $colorScheme }}" data-theme-switcher-enabled="{{ ($settings['theme_switcher_enabled'] ?? true) ? 'true' : 'false' }}" data-theme-key="ecclesia-site-theme-{{ $church->slug }}" style="--primary:{{ $settings['primary_color'] }};--accent:{{ $settings['accent_color'] }};--font:'{{ $settings['font'] ?? 'Manrope' }}',Arial,sans-serif">
     <div class="site-shell">
         <header class="site-header">
             <div class="container nav-row">
@@ -30,7 +30,7 @@
                 <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-menu-toggle><span>☰</span><span class="sr-only">Menu</span></button>
                 <label class="site-search"><span>⌕</span><input type="search" placeholder="Search" aria-label="Search this website" data-site-search></label>
                 @include('website.templates.main._navigation')
-                <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to light mode" title="Switch website appearance"><span class="theme-toggle-sun" aria-hidden="true">☀</span><span class="theme-toggle-moon" aria-hidden="true">☾</span></button>
+                @if ($settings['theme_switcher_enabled'] ?? true)<button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to light mode" title="Switch website appearance"><span class="theme-toggle-sun" aria-hidden="true">☀</span><span class="theme-toggle-moon" aria-hidden="true">☾</span></button>@endif
                 <a class="button button-small nav-action" href="{{ $settings['hero_button_url'] ?: '#contact' }}">{{ $settings['hero_button_label'] ?: 'Plan a visit' }}</a>
             </div>
         </header>

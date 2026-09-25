@@ -2,11 +2,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggle = document.querySelector('[data-theme-toggle]');
     const themeStorageKey = document.body.dataset.themeKey || 'ecclesia-site-theme';
     const defaultTheme = document.body.dataset.defaultTheme === 'light' ? 'light' : 'dark';
+    const themeSwitcherEnabled = document.body.dataset.themeSwitcherEnabled !== 'false';
     let savedTheme = null;
-    try {
-        savedTheme = window.localStorage.getItem(themeStorageKey);
-    } catch {
-        savedTheme = null;
+    if (themeSwitcherEnabled) {
+        try {
+            savedTheme = window.localStorage.getItem(themeStorageKey);
+        } catch {
+            savedTheme = null;
+        }
     }
     const applyTheme = (theme) => {
         const selectedTheme = theme === 'light' ? 'light' : 'dark';
@@ -19,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     applyTheme(['light', 'dark'].includes(savedTheme) ? savedTheme : defaultTheme);
-    themeToggle?.addEventListener('click', () => {
+    if (themeSwitcherEnabled) themeToggle?.addEventListener('click', () => {
         const nextTheme = document.body.classList.contains('theme-light') ? 'dark' : 'light';
         applyTheme(nextTheme);
         try {
