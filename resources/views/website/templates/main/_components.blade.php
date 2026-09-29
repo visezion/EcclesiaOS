@@ -1,7 +1,12 @@
 @foreach ($components as $component)
     @php($animation = in_array($component['animation'] ?? 'none', ['none', 'fade', 'slide-up', 'slide-left', 'zoom', 'bounce', 'float'], true) ? ($component['animation'] ?? 'none') : 'none')
-    <div class="public-widget widget-animation-{{ $animation }}">
-    @if (($component['type'] ?? '') === 'columns')
+    @php($isTypography = in_array($component['type'] ?? '', ['heading', 'text'], true))
+    <div class="public-widget widget-animation-{{ $animation }}{{ $isTypography ? ' typography-widget' : '' }}" @if ($isTypography) style="margin-top:{{ max(0, min(120, (int) ($component['margin_top'] ?? 0))) }}px;margin-bottom:{{ max(0, min(120, (int) ($component['margin_bottom'] ?? 0))) }}px;padding-top:{{ max(0, min(120, (int) ($component['padding_top'] ?? 0))) }}px;padding-bottom:{{ max(0, min(120, (int) ($component['padding_bottom'] ?? 0))) }}px;" @endif>
+    @if (($component['type'] ?? '') === 'faq')
+        @include('website.templates.main._faq')
+    @elseif (($component['type'] ?? '') === 'form')
+        @include('website.forms.widget', ['formType' => $component['form_type'] ?? 'contact'])
+    @elseif (($component['type'] ?? '') === 'columns')
         <div class="component-group-stack">
             @foreach (($component['groups'] ?? [$component]) as $group)
                 @php($fullBleedColumn = count($group['columns'] ?? []) === 1 && (($group['columns'][0]['column_width'] ?? ($group['columns'][0]['content_width'] ?? 'default')) === 'full'))
@@ -49,32 +54,41 @@
     @elseif (($component['type'] ?? '') === 'sermons')
         @include('website.templates.main._sermons', ['component' => $component, 'sermons' => $sermons ?? collect()])
     @elseif (($component['type'] ?? '') === 'card')
-        @php($cardVideoUrl = !empty($component['background_video']) ? $assetUrl($component['background_video']) : null)
-        @if (!empty($component['link']))<a class="content-card-widget-link" href="{{ $component['link'] }}" aria-label="Open {{ $component['title'] ?? 'card' }}">@endif
-        <article class="content-card-widget content-card-shadow-{{ in_array($component['card_shadow'] ?? 'none', ['none', 'small', 'medium', 'large'], true) ? ($component['card_shadow'] ?? 'none') : 'none' }} {{ $cardVideoUrl || !empty($component['url']) ? 'has-media' : '' }}" style="--card-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : ($settings['primary_color'] ?? '#6d4aff') }};--card-border-width: {{ max(0, min(12, (int) ($component['card_border_width'] ?? 0))) }}px;--card-border-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['card_border_color'] ?? '') ? $component['card_border_color'] : '#ffffff' }};--card-border-radius:{{ max(0, min(100, (int) ($component['card_border_radius'] ?? 24))) }}px;">
+        @php($cardBackgroundType = ($component['card_background_type'] ?? '') ?: (!empty($component['background_video']) ? 'video' : (!empty($component['url']) ? 'image' : 'color')))
+        @php($cardVideoUrl = $cardBackgroundType === 'video' && !empty($component['background_video']) ? $assetUrl($component['background_video']) : null)
+        @php($cardImageUrl = $cardBackgroundType === 'image' && !empty($component['url']) ? $assetUrl($component['url']) : null)
+        @php($cardLink = \App\Support\WebsiteTextLink::url($component['link'] ?? null))
+        @php($wholeCardLinked = $cardLink && ($component['card_link_enabled'] ?? true))
+        @if ($wholeCardLinked)<a class="content-card-widget-link" href="{{ $cardLink }}" aria-label="Open {{ $component['title'] ?? 'card' }}">@endif
+        <article class="content-card-widget content-card-shadow-{{ in_array($component['card_shadow'] ?? 'none', ['none', 'small', 'medium', 'large'], true) ? ($component['card_shadow'] ?? 'none') : 'none' }} {{ $cardVideoUrl || $cardImageUrl ? 'has-media' : '' }}" style="--card-background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : ($settings['primary_color'] ?? '#6d4aff') }};--card-border-width: {{ max(0, min(12, (int) ($component['card_border_width'] ?? 0))) }}px;--card-border-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['card_border_color'] ?? '') ? $component['card_border_color'] : '#ffffff' }};--card-border-radius:{{ max(0, min(100, (int) ($component['card_border_radius'] ?? 24))) }}px;">
             @if ($cardVideoUrl)
                 <video class="content-card-widget-background" autoplay muted loop playsinline preload="auto" data-background-video @if (!empty($component['url'])) poster="{{ $assetUrl($component['url']) }}" @endif>
                     <source src="{{ $cardVideoUrl }}">
                 </video>
-            @elseif (!empty($component['url']))
-                <img src="{{ $assetUrl($component['url']) }}" alt="{{ $component['title'] ?? '' }}" loading="lazy">
+            @elseif ($cardImageUrl)
+                <img src="{{ $cardImageUrl }}" alt="{{ $component['title'] ?? '' }}" loading="lazy">
             @endif
             <div class="content-card-widget-body">
-                @if (!empty($component['title']))<h3>{{ $component['title'] }}</h3>@endif
-                @if (!empty($component['body']))<p>{{ $component['body'] }}</p>@endif
-                @if (!empty($component['link']))<span class="button button-light">Learn more <span>→</span></span>@endif
+                @if (!empty($component['title']))<h3 style="{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['card_title_color'] ?? '') ? 'color:'.$component['card_title_color'].';' : '' }}{{ (int) ($component['card_title_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['card_title_size'])).'px;' : '' }}">{{ $component['title'] }}</h3>@endif
+                @if (!empty($component['body']))<p style="{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['card_description_color'] ?? '') ? 'color:'.$component['card_description_color'].';' : '' }}{{ (int) ($component['card_description_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['card_description_size'])).'px;' : '' }}">{{ $component['body'] }}</p>@endif
+                @if ($cardLink && ($component['card_button_enabled'] ?? true))
+                    @if (!$wholeCardLinked)<a href="{{ $cardLink }}" class="button button-light card-action-button" style="background-color:{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['card_button_color'] ?? '') ? $component['card_button_color'] : '#303030' }};color:{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['card_button_text_color'] ?? '') ? $component['card_button_text_color'] : '#ffffff' }};">{{ $component['card_button_label'] ?? 'Learn more' }}</a>
+                    @else<span class="button button-light card-action-button" style="background-color:{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['card_button_color'] ?? '') ? $component['card_button_color'] : '#303030' }};color:{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['card_button_text_color'] ?? '') ? $component['card_button_text_color'] : '#ffffff' }};">{{ $component['card_button_label'] ?? 'Learn more' }}</span>@endif
+                @endif
             </div>
         </article>
-        @if (!empty($component['link']))</a>@endif
+        @if ($wholeCardLinked)</a>@endif
     @elseif (($component['type'] ?? '') === 'icon')
         @php($iconAlign = in_array($component['align'] ?? 'left', ['left', 'center', 'right'], true) ? ($component['align'] ?? 'left') : 'left')
         <a class="content-icon-widget" href="{{ $component['link'] ?? '' ?: '#' }}" @if (empty($component['link'])) onclick="return false" @endif style="justify-content: {{ $iconAlign === 'center' ? 'center' : ($iconAlign === 'right' ? 'flex-end' : 'flex-start') }};text-align: {{ $iconAlign }};--icon-color: {{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['icon_color'] ?? '') ? $component['icon_color'] : ($settings['primary_color'] ?? '#6d4aff') }};--icon-background: {{ !empty($component['icon_background_transparent']) ? 'transparent' : (preg_match('/^#[0-9a-fA-F]{6}$/', $component['background_color'] ?? '') ? $component['background_color'] : 'color-mix(in srgb, '.($settings['primary_color'] ?? '#6d4aff').' 12%, #fff)') }};--icon-size: {{ max(24, min(160, (int) ($component['icon_size'] ?? 56))) }}px;">
             <span class="content-icon-mark">{{ $component['icon'] ?? '✦' }}</span>
         </a>
     @elseif (($component['type'] ?? '') === 'heading')
-        <h3 style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px;' : '' }}{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['text_color'] ?? '') ? 'color:'.$component['text_color'].';' : '' }}">{{ $component['text'] ?? '' }}</h3>
+        @php($textLink = !empty($component['link_enabled']) ? \App\Support\WebsiteTextLink::url($component['link_url'] ?? null) : null)
+        <h3 style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px;' : '' }}{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['text_color'] ?? '') ? 'color:'.$component['text_color'].';' : '' }}">@if($textLink)<a class="typography-widget-link" href="{{ $textLink }}">@endif{{ $component['text'] ?? '' }}@if($textLink)</a>@endif</h3>
     @elseif (($component['type'] ?? '') === 'text')
-        <p style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px;' : '' }}{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['text_color'] ?? '') ? 'color:'.$component['text_color'].';' : '' }}">{{ $component['text'] ?? '' }}</p>
+        @php($textLink = !empty($component['link_enabled']) ? \App\Support\WebsiteTextLink::url($component['link_url'] ?? null) : null)
+        <p style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px;' : '' }}{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['text_color'] ?? '') ? 'color:'.$component['text_color'].';' : '' }}">@if($textLink)<a class="typography-widget-link" href="{{ $textLink }}">@endif{{ $component['text'] ?? '' }}@if($textLink)</a>@endif</p>
     @elseif (($component['type'] ?? '') === 'quote')
         <blockquote style="text-align: {{ in_array($component['align'] ?? 'left', ['left', 'center', 'right', 'justify'], true) ? ($component['align'] ?? 'left') : 'left' }};{{ (int) ($component['font_size'] ?? 0) > 0 ? 'font-size:'.max(10, min(120, (int) $component['font_size'])).'px;' : '' }}{{ preg_match('/^#[0-9a-fA-F]{6}$/', $component['text_color'] ?? '') ? 'color:'.$component['text_color'].';' : '' }}">{{ $component['text'] ?? '' }}</blockquote>
     @elseif (($component['type'] ?? '') === 'image' && !empty($component['url']))

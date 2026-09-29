@@ -1,0 +1,66 @@
+/* Public forms: message first, quiet borders, and responsive contact details. */
+.church-form-page{--form-ink:#18202d;--form-muted:#687180;--form-line:#dce0e6;--form-surface:#fff;--form-field:#fff;--form-placeholder:#8a919c;margin:0;min-height:100vh;box-sizing:border-box;padding:64px 24px;background:var(--form-background,#f5f3ff);font:16px/1.6 system-ui,sans-serif;color:var(--form-ink);color-scheme:light}
+.church-form-page *{box-sizing:border-box}
+.church-form-card{width:100%;max-width:860px;margin:0 auto;padding:clamp(24px,5vw,56px);border:1px solid var(--form-line);border-radius:var(--form-radius,16px);background:var(--form-surface);box-shadow:0 16px 56px #17203308;text-align:left}
+.church-form-heading{margin:0 0 30px;text-align:left}
+.church-form-card .church-form-kicker{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--form-muted)}
+.church-form-kicker:before{content:'';width:22px;height:2px;background:var(--form-accent,#6d4aff)}
+.church-form-card .church-form-heading :is(h1,h2){font-family:inherit;font-size:clamp(28px,4vw,40px);font-weight:650;line-height:1.15;letter-spacing:-.035em;color:var(--form-ink);margin:0 0 12px;overflow-wrap:anywhere;text-transform:none}
+.church-form-card p{color:var(--form-muted);white-space:pre-line;overflow-wrap:anywhere}
+.church-form-card .church-form-heading p{font-size:14px;line-height:1.75;max-width:56ch;margin:0}
+.church-form-back{display:inline-block;font-size:13px;color:var(--form-muted);text-decoration:none;margin-bottom:28px}
+.church-form-back:hover{text-decoration:underline;text-underline-offset:4px}
+.church-form-fields{display:grid;gap:var(--form-gap,24px);margin:0;min-width:0;padding:0;border:0}
+.church-form-fields label{display:grid;gap:9px;min-width:0;font-size:12px;font-weight:600;line-height:1.5;color:var(--form-ink)}
+.church-form-optional{font-size:11px;font-weight:400;color:var(--form-muted)}
+.church-form-required{color:var(--form-muted)}
+.church-form-fields :is(input,textarea){display:block;box-sizing:border-box;width:100%;min-width:0;min-height:50px;padding:14px 16px;background:var(--form-field);color:var(--form-ink);border:1px solid var(--form-line);border-radius:var(--form-radius,16px);font-family:inherit;font-size:14px;font-weight:400;line-height:1.6;box-shadow:none;transition:border-color .18s,box-shadow .18s,background .18s}
+.church-form-fields :is(input,textarea)::placeholder{color:var(--form-placeholder);opacity:1;font-size:13px}
+.church-form-fields :is(input,textarea):hover{border-color:var(--form-muted)}
+.church-form-fields :is(input,textarea):focus{outline:none;border-color:var(--form-accent,#6d4aff);box-shadow:0 0 0 3px color-mix(in srgb,var(--form-accent,#6d4aff) 15%,transparent)}
+.church-form-fields :is(button,a):focus-visible{outline:3px solid var(--form-accent,#6d4aff);outline-offset:4px}
+.church-form-fields textarea{resize:vertical;min-height:148px}
+.church-form-fields .church-form-contact{min-width:0;border:0;border-top:1px solid var(--form-line);padding:24px 0 0;margin:8px 0 0}
+.church-form-contact legend{float:left;width:100%;padding:0;margin:0 0 4px;font:650 18px/1.4 system-ui,sans-serif;letter-spacing:-.02em;color:var(--form-ink)}
+.church-form-card .church-form-help{clear:both;font-size:12px;line-height:1.6;margin:0 0 20px}
+.church-form-contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--form-gap,24px) 18px}
+.church-form-name{grid-column:1/-1}
+.church-form-footer{display:grid;justify-items:center;gap:16px;margin-top:6px;padding-top:24px;border-top:1px solid var(--form-line)}
+.church-form-card .church-form-privacy{display:flex;align-items:flex-start;gap:10px;font-size:11px;line-height:1.7;text-align:left;margin:0;color:var(--form-muted)}
+.church-form-privacy svg{width:17px;height:20px;flex:none;margin-top:2px}
+.church-form-fields button{display:flex;align-items:center;justify-content:center;gap:18px;width:min(100%,340px);min-height:50px;padding:14px 24px;border:0;border-radius:var(--form-radius,16px);background:var(--form-accent,#6d4aff);color:var(--form-button-text,#fff);font:600 14px/1.4 system-ui,sans-serif;cursor:pointer;transition:transform .18s,box-shadow .18s}
+.church-form-fields button svg{width:18px;height:18px;flex:none;transition:transform .18s}
+.church-form-fields button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 20px color-mix(in srgb,var(--form-accent,#6d4aff) 20%,transparent)}
+.church-form-fields button:hover:not(:disabled) svg{transform:translateX(3px)}
+.church-form-fields button:disabled{opacity:.6;cursor:wait}
+.church-form-required-note{font-size:10px;letter-spacing:.03em;color:var(--form-muted)}
+.church-form-success,.church-form-errors{padding:16px 18px;border:1px solid;border-radius:var(--form-radius,16px);font-size:13px;line-height:1.7;margin:0 0 20px;overflow-wrap:anywhere}
+.church-form-success{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+.church-form-errors{background:#fff1f2;color:#9f1239;border-color:#fecdd3}
+.church-form-widget{--form-field:transparent;min-height:0;width:100%;padding:0;background:transparent;border:0;border-radius:0;text-align:left;container-type:inline-size;font-family:inherit}
+.church-form-widget .church-form-card{max-width:800px;padding:8px 0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.church-form-widget .church-form-heading{margin-bottom:32px}
+.church-form-widget .church-form-heading :is(h1,h2){font-size:clamp(32px,4vw,46px);letter-spacing:-.04em;font-weight:650}
+.church-form-widget .church-form-heading p{font-size:15px;line-height:1.7}
+.church-form-widget .church-form-fields label{font-size:13px;gap:10px}
+.church-form-widget .church-form-fields :is(input,textarea){min-height:54px;padding:15px 18px;font-size:16px;border-color:color-mix(in srgb,var(--form-muted) 32%,transparent)}
+.church-form-widget .church-form-fields :is(input,textarea)::placeholder{font-size:14px}
+.church-form-widget .church-form-fields :is(input,textarea):hover{border-color:var(--form-muted)}
+.church-form-widget .church-form-fields :is(input,textarea):focus{border-color:var(--form-accent,#6d4aff)}
+.church-form-widget .church-form-fields textarea{min-height:156px}
+.church-form-widget .church-form-contact{border-top:0;padding-top:4px;margin-top:4px}
+.church-form-widget .church-form-contact legend{font-size:20px}
+.church-form-widget .church-form-help{font-size:13px;margin-bottom:22px}
+.church-form-widget .church-form-contact-grid{column-gap:24px}
+.church-form-widget .church-form-footer{border:0;padding-top:12px;gap:18px}
+.church-form-widget .church-form-privacy{font-size:12px}
+.church-form-widget .church-form-fields button{min-height:54px;font-size:15px;width:min(100%,360px)}
+.church-form-widget .church-form-required-note{font-size:11px}
+.church-form-page [hidden]{display:none!important}
+.theme-dark .church-form-widget{--form-ink:#f4f4f5;--form-muted:#a0a0ab;--form-line:#303036;--form-surface:#111113;--form-field:transparent;--form-placeholder:#92929c;background:transparent;color-scheme:dark}
+.theme-dark .church-form-card{box-shadow:none}
+.theme-dark .church-form-success{background:#10291f;color:#a7f3d0;border-color:#24533e}
+.theme-dark .church-form-errors{background:#30141d;color:#fecdd3;border-color:#662538}
+@container (max-width:480px){.church-form-card{padding:24px 18px}.church-form-contact-grid{grid-template-columns:minmax(0,1fr)}.church-form-heading{margin-bottom:24px}}
+@media(max-width:540px){.church-form-page{padding:24px 14px}.church-form-card{padding:26px 20px}.church-form-widget{padding:0}.church-form-contact-grid{grid-template-columns:minmax(0,1fr)}.church-form-fields button{width:100%}}
+@media(prefers-reduced-motion:reduce){.church-form-fields :is(input,textarea,button),.church-form-fields button svg{transition:none}}

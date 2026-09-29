@@ -68,6 +68,7 @@ return [
         'children' => [
             ['label' => 'Overview & Pages', 'route' => 'website-studio.index', 'icon' => 'layout-dashboard', 'permission' => 'manage studio', 'active_routes' => ['website-studio.pages.edit', 'website-studio.preview']],
             ['label' => 'Navigation Builder', 'route' => 'website-studio.navigation', 'icon' => 'menu', 'permission' => 'manage studio'],
+            ['label' => 'Forms & Submissions', 'route' => 'website-studio.forms', 'icon' => 'inbox', 'permission' => 'manage studio', 'implemented' => true],
             ['label' => 'Reusable Sections', 'route' => 'website-studio.sections', 'icon' => 'blocks', 'permission' => 'manage studio', 'active_routes' => ['website-studio.sections.edit']],
             ['label' => 'Create Section', 'route' => 'website-studio.sections.create', 'icon' => 'plus', 'permission' => 'manage studio'],
             ['label' => 'Media Library', 'route' => 'website-studio.media', 'icon' => 'image', 'permission' => 'manage studio'],

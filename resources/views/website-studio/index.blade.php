@@ -10,6 +10,7 @@
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Choose a visual direction, shape the message, and publish pages from the same app that already manages your church.</p>
             </div>
             <div class="flex flex-wrap gap-2">
+            <a href="{{ route('website-studio.forms') }}" class="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm font-bold text-violet-700">Forms & Submissions</a>
             <a href="{{ $publicUrl }}" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-700">
                 <i data-lucide="external-link" class="size-4"></i>
                 Open public website
@@ -35,6 +36,22 @@
         @if ($errors->any())
             <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{{ $errors->first() }}</div>
         @endif
+
+        <section class="dashboard-card space-y-4" aria-labelledby="design-transfer-title">
+            <h2 id="design-transfer-title" class="text-lg font-semibold">Export or import a website design</h2>
+            <p class="text-sm text-slate-600">Move your complete Website Studio design between local and live EcclesiaOS installations. The ZIP includes pages, text, navigation, reusable sections, widget settings, and uploaded images and videos. Use the same or a newer EcclesiaOS version on the destination.</p>
+            <p class="text-sm text-slate-600">External media stays linked. Events, sermons, ministries, store products, and church records are not copied; widgets use the destination church?s records. Review branding, contact details, and external links after import.</p>
+            <a href="{{ route('website-studio.design.export') }}" class="inline-flex rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white">Export website ZIP</a>
+            <form method="POST" action="{{ route('website-studio.design.import') }}" enctype="multipart/form-data" class="space-y-3 border-t border-slate-100 pt-4">
+                @csrf
+                <label class="block text-sm font-semibold">Website design ZIP
+                    <input type="file" name="design_package" accept=".zip,application/zip" required class="mt-2 block w-full text-sm">
+                </label>
+                <p class="text-xs text-slate-500">Maximum 200 MB, subject to your server?s upload limit. Export the current design first if you want a backup.</p>
+                <label class="flex items-start gap-2 text-sm"><input type="checkbox" name="replace_design" value="1" required class="mt-1">Replace this church?s website settings and pages with the uploaded design, including its publication status.</label>
+                <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Import website design</button>
+            </form>
+        </section>
 
         <div class="website-studio-shell">
         <div class="website-studio-main">

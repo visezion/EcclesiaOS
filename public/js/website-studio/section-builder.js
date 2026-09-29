@@ -15,8 +15,12 @@ document.addEventListener('DOMContentLoaded', () => {
         divider: 'Divider',
         events: 'Events',
         sermons: 'Sermons',
+        form: 'Form',
+        faq: 'FAQs',
     };
     const widgetIcons = {
+        faq: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3h.01"/></svg>',
+        form: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h4M8 18h6"/></svg>',
         subcolumns: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="6" height="14" rx="1"/><rect x="14" y="5" width="6" height="14" rx="1"/></svg>',
         heading: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5v14M5 12h14M5 5h4M15 5h4M5 19h4M15 19h4"/></svg>',
         text: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9"/></svg>',
@@ -35,6 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
         sermons: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/></svg>',
     };
     const defaults = {
+        faq: '',
+        form: '',
         heading: 'Section heading',
         text: 'Write a short message for your visitors.',
         quote: 'A meaningful quote from your church.',
@@ -335,6 +341,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const animationField = (item) =>
         `<label class="widget-animation-field">Public animation<select data-field="animation"><option value="none" ${!item.animation || item.animation === 'none' ? 'selected' : ''}>None</option><option value="fade" ${item.animation === 'fade' ? 'selected' : ''}>Fade in</option><option value="slide-up" ${item.animation === 'slide-up' ? 'selected' : ''}>Slide up</option><option value="slide-left" ${item.animation === 'slide-left' ? 'selected' : ''}>Slide left</option><option value="zoom" ${item.animation === 'zoom' ? 'selected' : ''}>Zoom in</option><option value="bounce" ${item.animation === 'bounce' ? 'selected' : ''}>Bounce</option><option value="float" ${item.animation === 'float' ? 'selected' : ''}>Float</option></select></label>`;
     const widgetFields = (item) => {
+        if (item.type === 'faq') {
+            item.faq_items ||= [];
+            return `<div class="faq-widget-editor"><label>Heading<input data-field="faq_title" maxlength="120" value="${esc(item.faq_title ?? 'FAQs')}"></label><div class="widget-field-grid"><label>First answer<select data-field="faq_open"><option value="closed" ${item.faq_open !== 'first' ? 'selected' : ''}>Start closed</option><option value="first" ${item.faq_open === 'first' ? 'selected' : ''}>Start expanded</option></select></label><label>Expand behavior<select data-field="faq_mode"><option value="single" ${item.faq_mode !== 'multiple' ? 'selected' : ''}>One answer at a time</option><option value="multiple" ${item.faq_mode === 'multiple' ? 'selected' : ''}>Allow multiple answers</option></select></label></div>${item.faq_items.map((entry, index) => `<div class="faq-widget-entry"><div class="faq-widget-entry-actions"><strong>Question ${index + 1}</strong><button type="button" data-faq-up="${index}" ${index === 0 ? 'disabled' : ''} aria-label="Move question ${index + 1} up">↑</button><button type="button" data-faq-down="${index}" ${index === item.faq_items.length - 1 ? 'disabled' : ''} aria-label="Move question ${index + 1} down">↓</button><button type="button" data-faq-remove="${index}" aria-label="Remove question ${index + 1}">Remove</button></div><label>Question<input data-faq-index="${index}" data-faq-field="question" maxlength="240" value="${esc(entry.question)}" required></label><label>Answer<textarea data-faq-index="${index}" data-faq-field="answer" rows="3" maxlength="5000" required>${esc(entry.answer)}</textarea></label></div>`).join('')}<button type="button" data-faq-add ${item.faq_items.length >= 30 ? 'disabled' : ''}>+ Add question</button></div>`;
+        }
+        if (item.type === 'form') {
+            const type = item.form_type || 'contact';
+            item.form_settings = { ...(window.ecclesiaFormWidgets?.defaults?.[type] || {}), ...(item.form_settings || {}) };
+            const settings = item.form_settings;
+            settings.enabled = [true, 1, '1', 'true'].includes(settings.enabled);
+            settings.require_email = [true, 1, '1', 'true'].includes(settings.require_email);
+            const textField = (key, label, limit) => `<label>${label}<input data-form-setting="${key}" maxlength="${limit}" value="${esc(settings[key])}" ${key === 'description' ? '' : 'required'}></label>`;
+            const select = (key, label, options) => `<label>${label}<select data-form-setting="${key}">${Object.entries(options).map(([value, text]) => `<option value="${value}" ${String(settings[key]) === value ? 'selected' : ''}>${text}</option>`).join('')}</select></label>`;
+            return `<label>Form type<select data-field="form_type">${Object.entries({contact: 'Contact', prayer: 'Prayer request', testimony: 'Testimony', feedback: 'Feedback'}).map(([value, label]) => `<option value="${value}" ${type === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
+                <div class="widget-field-grid">${select('enabled', 'Visibility', {true: 'Visible', false: 'Hidden'})}${select('require_email', 'Email field', {true: 'Required', false: 'Optional'})}</div>
+                ${textField('title', 'Form title', 120)}${textField('description', 'Introduction', 1000)}
+                <div class="widget-field-grid">${textField('message_label', 'Message label', 120)}${textField('submit_label', 'Button text', 80)}</div>
+                <div class="widget-field-grid"><label>Button color<input type="color" data-form-setting="accent_color" value="${esc(settings.accent_color || '#6d4aff')}"></label>${select('style', 'Field style', {rounded: 'Rounded', square: 'Square'})}${select('spacing', 'Spacing', {spacious: 'Spacious', compact: 'Compact'})}</div>
+                ${textField('success_message', 'Confirmation message', 500)}
+                ${select('action', 'When submitted', {inbox: 'Save to inbox', assign: 'Save and assign to staff'})}
+                <label data-form-staff>Assign to<select data-form-setting="assigned_to"><option value="">Choose staff</option>${(window.ecclesiaFormWidgets?.staff || []).map(staff => `<option value="${staff.id}" ${String(settings.assigned_to) === String(staff.id) ? 'selected' : ''}>${esc(staff.name)}</option>`).join('')}</select></label>
+                <span class="widget-hint">Save section to apply changes.</span>`;
+        }
         if (item.type === 'divider')
             return `<div class="widget-field-grid"><label>Line style<select data-field="divider_style"><option value="solid" ${!item.divider_style || item.divider_style === 'solid' ? 'selected' : ''}>Solid</option><option value="dashed" ${item.divider_style === 'dashed' ? 'selected' : ''}>Dashed</option><option value="dotted" ${item.divider_style === 'dotted' ? 'selected' : ''}>Dotted</option></select></label><label>Justification<select data-field="divider_justify"><option value="left" ${!item.divider_justify || item.divider_justify === 'left' ? 'selected' : ''}>Left</option><option value="center" ${item.divider_justify === 'center' ? 'selected' : ''}>Center</option><option value="right" ${item.divider_justify === 'right' ? 'selected' : ''}>Right</option></select></label><label>Color<input type="color" data-field="divider_color" value="${esc(item.divider_color || '#e2e8f0')}"></label><label>Width (%)<input type="number" min="10" max="100" step="1" data-field="divider_width" value="${Math.max(10, Math.min(100, Number(item.divider_width) || 100))}"></label><label>Thickness (px)<input type="number" min="1" max="8" step="1" data-field="divider_thickness" value="${Math.max(1, Math.min(8, Number(item.divider_thickness) || 1))}"></label><label>Spacing (px)<input type="number" min="0" max="120" step="1" data-field="divider_spacing" value="${Math.max(0, Math.min(120, Number(item.divider_spacing) || 24))}"></label></div>`;
         if (item.type === 'events')
@@ -394,6 +422,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: image.id || id(),
                 url: image.url || '',
                 alt: image.alt || '',
+                title: image.title || '',
+                text: image.text || '',
                 position: image.position || 'center',
             }));
             return (
@@ -427,7 +457,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             index +
                             '" value="' +
                             esc(image.alt) +
-                            '" placeholder="Describe this image"></label><label>Crop focus<select data-gallery-field="position" data-gallery-index="' +
+                            '" placeholder="Describe this image"></label><label>Slide title <span class="optional">(optional)</span><input data-gallery-field="title" data-gallery-index="' +
+                            index +
+                            '" value="' +
+                            esc(image.title) +
+                            '" placeholder="Invite Your Friends & Family"></label><label>Slide description <span class="optional">(optional)</span><input data-gallery-field="text" data-gallery-index="' +
+                            index +
+                            '" value="' +
+                            esc(image.text) +
+                            '" placeholder="Join us for food and fun"></label><label>Crop focus<select data-gallery-field="position" data-gallery-index="' +
                             index +
                             '"><option value="center" ' +
                             (image.position === 'center' || !image.position ? 'selected' : '') +
@@ -449,8 +487,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 '" placeholder="Our community"></label></div></div>'
             );
         }
-        if (item.type === 'card')
-            return `<div class="card-editor"><label>Card title<input data-card-field="title" value="${esc(item.title)}" placeholder="Card title"></label><label>Description<textarea data-card-field="body" rows="3" placeholder="Card description">${esc(item.body)}</textarea></label><label>Background image URL <span class="optional">(optional)</span><input data-field="url" value="${esc(item.url)}" placeholder="https://..."></label><label>Upload background image<input type="file" name="component_image_files[${item.id}]" accept="image/*"></label><label>Background video URL <span class="optional">(optional)</span><input data-field="background_video" value="${esc(item.background_video)}" placeholder="https://..."></label><label>Upload background video<input type="file" name="component_video_files[${item.id}]" accept="video/mp4,video/webm,video/ogg"></label><span class="widget-hint">Video backgrounds play muted and loop automatically.</span><div class="card-style-fields"><label>Background color<input type="color" data-field="background_color" value="${esc(item.background_color || '#6d4aff')}"></label><label>Border color<input type="color" data-field="card_border_color" value="${esc(item.card_border_color || '#ffffff')}"></label><label>Border size (px)<input type="number" min="0" max="12" data-field="card_border_width" value="${Math.max(0, Math.min(12, Number(item.card_border_width) || 0))}"></label><label>Corner radius (px)<input type="number" min="0" max="100" data-field="card_border_radius" value="${Math.max(0, Math.min(100, Number(item.card_border_radius) || 24))}"></label><label>Shadow<select data-field="card_shadow"><option value="none" ${!item.card_shadow || item.card_shadow === 'none' ? 'selected' : ''}>None</option><option value="small" ${item.card_shadow === 'small' ? 'selected' : ''}>Small</option><option value="medium" ${item.card_shadow === 'medium' ? 'selected' : ''}>Medium</option><option value="large" ${item.card_shadow === 'large' ? 'selected' : ''}>Large</option></select></label><label class="card-link-field">Card link <span class="optional">(optional)</span><input data-card-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div></div>`;
+        if (item.type === 'card') {
+            const backgroundType = item.card_background_type || (item.background_video ? 'video' : item.url ? 'image' : 'color');
+            const color = (field, label, fallback) => `<label>${label}<span class="card-color-control"><input type="color" data-field="${field}" value="${esc(item[field] || fallback)}"><span data-color-value="${field}">${esc(item[field] || fallback)}</span></span></label>`;
+            const number = (field, label, fallback, min, max) => `<label>${label}<input type="number" data-field="${field}" min="${min}" max="${max}" value="${Math.max(min, Math.min(max, (Number.isFinite(Number(item[field] ?? fallback)) ? Number(item[field] ?? fallback) : fallback)))}"></label>`;
+            return `<div class="card-editor card-editor-compact">
+                <div class="card-background-preview" data-card-preview></div>
+                <label>Card title<input data-card-field="title" value="${esc(item.title)}" placeholder="New card"></label>
+                <label>Description<textarea data-card-field="body" rows="3" placeholder="A welcoming message">${esc(item.body)}</textarea></label>
+                <fieldset class="card-background-tabs"><legend>Background type</legend>${['image', 'video', 'color'].map(type => `<button type="button" data-card-background-type="${type}" aria-pressed="${backgroundType === type}">${type[0].toUpperCase() + type.slice(1)}</button>`).join('')}</fieldset>
+                <div data-card-background-panel="image"><label>Background image URL<input data-field="url" value="${esc(item.url)}" placeholder="https://example.com/image.jpg"></label><label class="card-upload-control">Choose or upload image<input type="file" name="component_image_files[${item.id}]" accept="image/*"></label></div>
+                <div data-card-background-panel="video"><label>Background video URL<input data-field="background_video" value="${esc(item.background_video)}" placeholder="https://example.com/video.mp4"></label><label class="card-upload-control">Upload video<input type="file" name="component_video_files[${item.id}]" accept="video/mp4,video/webm,video/ogg"></label></div>
+                <div class="card-settings-grid">
+                    ${color('card_title_color', 'Title color', '#ffffff')}${number('card_title_size', 'Title size (px)', 23, 10, 120)}
+                    ${color('card_description_color', 'Description color', '#d1d1d1')}${number('card_description_size', 'Description size (px)', 16, 10, 120)}
+                    ${color('background_color', 'Background color', '#6d4aff')}${color('card_border_color', 'Border color', '#ffffff')}
+                    ${number('card_border_width', 'Border size (px)', 0, 0, 12)}${number('card_border_radius', 'Corner radius (px)', 24, 0, 100)}
+                    <label>Shadow<select data-field="card_shadow">${['none', 'small', 'medium', 'large'].map(value => `<option value="${value}" ${(item.card_shadow || 'none') === value ? 'selected' : ''}>${value[0].toUpperCase() + value.slice(1)}</option>`).join('')}</select></label>
+                    <label class="card-toggle-label">Show button<input type="checkbox" role="switch" data-field="card_button_enabled" ${item.card_button_enabled !== false ? 'checked' : ''}></label>
+                    <label class="card-toggle-label">Make entire card clickable<input type="checkbox" role="switch" data-field="card_link_enabled" ${(item.card_link_enabled ?? Boolean(item.link)) ? 'checked' : ''}></label>
+                    ${color('card_button_color', 'Button color', '#303030')}${color('card_button_text_color', 'Button text color', '#ffffff')}
+                    <label>Button text<input data-field="card_button_label" value="${esc(item.card_button_label ?? 'Learn more')}" placeholder="Learn more"></label>
+                    <label>Card / button link<input inputmode="url" data-card-field="link" value="${esc(item.link)}" placeholder="https://example.com or /site/church/page"></label>
+                </div>
+            </div>`;
+        }
         if (item.type === 'icon')
             return `<div class="icon-editor"><label>Icon symbol<input data-icon-field="icon" value="${esc(item.icon || '✦')}" maxlength="8" placeholder="✦"><button type="button" class="icon-library-button" data-open-icon-library>Choose from icon library</button></label><div class="icon-style-fields"><label>Icon color<input type="color" data-field="icon_color" value="${esc(item.icon_color || '#6d4aff')}"></label><label>Background<input type="color" data-field="background_color" value="${esc(item.background_color || '#ede9fe')}"><span class="column-transparent-toggle"><input type="checkbox" data-field="icon_background_transparent" ${item.icon_background_transparent ? 'checked' : ''}> Transparent</span></label><label>Size (px)<input type="number" min="24" max="160" data-field="icon_size" value="${Number(item.icon_size) || 56}"></label></div><label>Alignment<select data-field="align"><option value="left" ${!item.align || item.align === 'left' ? 'selected' : ''}>Left</option><option value="center" ${item.align === 'center' ? 'selected' : ''}>Center</option><option value="right" ${item.align === 'right' ? 'selected' : ''}>Right</option></select></label><label>Link <span class="optional">(optional)</span><input data-field="link" value="${esc(item.link)}" placeholder="/about or https://..."></label></div>`;
         if (item.type === 'image')
@@ -464,7 +525,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (['heading', 'text', 'quote'].includes(item.type)) {
             const defaultSize = item.type === 'heading' ? 46 : item.type === 'quote' ? 22 : 16;
             const defaultColor = item.type === 'heading' ? '#ffffff' : '#a9aaa8';
-            return `${textField}<div class="typography-controls"><label>Font size (px)<input type="number" min="10" max="120" step="1" data-field="font_size" value="${Math.max(10, Math.min(120, Number(item.font_size) || defaultSize))}"></label><label>${textLabel} color<input type="color" data-field="text_color" value="${esc(item.text_color || defaultColor)}"></label><label>Alignment<select data-field="align"><option value="left" ${item.align === 'left' || !item.align ? 'selected' : ''}>Left</option><option value="center" ${item.align === 'center' ? 'selected' : ''}>Center</option><option value="right" ${item.align === 'right' ? 'selected' : ''}>Right</option><option value="justify" ${item.align === 'justify' ? 'selected' : ''}>Justify</option></select></label>${animationField(item)}</div>`;
+            const spacingFields = ['heading', 'text'].includes(item.type)
+                ? `<div class="widget-field-grid">${[['margin_top', 'Top margin'], ['margin_bottom', 'Bottom margin'], ['padding_top', 'Top padding'], ['padding_bottom', 'Bottom padding']].map(([field, label]) => `<label>${label} (px)<input type="number" min="0" max="120" step="1" data-field="${field}" value="${Math.max(0, Math.min(120, Number(item[field]) || 0))}"></label>`).join('')}</div>`
+                : '';
+
+            const linkFields = item.type === 'quote' ? '' : `<div class="typography-link-settings"><label class="typography-link-toggle"><input type="checkbox" data-field="link_enabled" ${item.link_enabled ? 'checked' : ''}> Make ${textLabel.toLowerCase()} clickable</label><label data-typography-link-url ${item.link_enabled ? '' : 'hidden'}>Link URL<input type="text" inputmode="url" data-field="link_url" value="${esc(item.link_url)}" placeholder="https://example.com or /site/church/page" ${item.link_enabled ? 'required' : ''}></label></div>`;
+            return `${textField}<div class="typography-controls"><label>Font size (px)<input type="number" min="10" max="120" step="1" data-field="font_size" value="${Math.max(10, Math.min(120, Number(item.font_size) || defaultSize))}"></label><label>${textLabel} color<input type="color" data-field="text_color" value="${esc(item.text_color || defaultColor)}"></label><label>Alignment<select data-field="align"><option value="left" ${item.align === 'left' || !item.align ? 'selected' : ''}>Left</option><option value="center" ${item.align === 'center' ? 'selected' : ''}>Center</option><option value="right" ${item.align === 'right' ? 'selected' : ''}>Right</option><option value="justify" ${item.align === 'justify' ? 'selected' : ''}>Justify</option></select></label>${animationField(item)}</div>${linkFields}${spacingFields}`;
         }
         return textField;
     };
@@ -475,6 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
         margin: 0,
         columns: (columns.length ? columns : [{ components: [] }]).map((column, index) => ({
             id: column.id || id(),
+            editor_collapsed: column.editor_collapsed === true,
             width: Number(widths[index] || column.width) || 1,
             background_color: column.background_color || 'transparent',
             background_transparent: column.background_color === 'transparent' || Boolean(column.background_transparent),
@@ -526,6 +593,27 @@ document.addEventListener('DOMContentLoaded', () => {
         let draggedComponent = null;
         let draggedColumn = null;
         let draggedGroup = null;
+        // Persist editor presentation with the section; public rendering ignores it.
+        const addCollapseControl = (heading, owner, panels, label) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'builder-collapse-button';
+            button.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg>';
+            const refresh = () => {
+                const collapsed = owner.editor_collapsed === true;
+                panels.forEach(panel => { panel.hidden = collapsed; });
+                button.setAttribute('aria-expanded', String(!collapsed));
+                button.title = `${collapsed ? 'Expand' : 'Collapse'} ${label}`;
+                button.setAttribute('aria-label', button.title);
+            };
+            button.addEventListener('click', () => {
+                owner.editor_collapsed = owner.editor_collapsed !== true;
+                sync();
+                refresh();
+            });
+            refresh();
+            heading.appendChild(button);
+        };
         const groupContainsColumn = (group, target) =>
             (group.columns || []).some(
                 (column) =>
@@ -575,9 +663,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 render();
             });
             const removeLastColumnButton = row.querySelector('[data-remove-column]');
-            removeLastColumnButton.disabled = container.columns.length <= 1;
+            removeLastColumnButton.disabled = container.columns.length < 1;
             removeLastColumnButton.addEventListener('click', () => {
-                if (container.columns.length <= 1) return;
+                if (container.columns.length < 1) return;
                 const column = container.columns.at(-1);
                 if ((column.components || []).length && !window.confirm('Delete the last column and all widgets inside it?')) return;
                 container.columns.pop();
@@ -602,7 +690,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 deleteColumnButton.className = 'delete-column-button';
                 deleteColumnButton.dataset.deleteColumn = '';
                 deleteColumnButton.textContent = 'Delete';
-                deleteColumnButton.disabled = container.columns.length <= 1;
                 deleteColumnButton.setAttribute('aria-label', `Delete column ${columnIndex + 1}`);
                 columnHeadingActions.appendChild(deleteColumnButton);
                 columnHeading.appendChild(columnHeadingActions);
@@ -658,9 +745,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         field.closest('label').after(removeButton);
                     }
                     field.closest('label').after(hidden);
+                    const resetRemoval = () => {
+                        hidden.value = '0';
+                        removeButton.textContent = 'Remove';
+                        removeButton.classList.remove('is-removed');
+                        removeButton.hidden = !field.value && !uploadField?.files?.length;
+                    };
+                    field.addEventListener('input', resetRemoval);
+                    field.addEventListener('change', resetRemoval);
+                    uploadField?.addEventListener('change', resetRemoval);
                     removeButton.addEventListener('click', () => {
                         hidden.value = '1';
                         field.value = '';
+                        column[fieldName] = '';
+                        if (uploadField) uploadField.value = '';
+                        const title = uploadLabel?.querySelector('.column-upload-title');
+                        if (title) {
+                            title.textContent = mediaType === 'image' ? 'Select or upload image' : 'Background video';
+                            title.title = title.textContent;
+                        }
+                        sync();
                         removeButton.textContent = 'Removed on save';
                         removeButton.classList.add('is-removed');
                     });
@@ -730,7 +834,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     sync();
                 });
                 columnEl.querySelector('[data-delete-column]').addEventListener('click', () => {
-                    if (container.columns.length <= 1) return;
                     if ((column.components || []).length && !window.confirm(`Delete column ${columnIndex + 1} and all widgets inside it?`)) return;
                     container.columns.splice(columnIndex, 1);
                     render();
@@ -753,6 +856,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             id: id(),
                             type,
                             text: defaults[type],
+                            link_enabled: false,
+                            link_url: '',
                             url: '',
                             alt: '',
                             height: type === 'spacer' ? 36 : 0,
@@ -773,6 +878,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             card_border_color: type === 'card' ? '#ffffff' : '',
                             card_border_radius: type === 'card' ? 24 : 0,
                             card_shadow: type === 'card' ? 'none' : '',
+                            card_link_enabled: false,
                             link: '',
                             align: 'left',
                             font_size: 0,
@@ -798,6 +904,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             event_button_text_color: type === 'events' ? '#ffffff' : '',
                             event_style: type === 'events' ? 'list' : '',
                             sermon_limit: type === 'sermons' ? 'all' : 'all',
+                            form_type: type === 'form' ? 'contact' : '',
+                            faq_title: type === 'faq' ? 'FAQs' : '',
+                            faq_items: type === 'faq' ? [{ question: 'What should I expect on my first visit?', answer: 'Add a helpful answer for your visitors.' }] : [],
+                            faq_open: 'first',
+                            faq_mode: 'single',
                         });
                         render();
                     }),
@@ -874,7 +985,78 @@ document.addEventListener('DOMContentLoaded', () => {
                         block.classList.remove('is-dragging');
                         content.classList.remove('is-drop-target');
                     });
-                    block.innerHTML = `<div class="widget-top"><strong>${labels[item.type] || 'Text'}</strong><button type="button" data-remove>×</button></div><div class="widget-fields">${item.type === 'image' && item.url ? `<div class="widget-media-preview"><img src="${esc(mediaUrl(item.url))}" alt="${esc(item.alt)}"></div>` : ''}${item.type === 'video' && item.url ? `<div class="widget-media-preview"><video src="${esc(mediaUrl(item.url))}" controls></video></div>` : ''}${widgetFields(item)}</div>`;
+                    block.innerHTML = `<div class="widget-top"><strong>${labels[item.type] || 'Text'}</strong><button type="button" data-duplicate title="Duplicate this widget">Duplicate</button><button type="button" data-remove aria-label="Remove widget" title="Remove widget"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button></div><div class="widget-fields">${item.type === 'image' && item.url ? `<div class="widget-media-preview"><img src="${esc(mediaUrl(item.url))}" alt="${esc(item.alt)}"></div>` : ''}${item.type === 'video' && item.url ? `<div class="widget-media-preview"><video src="${esc(mediaUrl(item.url))}" controls></video></div>` : ''}${widgetFields(item)}</div>`;
+                    if (item.type === 'form') {
+                        block.classList.add('form-widget-block');
+                        const refreshForm = () => {
+                            const settings = item.form_settings;
+                            block.querySelector('[data-form-staff]').hidden = settings.action !== 'assign';
+                            block.querySelector('[data-form-setting="assigned_to"]').required = settings.action === 'assign';
+                        };
+                        block.querySelectorAll('[data-form-setting]').forEach(field => field.addEventListener('input', () => {
+                            const key = field.dataset.formSetting;
+                            item.form_settings[key] = ['enabled', 'require_email'].includes(key) ? field.value === 'true' : key === 'assigned_to' ? (field.value ? Number(field.value) : null) : field.value;
+                            if (key === 'action' && field.value === 'inbox') item.form_settings.assigned_to = null;
+                            sync();
+                            refreshForm();
+                        }));
+                        refreshForm();
+                    }
+                    if (item.type === 'faq') {
+                        block.querySelectorAll('[data-faq-field]').forEach(field => field.addEventListener('input', () => {
+                            item.faq_items[Number(field.dataset.faqIndex)][field.dataset.faqField] = field.value;
+                            sync();
+                        }));
+                        block.querySelector('[data-faq-add]').addEventListener('click', () => {
+                            if (item.faq_items.length >= 30) return;
+                            item.faq_items.push({ question: '', answer: '' });
+                            render();
+                        });
+                        ['remove', 'up', 'down'].forEach(action => block.querySelectorAll(`[data-faq-${action}]`).forEach(button => button.addEventListener('click', () => {
+                            const index = Number(button.getAttribute(`data-faq-${action}`));
+                            if (action === 'remove') item.faq_items.splice(index, 1);
+                            else {
+                                const target = index + (action === 'up' ? -1 : 1);
+                                if (target < 0 || target >= item.faq_items.length) return;
+                                [item.faq_items[index], item.faq_items[target]] = [item.faq_items[target], item.faq_items[index]];
+                            }
+                            render();
+                        })));
+                    }
+                    if (item.type === 'card') {
+                        block.classList.add('card-widget-block');
+                        const heading = block.querySelector('.widget-top strong');
+                        const refreshCard = () => {
+                            heading.textContent = item.title || 'Card';
+                            const type = item.card_background_type || (item.background_video ? 'video' : item.url ? 'image' : 'color');
+                            block.querySelectorAll('[data-card-background-panel]').forEach(panel => { panel.hidden = panel.dataset.cardBackgroundPanel !== type; });
+                            block.querySelectorAll('[data-card-background-type]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.cardBackgroundType === type)));
+                            const preview = block.querySelector('[data-card-preview]');
+                            const url = type === 'video' ? item.background_video : type === 'image' ? item.url : '';
+                            preview.innerHTML = `${url ? (type === 'image' ? `<img src="${esc(mediaUrl(url))}" alt="Card background preview">` : `<video src="${esc(mediaUrl(url))}" muted playsinline preload="metadata"></video>`) : '<span class="card-preview-placeholder">Card</span>'}<span><strong>Background preview</strong><small>${type[0].toUpperCase() + type.slice(1)}</small></span><button type="button" data-card-clear-background aria-label="Remove card background" ${!url ? 'hidden' : ''} title="Remove card background"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg></button>`;
+                            preview.querySelector('[data-card-clear-background]')?.addEventListener('click', () => {
+                                const field = type === 'video' ? 'background_video' : 'url';
+                                item[field] = '';
+                                block.querySelector(`[data-field="${field}"]`).value = '';
+                                const upload = block.querySelector(`[data-card-background-panel="${type}"] input[type="file"]`);
+                                if (upload) upload.value = '';
+                                sync(); refreshCard();
+                            });
+                        };
+                        block.querySelectorAll('[data-card-background-type]').forEach(button => button.addEventListener('click', () => {
+                            item.card_background_type = button.dataset.cardBackgroundType;
+                            sync(); refreshCard();
+                        }));
+                        block.addEventListener('input', event => {
+                            const field = event.target.dataset.field;
+                            if (field) {
+                                const value = block.querySelector(`[data-color-value="${field}"]`);
+                                if (value) value.textContent = event.target.value;
+                            }
+                            if (['url', 'background_video'].includes(field) || event.target.dataset.cardField === 'title') refreshCard();
+                        });
+                        refreshCard();
+                    }
                     if (!['heading', 'text', 'quote'].includes(item.type))
                         block.querySelector('.widget-fields')?.insertAdjacentHTML('beforeend', animationField(item));
                     block.querySelectorAll('[data-slide-field]').forEach((field) =>
@@ -904,7 +1086,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }),
                     );
                     block.querySelector('[data-add-gallery-image]')?.addEventListener('click', () => {
-                        item.images.push({ id: id(), url: '', alt: '', position: 'center' });
+                        item.images.push({ id: id(), url: '', alt: '', title: '', text: '', position: 'center' });
                         render();
                     });
                     block.querySelectorAll('[data-remove-gallery-image]').forEach((button, imageIndex) =>
@@ -930,6 +1112,39 @@ document.addEventListener('DOMContentLoaded', () => {
                             render();
                         }),
                     );
+                    block.querySelector('[data-duplicate]').addEventListener('click', () => {
+                        const copiedIds = new Map();
+                        const copyValue = (value) => {
+                            if (Array.isArray(value)) return value.map(copyValue);
+                            if (!value || typeof value !== 'object') return value;
+                            return Object.fromEntries(Object.entries(value).map(([key, child]) => {
+                                if (key !== 'id') return [key, copyValue(child)];
+                                const newId = id();
+                                copiedIds.set(child, newId);
+                                return [key, newId];
+                            }));
+                        };
+                        const duplicate = copyValue(item);
+                        duplicate.id ||= id();
+                        // Keep pending uploads on both the original and the independent copy.
+                        const uploads = new Map();
+                        canvas.querySelectorAll('input[type="file"]').forEach((input) => {
+                            if (!input.files?.length) return;
+                            uploads.set(input.name, input.files);
+                            const copiedName = input.name.replace(/\[([^\]]+)\]/g, (match, oldId) =>
+                                copiedIds.has(oldId) ? `[${copiedIds.get(oldId)}]` : match,
+                            );
+                            if (copiedName !== input.name) uploads.set(copiedName, input.files);
+                        });
+                        column.components.splice(itemIndex + 1, 0, duplicate);
+                        render();
+                        canvas.querySelectorAll('input[type="file"]').forEach((input) => {
+                            if (uploads.has(input.name)) input.files = uploads.get(input.name);
+                        });
+                        const copiedBlock = [...canvas.querySelectorAll('[data-widget-id]')]
+                            .find((element) => element.dataset.widgetId === duplicate.id);
+                        copiedBlock?.querySelector('[data-duplicate]')?.focus();
+                    });
                     block.querySelector('[data-remove]').addEventListener('click', () => {
                         column.components.splice(itemIndex, 1);
                         render();
@@ -937,13 +1152,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     block.querySelectorAll('[data-field]').forEach((field) => {
                         const updateField = () => {
                             item[field.dataset.field] = field.type === 'checkbox' ? field.checked : field.value;
+                            if (field.dataset.field === 'link_enabled') {
+                                const linkLabel = block.querySelector('[data-typography-link-url]');
+                                if (linkLabel) {
+                                    linkLabel.hidden = !field.checked;
+                                    linkLabel.querySelector('input').required = field.checked;
+                                }
+                            }
                             sync();
                         };
                         field.addEventListener('input', updateField);
                         field.addEventListener('change', updateField);
                     });
+                    addCollapseControl(block.querySelector('.widget-top'), item, [block.querySelector('.widget-fields')], `${labels[item.type] || 'Widget'} settings`);
                     content.appendChild(block);
                 });
+                addCollapseControl(columnHeadingActions, column, [...columnEl.children].filter(child => child !== columnHeading), `column ${columnIndex + 1}`);
                 list.appendChild(columnEl);
             });
             refreshColumnVisuals();
@@ -975,11 +1199,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 deleteGroupButton.className = 'delete-group-button';
                 deleteGroupButton.dataset.deleteGroup = '';
                 deleteGroupButton.textContent = 'Delete group';
-                deleteGroupButton.disabled = tree.groups.length <= 1;
                 deleteGroupButton.setAttribute('aria-label', `Delete column group ${groupIndex + 1}`);
                 groupShell.querySelector('.column-group-order').appendChild(deleteGroupButton);
                 deleteGroupButton.addEventListener('click', () => {
-                    if (tree.groups.length <= 1) return;
                     const hasWidgets = (group.columns || []).some((column) => (column.components || []).length > 0);
                     if (hasWidgets && !window.confirm(`Delete column group ${groupIndex + 1} and all widgets inside it?`)) return;
                     tree.groups.splice(groupIndex, 1);

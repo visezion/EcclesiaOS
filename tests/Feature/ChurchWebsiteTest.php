@@ -20,6 +20,176 @@ final class ChurchWebsiteTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_card_widget_can_link_the_whole_card_or_only_its_button(): void
+    {
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $role = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($role);
+        $this->actingAs($user)->get(route('website-studio.index'))->assertOk();
+
+        $cards = [
+            ['type' => 'card', 'title' => 'Whole card', 'body' => 'Open the page', 'link' => '/visit', 'card_link_enabled' => true, 'card_button_enabled' => false],
+            ['type' => 'card', 'title' => 'Button only', 'body' => 'Read more', 'link' => 'https://example.org/info', 'card_link_enabled' => false, 'card_button_enabled' => true],
+            ['type' => 'card', 'title' => 'Older card', 'link' => '/legacy', 'card_button_enabled' => false],
+            ['type' => 'card', 'title' => 'Unsafe card', 'link' => 'javascript:alert(1)', 'card_link_enabled' => true],
+        ];
+        $this->actingAs($user)->post(route('website-studio.sections.store'), [
+            'title' => 'Linked cards', 'page_slugs' => ['home'], 'components' => json_encode($cards),
+        ])->assertSessionHasNoErrors();
+
+        $saved = data_get($church->fresh()->settings, 'website.custom_sections.0.components');
+        $this->assertTrue($saved[0]['card_link_enabled']);
+        $this->assertFalse($saved[1]['card_link_enabled']);
+        $this->assertTrue($saved[2]['card_link_enabled']);
+        $this->assertSame('', $saved[3]['link']);
+
+        $html = $this->get(route('website.public', ['church' => $church->slug]))->assertOk()->getContent();
+        $this->assertSame(2, substr_count($html, 'class="content-card-widget-link"'));
+        $this->assertStringContainsString('class="content-card-widget-link" href="/visit"', $html);
+        $this->assertStringContainsString('class="content-card-widget-link" href="/legacy"', $html);
+        $this->assertStringContainsString('href="https://example.org/info" class="button button-light card-action-button"', $html);
+        $this->assertStringNotContainsString('javascript:alert', $html);
+    }
+
+    public function test_heading_and_text_widgets_can_be_linked_in_flat_and_nested_sections(): void
+    {
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $role = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($role);
+        $this->actingAs($user)->get(route('website-studio.index'))->assertOk();
+
+        $flat = [
+            ['type' => 'heading', 'text' => 'Visit our events', 'link_enabled' => true, 'link_url' => '/events'],
+            ['type' => 'text', 'text' => 'Read our story', 'link_enabled' => true, 'link_url' => 'https://example.org/story'],
+            ['type' => 'text', 'text' => 'Plain text', 'link_enabled' => false, 'link_url' => '/unused'],
+            ['type' => 'heading', 'text' => 'Unsafe link stays plain', 'link_enabled' => true, 'link_url' => 'javascript:alert(1)'],
+        ];
+        $nested = ['type' => 'columns', 'columns' => [[
+            'width' => 1, 'components' => [['type' => 'columns', 'columns' => [[
+                'width' => 1, 'components' => [['type' => 'text', 'text' => 'Email us', 'link_enabled' => true, 'link_url' => 'mailto:team@example.org']],
+            ]]]],
+        ]]];
+        foreach ([$flat, $nested] as $index => $components) {
+            $this->post(route('website-studio.sections.store'), [
+                'title' => 'Linked typography '.$index, 'page_slugs' => ['home'], 'components' => json_encode($components),
+            ])->assertSessionHasNoErrors()->assertRedirect();
+        }
+
+        $sections = data_get($church->fresh()->settings, 'website.custom_sections');
+        $this->assertTrue(data_get($sections, '0.components.0.link_enabled'));
+        $this->assertSame('/events', data_get($sections, '0.components.0.link_url'));
+        $this->assertSame('', data_get($sections, '0.components.3.link_url'));
+        $this->assertSame('mailto:team@example.org', data_get($sections, '1.components.columns.0.components.0.columns.0.components.0.link_url'));
+
+        $html = $this->get(route('website.public', ['church' => $church->slug]))->assertOk()->getContent();
+        $this->assertStringContainsString('class="typography-widget-link" href="/events"', $html);
+        $this->assertStringContainsString('class="typography-widget-link" href="https://example.org/story"', $html);
+        $this->assertStringContainsString('class="typography-widget-link" href="mailto:team@example.org"', $html);
+        $this->assertStringNotContainsString('href="/unused"', $html);
+        $this->assertStringNotContainsString('javascript:alert', $html);
+        $this->assertSame(3, substr_count($html, 'class="typography-widget-link"'));
+    }
+
+    public function test_faq_widget_saves_and_renders_nested_accordion_safely(): void
+    {
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $role = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($role);
+        $this->actingAs($user)->get(route('website-studio.index'))->assertOk();
+
+        $faq = [
+            'id' => 'visitor-faq', 'type' => 'faq', 'faq_title' => 'Visitor questions',
+            'faq_open' => 'first', 'faq_mode' => 'single',
+            'faq_items' => [
+                ['question' => 'When are services?', 'answer' => "Sunday at 10.\nEveryone is welcome."],
+                ['question' => 'Can I ask for prayer?', 'answer' => 'Yes, use our prayer form.'],
+                ['question' => '', 'answer' => 'Incomplete item is omitted.'],
+            ],
+        ];
+        $components = ['type' => 'columns', 'columns' => [[
+            'width' => 1, 'components' => [['type' => 'columns', 'columns' => [[
+                'width' => 1, 'components' => [$faq],
+            ]]]],
+        ]]];
+        $this->actingAs($user)->post(route('website-studio.sections.store'), [
+            'title' => 'Visitor FAQs', 'page_slugs' => ['home'], 'components' => json_encode($components),
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $section = data_get($church->fresh()->settings, 'website.custom_sections.0');
+        $saved = data_get($section, 'components.columns.0.components.0.columns.0.components.0');
+        $this->assertSame('faq', $saved['type']);
+        $this->assertCount(2, $saved['faq_items']);
+        $this->get(route('website-studio.sections.edit', $section['id']))->assertOk()->assertSee('Visitor questions');
+        $response = $this->get(route('website.public', ['church' => $church->slug]))
+            ->assertOk()->assertSee('Visitor questions')->assertSee('When are services?')
+            ->assertSee('Sunday at 10.')->assertSee('Can I ask for prayer?')
+            ->assertDontSee('Incomplete item is omitted.');
+        $this->assertSame(2, substr_count($response->getContent(), 'class="website-faq-item"'));
+        $this->assertStringContainsString('name="faq-', $response->getContent());
+        $this->assertStringContainsString(' open', $response->getContent());
+    }
+
+    public function test_faq_widget_can_start_closed_and_keep_answers_on_the_public_page(): void
+    {
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $role = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($role);
+        $this->actingAs($user)->get(route('website-studio.index'))->assertOk();
+        $this->actingAs($user)->post(route('website-studio.sections.store'), [
+            'title' => 'FAQs', 'page_slugs' => ['home'],
+            'components' => json_encode([['type' => 'faq', 'faq_title' => 'FAQs', 'faq_open' => 'closed', 'faq_mode' => 'multiple', 'faq_items' => [
+                ['question' => 'What time?', 'answer' => 'At ten.'],
+                ['question' => 'Where?', 'answer' => 'At church.'],
+            ]]]),
+        ])->assertSessionHasNoErrors();
+
+        $response = $this->get(route('website.public', ['church' => $church->slug]))->assertOk()->assertSee('What time?')->assertSee('At ten.');
+        $this->assertSame(2, substr_count($response->getContent(), 'class="website-faq-item"'));
+        $this->assertStringNotContainsString('name="faq-', $response->getContent());
+    }
+
+    public function test_section_saves_collapsed_widgets_and_columns_and_can_expand_them_again(): void
+    {
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $role = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($role);
+        $this->actingAs($user);
+        $components = ['type' => 'columns', 'groups' => [[
+            'type' => 'columns', 'columns' => [[
+                'id' => 'outer', 'editor_collapsed' => true, 'components' => [
+                    ['id' => 'heading', 'type' => 'heading', 'text' => 'Always visible publicly', 'editor_collapsed' => true],
+                    ['type' => 'columns', 'columns' => [[
+                        'id' => 'inner', 'editor_collapsed' => true, 'components' => [
+                            ['id' => 'text', 'type' => 'text', 'text' => 'Nested message', 'editor_collapsed' => false],
+                        ],
+                    ]]],
+                ],
+            ]],
+        ]]];
+        $this->post(route('website-studio.sections.store'), ['title' => 'Remember editor state', 'components' => json_encode($components)])
+            ->assertSessionHasNoErrors()->assertRedirect();
+        $section = data_get($church->fresh()->settings, 'website.custom_sections.0');
+        $column = data_get($section, 'components.groups.0.columns.0');
+        $this->assertTrue($column['editor_collapsed']);
+        $this->assertTrue($column['components'][0]['editor_collapsed']);
+        $this->assertTrue($column['components'][1]['columns'][0]['editor_collapsed']);
+        $this->assertFalse($column['components'][1]['columns'][0]['components'][0]['editor_collapsed']);
+        $this->get(route('website-studio.sections.edit', $section['id']))->assertOk();
+        $this->get(route('website.public', ['church' => $church->slug]))->assertOk()->assertSee('Always visible publicly')->assertSee('Nested message');
+        $components['groups'][0]['columns'][0]['editor_collapsed'] = false;
+        $components['groups'][0]['columns'][0]['components'][0]['editor_collapsed'] = false;
+        $this->put(route('website-studio.sections.update', $section['id']), ['title' => 'Remember editor state', 'components' => json_encode($components)])
+            ->assertSessionHasNoErrors();
+        $column = data_get($church->fresh()->settings, 'website.custom_sections.0.components.groups.0.columns.0');
+        $this->assertFalse($column['editor_collapsed']);
+        $this->assertFalse($column['components'][0]['editor_collapsed']);
+    }
+
     public function test_admin_can_lock_the_public_website_to_the_selected_theme(): void
     {
         $church = Church::factory()->create([
@@ -225,6 +395,8 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertStringContainsString('No spacing', $javascript);
         $this->assertStringContainsString('data-field="divider_justify"', $javascript);
         $this->assertStringContainsString('<option value="center"', $javascript);
+        // The duplicate handler requires a matching button in every widget toolbar.
+        $this->assertStringContainsString('<button type="button" data-duplicate title="Duplicate this widget">Duplicate</button>', $javascript);
         $this->assertStringContainsString('data-field="font_size"', $javascript);
         $this->assertStringContainsString('data-field="text_color"', $javascript);
         $this->assertStringContainsString('typography-controls', $javascript);
@@ -237,12 +409,19 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertStringContainsString('dataset.deleteColumn', $javascript);
         $this->assertStringContainsString('Delete column group ${groupIndex + 1} and all widgets inside it?', $javascript);
         $this->assertStringContainsString('container.columns.splice(columnIndex, 1)', $javascript);
+        $this->assertStringContainsString('tree.groups.splice(groupIndex, 1)', $javascript);
+        $this->assertStringNotContainsString('deleteColumnButton.disabled', $javascript);
+        $this->assertStringNotContainsString('deleteGroupButton.disabled', $javascript);
         $this->assertStringContainsString('Column gap', $javascript);
         $this->assertStringContainsString('- Last column', $javascript);
         $this->assertStringContainsString('explicitColumnField', $mediaPicker);
         $this->assertStringContainsString('urlInput.value = selected.path', $mediaPicker);
 
         $publicCss = file_get_contents(public_path('css/website/templates/main.css'));
+        $publicTemplate = file_get_contents(resource_path('views/website/templates/main/index.blade.php'));
+        $this->assertStringContainsString("['1200px', 'auto', null, null, 'transparent']", $publicTemplate);
+        $this->assertStringContainsString('var(--section-content-width, 1200px)', $publicCss);
+        $this->assertStringContainsString('[style*="--column-content-width:100%"]', $publicCss);
         $this->assertStringContainsString('height: var(--hero-media-height, 560px)', $publicCss);
         $this->assertStringContainsString('overflow-x: clip', $publicCss);
         $this->assertStringContainsString('justify-content: var(--divider-justify, flex-start)', $publicCss);
@@ -256,6 +435,25 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertStringContainsString('.theme-dark .public-event-aside-card', $publicCss);
         $this->assertStringContainsString('.theme-dark .site-nav', $publicCss);
         $this->assertStringContainsString('.theme-dark .menu-toggle', $publicCss);
+        $this->assertStringContainsString('.content-gallery-slider-viewport', $publicCss);
+        $this->assertStringContainsString('minmax(0, 4.25fr)', $publicCss);
+        $this->assertStringContainsString('.content-gallery-slider .content-gallery-item.is-active', $publicCss);
+        $this->assertStringContainsString('.content-gallery-slider .content-gallery-item.is-prev', $publicCss);
+        $this->assertStringContainsString('border-radius: 0 1rem 1rem 0', $publicCss);
+        $this->assertStringContainsString('border-radius: 1rem 0 0 1rem', $publicCss);
+        $this->assertStringContainsString('height: clamp(20rem, 38vw, 38rem)', $publicCss);
+        $this->assertStringContainsString('.content-gallery-caption', $publicCss);
+
+        $publicJavascript = file_get_contents(public_path('js/website/templates/main.js'));
+        $this->assertStringContainsString("gallery.querySelector('[data-gallery-prev]')", $publicJavascript);
+        $this->assertStringContainsString("slide.setAttribute('aria-hidden'", $publicJavascript);
+        $this->assertStringContainsString("slide.classList.remove('is-prev', 'is-active', 'is-next')", $publicJavascript);
+        $this->assertStringContainsString('track.append(previousDisplay, activeSlide, nextSlide)', $publicJavascript);
+        $this->assertStringContainsString('previousSlide.cloneNode(true)', $publicJavascript);
+
+        $galleryView = file_get_contents(resource_path('views/website/templates/main/_gallery.blade.php'));
+        $this->assertStringContainsString('data-gallery-prev', $galleryView);
+        $this->assertStringContainsString('data-gallery-next', $galleryView);
 
         $builderCss = file_get_contents(public_path('css/website-studio/section-builder.css'));
         $this->assertStringContainsString('.typography-controls', $builderCss);
@@ -265,6 +463,32 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertStringContainsString('.card-editor > label:has(textarea)', $builderCss);
         $this->assertStringContainsString('.gallery-image-fields', $builderCss);
         $this->assertStringContainsString('.column-group-shell > .nested-column-group > .nested-group-toolbar', $builderCss);
+    }
+
+    public function test_column_background_removal_preserves_unselected_columns_and_reaches_nested_columns(): void
+    {
+        $church = Church::factory()->create();
+        $user = User::factory()->create(['church_id' => $church->id]);
+        $role = Role::query()->create(['name' => 'Super Administrator', 'slug' => 'super-administrator']);
+        $user->roles()->attach($role);
+        $column = fn (string $id): array => ['id' => $id, 'width' => 1, 'background_image' => 'https://example.com/'.$id.'.jpg', 'background_video' => 'https://example.com/'.$id.'.mp4', 'components' => []];
+        $outer = $column('remove-image');
+        $outer['components'] = [['type' => 'columns', 'columns' => [$column('nested')]]];
+        $components = ['type' => 'columns', 'groups' => [['type' => 'columns', 'columns' => [$outer, $column('keep')]]]];
+        $this->actingAs($user)->post(route('website-studio.sections.store'), [
+            'title' => 'Removal regression',
+            'components' => json_encode($components, JSON_THROW_ON_ERROR),
+            'remove_column_background_images' => ['remove-image' => '1', 'keep' => '0', 'nested' => '1'],
+            'remove_column_background_videos' => ['remove-image' => '0', 'keep' => '0', 'nested' => '1'],
+        ])->assertSessionHasNoErrors()->assertRedirect();
+        $section = collect(data_get($church->fresh()->settings, 'website.custom_sections'))->firstWhere('title', 'Removal regression');
+        $columns = data_get($section, 'components.groups.0.columns');
+        $this->assertSame('', $columns[0]['background_image']);
+        $this->assertSame('https://example.com/remove-image.mp4', $columns[0]['background_video']);
+        $this->assertSame('https://example.com/keep.jpg', $columns[1]['background_image']);
+        $this->assertSame('https://example.com/keep.mp4', $columns[1]['background_video']);
+        $this->assertSame('', data_get($columns, '0.components.0.columns.0.background_image'));
+        $this->assertSame('', data_get($columns, '0.components.0.columns.0.background_video'));
     }
 
     public function test_heading_text_and_quote_widgets_save_and_render_custom_colours(): void
@@ -285,8 +509,8 @@ final class ChurchWebsiteTest extends TestCase
                 'columns' => [[
                     'width' => 1,
                     'components' => [
-                        ['id' => 'coloured-heading', 'type' => 'heading', 'text' => 'Mission and Vision', 'text_color' => '#F59E0B'],
-                        ['id' => 'coloured-text', 'type' => 'text', 'text' => 'A visible supporting message.', 'text_color' => '#38BDF8'],
+                        ['id' => 'coloured-heading', 'type' => 'heading', 'text' => 'Mission and Vision', 'text_color' => '#F59E0B', 'margin_top' => 0, 'margin_bottom' => 12, 'padding_top' => 6, 'padding_bottom' => 8],
+                        ['id' => 'coloured-text', 'type' => 'text', 'text' => 'A visible supporting message.', 'text_color' => '#38BDF8', 'margin_top' => -5, 'padding_bottom' => 999],
                         ['id' => 'coloured-quote', 'type' => 'quote', 'text' => 'Faith makes room for hope.', 'font_size' => 28, 'text_color' => '#A78BFA', 'align' => 'center'],
                     ],
                 ]],
@@ -303,6 +527,12 @@ final class ChurchWebsiteTest extends TestCase
 
         $section = collect(data_get($church->fresh()->settings, 'website.custom_sections'))->firstWhere('title', 'Colour controls section');
         $savedComponents = data_get($section, 'components.groups.0.columns.0.components');
+        $this->assertSame(0, data_get($savedComponents, '0.margin_top'));
+        $this->assertSame(12, data_get($savedComponents, '0.margin_bottom'));
+        $this->assertSame(6, data_get($savedComponents, '0.padding_top'));
+        $this->assertSame(8, data_get($savedComponents, '0.padding_bottom'));
+        $this->assertSame(0, data_get($savedComponents, '1.margin_top'));
+        $this->assertSame(120, data_get($savedComponents, '1.padding_bottom'));
         $this->assertSame('#F59E0B', data_get($savedComponents, '0.text_color'));
         $this->assertSame('#38BDF8', data_get($savedComponents, '1.text_color'));
         $this->assertSame('#A78BFA', data_get($savedComponents, '2.text_color'));
@@ -313,6 +543,7 @@ final class ChurchWebsiteTest extends TestCase
             ->assertOk()
             ->assertSee('Mission and Vision')
             ->assertSee('color:#F59E0B;', false)
+            ->assertSee('margin-top:0px;margin-bottom:12px;padding-top:6px;padding-bottom:8px;', false)
             ->assertSee('A visible supporting message.')
             ->assertSee('color:#38BDF8;', false)
             ->assertSee('Faith makes room for hope.')
@@ -360,6 +591,16 @@ final class ChurchWebsiteTest extends TestCase
                             'card_border_width' => 3,
                             'card_border_color' => '#F59E0B',
                             'card_border_radius' => 42,
+                            'card_title_color' => '#FACC15',
+                            'card_title_size' => 32,
+                            'card_button_label' => 'Join our volunteer team',
+                            'link' => '/volunteer',
+                            'card_button_enabled' => true,
+                            'card_button_color' => '#2563EB',
+                            'card_background_type' => 'video',
+                            'card_button_text_color' => '#FEF08A',
+                            'card_description_color' => '#38BDF8',
+                            'card_description_size' => 18,
                             'card_shadow' => 'large',
                         ],
                         [
@@ -380,6 +621,15 @@ final class ChurchWebsiteTest extends TestCase
                                 'text' => '',
                                 'link' => '',
                             ]],
+                        ],
+                        [
+                            'id' => 'gallery-slider',
+                            'type' => 'gallery',
+                            'style' => 'slider',
+                            'images' => [
+                                ['id' => 'gallery-one', 'url' => 'https://cdn.example.test/gallery-one.jpg', 'alt' => 'First gallery image', 'title' => 'Invite Your Friends and Family', 'text' => 'Join us for food and fun'],
+                                ['id' => 'gallery-two', 'url' => 'https://cdn.example.test/gallery-two.jpg', 'alt' => 'Second gallery image', 'title' => 'Worship With Us', 'text' => 'Everyone is welcome'],
+                            ],
                         ],
                     ],
                 ]],
@@ -405,6 +655,7 @@ final class ChurchWebsiteTest extends TestCase
         $savedColumn = data_get($section, 'components.groups.0.columns.0');
         $uploadedCard = collect($savedComponents)->firstWhere('id', $uploadedCardId);
         $slider = collect($savedComponents)->firstWhere('id', $sliderId);
+        $gallerySlider = collect($savedComponents)->firstWhere('id', 'gallery-slider');
         $uploadedCardPath = data_get($uploadedCard, 'background_video');
         $uploadedSliderPath = data_get($slider, 'slides.0.video');
 
@@ -412,6 +663,15 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertSame(3, data_get($linkedCard, 'card_border_width'));
         $this->assertSame('#F59E0B', data_get($linkedCard, 'card_border_color'));
         $this->assertSame(42, data_get($linkedCard, 'card_border_radius'));
+        $this->assertSame('#FACC15', $linkedCard['card_title_color']);
+        $this->assertSame(32, $linkedCard['card_title_size']);
+        $this->assertSame('Join our volunteer team', $linkedCard['card_button_label']);
+        $this->assertTrue($linkedCard['card_button_enabled']);
+        $this->assertSame('#2563EB', $linkedCard['card_button_color']);
+        $this->assertSame('video', $linkedCard['card_background_type']);
+        $this->assertSame('#FEF08A', $linkedCard['card_button_text_color']);
+        $this->assertSame('#38BDF8', $linkedCard['card_description_color']);
+        $this->assertSame(18, $linkedCard['card_description_size']);
         $this->assertSame('large', data_get($linkedCard, 'card_shadow'));
         $this->assertSame('top', data_get($savedColumn, 'background_position'));
         $this->assertSame(36, data_get($savedColumn, 'border_radius'));
@@ -419,6 +679,8 @@ final class ChurchWebsiteTest extends TestCase
         $this->assertSame(0, data_get($section, 'components.groups.0.gap'));
         $this->assertNotEmpty($uploadedCardPath);
         $this->assertNotEmpty($uploadedSliderPath);
+        $this->assertSame('Invite Your Friends and Family', data_get($gallerySlider, 'images.0.title'));
+        $this->assertSame('Join us for food and fun', data_get($gallerySlider, 'images.0.text'));
         Storage::disk('public')->assertExists($uploadedCardPath);
         Storage::disk('public')->assertExists($uploadedSliderPath);
 
@@ -430,6 +692,10 @@ final class ChurchWebsiteTest extends TestCase
             ->assertSee(asset('storage/'.$uploadedSliderPath), false)
             ->assertSee('content-card-widget-background', false)
             ->assertSee('content-card-shadow-large', false)
+            ->assertSee('Join our volunteer team')
+            ->assertSee('background-color:#2563EB;color:#FEF08A;', false)
+            ->assertSee('color:#FACC15;font-size:32px;', false)
+            ->assertSee('color:#38BDF8;font-size:18px;', false)
             ->assertSee('--card-border-width: 3px', false)
             ->assertSee('--card-border-color: #F59E0B', false)
             ->assertSee('--card-border-radius:42px', false)
@@ -438,7 +704,16 @@ final class ChurchWebsiteTest extends TestCase
             ->assertSee('--column-group-gap:0px', false)
             ->assertSee('--column-padding:0px', false)
             ->assertSee('data-background-video', false)
-            ->assertSee('autoplay muted loop', false);
+            ->assertSee('autoplay muted loop', false)
+            ->assertSee('content-gallery-slider-viewport', false)
+            ->assertSee('data-gallery-prev', false)
+            ->assertSee('data-gallery-next', false)
+            ->assertSee('First gallery image')
+            ->assertSee('Second gallery image');
+        $publicPage->assertSee('Invite Your Friends and Family')
+            ->assertSee('Join us for food and fun')
+            ->assertSee('Worship With Us')
+            ->assertSee('Everyone is welcome');
     }
 
     public function test_every_supported_template_has_complete_starter_content(): void

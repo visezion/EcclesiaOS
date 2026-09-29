@@ -61,6 +61,7 @@ use App\Http\Controllers\TopbarCountsController;
 use App\Http\Controllers\UserDirectoryController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\WorkflowController;
+use App\Http\Controllers\WebsiteFormController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 
@@ -85,6 +86,8 @@ Route::post('give/checkout', [PublicGivingController::class, 'checkout'])->middl
 Route::get('give/success', [PublicGivingController::class, 'success'])->name('giving.success');
 Route::get('give/cancel', [PublicGivingController::class, 'cancel'])->name('giving.cancel');
 Route::get('site/{church:slug}/events/{event}', [ChurchWebsiteController::class, 'showEvent'])->name('website.public.events.show');
+Route::get('site/{church:slug}/forms/{type}', [WebsiteFormController::class, 'show'])->name('website.forms.show');
+Route::post('site/{church:slug}/forms/{type}', [WebsiteFormController::class, 'store'])->middleware('throttle:5,1')->name('website.forms.store');
 Route::get('site/{church:slug}/{page?}', [ChurchWebsiteController::class, 'show'])->where('page', '[A-Za-z0-9_-]+')->name('website.public');
 Route::get('site/{church:slug}/sermons/{sermon}', [ChurchWebsiteController::class, 'showSermon'])->name('website.public.sermons.show');
 Route::post('webhooks/stripe', StripeWebhookController::class)->middleware('throttle:120,1')->name('webhooks.stripe');
@@ -125,6 +128,9 @@ Route::middleware('guest')->group(function (): void {
 });
 
 Route::middleware(['auth', 'module.enabled'])->group(function (): void {
+    Route::get('website-studio/forms', [WebsiteFormController::class, 'index'])->name('website-studio.forms');
+    Route::put('website-studio/forms/settings/{type}', [WebsiteFormController::class, 'settings'])->name('website-studio.forms.settings');
+    Route::patch('website-studio/forms/submissions/{submission}', [WebsiteFormController::class, 'update'])->name('website-studio.forms.update');
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('search', SearchController::class)->name('search');
     Route::get('ai-copilot', [AiCopilotController::class, 'index'])->name('ai-copilot.index');
@@ -392,6 +398,8 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::get('counselling/export', [CounsellingController::class, 'export'])->name('counselling.export');
     Route::get('settings', SystemSettingsController::class)->name('settings.index');
     Route::get('website-studio', [ChurchWebsiteController::class, 'index'])->name('website-studio.index');
+    Route::get('website-studio/design/export', [ChurchWebsiteController::class, 'exportDesign'])->name('website-studio.design.export');
+    Route::post('website-studio/design/import', [ChurchWebsiteController::class, 'importDesign'])->middleware('throttle:6,1')->name('website-studio.design.import');
     Route::get('website-studio/navigation', [ChurchWebsiteController::class, 'navigation'])->name('website-studio.navigation');
     Route::put('website-studio/navigation', [ChurchWebsiteController::class, 'updateNavigation'])->name('website-studio.navigation.update');
     Route::put('website-studio/settings', [ChurchWebsiteController::class, 'updateSettings'])->name('website-studio.settings.update');
@@ -536,7 +544,7 @@ Route::middleware(['auth', 'module.enabled'])->group(function (): void {
     Route::put('settings/roles/{role}', [RolePermissionController::class, 'update'])->name('roles.update');
 
     foreach (collect(config('navigation'))->flatMap(fn (array $item): array => $item['children'] ?? [$item]) as $item) {
-        if (($item['route'] ?? null) === 'backups.index') {
+        if (in_array(($item['route'] ?? null), ['backups.index', 'website-studio.forms'], true)) {
             continue;
         }
         if (in_array(($item['route'] ?? null), ['dashboard', 'ai-copilot.index', 'ai-copilot.settings', 'programs.index', 'events.index', 'calendar.index', 'meetings.index', 'attendance.index', 'members.index', 'ministries.index', 'families.index', 'finance.index', 'financial-assistance.index', 'assets.index', 'bookstore.index', 'sermons.index', 'children-youth.index', 'counselling.index', 'leadership-reports.index', 'settings.index', 'website-studio.index', 'website-studio.navigation', 'website-studio.sections', 'website-studio.sections.create', 'website-studio.media', 'users.index', 'roles.index', 'campuses.index', 'modules.index', 'auth-settings.index', 'developer-hub.index', 'system-updates.index', 'audit-logs.index', 'workflows.index', 'meeting-integrations.index', 'youtube-integration.index', 'payment-gateways.index', 'communications.index', 'communications.notifications', 'communications.templates', 'communications.scheduled', 'communications.bulk', 'communications.delivery-logs', 'communications.preferences', 'communications.automation', 'communications.celebrations', 'communications.integrations', 'messages.index', 'messages.sent', 'messages.create', 'bible.index', 'bible.plans', 'bible.admin.plans.index', 'bible.bookmarks', 'bible.notes', 'bible.highlights', 'bible.search', 'bible.compare', 'bible.settings', 'bible.placeholder', 'bible.translations.index', 'support.index', 'support.tickets.index', 'support.community', 'support.knowledge', 'support.live', 'central-support.index'], true)) {

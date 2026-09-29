@@ -234,12 +234,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.querySelectorAll('[data-gallery][data-gallery-style="slider"]').forEach((gallery) => {
         const track = gallery.querySelector('.content-gallery-grid');
+        const viewport = gallery.querySelector('.content-gallery-slider-viewport');
         const slides = [...gallery.querySelectorAll('.content-gallery-item')];
         const dots = gallery.querySelector('[data-gallery-dots]');
-        if (!track || slides.length < 2) return;
+        if (!track || !viewport || slides.length < 2) return;
         let current = 0;
         const render = () => {
-            track.style.transform = 'translateX(-' + current * 100 + '%)';
+            track.querySelectorAll('[data-gallery-clone]').forEach((clone) => clone.remove());
+            slides.forEach((slide, index) => {
+                slide.classList.remove('is-prev', 'is-active', 'is-next');
+                slide.setAttribute('aria-hidden', String(index !== current));
+            });
+            const previousIndex = (current - 1 + slides.length) % slides.length;
+            const nextIndex = (current + 1) % slides.length;
+            const previousSlide = slides[previousIndex];
+            const activeSlide = slides[current];
+            const nextSlide = slides[nextIndex];
+            const previousDisplay = previousSlide === nextSlide ? previousSlide.cloneNode(true) : previousSlide;
+            if (previousDisplay !== previousSlide) {
+                previousDisplay.dataset.galleryClone = '';
+                previousDisplay.setAttribute('aria-hidden', 'true');
+            }
+            previousDisplay.classList.add('is-prev');
+            activeSlide.classList.add('is-active');
+            nextSlide.classList.add('is-next');
+            track.append(previousDisplay, activeSlide, nextSlide);
+            track.style.transform = '';
             dots?.querySelectorAll('button').forEach((dot, index) =>
                 dot.classList.toggle('is-active', index === current),
             );
@@ -253,6 +273,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 render();
             });
             dots?.appendChild(dot);
+        });
+        gallery.querySelector('[data-gallery-prev]')?.addEventListener('click', () => {
+            current = (current - 1 + slides.length) % slides.length;
+            render();
+        });
+        gallery.querySelector('[data-gallery-next]')?.addEventListener('click', () => {
+            current = (current + 1) % slides.length;
+            render();
         });
         render();
         window.setInterval(() => {

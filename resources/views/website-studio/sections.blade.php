@@ -126,4 +126,5 @@
             form.prepend(link);
         });
     </script>
+@include('website-studio._form-widget-config')
 </x-app-layout>

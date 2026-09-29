@@ -116,4 +116,5 @@
         .optional{font-weight:400;color:#94a3b8}
     </style>
     <script src="{{ asset('js/website-studio/section-builder.js') }}?v={{ filemtime(public_path('js/website-studio/section-builder.js')) }}" defer></script>
+@include('website-studio._form-widget-config')
 </x-app-layout>

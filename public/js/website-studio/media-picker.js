@@ -100,7 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const slide = target.closest('.carousel-slide');
         const heroSlide = target.closest('[data-hero-slide-row]');
-        const column = target.closest('.nested-column');
+        // Widget uploads belong to the widget, never its containing column.
+        const column = block ? null : target.closest('.nested-column');
         const explicitColumnField = target.dataset.mediaUrlField;
         const urlField = {
             image_file: 'image_url',
