@@ -11,6 +11,7 @@ use App\Services\WebsiteDesignTransfer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 use ZipArchive;
@@ -67,6 +68,40 @@ final class WebsiteDesignTransferTest extends TestCase
             $this->assertSame($pageCount, $target->websitePages()->count());
         } finally {
             unlink($secondFile);
+        }
+    }
+
+    public function test_transfer_rewrites_source_domain_links_and_bundles_absolute_media_urls(): void
+    {
+        Storage::fake('public');
+        $source = Church::factory()->create();
+        $target = Church::factory()->create();
+        $path = 'website/'.$source->id.'/hero.png';
+        Storage::disk('public')->put($path, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII='));
+        $source->websitePages()->create(['title' => 'Home', 'slug' => 'home', 'status' => 'published']);
+
+        URL::forceRootUrl('https://source.example.test');
+        URL::forceScheme('https');
+        try {
+            $settings = [
+                'template' => 'main',
+                'hero_image_url' => url('storage/'.$path),
+                'navigation' => [['label' => 'Home', 'url' => route('website.public', ['church' => $source->slug])]],
+            ];
+            $file = app(WebsiteDesignTransfer::class)->export($source, $settings);
+            try {
+                URL::forceRootUrl('https://target.example.test');
+                app(WebsiteDesignTransfer::class)->import($target, $file);
+                $imported = $target->fresh()->settings['website'];
+                $this->assertSame(route('website.public', ['church' => $target->slug]), $imported['navigation'][0]['url']);
+                $this->assertStringStartsWith('website/'.$target->id.'/imports/', $imported['hero_image_url']);
+                Storage::disk('public')->assertExists($imported['hero_image_url']);
+            } finally {
+                unlink($file);
+            }
+        } finally {
+            URL::forceRootUrl(null);
+            URL::forceScheme(null);
         }
     }
 

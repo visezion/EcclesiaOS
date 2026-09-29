@@ -47,7 +47,7 @@
                 <label class="block text-sm font-semibold">Website design ZIP
                     <input type="file" name="design_package" accept=".zip,application/zip" required class="mt-2 block w-full text-sm">
                 </label>
-                <p class="text-xs text-slate-500">Maximum 200 MB, subject to your server?s upload limit. Export the current design first if you want a backup.</p>
+                <p class="text-xs text-slate-500">Maximum 210 MB, subject to your server's upload limit. Export the current design first if you want a backup.</p>
                 <label class="flex items-start gap-2 text-sm"><input type="checkbox" name="replace_design" value="1" required class="mt-1">Replace this church?s website settings and pages with the uploaded design, including its publication status.</label>
                 <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Import website design</button>
             </form>

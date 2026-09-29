@@ -14,6 +14,9 @@ use App\Models\WebsitePage;
 use App\Services\WebsiteDesignTransfer;
 use App\Services\WebsiteStarterContent;
 use App\Support\ModuleRegistry;
+use App\Support\WebsiteFaq;
+use App\Support\WebsiteForms;
+use App\Support\WebsiteTextLink;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -67,7 +70,8 @@ final class ChurchWebsiteController extends Controller
     {
         $this->authorizeStudio($request);
         $request->validate([
-            'design_package' => ['required', 'file', 'mimes:zip', 'max:204800'],
+            // A package may contain 200 MiB of media plus a 5 MiB manifest.
+            'design_package' => ['required', 'file', 'mimes:zip', 'max:215040'],
             'replace_design' => ['accepted'],
         ]);
         $transfer->import($this->studioChurch($request), $request->file('design_package')->getPathname());
@@ -848,7 +852,7 @@ final class ChurchWebsiteController extends Controller
         ]);
         $data['page_slugs'] = array_values($data['page_slugs'] ?? ['home']);
         $formComponents = json_decode($data['components'] ?? '[]', true);
-        \App\Support\WebsiteForms::validateWidgets(is_array($formComponents) ? $formComponents : [], $church);
+        WebsiteForms::validateWidgets(is_array($formComponents) ? $formComponents : [], $church);
         $data['components'] = $this->normalizeSectionComponents($data['components'] ?? null);
         $columnCount = max(1, min(4, ((int) collect($data['components'])->max('column')) + 1));
         $widths = array_values(array_map('intval', $data['column_widths'] ?? []));
@@ -899,12 +903,12 @@ final class ChurchWebsiteController extends Controller
                 'id' => (string) ($component['id'] ?? Str::uuid()),
                 'editor_collapsed' => filter_var($component['editor_collapsed'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'type' => $type,
-                ...($type === 'faq' ? \App\Support\WebsiteFaq::normalize($component) : []),
-                'form_type' => in_array($component['form_type'] ?? null, array_keys(\App\Support\WebsiteForms::TYPES), true) ? $component['form_type'] : 'contact',
+                ...($type === 'faq' ? WebsiteFaq::normalize($component) : []),
+                'form_type' => in_array($component['form_type'] ?? null, array_keys(WebsiteForms::TYPES), true) ? $component['form_type'] : 'contact',
                 'form_settings' => $type === 'form' && is_array($component['form_settings'] ?? null) ? $component['form_settings'] : [],
                 'text' => Str::limit((string) ($component['text'] ?? ''), 5000, ''),
                 'link_enabled' => in_array($type, ['heading', 'text'], true) && filter_var($component['link_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'link_url' => in_array($type, ['heading', 'text'], true) ? (\App\Support\WebsiteTextLink::url($component['link_url'] ?? null) ?? '') : '',
+                'link_url' => in_array($type, ['heading', 'text'], true) ? (WebsiteTextLink::url($component['link_url'] ?? null) ?? '') : '',
                 'url' => Str::limit((string) ($component['url'] ?? ''), 500, ''),
                 'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
                 'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : ($type === 'video-slider' ? $this->normalizeVideoSlides($component['slides'] ?? []) : []),
@@ -940,7 +944,7 @@ final class ChurchWebsiteController extends Controller
                 'icon_color' => $type === 'icon' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['icon_color'] ?? '')) ? $component['icon_color'] : '#6d4aff',
                 'icon_background_transparent' => $type === 'icon' && filter_var($component['icon_background_transparent'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'icon_size' => $type === 'icon' ? max(24, min(160, (int) ($component['icon_size'] ?? 56))) : 0,
-                'link' => $type === 'card' ? (\App\Support\WebsiteTextLink::url($component['link'] ?? null) ?? '') : ($type === 'icon' ? Str::limit((string) ($component['link'] ?? ''), 500, '') : ''),
+                'link' => $type === 'card' ? (WebsiteTextLink::url($component['link'] ?? null) ?? '') : ($type === 'icon' ? Str::limit((string) ($component['link'] ?? ''), 500, '') : ''),
                 'button_color' => $type === 'button' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['button_color'] ?? '')) ? $component['button_color'] : '#6d4aff',
                 'button_size' => $type === 'button' && in_array($component['button_size'] ?? null, ['very-small', 'small', 'medium', 'big', 'very-big'], true) ? $component['button_size'] : 'medium',
                 'images' => $type === 'gallery' ? collect(is_array($component['images'] ?? null) ? $component['images'] : [])->map(fn ($image): array => ['id' => (string) ($image['id'] ?? Str::uuid()), 'url' => Str::limit((string) ($image['url'] ?? ''), 500, ''), 'alt' => Str::limit((string) ($image['alt'] ?? ''), 180, ''), 'title' => Str::limit((string) ($image['title'] ?? ''), 180, ''), 'text' => Str::limit((string) ($image['text'] ?? ''), 500, ''), 'position' => in_array($image['position'] ?? null, ['center', 'top', 'bottom', 'left', 'right'], true) ? $image['position'] : 'center'])->values()->all() : [],
@@ -1002,12 +1006,12 @@ final class ChurchWebsiteController extends Controller
                         'id' => (string) ($component['id'] ?? Str::uuid()),
                         'editor_collapsed' => filter_var($component['editor_collapsed'] ?? false, FILTER_VALIDATE_BOOLEAN),
                         'type' => $type,
-                        ...($type === 'faq' ? \App\Support\WebsiteFaq::normalize($component) : []),
-                        'form_type' => in_array($component['form_type'] ?? null, array_keys(\App\Support\WebsiteForms::TYPES), true) ? $component['form_type'] : 'contact',
+                        ...($type === 'faq' ? WebsiteFaq::normalize($component) : []),
+                        'form_type' => in_array($component['form_type'] ?? null, array_keys(WebsiteForms::TYPES), true) ? $component['form_type'] : 'contact',
                         'form_settings' => $type === 'form' && is_array($component['form_settings'] ?? null) ? $component['form_settings'] : [],
                         'text' => Str::limit((string) ($component['text'] ?? ''), 5000, ''),
                         'link_enabled' => in_array($type, ['heading', 'text'], true) && filter_var($component['link_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                        'link_url' => in_array($type, ['heading', 'text'], true) ? (\App\Support\WebsiteTextLink::url($component['link_url'] ?? null) ?? '') : '',
+                        'link_url' => in_array($type, ['heading', 'text'], true) ? (WebsiteTextLink::url($component['link_url'] ?? null) ?? '') : '',
                         'url' => Str::limit((string) ($component['url'] ?? ''), 500, ''),
                         'alt' => Str::limit((string) ($component['alt'] ?? ''), 180, ''),
                         'slides' => $type === 'carousel' ? $this->normalizeCarouselSlides($component['slides'] ?? []) : ($type === 'video-slider' ? $this->normalizeVideoSlides($component['slides'] ?? []) : []),
@@ -1043,7 +1047,7 @@ final class ChurchWebsiteController extends Controller
                         'icon_color' => $type === 'icon' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['icon_color'] ?? '')) ? $component['icon_color'] : '#6d4aff',
                         'icon_background_transparent' => $type === 'icon' && filter_var($component['icon_background_transparent'] ?? false, FILTER_VALIDATE_BOOLEAN),
                         'icon_size' => $type === 'icon' ? max(24, min(160, (int) ($component['icon_size'] ?? 56))) : 0,
-                        'link' => $type === 'card' ? (\App\Support\WebsiteTextLink::url($component['link'] ?? null) ?? '') : ($type === 'icon' ? Str::limit((string) ($component['link'] ?? ''), 500, '') : ''),
+                        'link' => $type === 'card' ? (WebsiteTextLink::url($component['link'] ?? null) ?? '') : ($type === 'icon' ? Str::limit((string) ($component['link'] ?? ''), 500, '') : ''),
                         'button_color' => $type === 'button' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($component['button_color'] ?? '')) ? $component['button_color'] : '#6d4aff',
                         'button_size' => $type === 'button' && in_array($component['button_size'] ?? null, ['very-small', 'small', 'medium', 'big', 'very-big'], true) ? $component['button_size'] : 'medium',
                         'images' => $type === 'gallery' ? collect(is_array($component['images'] ?? null) ? $component['images'] : [])->map(fn ($image): array => ['id' => (string) ($image['id'] ?? Str::uuid()), 'url' => Str::limit((string) ($image['url'] ?? ''), 500, ''), 'alt' => Str::limit((string) ($image['alt'] ?? ''), 180, ''), 'title' => Str::limit((string) ($image['title'] ?? ''), 180, ''), 'text' => Str::limit((string) ($image['text'] ?? ''), 500, ''), 'position' => in_array($image['position'] ?? null, ['center', 'top', 'bottom', 'left', 'right'], true) ? $image['position'] : 'center'])->values()->all() : [],

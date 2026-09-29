@@ -180,7 +180,7 @@ jobs:
           if [[ -z "$RELEASE_JSON" || "$ASSET_COUNT" -eq 0 ]]; then
             # Attach assets during creation. Immutable-release repositories reject
             # a later `gh release upload` request.
-            NOTES_FILE=".github/release-notes/${GITHUB_REF_NAME#v}.md"
+            NOTES_FILE=".github/release-notes/${GITHUB_REF_NAME}.md"
             RELEASE_ARGS=(
               "$GITHUB_REF_NAME"
               --verify-tag
