@@ -421,7 +421,7 @@ class OperationalModulesTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame($originalStock - 2, $product->fresh()->stock_quantity);
-        $this->assertTrue(BookstoreOrder::query()->latest()->firstOrFail()->items()->exists());
+        $this->assertTrue(BookstoreOrder::query()->latest('id')->firstOrFail()->items()->exists());
         $this->assertTrue(BookstoreOrderItem::query()->where('bookstore_product_id', $product->id)->exists());
     }
 
@@ -442,7 +442,7 @@ class OperationalModulesTest extends TestCase
             ])
             ->assertRedirect();
 
-        $order = BookstoreOrder::query()->latest()->firstOrFail();
+        $order = BookstoreOrder::query()->latest('id')->firstOrFail();
 
         $this->actingAs($admin)
             ->put(route('bookstore.orders.update', $order), [
@@ -465,7 +465,7 @@ class OperationalModulesTest extends TestCase
             ])
             ->assertRedirect();
 
-        $secondOrder = BookstoreOrder::query()->where('status', 'pending')->latest()->firstOrFail();
+        $secondOrder = BookstoreOrder::query()->where('status', 'pending')->latest('id')->firstOrFail();
 
         $this->actingAs($admin)
             ->delete(route('bookstore.orders.destroy', $secondOrder))
