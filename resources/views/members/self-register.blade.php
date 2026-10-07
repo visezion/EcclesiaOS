@@ -184,7 +184,6 @@
                             campusId: @js((string) old('campus_id', '')),
                             ministryId: @js((string) old('ministry_id', '')),
                             ministries: @js($ministries->map(fn ($ministry) => ['id' => $ministry->id, 'campus_id' => $ministry->campus_id, 'name' => $ministry->name])->values()),
-                            showPassword: false,
                             submitting: false
                         }"
                         x-effect="if (registrationType !== 'returning') ministryId = ''"
@@ -309,14 +308,21 @@
                                 <div x-cloak x-show="createAccount" x-transition.opacity class="mt-4 grid gap-4 border-t border-violet-200 pt-4 sm:grid-cols-2">
                                     <label class="text-sm font-bold text-slate-700">{{ __('registration.form.password') }} *
                                         <span class="relative block">
-                                            <input name="password" :type="showPassword ? 'text' : 'password'" :required="createAccount" autocomplete="new-password" class="{{ $fieldClass }} pr-11" placeholder="{{ __('registration.form.password_placeholder') }}">
-                                            <button type="button" @click="showPassword = !showPassword" class="absolute right-3 top-[14px] grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-700" :aria-label="showPassword ? @js(__('registration.form.hide_password')) : @js(__('registration.form.show_password'))">
-                                                <i data-lucide="eye" class="size-4"></i>
+                                            <input id="registration_password" name="password" type="password" :required="createAccount" autocomplete="new-password" class="{{ $fieldClass }} pr-11" placeholder="{{ __('registration.form.password_placeholder') }}">
+                                            <button type="button" data-password-toggle data-password-target="registration_password" data-password-show-label="{{ __('registration.form.show_password') }}" data-password-hide-label="{{ __('registration.form.hide_password') }}" class="absolute right-3 top-[14px] grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-700" aria-label="{{ __('registration.form.show_password') }}" aria-pressed="false">
+                                                <i data-lucide="eye" data-password-show-icon class="size-4"></i>
+                                                <i data-lucide="eye-off" data-password-hide-icon class="hidden size-4"></i>
                                             </button>
                                         </span>
                                     </label>
                                     <label class="text-sm font-bold text-slate-700">{{ __('registration.form.confirm_password') }} *
-                                        <input name="password_confirmation" :type="showPassword ? 'text' : 'password'" :required="createAccount" autocomplete="new-password" class="{{ $fieldClass }}" placeholder="{{ __('registration.form.confirm_password_placeholder') }}">
+                                        <span class="relative block">
+                                            <input id="registration_password_confirmation" name="password_confirmation" type="password" :required="createAccount" autocomplete="new-password" class="{{ $fieldClass }} pr-11" placeholder="{{ __('registration.form.confirm_password_placeholder') }}">
+                                            <button type="button" data-password-toggle data-password-target="registration_password_confirmation" data-password-show-label="{{ __('registration.form.show_password') }}" data-password-hide-label="{{ __('registration.form.hide_password') }}" class="absolute right-3 top-[14px] grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-700" aria-label="{{ __('registration.form.show_password') }}" aria-pressed="false">
+                                                <i data-lucide="eye" data-password-show-icon class="size-4"></i>
+                                                <i data-lucide="eye-off" data-password-hide-icon class="hidden size-4"></i>
+                                            </button>
+                                        </span>
                                     </label>
                                     <p class="text-xs leading-5 text-slate-500 sm:col-span-2">{{ __('registration.form.password_help') }}</p>
                                 </div>

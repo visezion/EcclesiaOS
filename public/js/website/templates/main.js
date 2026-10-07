@@ -58,6 +58,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggle = document.querySelector('[data-menu-toggle]');
     const menu = document.querySelector('[data-menu]');
     const header = document.querySelector('[data-header]');
+    const closeMenu = () => {
+        toggle?.setAttribute('aria-expanded', 'false');
+        menu?.classList.remove('is-open');
+        menu?.querySelectorAll('.site-nav-item.is-open').forEach((item) => {
+            item.classList.remove('is-open');
+            item.querySelector('[data-submenu-toggle]')?.setAttribute('aria-expanded', 'false');
+        });
+    };
     toggle?.addEventListener('click', () => {
         const open = toggle.getAttribute('aria-expanded') === 'true';
         toggle.setAttribute('aria-expanded', String(!open));
@@ -80,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     document.addEventListener('click', (event) => {
+        if (!header?.contains(event.target)) closeMenu();
         if (!event.target.closest('.site-nav-item')) {
             menu?.querySelectorAll('.site-nav-item.is-open').forEach((item) => {
                 item.classList.remove('is-open');
@@ -89,6 +98,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
+        if (toggle?.getAttribute('aria-expanded') === 'true') {
+            closeMenu();
+            toggle.focus();
+        }
         menu?.querySelectorAll('.site-nav-item.is-open').forEach((item) => {
             item.classList.remove('is-open');
             item.querySelector('[data-submenu-toggle]')?.setAttribute('aria-expanded', 'false');
@@ -99,7 +112,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document
         .querySelectorAll('a[href^="#"]')
-        .forEach((link) => link.addEventListener('click', () => menu?.classList.remove('is-open')));
+        .forEach((link) => link.addEventListener('click', closeMenu));
+    menu?.querySelectorAll('a').forEach((link) => link.addEventListener('click', closeMenu));
+    window.matchMedia('(max-width: 1200px)').addEventListener('change', closeMenu);
     document.querySelectorAll('[data-loop-carousel]').forEach((carousel) => {
         const track = carousel.querySelector('.loop-carousel-track');
         const slides = [...carousel.querySelectorAll('.loop-carousel-slide')];

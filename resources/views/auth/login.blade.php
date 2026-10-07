@@ -181,7 +181,13 @@
 
                             <label class="block">
                                 <span class="text-sm font-semibold text-slate-700">Password</span>
-                                <input id="password" name="password" type="password" required autocomplete="current-password" placeholder="Your password" class="focus-ring mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400">
+                                <span class="relative mt-2 block">
+                                    <input id="password" name="password" type="password" required autocomplete="current-password" placeholder="Your password" class="focus-ring w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-4 pr-12 text-sm text-slate-900 placeholder:text-slate-400">
+                                    <button type="button" data-password-toggle data-password-target="password" class="absolute inset-y-0 right-1 grid w-11 place-items-center rounded-xl text-slate-400 transition hover:bg-white hover:text-slate-700" aria-label="Show password" aria-pressed="false">
+                                        <i data-lucide="eye" data-password-show-icon class="size-4"></i>
+                                        <i data-lucide="eye-off" data-password-hide-icon class="hidden size-4"></i>
+                                    </button>
+                                </span>
                                 @error('password')
                                     <span class="mt-2 block text-sm text-rose-600">{{ $message }}</span>
                                 @enderror

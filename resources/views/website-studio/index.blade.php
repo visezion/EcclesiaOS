@@ -37,20 +37,103 @@
             <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{{ $errors->first() }}</div>
         @endif
 
-        <section class="dashboard-card space-y-4" aria-labelledby="design-transfer-title">
-            <h2 id="design-transfer-title" class="text-lg font-semibold">Export or import a website design</h2>
-            <p class="text-sm text-slate-600">Move your complete Website Studio design between local and live EcclesiaOS installations. The ZIP includes pages, text, navigation, reusable sections, widget settings, and uploaded images and videos. Use the same or a newer EcclesiaOS version on the destination.</p>
-            <p class="text-sm text-slate-600">External media stays linked. Events, sermons, ministries, store products, and church records are not copied; widgets use the destination church?s records. Review branding, contact details, and external links after import.</p>
-            <a href="{{ route('website-studio.design.export') }}" class="inline-flex rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white">Export website ZIP</a>
-            <form method="POST" action="{{ route('website-studio.design.import') }}" enctype="multipart/form-data" class="space-y-3 border-t border-slate-100 pt-4">
-                @csrf
-                <label class="block text-sm font-semibold">Website design ZIP
-                    <input type="file" name="design_package" accept=".zip,application/zip" required class="mt-2 block w-full text-sm">
-                </label>
-                <p class="text-xs text-slate-500">Maximum 210 MB, subject to your server's upload limit. Export the current design first if you want a backup.</p>
-                <label class="flex items-start gap-2 text-sm"><input type="checkbox" name="replace_design" value="1" required class="mt-1">Replace this church?s website settings and pages with the uploaded design, including its publication status.</label>
-                <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Import website design</button>
-            </form>
+        <section class="dashboard-card overflow-hidden p-0" aria-labelledby="design-transfer-title">
+            <div class="relative overflow-hidden border-b border-violet-100 bg-gradient-to-br from-slate-950 via-violet-950 to-violet-700 px-6 py-7 text-white sm:px-8">
+                <div class="absolute -right-12 -top-20 size-56 rounded-full border-[32px] border-white/5"></div>
+                <div class="absolute -bottom-24 right-28 size-44 rounded-full bg-fuchsia-400/10 blur-2xl"></div>
+                <div class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="max-w-2xl">
+                        <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-violet-100">
+                            <i data-lucide="git-compare-arrows" class="size-3.5"></i>
+                            Design portability
+                        </span>
+                        <h2 id="design-transfer-title" class="mt-4 text-2xl font-black tracking-tight sm:text-3xl">Move your website design with confidence</h2>
+                        <p class="mt-2 max-w-xl text-sm leading-6 text-violet-100/80">Package your complete Website Studio design for another EcclesiaOS installation, or bring a design into this church.</p>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs font-semibold text-violet-100/80">
+                        <span class="rounded-xl border border-white/10 bg-white/10 px-3 py-2"><i data-lucide="file-archive" class="mx-auto mb-1 size-4 text-violet-200"></i>One ZIP</span>
+                        <span class="rounded-xl border border-white/10 bg-white/10 px-3 py-2"><i data-lucide="images" class="mx-auto mb-1 size-4 text-violet-200"></i>Media included</span>
+                        <span class="rounded-xl border border-white/10 bg-white/10 px-3 py-2"><i data-lucide="shield-check" class="mx-auto mb-1 size-4 text-violet-200"></i>Validated</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid gap-0 lg:grid-cols-2">
+                <article class="flex flex-col border-b border-slate-200 p-6 sm:p-8 lg:border-b-0 lg:border-r">
+                    <div class="flex items-start gap-4">
+                        <span class="grid size-12 shrink-0 place-items-center rounded-2xl bg-violet-100 text-violet-700 ring-8 ring-violet-50">
+                            <i data-lucide="package-plus" class="size-5"></i>
+                        </span>
+                        <div>
+                            <p class="text-xs font-black uppercase tracking-[0.16em] text-violet-600">Step 1 · Create a backup</p>
+                            <h3 class="mt-1 text-xl font-bold text-slate-950">Export this design</h3>
+                            <p class="mt-2 text-sm leading-6 text-slate-500">Download pages, navigation, reusable sections, widget settings, and uploaded website media in one portable package.</p>
+                        </div>
+                    </div>
+
+                    <div class="my-6 grid gap-2 sm:grid-cols-2">
+                        @foreach ([['panels-top-left', 'Pages & navigation'], ['blocks', 'Sections & widgets'], ['palette', 'Theme settings'], ['images', 'Uploaded media']] as [$icon, $label])
+                            <div class="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600">
+                                <i data-lucide="{{ $icon }}" class="size-4 text-violet-500"></i>{{ $label }}
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <div class="mt-auto rounded-2xl border border-violet-100 bg-violet-50/70 p-4">
+                        <div class="flex items-start gap-3">
+                            <i data-lucide="lightbulb" class="mt-0.5 size-4 shrink-0 text-amber-500"></i>
+                            <p class="text-xs leading-5 text-slate-600">Export first before importing if you may need to restore the current design later.</p>
+                        </div>
+                        <a href="{{ route('website-studio.design.export') }}" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-violet-200 transition hover:-translate-y-0.5 hover:bg-violet-700 hover:shadow-violet-300">
+                            <i data-lucide="download" class="size-4"></i>
+                            Export website ZIP
+                        </a>
+                    </div>
+                </article>
+
+                <form method="POST" action="{{ route('website-studio.design.import') }}" enctype="multipart/form-data" class="flex flex-col p-6 sm:p-8" x-data="{ fileName: '', dragging: false }">
+                    @csrf
+                    <div class="flex items-start gap-4">
+                        <span class="grid size-12 shrink-0 place-items-center rounded-2xl bg-cyan-100 text-cyan-700 ring-8 ring-cyan-50">
+                            <i data-lucide="upload-cloud" class="size-5"></i>
+                        </span>
+                        <div>
+                            <p class="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">Step 2 · Restore or transfer</p>
+                            <h3 class="mt-1 text-xl font-bold text-slate-950">Import a design package</h3>
+                            <p class="mt-2 text-sm leading-6 text-slate-500">Use a ZIP exported from the same or a newer EcclesiaOS version. The package is checked before any design is replaced.</p>
+                        </div>
+                    </div>
+
+                    <label class="group relative mt-6 block cursor-pointer rounded-2xl border-2 border-dashed p-5 text-center transition"
+                        :class="dragging ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200 bg-slate-50/70 hover:border-cyan-400 hover:bg-cyan-50/50'"
+                        @dragenter.prevent="dragging = true" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="$refs.designPackage.files = $event.dataTransfer.files; fileName = $event.dataTransfer.files[0]?.name || ''; dragging = false">
+                        <input x-ref="designPackage" type="file" name="design_package" accept=".zip,application/zip" required class="sr-only" @change="fileName = $event.target.files[0]?.name || ''">
+                        <span class="mx-auto grid size-11 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition group-hover:text-cyan-700">
+                            <i data-lucide="file-up" class="size-5"></i>
+                        </span>
+                        <span class="mt-3 block text-sm font-bold text-slate-800" x-text="fileName || 'Choose a website design ZIP'">Choose a website design ZIP</span>
+                        <span class="mt-1 block text-xs text-slate-500" x-text="fileName ? 'Ready to import' : 'Click to browse or drag and drop · Maximum 210 MB'">Click to browse or drag and drop · Maximum 210 MB</span>
+                    </label>
+
+                    <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 transition hover:bg-amber-50">
+                        <input type="checkbox" name="replace_design" value="1" required class="mt-0.5 size-4 shrink-0 rounded border-amber-300 text-amber-600 focus:ring-amber-500">
+                        <span>
+                            <span class="flex items-center gap-2 text-sm font-bold text-amber-950"><i data-lucide="triangle-alert" class="size-4 text-amber-600"></i>I understand this replaces the current design</span>
+                            <span class="mt-1 block text-xs leading-5 text-amber-800/80">Website settings and pages will be replaced, including their publication status.</span>
+                        </span>
+                    </label>
+
+                    <button type="submit" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-slate-200 transition hover:-translate-y-0.5 hover:bg-cyan-700 hover:shadow-cyan-200">
+                        <i data-lucide="upload" class="size-4"></i>
+                        Import website design
+                    </button>
+                </form>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-4 text-xs leading-5 text-slate-500 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
+                <p class="flex items-start gap-2"><i data-lucide="link" class="mt-0.5 size-3.5 shrink-0"></i>External media remains linked; review branding, contact details, and external links after import.</p>
+                <p class="flex items-start gap-2 lg:max-w-xl"><i data-lucide="database" class="mt-0.5 size-3.5 shrink-0"></i>Events, sermons, ministries, products, and church records stay on the destination installation.</p>
+            </div>
         </section>
 
         <div class="website-studio-shell">

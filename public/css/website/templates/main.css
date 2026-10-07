@@ -23,7 +23,7 @@ svg {
 
 /* Website Studio navigation styles. These variants preserve the same
    accessible mobile menu while giving desktop sites distinct personalities. */
-@media (min-width: 851px) {
+@media (min-width: 1201px) {
     body.menu-style-floating .site-header {
         top: 14px;
         width: min(1680px, calc(100% - 40px));
@@ -852,6 +852,9 @@ footer {
 
 .component-column .button {
     width: max-content;
+    max-width: 100%;
+    text-align: center;
+    white-space: normal;
 }
 
 .reusable-grid h2 {
@@ -2251,40 +2254,6 @@ img.content-sermon-thumbnail {
         > .container {
         width: min(100% - 28px, 680px);
     }
-    .site-nav {
-        display: none;
-        position: absolute;
-        top: 70px;
-        right: 14px;
-        left: 14px;
-        flex-direction: column;
-        gap: 0;
-        padding: 12px;
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        background: #fff;
-        box-shadow: 0 15px 35px rgb(0 0 0 / 12%);
-    }
-    .site-nav.is-open {
-        display: flex;
-    }
-    .site-nav a {
-        padding: 12px;
-    }
-    .site-nav-item { width:100%; }
-    .site-nav-parent { justify-content:space-between; }
-    .site-submenu, .site-submenu-mega { position:static; display:none; width:auto; min-width:0; padding:4px 0 4px 12px; border:0; border-radius:0; background:transparent; box-shadow:none; transform:none; }
-    .site-submenu::before { display:none; }
-    .site-nav-item.is-open > .site-submenu, .site-nav-item.is-open > .site-submenu-mega { display:flex; flex-direction:column; }
-    .site-submenu-mega { gap:4px; }
-    .site-submenu-column { gap:0; }
-    .site-submenu a { min-width:0; padding:9px 12px; color:var(--ink,#0f172a); }
-    .menu-toggle {
-        display: block;
-    }
-    .nav-action {
-        display: none;
-    }
     .hero {
         padding: 60px 0 75px;
     }
@@ -3620,3 +3589,86 @@ body .brand-mark.has-logo img {
 .website-faq-answer{padding:0 32px 22px 0;max-width:82ch;color:var(--showcase-muted,#667085);font-size:14px;line-height:1.75;white-space:pre-line;overflow-wrap:anywhere}
 @media(max-width:640px){.website-faq-item>summary{min-height:58px;padding:16px 0;font-size:14px}.website-faq-answer{font-size:13px;padding-right:12px}}
 @media(prefers-reduced-motion:reduce){.website-faq-item>summary,.website-faq-item>summary svg{transition:none}}
+
+/* Keep intrinsic content from widening grid tracks or clipping long labels. */
+.brand, .brand > span, .site-search, .site-search input,
+.public-widget, .component-stack, .component-group-stack,
+.hero-grid > *, .two-column > *, .feature-grid > *,
+.service-grid > *, .card-grid > *, .event-list > *,
+.public-event-hero-grid > *, .public-event-content-grid > * {
+    min-width: 0;
+}
+.site-shell { overflow-wrap: anywhere; }
+.brand-mark, .menu-toggle { flex-shrink: 0; }
+.button { max-width: 100%; white-space: normal; text-align: center; }
+
+@media (max-width: 1200px) {
+    .site-nav {
+        display: none;
+        position: absolute;
+        top: 70px;
+        right: 14px;
+        left: 14px;
+        flex-direction: column;
+        gap: 0;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 15px 35px rgb(0 0 0 / 12%);
+    }
+    .site-nav.is-open {
+        display: flex;
+    }
+    .site-nav a {
+        padding: 12px;
+    }
+    .site-nav-item { width:100%; }
+    .site-nav-parent { justify-content:space-between; }
+    .site-submenu, .site-submenu-mega { position:static; display:none; width:auto; min-width:0; padding:4px 0 4px 12px; border:0; border-radius:0; background:transparent; box-shadow:none; transform:none; }
+    .site-submenu::before { display:none; }
+    .site-nav-item.is-open > .site-submenu, .site-nav-item.is-open > .site-submenu-mega { display:flex; flex-direction:column; }
+    .site-submenu-mega { gap:4px; }
+    .site-submenu-column { gap:0; }
+    .site-submenu a { min-width:0; padding:9px 12px; color:var(--ink,#0f172a); }
+    .menu-toggle {
+        display: block;
+    }
+    .nav-action {
+        display: none;
+    }
+
+    .nav-row { gap: 12px; }
+    .site-search { display: none; }
+    .site-nav {
+        top: 100%;
+        max-height: calc(100dvh - 100px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+    .theme-dark .site-nav {
+        border-color: #292929;
+        background: var(--showcase-panel);
+    }
+    .theme-dark .site-submenu a { color: var(--showcase-text); }
+    .site-nav-parent > a { white-space: normal; }
+    .site-submenu-toggle { width: 44px; height: 44px; flex: 0 0 44px; }
+    .site-nav-item:not(.is-open) > .site-submenu { display: none; }
+    .menu-toggle, .theme-toggle { min-width: 44px; min-height: 44px; }
+}
+
+@media (max-width: 850px) {
+    /* Studio writes desktop column ratios inline; override at every nesting level. */
+    .component-columns { grid-template-columns: minmax(0, 1fr) !important; }
+    .reusable-grid { grid-template-columns: minmax(0, 1fr); gap: 30px; }
+    .has-column-presentation { padding: min(var(--column-padding, 16px), 24px); }
+    .component-group-stack > .column-full-bleed { width: 100%; margin-inline: 0; }
+    .reusable-section:has(.column-full-bleed) > .container { width: 100%; max-width: none; }
+}
+
+@media (max-width: 480px) {
+    .brand { gap: 8px; font-size: 14px; }
+    .brand small { letter-spacing: .04em; }
+    .nav-row { gap: 8px; }
+    .public-event-copy h1 { font-size: clamp(32px, 10vw, 48px); }
+}

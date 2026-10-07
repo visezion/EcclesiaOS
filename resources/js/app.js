@@ -3109,8 +3109,29 @@ function safeCreateIcons() {
     }
 }
 
+function initializePasswordToggles() {
+    document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+        const input = document.getElementById(button.dataset.passwordTarget || '');
+        if (! input) {
+            return;
+        }
+
+        button.addEventListener('click', () => {
+            const passwordIsVisible = input.type === 'text';
+            input.type = passwordIsVisible ? 'password' : 'text';
+            button.setAttribute('aria-pressed', String(! passwordIsVisible));
+            button.setAttribute('aria-label', passwordIsVisible
+                ? (button.dataset.passwordShowLabel || 'Show password')
+                : (button.dataset.passwordHideLabel || 'Hide password'));
+            button.querySelector('[data-password-show-icon]')?.classList.toggle('hidden', ! passwordIsVisible);
+            button.querySelector('[data-password-hide-icon]')?.classList.toggle('hidden', passwordIsVisible);
+        });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     safeCreateIcons();
+    initializePasswordToggles();
 
     const chartElements = document.querySelectorAll('[data-chart]');
     if (chartElements.length === 0) {

@@ -143,7 +143,13 @@
                             </label>
                             <label class="block text-sm font-semibold text-slate-700 md:col-span-2">
                                 Administrator Password
-                                <input type="password" name="admin_password" class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" placeholder="12+ characters, mixed case, number">
+                                <span class="relative mt-2 block">
+                                    <input id="admin_password" type="password" name="admin_password" autocomplete="new-password" class="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-4 pr-12 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" placeholder="12+ characters, mixed case, number">
+                                    <button type="button" data-password-toggle data-password-target="admin_password" class="absolute inset-y-0 right-1 grid w-11 place-items-center rounded-xl text-slate-400 transition hover:bg-slate-50 hover:text-slate-700" aria-label="Show password" aria-pressed="false">
+                                        <i data-lucide="eye" data-password-show-icon class="size-4"></i>
+                                        <i data-lucide="eye-off" data-password-hide-icon class="hidden size-4"></i>
+                                    </button>
+                                </span>
                             </label>
                         </div>
 
